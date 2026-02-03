@@ -40,3 +40,8 @@ METHOD 2:
 - Done! The launcher window should open up!
 
 *If you don't want to install **pywebview**, it will open up in your default browser instead once you open up the launcher.*
+
+# Opening the Launcher
+To open the launcher, download the latest version from the **[release page](https://github.com/KerbalOfficial/Histolauncher/releases)**. After it installs, unzip the `.zip` file. Then, make sure you have the requirements (instructions for installing them are above). After that, run `launcher.py` which will start the launcher.
+
+Enjoy!
