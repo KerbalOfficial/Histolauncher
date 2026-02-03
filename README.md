@@ -8,4 +8,35 @@ Some versions (like the old Java Applet builds) are currently disabled due to te
 If you'd like to contribute, report issues, or help expand support for more versions, you're invited to help!
 
 Histolauncher is a passion project - built for preservation, curiosity, and nostalgia.
-Enjoy exploring Minecraft's past!
+
+# Requirements
+You will need:
+- **Java Runtime** *(JRE)* for the clients
+- **Python 3.x** for the launcher
+- **`pywebview`** *(Python Package)* for the webview window to load *(optional)*
+
+## How to install:
+### Java Runtime (JRE):
+- Download from **https://www.java.com/download/manual.jsp**
+- Click on the OS and what architecture your machine is using
+- Follow the instructions the installer tells you
+- Done! The clients should load once you try to launch!
+
+### Python 3.x:
+METHOD 1:
+- Download from **https://www.python.org/downloads/**
+- Click on the latest release (should be a bugfix or security patch, pre-releases are probably not recommended)
+- Click on the OS your machine is using
+- Follow the instructions the installer tells you
+- Done! The launcher should load once you try to open it!
+
+METHOD 2:
+- For **Windows**, install it using the 'Microsoft store' *(Python 3.13)*: https://apps.microsoft.com/detail/9pnrbtzxmb4z
+
+### pywebview (optional):
+- You first need *python installed* for the `pip` command
+- Go to a terminal, and type in `pip install pywebview`, then press Enter
+- Make sure it successfully installs
+- Done! The launcher window should open up!
+
+*If you don't want to install **pywebview**, it will open up in your default browser instead once you open up the launcher.*
