@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Histolauncher</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="sidebar-item" data-page="home">
+      <img 
+        class="sidebar-icon"
+        data-static="assets/images/cobblestone_block.png"
+        data-anim="assets/images/cobblestone_block.png"
+        src="assets/images/cobblestone_block.png"
+      />
+      <span>Home</span>
+    </div>
+    <div class="sidebar-item" data-page="versions">
+      <img 
+        class="sidebar-icon"
+        data-static="assets/images/library_block.png"
+        data-anim="assets/images/library_block.png"
+        src="assets/images/library_block.png"
+      />
+      <span>Versions</span>
+    </div>
+    <div class="sidebar-item" data-page="settings">
+      <img 
+        class="sidebar-icon"
+        data-static="assets/images/settings.png"
+        data-anim="assets/images/settings.gif"
+        src="assets/images/settings.png"
+      />
+      <span>Settings</span>
+    </div>
+    <div class="sidebar-item" data-page="about">
+      <img 
+        class="sidebar-icon"
+        data-static="assets/images/unknown_block.png"
+        data-anim="assets/images/unknown_block.png"
+        src="assets/images/unknown_block.png"
+      />
+      <span>About</span>
+    </div>
+
+    <div id="sidebar-version" class="sidebar-version" title="Launcher version"></div>
+  </div>
+
+  <!-- MAIN APP -->
+  <div id="app">
+
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <button id="refresh-btn" title="Refresh values (Hold shift to refresh page)">Refresh</button>
+    </div>
+
+    <!-- HOME PAGE -->
+    <div id="page-home" class="page">
+      <h2 class="section-title"><img width="24px" height="24px" src="assets/images/cobblestone.png"/> Home</h2>
+
+      <div id="home-info" class="info-box">
+        <div id="info-version"><img width="16px" height="16px" src="assets/images/unknown.png"/> Version: (none selected)</div>
+        <div id="info-username"><img width="16px" height="16px" src="assets/images/unknown.png"/> Account: (unknown)</div>
+        <div id="info-ram"><img width="16px" height="16px" src="assets/images/unknown.png"/> RAM Limit: (unknown)</div>
+      </div>
+
+      <div class="home-launch-container">
+        <button id="launch-btn" class="big-launch-btn">Launch</button>
+      </div>
+
+      <!-- a little easter egg -->
+      <img class="running_steve" src="assets/images/running_steve.gif"/>
+
+      <div id="status" class="status"></div>
+    </div>
+
+    <!-- VERSIONS PAGE -->
+    <div id="page-versions" class="page hidden">
+      <div class="versions-header">
+        <h2 class="section-title"><img width="24px" height="24px" src="assets/images/library.png"/> Versions</h2>
+
+        <div class="versions-filter">
+          <label for="versions-category-select">Category:</label>
+          <select id="versions-category-select"></select>
+
+          <label for="versions-search">Search:</label>
+          <input id="versions-search" type="search" placeholder="Search...">
+        </div>
+      </div>
+      <div id="version-cards"></div>
+    </div>
+
+    <!-- SETTINGS PAGE -->
+    <div id="page-settings" class="page hidden">
+      <h2 class="section-title"><img width="24px" height="24px" src="assets/images/settings.gif"/> Settings</h2>
+      <br>
+
+      <br>
+      <h3>Account</h3>
+      <br>
+      
+      <div class="row">
+        <label>Username:</label>
+        <input type="text" id="settings-username"/>
+      </div>
+
+      <br>
+      <h3>Client</h3>
+      <br>
+
+      <div class="row">
+        <label>Minimum RAM:</label>
+        <input type="text" id="settings-min-ram" placeholder="256M"/>B
+      </div>
+      <div class="row">
+        <label>Maximum RAM:</label>
+        <input type="text" id="settings-max-ram" placeholder="1024M"/>B
+      </div>
+    </div>
+
+    <!-- ABOUT PAGE -->
+    <div id="page-about" class="page hidden">
+      <h2 class="section-title"><img width="24px" height="24px" src="assets/images/unknown.png"/> About</h2>
+      <br>
+
+      <p>
+        Histolauncher is a lightweight, community-driven launcher built to preserve and explore the early history of Minecraft. It provides a clean, modern interface for browsing and launching a massive library of old Minecraft clients - from the earliest Alpha builds to the late Beta era.
+        <br><br>
+        The goal is simple: make it easy for anyone to revisit the versions that shaped Minecraft's development, without digging through archives or setting up each client manually. Everything is organized, searchable, and ready to launch with just a click.
+        <br><br>
+        Some versions (like the old Java Applet builds) are currently disabled due to technical limitations, but the launcher is designed to grow and improve over time as more features become possible.
+        <br><br>
+        If you'd like to contribute, report issues, or help expand support for more versions, you're invited to join the project on GitHub: <a href="https://github.com/KerbalOfficial/Histolauncher/" target="_blank" rel="noopener noreferrer">Histolauncher GitHub</a>
+        <br><br>
+        Histolauncher is a passion project - built for preservation, curiosity, and nostalgia. Enjoy exploring Minecraft's past!
+      </p>
+    </div>
+
+  </div>
+
+  
+  <div id="loading-overlay" class="loading-overlay hidden">
+    <!-- LAUNCH LOADING OVERLAY -->
+    <div id="launching-box" class="loading-box hidden">
+      <img class="spinner" src="assets/images/nether_block.gif" alt="">
+      <div class="loading-text">Launching...</div>
+    </div>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loading-box" class="loading-box hidden">
+      <img class="spinner" src="assets/images/settings.gif" alt="">
+      <div class="loading-text">Loading...</div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

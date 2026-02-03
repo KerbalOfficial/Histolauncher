@@ -1,0 +1,17 @@
+Thank you for installing Histolauncher!
+
+WARNING: This version (r1) has support for ONLY windows! Linux & Mac will be supported very soon!
+
+How to open:
+- Make sure you have the requirements (check GitHub README.md)
+- Open `launcher.py` using Python
+
+How to enable debug mode (always show terminal):
+- METHOD 1: Create a new file called "__debug__" in the same directory as `launcher.py`
+- METHOD 2: Go to terminal, make sure you are in the same path as where `launcher.py` is in, then type `echo ''>__debug__` and then press Enter (this works in almost every OS: Windows, Linux, and Mac)
+
+If you have the `pywebview` python package, it will open in a window, if you do NOT, it will open up in your default browser (and enable debug mode automatically since that is the only way to close the launcher's server which is by closing the terminal).
+
+If you have any issues, any problems, or any suggestions you want to give for the launcher, please create a new "Issue" in the GitHub!
+
+GitHub Histolauncher: https://github.com/KerbalOfficial/Histolauncher
