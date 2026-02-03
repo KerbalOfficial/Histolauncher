@@ -31,7 +31,7 @@ METHOD 1:
 - Done! The launcher should load once you try to open it!
 
 METHOD 2:
-- For **Windows**, install it using the 'Microsoft store' *(Python 3.13)*: https://apps.microsoft.com/detail/9pnrbtzxmb4z
+- For **Windows**, install it using the 'Microsoft store' *(Python 3.13)*: **https://apps.microsoft.com/detail/9pnrbtzxmb4z**
 
 ### pywebview (optional):
 - You first need *python installed* for the `pip` command
