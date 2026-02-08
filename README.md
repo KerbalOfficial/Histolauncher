@@ -13,7 +13,6 @@ Histolauncher is a passion project - built for preservation, curiosity, and nost
 You will need:
 - **Java Runtime** *(JRE)* for the clients
 - **Python 3.x** for the launcher
-- **`pywebview`** *(Python Package)* for the webview window to load *(optional)*
 
 ## How to install:
 ### Java Runtime (JRE):
@@ -32,14 +31,6 @@ METHOD 1:
 
 METHOD 2:
 - For **Windows**, install it using the 'Microsoft store' *(Python 3.13)*: **https://apps.microsoft.com/detail/9pnrbtzxmb4z**
-
-### pywebview (optional):
-- You first need *python installed* for the `pip` command
-- Go to a terminal, and type in `pip install pywebview`, then press Enter
-- Make sure it successfully installs
-- Done! The launcher window should open up!
-
-*If you don't want to install **pywebview**, it will open up in your default browser instead once you open up the launcher.*
 
 # Opening the Launcher
 To open the launcher, download the latest version from the **[release page](https://github.com/KerbalOfficial/Histolauncher/releases)**. After it installs, unzip the `.zip` (can be `.tar`) file. Then, make sure you have the requirements (instructions for installing them are above). After that, run `launcher.py` which will start the launcher.
