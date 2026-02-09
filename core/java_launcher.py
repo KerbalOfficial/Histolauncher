@@ -2,7 +2,7 @@
 import os
 import subprocess
 import platform
-from core.settings import load_global_settings
+from core.settings import load_global_settings, get_base_dir
 
 def _native_subfolder_for_platform():
     system = platform.system().lower()
@@ -17,42 +17,12 @@ def _native_subfolder_for_platform():
 def _join_classpath(base_dir, entries):
     sep = os.pathsep
     abs_entries = [os.path.join(base_dir, e) for e in entries]
-    abs_entries.append(base_dir)
     return sep.join(abs_entries)
 
-def launch_version(version_identifier, username_override=None):
-    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    clients_dir = os.path.join(base_dir, "clients")
-
-    if "/" in version_identifier or "\\" in version_identifier:
-        parts = version_identifier.replace("\\", "/").split("/", 1)
-        category, folder = parts[0], parts[1]
-        version_dir = os.path.join(clients_dir, category, folder)
-    else:
-        candidate = os.path.join(clients_dir, version_identifier)
-        if os.path.isdir(candidate):
-            version_dir = candidate
-        else:
-            found = None
-            for cat in os.listdir(clients_dir):
-                p = os.path.join(clients_dir, cat, version_identifier)
-                if os.path.isdir(p):
-                    found = p
-                    break
-            if not found:
-                print("ERROR: Version directory not found for", version_identifier)
-                return False
-            version_dir = found
-
-    if not os.path.isdir(version_dir):
-        print("ERROR: Version directory does not exist:", version_dir)
-        return False
-
+def _load_data_ini(version_dir):
     data_ini = os.path.join(version_dir, "data.ini")
     if not os.path.exists(data_ini):
-        print("ERROR: data.ini missing in", version_dir)
-        return False
-
+        return {}
     meta = {}
     with open(data_ini, "r", encoding="utf-8") as f:
         for line in f:
@@ -62,59 +32,149 @@ def launch_version(version_identifier, username_override=None):
             if "=" in line:
                 k, v = line.split("=", 1)
                 meta[k.strip()] = v.strip()
+    return meta
 
-    main_class = meta.get("main_class")
-    classpath_raw = meta.get("classpath", "")
-    if not main_class or not classpath_raw:
-        print("ERROR: data.ini must contain main_class and classpath")
+def _parse_mc_version(version_identifier):
+    if "/" in version_identifier:
+        _, base = version_identifier.split("/", 1)
+    else:
+        base = version_identifier
+    base = base.split("-", 1)[0]
+    parts = base.split(".")
+    try:
+        major = int(parts[0])
+        minor = int(parts[1]) if len(parts) > 1 else 0
+        return major, minor
+    except Exception:
+        return None, None
+
+def _is_authlib_injector_needed(version_identifier):
+    major, minor = _parse_mc_version(version_identifier)
+    if major is None:
         return False
+    if major > 1:
+        return True
+    if major == 1 and minor >= 13:
+        return True
+    return False
 
-    classpath_entries = [p.strip() for p in classpath_raw.split(",") if p.strip()]
+def _expand_placeholders(args_str, version_identifier, game_dir, version_dir, global_settings, meta):
+    username = (global_settings.get("username") or "Player").strip() or "Player"
+
+    base_dir = get_base_dir()
+    assets_root = os.path.join(base_dir, "assets")
+    asset_index_name = meta.get("asset_index") or ""
+    version_type = meta.get("version_type") or ""
+
+    auth_uuid = "00000000-0000-0000-0000-000000000000"
+    auth_access_token = "0"
+    user_type = "legacy"
+    user_properties = "{}"
+
+    replacements = {
+        "${auth_player_name}": username,
+        "${auth_uuid}": auth_uuid,
+        "${auth_access_token}": auth_access_token,
+        "${user_type}": user_type,
+        "${user_properties}": user_properties,
+        "${version_name}": version_identifier,
+        "${game_directory}": game_dir,
+        "${gameDir}": game_dir,
+        "${assets_root}": assets_root,
+        "${assets_index_name}": asset_index_name,
+        "${version_type}": version_type,
+        "${resolution_width}": "854",
+        "${resolution_height}": "480",
+    }
+
+    out = args_str
+    for k, v in replacements.items():
+        out = out.replace(k, v)
+
+    out = out.replace("--demo", "")
+    return out
+
+def launch_version(version_identifier, username_override=None):
+    base_dir = get_base_dir()
+    clients_dir = os.path.join(base_dir, "clients")
+
+    if "/" in version_identifier:
+        parts = version_identifier.replace("\\", "/").split("/", 1)
+        category, folder = parts[0], parts[1]
+        version_dir = os.path.join(clients_dir, category.lower(), folder)
+    else:
+        version_dir = None
+        for cat in os.listdir(clients_dir):
+            p = os.path.join(clients_dir, cat, version_identifier)
+            if os.path.isdir(p):
+                version_dir = p
+                break
+        if not version_dir:
+            print("ERROR: Version directory not found for", version_identifier)
+            return False
+
+    meta = _load_data_ini(version_dir)
+
+    main_class = meta.get("main_class") or "net.minecraft.client.Minecraft"
+    classpath_entries = [p.strip() for p in (meta.get("classpath") or "client.jar").split(",") if p.strip()]
     classpath = _join_classpath(version_dir, classpath_entries)
 
     global_settings = load_global_settings()
-    min_ram = (global_settings.get("min_ram") or "").strip()
-    max_ram = (global_settings.get("max_ram") or "").strip()
     username = username_override or global_settings.get("username", "Player")
+    min_ram = global_settings.get("min_ram", "64M")
+    max_ram = global_settings.get("max_ram", "2048M")
 
-    if not min_ram:
-        min_ram = "256M"
-    if not max_ram:
-        max_ram = "1024M"
-
-    native_candidate = meta.get("native_subfolder") or _native_subfolder_for_platform()
-    native_path = os.path.join(version_dir, native_candidate) if native_candidate else None
-    if native_path and not os.path.isdir(native_path):
-        fallback = os.path.join(version_dir, "native")
-        if os.path.isdir(fallback):
-            native_path = fallback
-        else:
-            native_path = None
+    storage_mode = global_settings.get("storage_directory", "global").lower()
+    if storage_mode == "version":
+        game_dir = version_dir
+    else:
+        game_dir = os.path.join(os.path.expanduser("~"), ".minecraft")
 
     cmd = [
         "java",
         f"-Xms{min_ram}",
         f"-Xmx{max_ram}",
-        "-cp", classpath,
-        main_class,
-        username,
     ]
 
-    if native_path:
-        cmd = [
-            "java",
-            f"-Xms{min_ram}",
-            f"-Xmx{max_ram}",
-            f"-Djava.library.path={native_path}",
-            "-cp", classpath,
-            main_class,
-            username,
-        ]
+    # authlib-injector
+    if _is_authlib_injector_needed(version_identifier):
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        authlib_path = os.path.join(project_root, "assets", "authlib-injector.jar")
+        if os.path.exists(authlib_path):
+            port_str = os.environ.get("HISTOLAUNCHER_PORT")
+            if port_str:
+                try:
+                    ygg_port = int(port_str)
+                except ValueError:
+                    ygg_port = 0
+            else:
+                ygg_port = 0
+
+            if ygg_port > 0:
+                ygg_url = f"http://127.0.0.1:{ygg_port}/authserver"
+                cmd.append(f"-javaagent:{authlib_path}={ygg_url}")
+
+    native_folder = meta.get("native_subfolder") or _native_subfolder_for_platform()
+    native_path = os.path.join(version_dir, native_folder)
+    if os.path.isdir(native_path):
+        cmd.append(f"-Djava.library.path={native_path}")
+
+    cmd.extend(["-cp", classpath])
+    cmd.append(main_class)
 
     extra = meta.get("extra_jvm_args")
     if extra:
-        extra_parts = extra.split()
-        cmd = ["java"] + extra_parts + cmd[1:]
+        expanded = _expand_placeholders(
+            extra,
+            version_identifier,
+            game_dir,
+            version_dir,
+            global_settings,
+            meta,
+        )
+        cmd.extend(expanded.split())
+    else:
+        cmd.append(username)
 
     print("Launching version:", version_identifier)
     print("Version dir:", version_dir)
@@ -123,9 +183,6 @@ def launch_version(version_identifier, username_override=None):
     try:
         subprocess.Popen(cmd, cwd=version_dir)
         return True
-    except FileNotFoundError:
-        print("ERROR: 'java' not found. Make sure Java is installed and on PATH.")
-        return False
     except Exception as e:
         print("ERROR launching:", e)
         return False

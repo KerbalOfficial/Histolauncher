@@ -2,16 +2,22 @@
 import os
 
 def get_base_dir():
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    user = os.path.expanduser("~")
+    base = os.path.join(user, ".histolauncher")
+    os.makedirs(base, exist_ok=True)
+    return base
 
 def get_settings_path():
     return os.path.join(get_base_dir(), "settings.ini")
 
 DEFAULTS = {
     "username": "Player",
-    "min_ram": "256M",
-    "max_ram": "1024M",
+    "min_ram": "64M",
+    "max_ram": "2048M",
     "selected_version": "",
+    "url_proxy": "",
+    "favorite_versions": "",
+    "storage_directory": "global",
 }
 
 def load_global_settings():
@@ -46,6 +52,7 @@ def save_global_settings(settings_dict):
         v = current.get(k, "")
         lines.append(f"{k} = {v}")
 
+    os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 

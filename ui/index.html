@@ -9,12 +9,12 @@
 
   <!-- SIDEBAR -->
   <div id="sidebar">
-    <div class="sidebar-item" data-page="home">
+    <div class="sidebar-item active" data-page="home">
       <img 
         class="sidebar-icon"
-        data-static="assets/images/cobblestone_block.png"
-        data-anim="assets/images/cobblestone_block.png"
-        src="assets/images/cobblestone_block.png"
+        data-static="assets/images/histolauncher_block.png"
+        data-anim="assets/images/histolauncher_block.png"
+        src="assets/images/histolauncher_block.png"
       />
       <span>Home</span>
     </div>
@@ -59,9 +59,9 @@
 
     <!-- HOME PAGE -->
     <div id="page-home" class="page">
-      <h2 class="section-title"><img width="24px" height="24px" src="assets/images/cobblestone.png"/> Home</h2>
+      <h2 class="section-title"><img width="24px" height="24px" src="assets/images/histolauncher.png"/> Home</h2>
 
-      <div id="home-info" class="info-box">
+      <div id="home-info" class="info-box" style="max-width:720px;margin:40px auto 20px auto;">
         <div id="info-version"><img width="16px" height="16px" src="assets/images/unknown.png"/> Version: (none selected)</div>
         <div id="info-username"><img width="16px" height="16px" src="assets/images/unknown.png"/> Account: (unknown)</div>
         <div id="info-ram"><img width="16px" height="16px" src="assets/images/unknown.png"/> RAM Limit: (unknown)</div>
@@ -90,21 +90,47 @@
           <input id="versions-search" type="search" placeholder="Search...">
         </div>
       </div>
-      <div id="version-cards"></div>
+
+      <div class="versions-sections">
+        <p id="versions-section-warning" class="hidden">Warning message</p>
+
+        <section id="installed-section" class="info-box">
+          <div class="versions-section-header">
+            <h3>Installed</h3>
+            <span class="versions-section-subtitle">Versions that are installed in your device and ready to launch!</span>
+          </div>
+          <div id="installed-versions" class="versions-list"></div>
+        </section>
+
+        <section id="installing-section" class="info-box">
+          <div class="versions-section-header">
+            <h3>Installing</h3>
+            <span class="versions-section-subtitle">Versions that are currently being downloaded.</span>
+          </div>
+          <div id="installing-versions" class="versions-list"></div>
+        </section>
+
+        <section id="available-section" class="info-box">
+          <div class="versions-section-header">
+            <h3>Available</h3>
+            <span class="versions-section-subtitle">Versions from Mojang's official API.</span>
+          </div>
+          <div id="available-versions" class="versions-list"></div>
+        </section>
+      </div>
     </div>
 
     <!-- SETTINGS PAGE -->
     <div id="page-settings" class="page hidden">
       <h2 class="section-title"><img width="24px" height="24px" src="assets/images/settings.gif"/> Settings</h2>
-      <br>
 
       <br>
       <h3>Account</h3>
       <br>
-      
+
       <div class="row">
         <label>Username:</label>
-        <input type="text" id="settings-username"/>
+        <input type="text" id="settings-username" maxlength="16" size="15"/>
       </div>
 
       <br>
@@ -113,11 +139,32 @@
 
       <div class="row">
         <label>Minimum RAM:</label>
-        <input type="text" id="settings-min-ram" placeholder="256M"/>B
+        <input type="text" id="settings-min-ram" placeholder="64M" size="5"/>B
       </div>
       <div class="row">
         <label>Maximum RAM:</label>
-        <input type="text" id="settings-max-ram" placeholder="1024M"/>B
+        <input type="text" id="settings-max-ram" placeholder="2048M" size="5"/>B
+      </div>
+      <div class="row">
+        <label>Storage directory:</label>
+        <select id="settings-storage-dir">
+          <option value="global">Global</option>
+          <option value="version">Version</option>
+        </select>
+      </div>
+
+      <br>
+      <h3>Launcher</h3>
+      <p style="color:#ff505099;font-size:12px;">Do not change these settings here unless you know what you are doing!</p>
+      <br>
+
+      <div class="row">
+        <label>URL Proxy:</label>
+        <input type="text" id="settings-url-proxy" placeholder="https://yourproxy.com/?url=" size="40"/>
+      </div>
+      <div class="row">
+        <label>Data Folder:</label>
+        <button id="open-data-folder-btn">Open Data Folder</button>
       </div>
     </div>
 
@@ -127,21 +174,18 @@
       <br>
 
       <p>
-        Histolauncher is a lightweight, community-driven launcher built to preserve and explore the early history of Minecraft. It provides a clean, modern interface for browsing and launching a massive library of old Minecraft clients - from the earliest Alpha builds to the late Beta era.
+        Histolauncher is a lightweight, community-driven launcher built to grow and help users play any versions of Minecraft they like. It provides a clean, modern interface for browsing and launching a massive library of Minecraft clients, all officially from Mojang!
         <br><br>
-        The goal is simple: make it easy for anyone to revisit the versions that shaped Minecraft's development, without digging through archives or setting up each client manually. Everything is organized, searchable, and ready to launch with just a click.
-        <br><br>
-        Some versions (like the old Java Applet builds) are currently disabled due to technical limitations, but the launcher is designed to grow and improve over time as more features become possible.
+        The goal is simple: make it easy for anyone to play any Minecraft version offline without having to risk searching for 100% clean launcher. Everything is organized, searchable, and ready to download & launch with just a few clicks.
         <br><br>
         If you'd like to contribute, report issues, or help expand support for more versions, you're invited to join the project on GitHub: <a href="https://github.com/KerbalOfficial/Histolauncher/" target="_blank" rel="noopener noreferrer">Histolauncher GitHub</a>
         <br><br>
-        Histolauncher is a passion project - built for preservation, curiosity, and nostalgia. Enjoy exploring Minecraft's past!
+        Histolauncher is a passion project - built for easy access to Minecraft clients offline whenever. Enjoy playing Minecraft!
       </p>
     </div>
 
   </div>
 
-  
   <div id="loading-overlay" class="loading-overlay hidden">
     <!-- LAUNCH LOADING OVERLAY -->
     <div id="launching-box" class="loading-box hidden">
@@ -153,6 +197,15 @@
     <div id="loading-box" class="loading-box hidden">
       <img class="spinner" src="assets/images/settings.gif" alt="">
       <div class="loading-text">Loading...</div>
+    </div>
+  </div>
+
+  <!-- MESSAGE BOX -->
+  <div id="msgbox-overlay" class="loading-overlay hidden">
+    <div id="msgbox-box" class="loading-box">
+      <div id="msgbox-title" style="font-size:20px; font-weight:bold; margin-bottom:10px;"></div>
+      <div id="msgbox-text" style="margin-bottom:20px; font-size:15px;"></div>
+      <div id="msgbox-buttons" style="display:flex; gap:12px; justify-content:center;"></div>
     </div>
   </div>
 

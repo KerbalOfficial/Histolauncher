@@ -1,6 +1,6 @@
 Thank you for installing Histolauncher!
 
-WARNING: This version (r1) has support for ONLY windows! Linux & Mac will be supported very soon!
+NOTE: This version (b1.1) needs testing on Linux & Mac! It has not been tested yet!
 
 How to open:
 - Make sure you have the requirements (check GitHub README.md)

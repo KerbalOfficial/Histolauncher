@@ -154,12 +154,10 @@ a {
 
 /* HOME INFO BOX */
 .info-box {
-  background: #1a1a1a;
+  background: rgba(0,0,0,0.25);
   border: 4px solid #333;
   color: #e5e7eb;
-  padding: 20px;
-  max-width: 720px;
-  margin: 40px auto 20px auto;
+  padding: 18px;
 }
 
 .info-box div {
@@ -224,45 +222,43 @@ a {
   color:#e5e7eb;
 }
 
-/* VERSION CARDS */
-#version-cards {
+/* VERSION SECTIONS */
+.versions-sections {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  flex-direction: column;
+  gap: 24px;
   margin-top: 8px;
 }
 
-.favorite-star {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
+#versions-section-warning {
+  color: #ff4141;
+  padding: 10px;
+}
+
+.versions-section-header {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10;
-  cursor: pointer;
-  transition: transform 0.12s ease, opacity 0.12s ease;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  border: 0;
+  flex-direction: column;
+  margin-bottom: 8px;
 }
 
-.favorite-star img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-  pointer-events: none;
+.versions-section-header h3 {
+  font-size: 18px;
+  margin-bottom: 2px;
 }
 
-.favorite-star:hover {
-  transform: scale(1.12);
-  opacity: 1;
+.versions-section-subtitle {
+  font-size: 11px;
+  color: #9ca3af;
 }
 
+/* VERSION LISTS */
+.versions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* VERSION CARDS */
 .version-card {
   width: 260px;
   background: #1a1a1a;
@@ -286,6 +282,28 @@ a {
   color: #fff;
 }
 
+.version-card.unselectable {
+  cursor: default;
+}
+
+.version-card.unselectable:hover {
+  background: #1a1a1a;
+  border-color: #333;
+  color: #ccc;
+}
+
+.version-card.installing::after {
+  content: "Downloading...";
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #e5e7eb;
+}
+
 .version-image {
   width: 100%;
   height: 140px;
@@ -297,14 +315,113 @@ a {
   padding: 8px 10px;
 }
 
+/* header row inside version-info */
+.version-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
 .version-display {
   font-size: 14px;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .version-folder {
   font-size: 11px;
   color: #9ca3af;
+}
+
+/* FAVORITES + DELETE */
+.version-actions-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.icon-button {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.icon-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+/* CARD FOOTER / ACTIONS */
+.version-actions {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px 10px 10px;
+}
+
+.version-actions button {
+  flex: 1;
+  font-size: 12px;
+}
+
+/* VERSION DOWNLOAD PROGRESS BAR */
+.version-progress {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background: #111827;
+  overflow: hidden;
+}
+
+.version-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: #22c55e;
+  transition: width 0.2s linear;
+}
+
+/* BADGES */
+.version-badge-row {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px 6px 10px;
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.version-badge.installed {
+  background: #14532d;
+  border: 2px solid #043a1a;
+  color: #bbf7d0;
+}
+
+.version-badge.available {
+  background: #116094;
+  border: 2px solid #0a3857;
+  color: #bfdbfe;
+}
+
+.version-badge.official {
+  background: #ff3636;
+  border: 2px solid #721313;
+  color: #ffd1d1;
+}
+
+.version-badge.nonofficial {
+  background: #582c0f;
+  border: 2px solid #44200a;
+  color: #ffdfb4;
 }
 
 /* SETTINGS PAGE */
@@ -321,6 +438,13 @@ a {
 }
 
 .row input {
+  background: #3c3f41;
+  border: 2px solid #1a1c1d;
+  color: #e5e7eb;
+  padding: 6px 8px;
+}
+
+.row select {
   background: #3c3f41;
   border: 2px solid #1a1c1d;
   color: #e5e7eb;
