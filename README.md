@@ -9,6 +9,8 @@ If you'd like to contribute, report issues, or help expand support for more vers
 
 Histolauncher is a passion project - built for preservation, curiosity, and nostalgia.
 
+Join the Discord Server: https://discord.gg/P8dddrXFkn
+
 # Requirements
 You will need:
 - **Java Runtime** *(JRE)* for the clients
