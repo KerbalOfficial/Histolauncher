@@ -32,7 +32,6 @@ def _normalize_category_name(name: str) -> str:
     n = (name or "").strip()
     if not n:
         return ""
-    # Simple rule: first letter uppercase, rest lowercase
     return n[0].upper() + n[1:].lower()
 
 
@@ -54,13 +53,23 @@ def _scan_once():
 
         for version in sorted(os.listdir(cat_path)):
             vpath = os.path.join(cat_path, version)
-            if not os.path.isdir(vpath):
+            data_ini = os.path.join(vpath, "data.ini")
+            if not os.path.isdir(vpath) or not os.path.exists(data_ini):
                 continue
+
             meta = _read_data_ini(os.path.join(vpath, "data.ini"))
             display_name = meta.get("display_name") or version
             main_class = meta.get("main_class") or "net.minecraft.client.Minecraft"
             classpath = meta.get("classpath") or "client.jar"
             native_subfolder = meta.get("native_subfolder") or ""
+            full_assets = meta.get("full_assets", "true").lower() == "true"
+            
+            total_size_bytes = 0
+            try:
+                size_str = meta.get("total_size_bytes", "0")
+                total_size_bytes = int(size_str)
+            except Exception:
+                total_size_bytes = 0
 
             raw_disabled = meta.get("launch_disabled", "").strip()
             launch_disabled = False
@@ -84,7 +93,9 @@ def _scan_once():
                 "path": os.path.relpath(vpath, base_dir),
                 "category": category,
                 "launch_disabled": launch_disabled,
-                "launch_disabled_message": launch_disabled_message
+                "launch_disabled_message": launch_disabled_message,
+                "total_size_bytes": total_size_bytes,
+                "full_assets": full_assets,
             })
 
     all_versions = []
@@ -98,7 +109,7 @@ def _scan_once():
 def scan_categories(force_refresh=False):
     global _CACHE, _CACHE_TS
     now = time.time()
-    if force_refresh or _CACHE is None or (now - _CACHE_TTL) > _CACHE_TTL:
+    if force_refresh or _CACHE is None or (now - _CACHE_TS) > _CACHE_TTL:
         _CACHE = _scan_once()
         _CACHE_TS = now
     return _CACHE or {}

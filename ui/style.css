@@ -138,8 +138,17 @@ a {
 
 .topbar {
   display: flex;
-  justify-content: end;
+  align-items: center;
+  gap: 16px;
   margin-bottom: 12px;
+}
+
+#refresh-btn {
+  margin-left: auto;
+}
+
+#topbar-profile {
+  display: none;
 }
 
 .title {
@@ -304,6 +313,22 @@ a {
   color: #e5e7eb;
 }
 
+.version-card.favorite {
+  background: #333325;
+  border-color: #c0a716;
+}
+
+.version-card.favorite:hover {
+  background: #3f3f25;
+  border-color: #f7cf33;
+}
+
+.version-card.favorite.selected {
+  background: #3f3f25;
+  border-color: #fff2bc;
+  color: #fff;
+}
+
 .version-image {
   width: 100%;
   height: 140px;
@@ -377,11 +402,19 @@ a {
   overflow: hidden;
 }
 
+.version-progress.paused {
+  background: #e6b83b !important;
+}
+
 .version-progress-fill {
   height: 100%;
   width: 0%;
   background: #22c55e;
   transition: width 0.2s linear;
+}
+
+.version-progress-fill.paused {
+  background: #e6b83b !important;
 }
 
 /* BADGES */
@@ -407,9 +440,9 @@ a {
 }
 
 .version-badge.available {
-  background: #116094;
-  border: 2px solid #0a3857;
-  color: #bfdbfe;
+  background: #3b3b3b;
+  border: 2px solid #242424;
+  color: #dfdfdf;
 }
 
 .version-badge.official {
@@ -422,6 +455,18 @@ a {
   background: #582c0f;
   border: 2px solid #44200a;
   color: #ffdfb4;
+}
+
+.version-badge.paused {
+  background: #be950b;
+  border: 2px solid #634d07;
+  color: #fff1cc;
+}
+
+.version-badge.lite {
+  background: #1e40af;
+  border: 2px solid #0c2559;
+  color: #bfdbfe;
 }
 
 /* SETTINGS PAGE */
@@ -439,7 +484,7 @@ a {
 
 .row input {
   background: #3c3f41;
-  border: 2px solid #1a1c1d;
+  border: 4px solid #1a1c1d;
   color: #e5e7eb;
   padding: 6px 8px;
 }
@@ -453,8 +498,8 @@ a {
 
 button {
   padding: 6px 12px;
-  background: #3c3f41;
-  border: 4px solid #1a1c1d;
+  background: #3d3d3d;
+  border: 4px solid #2b2b2b;
   color: #e5e7eb;
   cursor: pointer;
 }
@@ -465,10 +510,40 @@ button:hover {
 
 button.primary {
   background: #22c55e;
-  border-color: #16a34a;
-  color: #022c22;
+  border-color: #12883d;
+  color: #022c10;
 }
 
 button.primary:hover {
-  background: #4ade80;
+  background: #2ee070;
+}
+
+button.mild {
+  background: #cc9600;
+  border-color: #6e5100;
+  color: #fff8d7;
+}
+
+button.mild:hover {
+  background: #c5a026;
+}
+
+button.important {
+  background: #186a99;
+  border-color: #10405f;
+  color: #d0eeff;
+}
+
+button.important:hover {
+  background: #2389c4;
+}
+
+button.danger {
+  background: #c52222;
+  border-color: #771313;
+  color: #ffeaea;
+}
+
+button.danger:hover {
+  background: #de4a4a;
 }

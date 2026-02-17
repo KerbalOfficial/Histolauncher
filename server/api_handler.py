@@ -1,15 +1,15 @@
 # server/api_handler.py
 import os
 import sys
-import json
 import shutil
 import urllib.request
-import urllib.error
-from typing import Any, Dict, List
+import urllib.parse
+from typing import Any, Dict
 
 from core.version_manager import scan_categories
 from core.java_launcher import launch_version
-from core.settings import load_global_settings, save_global_settings, get_base_dir
+from core.settings import load_global_settings, save_global_settings, get_base_dir, clear_account_token, save_account_token
+from core.downloader import _wiki_image_url
 
 from core import manifest as core_manifest
 from core import downloader as core_downloader
@@ -107,6 +107,7 @@ def _format_mojang_version_entry(manifest_entry: Dict[str, Any], source: str) ->
     vtype = manifest_entry.get("type", "")
     category = _map_mojang_type_to_category(vtype)
     display = vid
+    
     return {
         "display": display,
         "category": category,
@@ -118,8 +119,25 @@ def _format_mojang_version_entry(manifest_entry: Dict[str, Any], source: str) ->
     }
 
 
+def _get_installing_map_from_progress() -> Dict[str, Dict[str, Any]]:
+    installing: Dict[str, Dict[str, Any]] = {}
+    try:
+        for vkey, prog in core_downloader.list_progress_files():
+            if not isinstance(prog, dict): continue
+            status = (prog.get("status") or "").lower()
+            if status in ("downloading", "paused"): installing[vkey] = prog
+    except Exception: pass
+    return installing
+
+
 def handle_api_request(path: str, data: Any):
     p = path.split("?", 1)[0].rstrip("/")
+
+    if p == "/api/account/status":
+        return api_account_status()
+
+    if p == "/api/account/disconnect":
+        return api_account_disconnect()
 
     if p == "/api/is-launcher-outdated":
         return is_launcher_outdated()
@@ -152,6 +170,14 @@ def handle_api_request(path: str, data: Any):
         version_id = p[len("/api/cancel/"):]
         return api_cancel(version_id)
 
+    if p.startswith("/api/pause/"):
+        version_id = p[len("/api/pause/"):]
+        return api_pause(version_id)
+
+    if p.startswith("/api/resume/"):
+        version_id = p[len("/api/resume/"):]
+        return api_resume(version_id)
+
     if p == "/api/installed":
         return api_installed()
 
@@ -164,31 +190,13 @@ def handle_api_request(path: str, data: Any):
     return {"error": "Unknown endpoint"}
 
 
-def wiki_image_url(version_id: str, version_type: str) -> str | None:
-    t = (version_type or "").lower()
-
-    if t == "release":
-        prefix = "Java_Edition_"
-        clean_id = version_id
-    elif t == "old_beta":
-        prefix = "Beta_"
-        clean_id = version_id[1:] if version_id.startswith("b") else version_id
-    elif t == "old_alpha":
-        prefix = "Alpha_v"
-        clean_id = version_id[1:] if version_id.startswith("a") else version_id
-    else:
-        return None
-
-    return f"https://minecraft.wiki/images/thumb/{prefix}{clean_id}.png/260px-.png"
-
-
 def api_initial():
     mf = core_manifest.fetch_manifest()
     manifest = mf.get("data")
     manifest_source = mf.get("source") or "mojang"
 
     manifest_error = False
-    versions = []
+    remote_versions = []
     categories = set()
 
     if manifest is None:
@@ -199,9 +207,9 @@ def api_initial():
             vtype = m.get("type", "")
             category = _map_mojang_type_to_category(vtype)
 
-            img = wiki_image_url(vid, vtype)
+            img = _wiki_image_url(vid, vtype)
 
-            versions.append({
+            remote_versions.append({
                 "display": vid,
                 "category": category,
                 "folder": vid,
@@ -209,44 +217,33 @@ def api_initial():
                 "is_remote": True,
                 "source": manifest_source,
                 "image_url": img,
-                "total_size": None,
             })
             categories.add(category)
 
     try:
         categories_map = scan_categories()
         local_versions = categories_map.get("* All", [])
-        for lv in local_versions:
-            display = lv.get("display_name") or lv.get("folder")
-            folder = lv.get("folder")
-            cat = lv.get("category", "Local")
-
-            versions.append({
-                "display": display,
-                "category": cat,
-                "folder": folder,
-                "installed": True,
-                "is_remote": False,
-                "source": "local",
-                "image_url": None,
-                "total_size": None,
-            })
-            categories.add(cat)
     except Exception:
-        pass
+        local_versions = []
 
-    installing_map = core_downloader.list_installing_versions()
+    installing_map = _get_installing_map_from_progress()
     installing_list = []
+    installing_keys = set()
+
     for vkey, prog in installing_map.items():
         if "/" in vkey:
             cat, folder = vkey.split("/", 1)
         else:
             cat, folder = "Unknown", vkey
+
+        installing_keys.add(f"{cat.lower()}/{folder}")
+
         display = folder
-        for v in versions:
+        for v in remote_versions:
             if v["category"].lower() == cat.lower() and v["folder"] == folder:
                 display = v["display"]
                 break
+
         installing_list.append({
             "version_key": vkey,
             "category": cat,
@@ -257,17 +254,29 @@ def api_initial():
             "bytes_total": prog.get("bytes_total", 0),
         })
 
+    installed_set = {(lv["category"], lv["folder"]) for lv in local_versions}
+
+    filtered_remote = []
+    for v in remote_versions:
+        key_tuple = (v["category"], v["folder"])
+        key_str = f"{v['category'].lower()}/{v['folder']}"
+        if key_tuple in installed_set:
+            continue
+        if key_str in installing_keys:
+            continue
+        filtered_remote.append(v)
+
     settings_dict = load_global_settings()
 
-    payload = {
-        "versions": versions,
+    return {
+        "versions": filtered_remote,
+        "installed": local_versions,
+        "installing": installing_list,
         "categories": sorted(list(categories)),
         "selected_version": settings_dict.get("selected_version", ""),
         "settings": settings_dict,
         "manifest_error": manifest_error,
-        "installing": installing_list,
     }
-    return payload
 
 
 def api_versions(category):
@@ -283,12 +292,12 @@ def api_versions(category):
         manifest_versions = []
         manifest_source = "mojang"
 
-    mojang_list = []
+    remote_list = []
     for m in manifest_versions:
         vid = m.get("id")
         vtype = m.get("type", "")
         mapped_cat = _map_mojang_type_to_category(vtype)
-        mojang_list.append({
+        remote_list.append({
             "display": vid,
             "category": mapped_cat,
             "folder": vid,
@@ -297,36 +306,36 @@ def api_versions(category):
             "source": manifest_source,
         })
 
-    combined = []
+    installed_set = {(lv["category"], lv["folder"]) for lv in local_versions}
+
+    installing_map = _get_installing_map_from_progress()
+    installing_keys = set()
+    for vkey in installing_map.keys():
+        if "/" in vkey:
+            cat, folder = vkey.split("/", 1)
+        else:
+            cat, folder = "Unknown", vkey
+        installing_keys.add(f"{cat.lower()}/{folder}")
+
+    def allowed_remote(entry):
+        key_tuple = (entry["category"], entry["folder"])
+        key_str = f"{entry['category'].lower()}/{entry['folder']}"
+        return key_tuple not in installed_set and key_str not in installing_keys
+
+    installed_out = []
+    remote_out = []
 
     if not category or category == "* All":
-        for v in local_versions:
-            combined.append({
-                "display": v["display_name"],
-                "category": v["category"],
-                "folder": v["folder"],
-                "installed": True,
-                "is_remote": False,
-                "source": "local",
-            })
-        combined.extend(mojang_list)
-        return {"versions": combined}
+        installed_out = local_versions
+        remote_out = [m for m in remote_list if allowed_remote(m)]
+    else:
+        installed_out = [lv for lv in local_versions if lv["category"] == category]
+        remote_out = [m for m in remote_list if m["category"] == category and allowed_remote(m)]
 
-    for v in categories.get(category, []):
-        combined.append({
-            "display": v["display_name"],
-            "category": category,
-            "folder": v["folder"],
-            "installed": True,
-            "is_remote": False,
-            "source": "local",
-        })
-
-    for m in mojang_list:
-        if m["category"] == category:
-            combined.append(m)
-
-    return {"versions": combined}
+    return {
+        "installed": installed_out,
+        "available": remote_out,
+    }
 
 
 def api_search(data):
@@ -408,61 +417,144 @@ def api_settings(data):
         data = {}
 
     current = load_global_settings()
+    prev_type = (current.get("account_type") or "Local").strip()
+
     current.update(data)
     save_global_settings(current)
+
+    new_type = (current.get("account_type") or "Local").strip()
+    if prev_type.lower() != new_type.lower() and new_type.lower() == "local":
+        try:
+            clear_account_token()
+        except Exception:
+            pass
 
     return {"ok": True, "message": "Settings saved.", "settings": current}
 
 
+def api_account_connect(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+
+        token = data.get("token")
+        username = data.get("username")
+        account_uuid = data.get("uuid")
+
+        if not token:
+            return {"ok": False, "error": "missing token"}
+
+        save_account_token(token)
+
+        try:
+            s = load_global_settings() or {}
+            s["account_type"] = "Histolauncher"
+            if username:
+                s["username"] = username
+            if account_uuid:
+                s["uuid"] = account_uuid
+            save_global_settings(s)
+        except Exception:
+            pass
+
+        return {
+            "ok": True,
+            "message": "Account connected.",
+            "username": username,
+            "uuid": account_uuid,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_account_status():
+    try:
+        s = load_global_settings() or {}
+        account_type = s.get("account_type", "Local")
+        is_connected = account_type == "Histolauncher"
+        return {"ok": True, "connected": is_connected}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_account_disconnect():
+    try:
+        s = load_global_settings() or {}
+        s["account_type"] = "Local"
+        save_global_settings(s)
+        return {"ok": True, "message": "Account disconnected."}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 def api_install(data):
-    if not isinstance(data, dict):
-        if isinstance(data, str):
-            raw = data.strip()
-            if "/" in raw:
-                cat, vid = raw.split("/", 1)
-                data = {"version": vid, "category": cat}
-            else:
-                return {"error": "invalid request"}
-        else:
-            return {"error": "invalid request"}
+    if not isinstance(data, dict): return {"error": "invalid request"}
 
     version_id = data.get("version") or data.get("folder")
-    category = data.get("category") or None
+    category = data.get("category")
     full_assets = bool(data.get("full_assets", False))
 
-    if not version_id:
-        combined = data.get("key") or data.get("version_key") or None
-        if isinstance(combined, str) and "/" in combined:
-            parts = combined.split("/", 1)
-            category = parts[0]
-            version_id = parts[1]
+    if not version_id or not category: return {"error": "missing version or category"}
 
-    if not version_id:
-        return {"error": "missing version"}
+    storage_type = category.lower()
 
-    storage_type = _map_mojang_type_to_category(
-        (data.get("type") or "").lower()
-    ).lower()
-    if category:
-        storage_type = category.lower()
+    core_downloader.install_version(
+        version_id,
+        storage_category=storage_type,
+        full_assets=full_assets,
+        background=True
+    )
 
-    version_key = core_downloader.start_download(version_id, storage_type, full_assets=full_assets)
+    version_key = f"{storage_type}/{version_id}"
     return {"started": True, "version": version_key}
 
 
 def api_status(version_key):
     try:
-        status = core_downloader.get_status(version_key)
-        if not status:
-            return {"status": "unknown"}
+        decoded = urllib.parse.unquote(version_key)
+        if "/" not in decoded: return {"status": "unknown"}
+        category, version_id = decoded.split("/", 1)
+        status = core_downloader.get_install_status(version_id, category)
+        if not status: return {"status": "unknown"}
         return status
-    except Exception as e:
-        return {"error": str(e)}
+    except Exception as e: return {"error": str(e)}
 
 
 def api_cancel(version_key):
     try:
-        core_downloader.cancel_download(version_key)
+        decoded = urllib.parse.unquote(version_key)
+        if "/" not in decoded:
+            return {"ok": False, "error": "invalid key"}
+
+        category, version_id = decoded.split("/", 1)
+
+        core_downloader.cancel_install(version_id, category)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_pause(version_key):
+    try:
+        decoded = urllib.parse.unquote(version_key)
+        if "/" not in decoded:
+            return {"ok": False, "error": "invalid key"}
+
+        category, version_id = decoded.split("/", 1)
+        core_downloader.pause_install(version_id, category)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_resume(version_key):
+    try:
+        decoded = urllib.parse.unquote(version_key)
+        if "/" not in decoded:
+            return {"ok": False, "error": "invalid key"}
+
+        category, version_id = decoded.split("/", 1)
+        core_downloader.resume_install(version_id, category)
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -514,6 +606,7 @@ def api_delete_version(data):
         shutil.rmtree(version_dir)
         version_key = f"{category.lower()}/{folder}"
         core_downloader.delete_progress(version_key)
+        scan_categories(force_refresh=True)
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}

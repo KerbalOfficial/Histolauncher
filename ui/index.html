@@ -54,6 +54,10 @@
 
     <!-- TOPBAR -->
     <div class="topbar">
+      <div id="topbar-profile" style="display:none;align-items:center;gap:8px;">
+        <img id="topbar-profile-pic" width="32" height="32" style="border:solid 2px #1c1c1c;" alt="Profile" title="Histolauncher Account"/>
+        <span id="topbar-username" style="color:#e5e7eb;font-size:14px;"></span>
+      </div>
       <button id="refresh-btn" title="Refresh values (Hold shift to refresh page)">Refresh</button>
     </div>
 
@@ -113,7 +117,7 @@
         <section id="available-section" class="info-box">
           <div class="versions-section-header">
             <h3>Available</h3>
-            <span class="versions-section-subtitle">Versions from Mojang's official API.</span>
+            <span class="versions-section-subtitle">Versions from Mojang's official servers.</span>
           </div>
           <div id="available-versions" class="versions-list"></div>
         </section>
@@ -128,9 +132,19 @@
       <h3>Account</h3>
       <br>
 
-      <div class="row">
+      <div class="row" id="username-row">
         <label>Username:</label>
         <input type="text" id="settings-username" maxlength="16" size="15"/>
+      </div>
+
+      <div class="row">
+        <label>Account Type:</label>
+        <select id="settings-account-type">
+          <option value="Local">Local</option>
+          <option value="Histolauncher">Histolauncher</option>
+        </select>
+        <button id="connect-account-btn" class="primary" style="margin-left:12px; display:none;">Connect Account</button>
+        <button id="disconnect-account-btn" class="danger" style="margin-left:8px; display:none;">Disconnect</button>
       </div>
 
       <br>
@@ -155,12 +169,16 @@
 
       <br>
       <h3>Launcher</h3>
-      <p style="color:#ff505099;font-size:12px;">Do not change these settings here unless you know what you are doing!</p>
+      <p style="color:#ff505099;font-size:12px;">Do not change these settings here unless you know what you are doing! Anything here can change the behavior of the Launcher.</p>
       <br>
 
       <div class="row">
         <label>URL Proxy:</label>
         <input type="text" id="settings-url-proxy" placeholder="https://yourproxy.com/?url=" size="40"/>
+      </div>
+      <div class="row">
+        <label>Low-Data Mode:</label>
+        <input type="checkbox" id="settings-low-data"/>
       </div>
       <div class="row">
         <label>Data Folder:</label>

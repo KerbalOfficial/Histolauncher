@@ -1,6 +1,6 @@
 Thank you for installing Histolauncher!
 
-NOTE: This version (b1.1) needs testing on Linux & Mac! It has not been tested yet!
+NOTE: This version (b1.2) needs testing on Linux & Mac! It has not been tested yet!
 
 How to open:
 - Make sure you have the requirements (check GitHub README.md)

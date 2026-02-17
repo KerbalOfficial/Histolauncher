@@ -1,8 +1,7 @@
 # core/manifest.py
 import json
 import urllib.request
-import urllib.error
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List
 
 from core.settings import load_global_settings
 

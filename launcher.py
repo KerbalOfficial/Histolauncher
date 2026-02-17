@@ -2,13 +2,11 @@
 import os
 import random
 import urllib.request
-import urllib.error
 import webbrowser
 import subprocess
 import sys
 import time
 import threading
-import json
 
 DATA_FILE_EXISTS = os.path.exists(os.path.join(os.path.expanduser("~"), ".histolauncher"))
 
@@ -60,8 +58,8 @@ def themed_colors(root):
         }
     else:
         return {
-            "bg": "white",
-            "fg": "black",
+            "bg": None,
+            "fg": None,
         }
 
 def install(package):
@@ -238,7 +236,9 @@ def prompt_install_pywebview():
     try:
         root = tk.Tk()
         root.iconbitmap(ICO_PATH)
+        root.attributes('-topmost', True)
         root.withdraw()
+        root.lift()
         msg = (
             "Histolauncher can display its interface inside a built-in window, "
             "but this feature requires an additional component that is not currently installed in your system.\n\n"
@@ -250,12 +250,33 @@ def prompt_install_pywebview():
         return bool(result)
     except Exception:
         return False
+    
+def prompt_install_cryptography():
+    try:
+        root = tk.Tk()
+        root.iconbitmap(ICO_PATH)
+        root.attributes('-topmost', True)
+        root.withdraw()
+        root.lift()
+        msg = (
+            "Histolauncher can load its custom Histolauncher skins for Minecraft 1.20.2 and above, "
+            "but this feature requires an additional component that is not currently installed in your system.\n\n"
+            "Would you like to install this component (cryptography) automatically?\n\n"
+            "If you choose Cancel, then custom Histolauncher skins won't load for Minecraft 1.20.2 and above."
+        )
+        result = messagebox.askokcancel("Install additional component? (cryptography)", msg)
+        root.destroy()
+        return bool(result)
+    except Exception:
+        return False
 
 def prompt_new_user():
     try:
         root = tk.Tk()
         root.iconbitmap(ICO_PATH)
+        root.attributes('-topmost', True)
         root.withdraw()
+        root.lift()
         msg = (
             "Hi there, new user! Welcome to Histolauncher!\n\n"
             "Would you like to read INSTRUCTIONS.txt for more information about this launcher "
@@ -271,7 +292,9 @@ def prompt_user_update(local, remote):
     try:
         root = tk.Tk()
         root.iconbitmap(ICO_PATH)
+        root.attributes('-topmost', True)
         root.withdraw()
+        root.lift()
         msg = (
             "Your launcher is out-dated! Please press \"OK\" to open up the GitHub link for the latest version "
             "or press \"Cancel\" to continue using this version of the launcher.\n\n"
@@ -287,7 +310,9 @@ def prompt_beta_warning(local):
     try:
         root = tk.Tk()
         root.iconbitmap(ICO_PATH)
+        root.attributes('-topmost', True)
         root.withdraw()
+        root.lift()
         msg = (
             "This is a beta version of Histolauncher, you may encounter many bugs during testing "
             "so please keep that in mind. If you did encounter any problems or bugs, please report "
@@ -382,7 +407,7 @@ def open_in_browser(port):
 def open_with_webview(webview, port, title="Histolauncher", width=900, height=520):
     url = f"http://127.0.0.1:{port}/"
     try:
-        window = webview.create_window(title, url, width=width, height=height)
+        webview.create_window(title, url, width=width, height=height)
         print("Opened launcher in pywebview window:", url)
         print("------------------------------------------------")
         webview.start()
@@ -396,7 +421,7 @@ def control_panel_fallback_window(port):
     root = tk.Tk()
     root.iconbitmap(ICO_PATH)
     root.title("Histolauncher")
-    colors = themed_colors()
+    colors = themed_colors(root)
 
     style = ttk.Style()
     try: style.theme_use("vista")
@@ -462,6 +487,28 @@ def main():
             else: print("pywebview installation failed. Falling back to browser mode.")
         else: print("User declined pywebview installation. Falling back to browser mode.")
 
+    try:
+        import cryptography
+    except Exception as e:
+        print("cryptography failed to load:", e)
+        if prompt_install_cryptography():
+            print("User agreed to install cryptography.")
+            success = install("cryptography")
+            if success:
+                try:
+                    print("Refreshing python packages...")
+                    import site
+                    site.main()
+                    user_site = site.getusersitepackages()
+                    if user_site not in sys.path: sys.path.append(user_site)
+                    import cryptography
+                    print("cryptography installed and imported successfully.")
+                except Exception as import_err:
+                    print("cryptography installed but failed to import:", import_err)
+                    print("Custom skins will NOT load in 1.20.2 and above.")
+            else: print("cryptography installation failed. Custom skins will NOT load in 1.20.2 and above.")
+        else: print("User declined cryptography installation. Custom skins will NOT load in 1.20.2 and above.")
+
     print("------------------------------------------------")
 
     try:
@@ -479,11 +526,18 @@ def main():
 
     print("------------------------------------------------")
 
-    port = random.randint(3000, 9000)
+    port = random.randint(10000, 20000)
+
+    try:
+        from server import yggdrasil
+        yggdrasil.ensure_signature_keys_ready()
+    except Exception as e:
+        print(f"Warning: could not pre-generate signature keys: {e}")
 
     try: save_global_settings({"ygg_port": str(port)})
     except Exception: pass
 
+    os.environ["HISTOLAUNCHER_PORT"] = str(port)
     server_thread = threading.Thread(target=start_server, args=(port,), daemon=True)
     server_thread.start()
     url = f"http://127.0.0.1:{port}/"
