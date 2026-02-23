@@ -1,17 +1,51 @@
-Thank you for installing Histolauncher!
+Thank you for installing Histolauncher! (Beta build)
 
-NOTE: This version (b1.2) needs testing on Linux & Mac! It has not been tested yet!
+—————————————————————————————————————————————————————————————————————————————
+
+[NOTE]: This version (b1.2.1) needs testing on Linux & Mac!
+        It has not been tested yet!
+
+—————————————————————————————————————————————————————————————————————————————
 
 How to open:
 - Make sure you have the requirements (check GitHub README.md)
 - Open `launcher.py` using Python
 
+—————————————————————————————————————————————————————————————————————————————
+
+How to get a custom skin:
+- Make an account in the official Histolauncher account:
+  https://histolauncher.pages.dev/
+- Once you make an account, log-in and click on your profile in the top
+  right, then click 'Settings'
+- Upload your custom skin (needs to be a PNG and 64x64 or 64x32 size)
+- Once successful, go to Histolauncher app, then go to Settings and switch
+  the 'Account type' setting to 'Histolauncher'
+- Enter your Histolauncher account credentials and press 'Log in'
+- Successfully log-in, you should see your profile icon and name on the top
+  left, the username you signed-up with will be your Minecraft username.
+- Skins will successfully load in 1.13 - 1.21.11+!
+
+—————————————————————————————————————————————————————————————————————————————
+
 How to enable debug mode (always show terminal):
-- METHOD 1: Create a new file called "__debug__" in the same directory as `launcher.py`
-- METHOD 2: Go to terminal, make sure you are in the same path as where `launcher.py` is in, then type `echo ''>__debug__` and then press Enter (this works in almost every OS: Windows, Linux, and Mac)
+- [METHOD 1]: Create a new file called "__debug__" in the same directory as
+              `launcher.py`
+- [METHOD 2]: Go to terminal, make sure you are in the same path as where
+              `launcher.py` is in, then type `echo ''>__debug__` and then
+              press Enter (this works in almost every OS: Windows, Linux,
+                           and Mac)
 
-If you have the `pywebview` python package, it will open in a window, if you do NOT, it will open up in your default browser (and enable debug mode automatically since that is the only way to close the launcher's server which is by closing the terminal).
+—————————————————————————————————————————————————————————————————————————————
 
-If you have any issues, any problems, or any suggestions you want to give for the launcher, please create a new "Issue" in the GitHub!
+If you have the `pywebview` python package, it will open in a window, if you
+do NOT, it will open up in your default browser.
 
-GitHub Histolauncher: https://github.com/KerbalOfficial/Histolauncher
+If you have any issues, any problems, or any suggestions you want to give
+for the launcher, please create a new "Issue" in the GitHub!
+
+—————————————————————————————————————————————————————————————————————————————
+
+GitHub: https://github.com/KerbalOfficial/Histolauncher
+Discord: https://discord.gg/P8dddrXFkn
+Website: https://histolauncher.pages.dev/

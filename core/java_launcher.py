@@ -2,8 +2,10 @@
 import os
 import subprocess
 import platform
+
 from uuid import uuid3, NAMESPACE_DNS
 from core.settings import load_global_settings, get_base_dir
+from server.yggdrasil import _get_username_and_uuid
 
 
 def _native_subfolder_for_platform():
@@ -71,12 +73,15 @@ def username_to_uuid(username: str) -> str:
 
 
 def _expand_placeholders(args_str, version_identifier, game_dir, version_dir, global_settings, meta):
-    username = (global_settings.get("username") or "Player").strip() or "Player"
+    username, auth_uuid_raw = _get_username_and_uuid()
     base_dir = get_base_dir()
     assets_root = os.path.join(base_dir, "assets")
     asset_index_name = meta.get("asset_index") or ""
     version_type = meta.get("version_type") or ""
-    auth_uuid = "00000000-0000-0000-0000-000000000000"
+    auth_uuid = (
+        f"{auth_uuid_raw[0:8]}-{auth_uuid_raw[8:12]}-{auth_uuid_raw[12:16]}-"
+        f"{auth_uuid_raw[16:20]}-{auth_uuid_raw[20:]}"
+    )
     auth_access_token = "0"
     user_type = "legacy"
     user_properties = "{}"

@@ -110,7 +110,7 @@
       }
       if (topbarUsername) topbarUsername.textContent = username;
       if (topbarProfilePic) {
-        const textureUrl = `http://textures.histolauncher.workers.dev/head/${settingsState.uuid}`;
+        const textureUrl = `https://textures.histolauncher.workers.dev/head/${settingsState.uuid}`;
         topbarProfilePic.src = textureUrl;
         imageAttachErrorPlaceholder(topbarProfilePic, '/assets/images/unknown.png');
       }
@@ -126,13 +126,33 @@
       settingsState.favorite_versions
     );
 
+    // If logged in as Histolauncher, verify account with backend (which checks Cloudflare)
+    // This prevents settings.ini spoofing - we always get REAL data from Cloudflare
     if (settingsState.account_type === 'Histolauncher') {
-      if (settingsState.histolauncher_username) {
-        settingsState.username = settingsState.histolauncher_username;
-        histolauncherUsername = settingsState.histolauncher_username;
-      } else if (settingsState.uuid && settingsState.username) {
-        histolauncherUsername = settingsState.username;
+      try {
+        const currentUser = await api('/api/account/current', 'GET');
+        if (currentUser.ok && currentUser.authenticated) {
+          // Use verified data from backend (which came from Cloudflare)
+          settingsState.username = currentUser.username;
+          settingsState.uuid = currentUser.uuid;
+          histolauncherUsername = currentUser.username;
+        } else {
+          // Session is invalid/expired - revert to Local account
+          console.warn('[Account] Session verification failed:', currentUser.error);
+          settingsState.account_type = 'Local';
+          settingsState.username = data.username || 'Player';
+          settingsState.uuid = null;
+          // Update backend that we're now Local
+          autoSaveSetting('account_type', 'Local');
+        }
+      } catch (e) {
+        console.warn('[Account] Error verifying session:', e);
+        // On error, still try to use what we have, but mark for re-verification
+        settingsState.username = data.username || 'Player';
       }
+    } else {
+      // Local account - use username from settings
+      settingsState.username = data.username || 'Player';
     }
 
     const usernameInput = getEl('settings-username');
@@ -145,10 +165,6 @@
       
       if (usernameRow) {
         usernameRow.style.display = isHistolauncher ? 'none' : 'block';
-      }
-      
-      if (isHistolauncher && settingsState.uuid) {
-        histolauncherUsername = settingsState.username;
       }
     }
 
@@ -1466,32 +1482,64 @@
 
                     const res = await fetch('https://accounts.histolauncher.workers.dev/api/login', {
                       method: 'POST',
+                      credentials: 'include',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ username, password }),
                     });
                     let json;
                     try { json = await res.json(); } catch (e) { json = null; }
 
+                    console.log('[Login] Response status:', res.status, 'Body:', json);
+
                     if (res.ok && json && json.success) {
-                      settingsState.account_type = 'Histolauncher';
-                      settingsState.username = username;
-                      if (json.uuid) settingsState.uuid = json.uuid;
-                      histolauncherUsername = username;
-                      localUsernameModified = false;
-                      await api('/api/settings', 'POST', {
-                        account_type: 'Histolauncher',
-                        username: username,
-                        histolauncher_username: username,
-                        uuid: json.uuid || ''
-                      });
-                      await init();
+                      console.log('[Login] Success! Session token received, verifying with launcher...');
+                      
+                      const sessionToken = json.sessionToken;
+                      if (!sessionToken) {
+                        console.error('[Login] No session token in response!');
+                        showMessageBox({ title: 'Error', message: 'No session token received. Please try again.', buttons: [{ label: 'OK' }] });
+                        if (accountSelect) accountSelect.value = 'Local';
+                        autoSaveSetting('account_type', 'Local');
+                        return;
+                      }
+
+                      // Verify session with the launcher backend (which verifies with Cloudflare)
+                      const verifyRes = await api('/api/account/verify-session', 'POST', { sessionToken });
+                      console.log('[Login] Launcher verification response:', verifyRes);
+                      
+                      if (verifyRes.ok && verifyRes.username && verifyRes.uuid) {
+                        console.log('[Login] Session verified! UUID:', verifyRes.uuid);
+                        // Only store account_type, NOT username/uuid (those come from Cloudflare via /api/account/current)
+                        settingsState.account_type = 'Histolauncher';
+                        histolauncherUsername = verifyRes.username;
+                        localUsernameModified = false;
+                        await api('/api/settings', 'POST', {
+                          account_type: 'Histolauncher'
+                          // Don't send username/uuid - those will be fetched securely from /api/account/current
+                        });
+                        // Now fetch the verified account data from backend
+                        const currentUser = await api('/api/account/current', 'GET');
+                        if (currentUser.ok && currentUser.authenticated) {
+                          settingsState.username = currentUser.username;
+                          settingsState.uuid = currentUser.uuid;
+                        }
+                        await init();
+                      } else {
+                        console.error('[Login] Launcher verification failed! Response:', verifyRes);
+                        showMessageBox({ title: 'Error', message: verifyRes.error || 'Failed to verify session. Please try again.', buttons: [{ label: 'OK' }] });
+                        if (accountSelect) accountSelect.value = 'Local';
+                        autoSaveSetting('account_type', 'Local');
+                      }
                     } else {
-                      showMessageBox({ title: 'Error', message: (json && json.error) || 'Failed to authenticate.', buttons: [{ label: 'OK' }] });
+                      const errorMsg = (json && json.error) || `Failed to authenticate (${res.status})`;
+                      console.error('[Login] Error:', errorMsg);
+                      showMessageBox({ title: 'Error', message: errorMsg, buttons: [{ label: 'OK' }] });
                       if (accountSelect) accountSelect.value = 'Local';
                       autoSaveSetting('account_type', 'Local');
                     }
                   } catch (e) {
-                    showMessageBox({ title: 'Error', message: 'Connection failed.', buttons: [{ label: 'OK' }] });
+                    console.error('[Login] Exception:', e);
+                    showMessageBox({ title: 'Error', message: `Connection failed: ${e.message}`, buttons: [{ label: 'OK' }] });
                     if (accountSelect) accountSelect.value = 'Local';
                     autoSaveSetting('account_type', 'Local');
                   }

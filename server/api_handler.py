@@ -136,6 +136,15 @@ def handle_api_request(path: str, data: Any):
     if p == "/api/account/status":
         return api_account_status()
 
+    if p == "/api/account/current":
+        return api_account_current()
+
+    if p == "/api/account/connect":
+        return api_account_connect(data)
+
+    if p == "/api/account/verify-session":
+        return api_account_verify_session(data)
+
     if p == "/api/account/disconnect":
         return api_account_disconnect()
 
@@ -429,33 +438,34 @@ def api_settings(data):
         except Exception:
             pass
 
+    # Debug logging
+    if data.get("account_type") == "Histolauncher":
+        print(f"[api_settings] Histolauncher account configured: username={data.get('username')}, uuid={data.get('uuid')}")
+
     return {"ok": True, "message": "Settings saved.", "settings": current}
 
 
 def api_account_connect(data):
+    """Connect to Histolauncher account (Cloudflare Workers API)."""
     try:
         if not isinstance(data, dict):
             return {"ok": False, "error": "invalid request"}
 
-        token = data.get("token")
-        username = data.get("username")
-        account_uuid = data.get("uuid")
+        # New API: no token required, just UUID and username
+        username = data.get("username", "").strip()
+        account_uuid = data.get("uuid", "").strip()
 
-        if not token:
-            return {"ok": False, "error": "missing token"}
-
-        save_account_token(token)
+        if not username or not account_uuid:
+            return {"ok": False, "error": "missing username or uuid"}
 
         try:
             s = load_global_settings() or {}
             s["account_type"] = "Histolauncher"
-            if username:
-                s["username"] = username
-            if account_uuid:
-                s["uuid"] = account_uuid
+            s["username"] = username
+            s["uuid"] = account_uuid
             save_global_settings(s)
-        except Exception:
-            pass
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
 
         return {
             "ok": True,
@@ -465,6 +475,99 @@ def api_account_connect(data):
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
+
+def api_account_verify_session(data):
+    """Verify and store a Cloudflare session token from the frontend.
+    
+    This is needed for pywebview because the browser/webview doesn't automatically
+    manage cookies from cross-origin requests. The frontend logs in at Cloudflare,
+    receives a session token in the response, and sends it here to the Python backend.
+    The backend stores it and can use it to verify the account with Cloudflare.
+    
+    SECURITY: We only store the session token, NOT the UUID/username in settings.ini.
+    The frontend should call /api/account/current to get verified account info.
+    """
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+
+        session_token = data.get("sessionToken", "").strip()
+        if not session_token:
+            return {"ok": False, "error": "missing sessionToken"}
+
+        # Verify the session token with Cloudflare
+        from .cloudflare_auth import get_user_info
+        from core.settings import save_session_token
+        
+        success, user_data, error = get_user_info(session_token)
+        if not success:
+            return {"ok": False, "error": error or "Failed to verify session"}
+
+        # Token is valid, save it locally (in account.token, NOT in settings.ini)
+        save_session_token(session_token)
+
+        # Mark account as Histolauncher type in settings
+        # But DO NOT store UUID/username - those will be verified on-demand with Cloudflare
+        try:
+            s = load_global_settings() or {}
+            s["account_type"] = "Histolauncher"
+            # Remove UUID and username from settings to prevent spoofing
+            s.pop("uuid", None)
+            s.pop("username", None)
+            save_global_settings(s)
+        except Exception as e:
+            return {"ok": False, "error": f"Failed to save settings: {str(e)}"}
+
+        # Return the verified user data from Cloudflare
+        username = user_data.get("username", "")
+        account_uuid = user_data.get("uuid", "")
+        return {
+            "ok": True,
+            "message": "Session verified and stored",
+            "username": username,
+            "uuid": account_uuid,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_account_current():
+    """Get the currently authenticated user by verifying session with Cloudflare.
+    
+    This endpoint verifies the session token with Cloudflare and returns the
+    authenticated user's UUID and username. This is SECURE because it:
+    - Validates with Cloudflare on every call
+    - Prevents settings.ini spoofing (UUID/username not stored there)
+    - Returns the REAL account data from Cloudflare
+    
+    Returns:
+        - If authenticated: {"ok": true, "uuid": "...", "username": "..."}
+        - If not authenticated: {"ok": false, "error": "...", "authenticated": false}
+    """
+    try:
+        from .cloudflare_auth import get_verified_account
+        
+        success, user_data, error = get_verified_account()
+        if not success:
+            return {
+                "ok": False,
+                "error": error or "Not authenticated",
+                "authenticated": False
+            }
+        
+        return {
+            "ok": True,
+            "authenticated": True,
+            "uuid": user_data.get("uuid", ""),
+            "username": user_data.get("username", "")
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "authenticated": False
+        }
 
 
 def api_account_status():

@@ -20,7 +20,6 @@ DEFAULTS = {
     "favorite_versions": "",
     "storage_directory": "global",
     "low_data_mode": "0",
-    # Which hash to use when signing textures: SHA256 (recommended) or SHA1 (legacy)
     "signature_hash": "SHA256",
 }
 
@@ -52,6 +51,10 @@ def save_account_token(token):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "wb") as f:
+        # Write security warning
+        warning = b"# WARNING: DO NOT SHARE THIS TOKEN!\n# ANYONE THAT HAS HOLD OF IT CAN TAKE YOUR HISTOLAUNCHER ACCOUNT!\n# Keep this file secure and never share it with anyone.\n\n"
+        f.write(warning)
+        # Write the token
         if isinstance(token, str):
             token_bytes = token.encode("utf-8")
         else:
@@ -76,7 +79,17 @@ def load_account_token():
         with open(path, "rb") as f:
             data = f.read()
             try:
-                return data.decode("utf-8")
+                text = data.decode("utf-8")
+                # Skip warning comment lines at the beginning
+                lines = text.split('\n')
+                token_line = None
+                for line in lines:
+                    stripped = line.strip()
+                    # Skip empty lines and comment lines (warnings)
+                    if stripped and not stripped.startswith('#'):
+                        token_line = stripped
+                        break
+                return token_line if token_line else text
             except Exception:
                 return data
     except Exception:
@@ -121,6 +134,19 @@ def save_global_settings(settings_dict):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
+def save_session_token(token: str):
+    """Save Cloudflare session token for authenticated accounts."""
+    save_account_token(token)
+
+
+def load_session_token() -> str | None:
+    """Load Cloudflare session token for authenticated accounts."""
+    return load_account_token()
+
+
+def clear_session_token():
+    """Clear Cloudflare session token when logging out."""
+    clear_account_token()
 
 def load_version_data(version_dir):
     data_path = os.path.join(version_dir, "data.ini")

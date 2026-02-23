@@ -4,10 +4,10 @@ import uuid
 import base64
 import time
 import os
+
 from typing import Tuple
 from urllib.parse import urlparse
-
-from core.settings import load_global_settings
+from core.settings import load_global_settings, load_session_token
 
 
 def _ensure_uuid(username: str) -> str:
@@ -16,17 +16,35 @@ def _ensure_uuid(username: str) -> str:
 
 
 def _get_username_and_uuid() -> Tuple[str, str]:
+    """
+    Get the current user's username and UUID.
+    
+    For Histolauncher accounts: Verifies session with Cloudflare API (secure)
+    For Local accounts: Uses settings.ini (offline mode)
+    """
     settings = load_global_settings()
-    username = (settings.get("username") or "Player").strip() or "Player"
     account_type = settings.get("account_type", "Local")
+    
+    # For Histolauncher accounts, verify the session at Cloudflare
+    # This prevents someone from editing settings.ini to impersonate another user
     if account_type == "Histolauncher":
-        u = (settings.get("uuid") or "").strip()
-        if u:
-            try:
-                uuid.UUID(u)
-                return username, u.replace("-", "")
-            except Exception:
-                pass
+        try:
+            from server.cloudflare_auth import get_verified_account
+            success, account_data, error = get_verified_account()
+            if success and account_data:
+                username = account_data.get("username", "Player")
+                u = account_data.get("uuid", "").replace("-", "")
+                if u:
+                    try:
+                        uuid.UUID(account_data.get("uuid", ""))
+                        return username, u
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"[yggdrasil] Failed to verify Histolauncher session: {e}")
+    
+    # Fallback for local accounts or if verification fails
+    username = (settings.get("username") or "Player").strip() or "Player"
     u = _ensure_uuid(username)
     return username, u.replace("-", "")
 
@@ -49,7 +67,6 @@ def _get_skin_property(port: int) -> dict | None:
     encoded = base64.b64encode(json_bytes).decode("utf-8")
     data_to_sign = encoded.encode("utf-8")
     
-    # Sign the textures property using our private key
     try:
         from cryptography.hazmat.primitives import hashes, serialization
         from cryptography.hazmat.primitives.asymmetric import padding
@@ -95,15 +112,10 @@ def handle_session_get(path: str, port: int):
     parsed = urlparse(path)
     path_only = parsed.path or ""
     parts = [p for p in path_only.split("/") if p]
-    if len(parts) < 5:
-        return 404, {"error": "Not Found"}
-    req_uuid = parts[-1].replace("-", "").lower()
+    if len(parts) < 5: return 404, {"error": "Not Found"}
+    raw_req_id = parts[-1]
+    req_uuid = raw_req_id.replace("-", "")
     username, u_hex = _get_username_and_uuid()
-    u_hex = u_hex.lower()
-    u_with_dashes = (
-        f"{u_hex[0:8]}-{u_hex[8:12]}-{u_hex[12:16]}-"
-        f"{u_hex[16:20]}-{u_hex[20:]}"
-    )
     if req_uuid == "00000000000000000000000000000000":
         req_uuid = u_hex
     if req_uuid != u_hex:
@@ -112,5 +124,10 @@ def handle_session_get(path: str, port: int):
     skin_prop = _get_skin_property(port)
     if skin_prop:
         props.append(skin_prop)
-    resp = {"id": u_hex, "name": username, "properties": props, "signatureRequired": True}
+    resp = {
+        "id": u_hex,
+        "name": username,
+        "properties": props,
+        "signatureRequired": True,
+    }
     return 200, resp
