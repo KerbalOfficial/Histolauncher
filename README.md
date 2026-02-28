@@ -1,15 +1,18 @@
 # What is Histolauncher?
-Histolauncher is a lightweight, community-driven launcher built to preserve and explore the early history of Minecraft. It provides a clean, modern interface for browsing and launching a massive library of old Minecraft clients - from the earliest Alpha builds to the late Beta era.
+Histolauncher is a lightweight, community-driven launcher built to grow and help users play any versions of Minecraft they like.
 
-The goal is simple: make it easy for anyone to revisit the versions that shaped Minecraft's development, without digging through archives or setting up each client manually. Everything is organized, searchable, and ready to launch with just a click.
+It provides a clean, modern interface for browsing and launching a massive library of Minecraft clients, all officially from Mojang!
 
-Some versions (like the old Java Applet builds) are currently disabled due to technical limitations, but the launcher is designed to grow and improve over time as more features become possible.
+The goal is simple: make it easy for anyone to play any Minecraft version offline without having to risk searching for 100% clean launcher. Everything is organized, searchable, and ready to download & launch with just a few clicks.
 
-If you'd like to contribute, report issues, or help expand support for more versions, you're invited to help!
+Histolauncher is a passion project - built for easy access to Minecraft clients offline whenever.
 
-Histolauncher is a passion project - built for preservation, curiosity, and nostalgia.
+If you'd like to contribute, report issues, or help expand the project, you're invited to help!
 
-Join the Discord Server: https://discord.gg/P8dddrXFkn
+Join the Discord Server: **https://discord.gg/P8dddrXFkn**
+
+Official Website: **https://histolauncher.org**
+Backup Website: **https://histolauncher.pages.dev**
 
 # Requirements
 You will need:
