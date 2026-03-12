@@ -2,7 +2,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  font-family: 'MacMinecraft', sans-serif;
+  font-family: 'MacMinecraft';
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
@@ -10,6 +10,29 @@
 @font-face {
   font-family: 'MacMinecraft';
   src: url('assets/fonts/font.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'MacMinecraft';
+  src: url('assets/fonts/font_bold.woff2') format('woff2');
+  font-weight: bold;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'MacMinecraft';
+  src: url('assets/fonts/font_italic.woff2') format('woff2');
+  font-weight: normal;
+  font-style: italic;
+}
+
+@font-face {
+  font-family: 'MacMinecraft';
+  src: url('assets/fonts/font_bold_italic.woff2') format('woff2');
+  font-weight: bold;
+  font-style: italic;
 }
 
 body {
@@ -28,6 +51,28 @@ a {
 
 .hidden {
   display: none !important;
+}
+
+/* checkbox styling */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  font-size: 1.6em;
+  width: 1.4em;
+  height: 1.4em;
+  display: inline-block;
+  vertical-align: middle;
+  cursor: pointer;
+  text-align: right;
+  color: #ffffff;
+  padding: 0px !important;
+}
+input[type="checkbox"]::before {
+  content: " ";
+}
+input[type="checkbox"]:checked::before {
+  content: "✔";
 }
 
 /* RUNNING STEVE */
@@ -66,6 +111,19 @@ a {
   padding: 20px 40px;
   text-align: center;
   color: #fff;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+/* Message box with large content */
+#msgbox-box {
+  width: min(1100px, 94vw);
+  max-width: 94vw;
+}
+
+#msgbox-text {
+  max-height: 82vh;
+  overflow-y: auto;
 }
 
 .spinner {
@@ -103,6 +161,7 @@ a {
 .sidebar-item.active {
   background: #333;
   color: #fff;
+  font-weight: bold;
 }
 
 .sidebar-icon {
@@ -173,6 +232,34 @@ a {
   margin-bottom: 6px;
 }
 
+/* HOME PAGE - version panel */
+#home-version-panel {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+#home-version-image {
+  width: 150px;
+  height: auto;
+  border: 4px solid #333;
+  background: #000;
+  flex-shrink: 0;
+  display: block;
+}
+
+#home-version-details {
+  flex: 1;
+  min-width: 0;
+}
+
+#home-account-panel {
+  border-top: 2px solid #333;
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
 .home-launch-container {
   display: flex;
   justify-content: center;
@@ -190,6 +277,17 @@ a {
 
 .big-launch-btn:hover {
   background: #42c248;
+}
+
+.big-launch-btn:disabled {
+  background: #555;
+  border-color: #333;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.big-launch-btn:disabled:hover {
+  background: #555;
 }
 
 .status {
@@ -231,6 +329,397 @@ a {
   color:#e5e7eb;
 }
 
+.mods-topbar-filter {
+  gap: 8px;
+}
+
+#mods-search {
+  min-width: 240px;
+}
+
+.mods-filter-menu {
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+.mods-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.mods-filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mods-filter-item label {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.mods-filter-item select {
+  background: #3c3f41;
+  border: 1px solid #1f2937;
+  color: #e5e7eb;
+  padding: 6px 8px;
+}
+
+/* MOD CARDS - smaller grid size */
+.mod-card {
+  width: 160px;
+}
+
+/* MOD IMAGE - 1:1 ratio */
+.mod-image {
+  aspect-ratio: 1 / 1;
+  height: auto !important;
+  width: 100%;
+  object-fit: cover;
+}
+
+/* List-view: compound selector (.version-image.mod-image) beats .version-image alone,
+   so the 120px fixed width is overridden and aspect-ratio keeps the image 1:1. */
+.versions-list.list-view .version-image.mod-image {
+  aspect-ratio: 1 / 1;
+  width: auto;
+  height: 100%;
+  flex-shrink: 0;
+}
+
+/* Mod cards in list view grow to fit description + version row */
+.versions-list.list-view .mod-card {
+  height: auto;
+  min-height: 86px;
+}
+
+/* Override section-installed padding-right (mod cards don't use absolute action icons) */
+.versions-list.list-view .mod-card.section-installed .version-info {
+  padding-right: 0;
+}
+
+/* Delete icon placed before badges */
+.mod-card-delete-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+}
+
+/* Loader group header inside installed mods list */
+.installed-mods-loader-header {
+  width: 100%;
+  padding: 6px 10px 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  border-bottom: 1px solid #374151;
+  margin-bottom: 2px;
+}
+
+/* DISABLED MOD CARD */
+.mod-card-disabled {
+  opacity: 0.55;
+  filter: grayscale(60%);
+}
+
+.mod-card-disabled:hover {
+  opacity: 0.75;
+  filter: grayscale(30%);
+}
+
+/* VERSION DROPDOWN ROW */
+.mod-version-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.mod-version-label {
+  font-size: 10px;
+  color: #999;
+  white-space: nowrap;
+}
+
+/* MODS LOADING INDICATOR */
+.mods-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 0;
+  color: #999;
+  font-size: 13px;
+}
+
+/* PAGINATION */
+.mods-pagination {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  padding: 16px 0 8px 0;
+  flex-wrap: wrap;
+}
+
+.mods-page-btn {
+  min-width: 32px;
+  padding: 4px 8px;
+  font-size: 12px;
+  background: #2a2a2a;
+  border: 2px solid #444;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.mods-page-btn:hover:not(:disabled) {
+  background: #3a3a3a;
+  color: #fff;
+}
+
+.mods-page-btn.active {
+  background: #4a4a4a;
+  border-color: #888;
+  color: #fff;
+}
+
+.mods-page-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.mods-page-ellipsis {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  color: #666;
+  font-size: 12px;
+}
+
+/* MOD DETAIL MODAL */
+.mod-detail-content {
+  max-height: 76vh;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.mod-detail-description {
+  font-size: 14px;
+  color: #ccc;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  min-height: 160px;
+  max-height: 42vh;
+  overflow-y: auto;
+  word-break: break-word;
+  resize: vertical;
+  border: 1px solid #2d3748;
+  background: #15181d;
+  padding: 12px;
+}
+
+.mod-detail-description img {
+  max-width: 100%;
+  height: auto;
+}
+
+.mod-detail-description h1,
+.mod-detail-description h2,
+.mod-detail-description h3,
+.mod-detail-description h4,
+.mod-detail-description h5,
+.mod-detail-description h6 {
+  margin: 10px 0 6px;
+  color: #f3f4f6;
+  line-height: 1.25;
+}
+
+.mod-detail-description p {
+  margin: 0 0 8px;
+}
+
+.mod-detail-description ul {
+  margin: 0 0 8px 18px;
+  padding: 0;
+}
+
+.mod-detail-description li {
+  margin: 2px 0;
+}
+
+.mod-detail-description hr {
+  border: none;
+  border-top: 1px solid #374151;
+  margin: 10px 0;
+}
+
+.mod-detail-description code {
+  background: #111827;
+  border: 1px solid #374151;
+  padding: 1px 4px;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.mod-detail-description pre.mod-detail-codeblock {
+  background: #0d1117;
+  border: 1px solid #374151;
+  padding: 10px;
+  margin: 8px 0;
+  overflow-x: auto;
+  text-align: left;
+}
+
+.mod-detail-description pre.mod-detail-codeblock code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: block;
+  white-space: pre;
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.mod-detail-description a {
+  color: #7cc8ff;
+  text-decoration: underline;
+}
+
+.mod-detail-gallery {
+  margin-bottom: 16px;
+}
+
+.mod-detail-gallery-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.mod-detail-screenshot {
+  height: 140px;
+  border: 2px solid #333;
+  object-fit: cover;
+  flex-shrink: 0;
+  cursor: zoom-in;
+}
+.mod-detail-screenshot:hover {
+  border-color: #4d9eff;
+  opacity: 0.9;
+}
+
+.screenshot-lightbox {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.85);
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+}
+.screenshot-lightbox.active {
+  display: flex;
+}
+.screenshot-lightbox-img {
+  max-width: 90vw;
+  max-height: 88vh;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.mod-detail-stats {
+  display: flex;
+  gap: 18px;
+  font-size: 13px;
+  color: #9ca3af;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.mod-detail-versions {
+  margin-top: 12px;
+}
+
+.mod-detail-version-filters {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mod-detail-version-filters select {
+  background: #3c3f41;
+  border: 1px solid #1f2937;
+  color: #e5e7eb;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.mod-detail-version-list {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 2px solid #333;
+  background: #1a1a1a;
+}
+
+.mod-detail-version-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.mod-detail-version-row:last-child {
+  border-bottom: none;
+}
+
+.mod-version-type-badge {
+  font-size: 11px;
+  font-style: bold;
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.mod-version-type-badge.mod-version-type-release { background: #1a3a1a; color: #4caf50; border: 1px solid #2e6b2e; }
+.mod-version-type-badge.mod-version-type-beta    { background: #2a1a40; color: #ab7cd6; border: 1px solid #5a3a80; }
+.mod-version-type-badge.mod-version-type-alpha   { background: #3a1a00; color: #e07820; border: 1px solid #7a3a00; }
+
+.mod-detail-version-row:hover {
+  background: #222;
+}
+
+.mod-detail-version-row.recommended {
+  background: #2a2510;
+  border-left: 3px solid #c0a716;
+  padding-left: 7px;
+}
+
+.mod-detail-version-row.recommended:hover {
+  background: #333220;
+}
+
+.mod-detail-version-name {
+  font-size: 13px;
+  color: #e5e7eb;
+  min-width: 100px;
+}
+
+.mod-detail-version-meta {
+  flex: 1;
+  font-size: 12px;
+  color: #9ca3af;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* VERSION SECTIONS */
 .versions-sections {
   display: flex;
@@ -247,17 +736,70 @@ a {
 .versions-section-header {
   display: flex;
   flex-direction: column;
+  gap: 2px;
   margin-bottom: 8px;
+}
+
+.versions-section-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.section-dropdown-trigger {
+  cursor: pointer;
+}
+
+.versions-section-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .versions-section-header h3 {
   font-size: 18px;
-  margin-bottom: 2px;
+  margin: 0;
 }
 
 .versions-section-subtitle {
   font-size: 11px;
   color: #9ca3af;
+}
+
+.section-dropdown-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: #e5e7eb;
+  cursor: pointer;
+  user-select: none;
+}
+
+.section-dropdown-toggle:hover {
+  color: #ffffff;
+}
+
+.section-dropdown-indicator {
+  display: inline-block;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.section-dropdown-body {
+  margin-top: 6px;
+}
+
+@media (max-width: 720px) {
+  .versions-section-header-top {
+    flex-wrap: wrap;
+  }
 }
 
 /* VERSION LISTS */
@@ -267,6 +809,189 @@ a {
   gap: 12px;
 }
 
+/* LIST VIEW */
+.versions-list.list-view {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.versions-list.list-view .version-card {
+  --list-image-width: 120px;
+  width: 100%;
+  min-height: 86px;
+  height: 86px;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.versions-list.list-view .version-image {
+  width: var(--list-image-width);
+  height: 100%;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: block;
+}
+
+.versions-list.list-view .version-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 10px;
+}
+
+.versions-list.list-view .version-header-row {
+  align-items: center;
+}
+
+.versions-list.list-view .version-actions-icons {
+  align-self: center;
+}
+
+.versions-list.list-view .version-actions {
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  flex: 0 0 auto;
+}
+
+.versions-list.list-view .version-actions:empty {
+  display: none;
+}
+
+.versions-list.list-view .version-actions button {
+  width: auto;
+  min-width: 74px;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.versions-list.list-view .version-card.section-installing .version-actions button {
+  flex: 0 0 auto;
+}
+
+.versions-list.list-view .version-card.section-installed .version-info {
+  position: relative;
+  padding-right: 96px;
+}
+
+.versions-list.list-view .version-card.section-installed .version-header-row {
+  display: block;
+}
+
+.versions-list.list-view .version-card.section-installed .version-actions-icons {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.versions-list.list-view .version-progress {
+  position: absolute;
+  bottom: -1;
+  left: var(--list-image-width);
+  right: 0;
+  height: 6px;
+}
+
+.versions-list.list-view .version-progress-text {
+  position: absolute;
+  left: calc(var(--list-image-width) + 10px);
+  right: 10px;
+  bottom: 2px;
+  padding: 0;
+  margin-top: 0;
+  font-size: 11px;
+  color: #ccc;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.versions-list.list-view .version-badge-row {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  justify-content: center;
+}
+
+.versions-list.list-view .version-badge {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* VIEW TOGGLE */
+.view-toggle {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.view-toggle-btn {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  padding: 10px 12px;
+  cursor: pointer;
+  color: #9ca3af;
+}
+
+.view-toggle-btn:hover {
+  background: #333;
+  color: #fff;
+}
+
+.view-toggle-btn.active {
+  background: #4a4a4a;
+  border-color: #666;
+  color: #fff;
+}
+
+.view-toggle-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.versions-action-buttons {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.versions-action-buttons button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.versions-action-buttons button.icon-btn {
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.versions-action-buttons button.icon-btn img {
+  width: 22px;
+  height: 22px;
+}
+
+.versions-action-buttons button img {
+  width: 16px;
+  height: 16px;
+}
+
 /* VERSION CARDS */
 .version-card {
   width: 260px;
@@ -274,7 +999,6 @@ a {
   border: 4px solid #333;
   cursor: pointer;
   color: #ccc;
-  transition: 0.1s;
   display: flex;
   flex-direction: column;
   position: relative;
@@ -292,20 +1016,17 @@ a {
 }
 
 .version-card.unselectable {
-  cursor: default;
-}
-
-.version-card.unselectable:hover {
   background: #1a1a1a;
   border-color: #333;
   color: #ccc;
+  cursor: default;
 }
 
 .version-card.installing::after {
   content: "Downloading...";
   position: absolute;
   inset: 0;
-  background: rgba(0,0,0,0.55);
+  background: rgba(0,0,0,.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -334,6 +1055,7 @@ a {
   height: 140px;
   background: #000;
   object-fit: cover;
+  display: block;
 }
 
 .version-info {
@@ -358,7 +1080,7 @@ a {
   color: #9ca3af;
 }
 
-/* FAVORITES + DELETE */
+/* VERSION CARDS ACTION ICONS */
 .version-actions-icons {
   display: flex;
   align-items: center;
@@ -398,8 +1120,14 @@ a {
   position: relative;
   width: 100%;
   height: 6px;
-  background: #111827;
+  background: #444;
   overflow: hidden;
+}
+
+.version-progress-text {
+  font-size: 11px;
+  padding: 4px 10px 8px 10px;
+  color: #9ca3af;
 }
 
 .version-progress.paused {
@@ -422,6 +1150,9 @@ a {
   display: flex;
   gap: 6px;
   padding: 0 10px 6px 10px;
+  flex-wrap: wrap;
+  overflow: hidden;
+  max-height: 52px;
 }
 
 .version-badge {
@@ -437,6 +1168,18 @@ a {
   background: #14532d;
   border: 2px solid #043a1a;
   color: #bbf7d0;
+}
+
+.version-badge.imported {
+  background: #4c1e77;
+  border: 2px solid #341550;
+  color: #ead7fc;
+}
+
+.version-badge.modpack {
+  background: #1e3a5f;
+  border: 2px solid #0f2744;
+  color: #a3d4ff;
 }
 
 .version-badge.available {
@@ -469,6 +1212,12 @@ a {
   color: #bfdbfe;
 }
 
+.version-badge.size {
+  background: #4b5563;
+  border: 2px solid #272f3b;
+  color: #e5e7eb;
+}
+
 /* SETTINGS PAGE */
 .row {
   display: flex;
@@ -494,6 +1243,17 @@ a {
   border: 2px solid #1a1c1d;
   color: #e5e7eb;
   padding: 6px 8px;
+}
+
+.mod-version-select {
+  background: #3c3f41;
+  border: 2px solid #1a1c1d;
+  color: #e5e7eb;
+  padding: 2px 4px;
+  font-size: 10px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 button {
@@ -546,4 +1306,124 @@ button.danger {
 
 button.danger:hover {
   background: #de4a4a;
+}
+
+button.fabric {
+  background: #e0d7ab;
+  border-color: #706a4e;
+  color: #181610;
+}
+
+button.fabric:hover {
+  background: #e6e1c8;
+}
+
+button.forge {
+  background: #2e4460;
+  border-color: #192b42;
+  color: #dfa86a;
+}
+
+button.forge:hover {
+  background: #3b5679;
+}
+
+/* SETTINGS COLLAPSIBLE SECTIONS */
+.settings-dropdown-title {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-dropdown-title:hover {
+  color: #fff;
+}
+
+.dropdown-indicator {
+  display: inline-block;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.settings-dropdown-content {
+  max-height: 1000px;
+  overflow: hidden;
+  opacity: 1;
+}
+
+.settings-dropdown-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+/* SETTINGS VALIDATION */
+.invalid-indicator {
+  color: #ff4444;
+  cursor: help;
+}
+
+input.invalid-setting {
+  border: 4px solid #ff4444;
+  background-color: #3d1212;
+}
+
+.row-invalid label {
+  color: #ff4444;
+}
+
+/* INFO BUBBLES */
+.info-bubble {
+  width: 16px;
+  height: 16px;
+  cursor: help;
+  margin-left: 4px;
+}
+
+.info-bubble:hover {
+  opacity: 1;
+}
+
+/* TOOLTIP */
+.tooltip {
+  position: fixed;
+  background: #000000dd;
+  color: #ffffff;
+  font-size: 12px;
+  padding: 8px 10px;
+  max-width: 50%;
+  pointer-events: none;
+  z-index: 10000;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.4;
+}
+
+.tooltip-label {
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.tooltip-value {
+  font-style: italic;
+  color: #e5e7eb;
+}
+
+.tooltip-parens {
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.home-info-error {
+  color: #ff4444;
+  cursor: help;
+}
+
+.home-info-error .tooltip-label {
+  color: #ff4444;
+}
+
+.home-info-error .tooltip-value {
+  color: #ff8888;
 }

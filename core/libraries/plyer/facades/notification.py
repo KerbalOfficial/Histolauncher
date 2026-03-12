@@ -46,7 +46,7 @@ class Notification:
     '''
 
     def notify(self, title='', message='', app_name='', app_icon='',
-               timeout=10, ticker='', toast=False, hints={}):
+               timeout=10, ticker='', toast=False, hints={}, callback=None):
         '''
         Send a notification.
 
@@ -61,6 +61,8 @@ class Notification:
         :param hints: Optional hints that can be used to pass along extra
                       instructions on Linux.
                       (See https://specifications.freedesktop.org/notification-spec/latest/ar01s08.html)  # noqa: E501
+        :param callback: optional callable invoked if the user clicks the
+                         notification (Windows only).  Receives no arguments.
 
         :type title: str
         :type message: str
@@ -70,10 +72,13 @@ class Notification:
         :type ticker: str
         :type toast: bool
         :type hints: dict
+        :type callback: callable or None
 
         .. note::
            When called on Windows, ``app_icon`` has to be a path to
-           a file in .ICO format.
+           a file in .ICO format.  ``callback`` requires the notification to
+           run through the Windows balloon implementation and won't work when
+           the system falls back to a browser-based notification.
 
         .. versionadded:: 1.0.0
 
@@ -84,7 +89,8 @@ class Notification:
         self._notify(
             title=title, message=message,
             app_icon=app_icon, app_name=app_name,
-            timeout=timeout, ticker=ticker, toast=toast, hints=hints
+            timeout=timeout, ticker=ticker, toast=toast, hints=hints,
+            callback=callback,
         )
 
     # private

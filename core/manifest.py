@@ -1,9 +1,10 @@
 # core/manifest.py
+
 import json
 import urllib.request
-from typing import Dict, Any, List
 
-from core.settings import load_global_settings
+from typing import Dict, Any, List
+from core.settings import _apply_url_proxy
 
 DEFAULT_MANIFEST_URLS: List[Dict[str, str]] = [
     {
@@ -15,21 +16,6 @@ DEFAULT_MANIFEST_URLS: List[Dict[str, str]] = [
         "url": "https://launchermeta.mojang.com/mc/game/version_manifest.json",
     },
 ]
-
-
-def _get_url_proxy_prefix() -> str:
-    try:
-        cfg = load_global_settings()
-        return (cfg.get("url_proxy") or "").strip()
-    except Exception:
-        return ""
-
-
-def _apply_url_proxy(url: str) -> str:
-    prefix = _get_url_proxy_prefix()
-    if not prefix:
-        return url
-    return prefix + url
 
 
 def _http_get_json(url: str, timeout: int) -> Dict[str, Any]:

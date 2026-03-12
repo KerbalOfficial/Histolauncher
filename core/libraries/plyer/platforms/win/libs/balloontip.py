@@ -38,6 +38,10 @@ NIIF_USER = 4
 NIIF_LARGE_ICON = 0x20
 
 
+# constants used for callback messages
+WM_USER = 0x0400
+NIN_BALLOONUSERCLICK = WM_USER + 2
+
 class WindowsBalloonTip:
     '''
     Implementation of balloon tip notifications through Windows API.
@@ -80,21 +84,23 @@ class WindowsBalloonTip:
         return val
 
     def __init__(self, title, message, app_name, app_icon='',
-                 timeout=10, **kwargs):
+                 timeout=10, callback=None, **kwargs):
         '''
-        The app_icon parameter, if given, is an .ICO file.
+        The app_icon parameter, if given, is an .ICO file.  ``callback`` is an
+        optional callable that will be invoked when the balloon is clicked.
         '''
         atexit.register(self.__del__)
+
+        self._callback = callback
+        self._callback_msg = WM_USER + 1
 
         wnd_class_ex = win_api_defs.get_WNDCLASSEXW()
         class_name = 'PlyerTaskbar' + str(WindowsBalloonTip._get_unique_id())
 
         wnd_class_ex.lpszClassName = class_name
 
-        # keep ref to it as long as window is alive
-        wnd_class_ex.lpfnWndProc = win_api_defs.WindowProc(
-            win_api_defs.DefWindowProcW
-        )
+        # ensure we intercept messages so we can react to clicks
+        wnd_class_ex.lpfnWndProc = win_api_defs.WindowProc(self._wnd_proc)
         wnd_class_ex.hInstance = win_api_defs.GetModuleHandleW(None)
         if wnd_class_ex.hInstance is None:
             raise Exception('Could not get windows module instance.')
@@ -178,7 +184,7 @@ class WindowsBalloonTip:
 
         notify_data = win_api_defs.get_NOTIFYICONDATAW(
             0, self._hwnd,
-            id(self), flags, 0, hicon, app_name, 0, 0, message,
+            id(self), flags, self._callback_msg, hicon, app_name, 0, 0, message,
             NOTIFYICON_VERSION_4, title, icon_flag, win_api_defs.GUID(),
             self._balloon_icon
         )
@@ -189,6 +195,17 @@ class WindowsBalloonTip:
         if not win_api_defs.Shell_NotifyIconW(NIM_SETVERSION,
                                               notify_data):
             raise Exception('Shell_NotifyIconW failed.')
+
+    def _wnd_proc(self, hwnd, msg, wparam, lparam):
+        # intercept our callback message and, if the balloon was clicked,
+        # invoke the user-supplied function.
+        if msg == self._callback_msg:
+            if lparam == NIN_BALLOONUSERCLICK and self._callback:
+                try:
+                    self._callback()
+                except Exception:
+                    pass
+        return win_api_defs.DefWindowProcW(hwnd, msg, wparam, lparam)
 
     def remove_notify(self):
         '''

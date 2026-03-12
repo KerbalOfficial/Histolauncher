@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <title>Histolauncher</title>
+  <title>Histolauncher - Launcher</title>
   <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
@@ -12,20 +12,29 @@
     <div class="sidebar-item active" data-page="home">
       <img 
         class="sidebar-icon"
-        data-static="assets/images/histolauncher_block.png"
-        data-anim="assets/images/histolauncher_block.png"
-        src="assets/images/histolauncher_block.png"
+        data-static="assets/images/histolauncher.png"
+        data-anim="assets/images/histolauncher.png"
+        src="assets/images/histolauncher.png"
       />
       <span>Home</span>
     </div>
     <div class="sidebar-item" data-page="versions">
       <img 
         class="sidebar-icon"
-        data-static="assets/images/library_block.png"
-        data-anim="assets/images/library_block.png"
-        src="assets/images/library_block.png"
+        data-static="assets/images/library.png"
+        data-anim="assets/images/library.png"
+        src="assets/images/library.png"
       />
       <span>Versions</span>
+    </div>
+    <div class="sidebar-item" data-page="mods">
+      <img 
+        class="sidebar-icon"
+        data-static="assets/images/anvil_hammer.png"
+        data-anim="assets/images/anvil_hammer.png"
+        src="assets/images/anvil_hammer.png"
+      />
+      <span>Mods</span>
     </div>
     <div class="sidebar-item" data-page="settings">
       <img 
@@ -39,9 +48,9 @@
     <div class="sidebar-item" data-page="about">
       <img 
         class="sidebar-icon"
-        data-static="assets/images/unknown_block.png"
-        data-anim="assets/images/unknown_block.png"
-        src="assets/images/unknown_block.png"
+        data-static="assets/images/unknown.png"
+        data-anim="assets/images/unknown.png"
+        src="assets/images/unknown.png"
       />
       <span>About</span>
     </div>
@@ -66,13 +75,23 @@
       <h2 class="section-title"><img width="24px" height="24px" src="assets/images/histolauncher.png"/> Home</h2>
 
       <div id="home-info" class="info-box" style="max-width:720px;margin:40px auto 20px auto;">
-        <div id="info-version"><img width="16px" height="16px" src="assets/images/unknown.png"/> Version: (none selected)</div>
-        <div id="info-username"><img width="16px" height="16px" src="assets/images/unknown.png"/> Account: (unknown)</div>
-        <div id="info-ram"><img width="16px" height="16px" src="assets/images/unknown.png"/> RAM Limit: (unknown)</div>
+        <div id="home-version-panel">
+          <img id="home-version-image" src="assets/images/version_placeholder.png" alt="Version" onerror="this.src='assets/images/version_placeholder.png'"/>
+          <div id="home-version-details">
+            <div id="info-version"><img width="16px" height="16px" src="assets/images/library.png"/> Version: (none selected)</div>
+            <div id="info-version-category" class="hidden"></div>
+            <div id="info-version-size" class="hidden"></div>
+            <div id="info-version-loaders" class="hidden"></div>
+          </div>
+        </div>
+        <div id="home-account-panel">
+          <div id="info-username"><img width="16px" height="16px" src="assets/images/unknown.png"/> Account: (unknown)</div>
+          <div id="info-ram"><img width="16px" height="16px" src="assets/images/unknown.png"/> RAM Limit: (unknown)</div>
+        </div>
       </div>
 
       <div class="home-launch-container">
-        <button id="launch-btn" class="big-launch-btn">Launch</button>
+        <button id="launch-btn" class="big-launch-btn">Launch ⏵</button>
       </div>
 
       <!-- a little easter egg -->
@@ -92,34 +111,224 @@
 
           <label for="versions-search">Search:</label>
           <input id="versions-search" type="search" placeholder="Search...">
+
+          <div class="view-toggle">
+            <button id="view-grid-btn" class="view-toggle-btn" title="Grid View">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/>
+              </svg>
+            </button>
+            <button id="view-list-btn" class="view-toggle-btn" title="List View">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="4" width="18" height="4"/>
+                <rect x="3" y="10" width="18" height="4"/>
+                <rect x="3" y="16" width="18" height="4"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="versions-action-buttons">
+            <button id="export-versions-btn" class="icon-btn">
+              <img style="width:48px;height:48px;" src="assets/images/export_version.png"/>
+            </button>
+            <button id="import-versions-btn" class="icon-btn">
+              <img style="width:48px;height:48px;" src="assets/images/import_version.png"/>
+            </button>
+          </div>
         </div>
       </div>
 
       <div class="versions-sections">
         <p id="versions-section-warning" class="hidden">Warning message</p>
 
-        <section id="installed-section" class="info-box">
+        <section id="installed-section" class="info-box collapsible-section">
           <div class="versions-section-header">
-            <h3>Installed</h3>
-            <span class="versions-section-subtitle">Versions that are installed in your device and ready to launch!</span>
+            <div class="versions-section-header-top">
+              <h3 class="section-dropdown-trigger">Installed</h3>
+              <div class="versions-section-header-actions">
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle installed versions section">
+                  <span class="section-dropdown-indicator">⏷</span>
+                </span>
+              </div>
+            </div>
+            <span id="installed-versions-subtitle" class="versions-section-subtitle">Versions that are installed in your device and ready to launch!</span>
           </div>
-          <div id="installed-versions" class="versions-list"></div>
+          <div class="section-dropdown-body">
+            <div id="installed-versions" class="versions-list"></div>
+          </div>
         </section>
 
-        <section id="installing-section" class="info-box">
+        <section id="installing-section" class="info-box collapsible-section">
           <div class="versions-section-header">
-            <h3>Installing</h3>
+            <div class="versions-section-header-top">
+              <h3 class="section-dropdown-trigger">Installing</h3>
+              <div class="versions-section-header-actions">
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle installing versions section">
+                  <span class="section-dropdown-indicator">⏷</span>
+                </span>
+              </div>
+            </div>
             <span class="versions-section-subtitle">Versions that are currently being downloaded.</span>
           </div>
-          <div id="installing-versions" class="versions-list"></div>
+          <div class="section-dropdown-body">
+            <div id="installing-versions" class="versions-list"></div>
+          </div>
         </section>
 
-        <section id="available-section" class="info-box">
+        <section id="available-section" class="info-box collapsible-section">
           <div class="versions-section-header">
-            <h3>Available</h3>
+            <div class="versions-section-header-top">
+              <h3 class="section-dropdown-trigger">Available</h3>
+              <div class="versions-section-header-actions">
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle available versions section">
+                  <span class="section-dropdown-indicator">⏷</span>
+                </span>
+              </div>
+            </div>
             <span class="versions-section-subtitle">Versions from Mojang's official servers.</span>
           </div>
-          <div id="available-versions" class="versions-list"></div>
+          <div class="section-dropdown-body">
+            <div id="available-versions" class="versions-list"></div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- MODS PAGE -->
+    <div id="page-mods" class="page hidden">
+      <div class="versions-header">
+        <h2 class="section-title"><img width="24px" height="24px" src="assets/images/anvil_hammer.png"/> Mods</h2>
+
+        <div class="versions-filter mods-topbar-filter">
+          <label for="mods-search">Search:</label>
+          <input id="mods-search" type="search" placeholder="Search...">
+
+          <button id="mods-clear-filters-btn" type="button">Clear</button>
+
+          <div class="view-toggle">
+            <button id="mods-view-grid-btn" class="view-toggle-btn active" title="Grid View">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="3" width="7" height="7"/>
+                <rect x="14" y="3" width="7" height="7"/>
+                <rect x="3" y="14" width="7" height="7"/>
+                <rect x="14" y="14" width="7" height="7"/>
+              </svg>
+            </button>
+            <button id="mods-view-list-btn" class="view-toggle-btn" title="List View">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="3" y="4" width="18" height="4"/>
+                <rect x="3" y="10" width="18" height="4"/>
+                <rect x="3" y="16" width="18" height="4"/>
+              </svg>
+            </button>
+          </div>
+
+          <div class="versions-action-buttons">
+            <button id="export-modpack-btn" class="icon-btn" title="Export Histolauncher Modpack (.hlmp)">
+              <img style="width:48px;height:48px;" src="assets/images/export_version.png"/>
+            </button>
+            <button id="import-modpack-btn" class="icon-btn" title="Import Histolauncher Modpack (.hlmp)">
+              <img style="width:48px;height:48px;" src="assets/images/import_version.png"/>
+            </button>
+            <input type="file" id="import-modpack-file-input" accept=".hlmp" style="display:none;">
+            <button id="import-mod-btn" class="icon-btn" title="Import custom mod JAR">
+              <img style="width:48px;height:48px;" src="assets/images/import_jar.png"/>
+            </button>
+            <input type="file" id="import-mod-file-input" accept=".jar" style="display:none;">
+          </div>
+        </div>
+      </div>
+
+      <div id="mods-filter-menu" class="info-box mods-filter-menu">
+        <div class="mods-filter-grid">
+          <div class="mods-filter-item">
+            <label for="mods-provider-select">Provider:</label>
+            <select id="mods-provider-select">
+              <option value="modrinth">Modrinth</option>
+              <option value="curseforge">CurseForge</option>
+            </select>
+          </div>
+
+          <div class="mods-filter-item">
+            <label for="mods-loader-select">Mod Loader:</label>
+            <select id="mods-loader-select">
+              <option value="">All</option>
+              <option value="fabric">Fabric</option>
+              <option value="forge">Forge</option>
+            </select>
+          </div>
+
+          <div class="mods-filter-item">
+            <label for="mods-version-select">Minecraft Version:</label>
+            <select id="mods-version-select">
+              <option value="">All</option>
+            </select>
+          </div>
+
+          <div class="mods-filter-item">
+            <label for="mods-category-select">Category:</label>
+            <select id="mods-category-select">
+              <option value="">All</option>
+            </select>
+          </div>
+
+          <div class="mods-filter-item">
+            <label for="mods-sort-select">Sort:</label>
+            <select id="mods-sort-select">
+              <option value="relevance">Relevance</option>
+              <option value="downloads">Downloads</option>
+              <option value="name">Name</option>
+              <option value="updated">Recently Updated</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="versions-sections">
+        <p id="mods-section-warning">Warning message</p>
+
+        <section id="installed-mods-section" class="info-box collapsible-section">
+          <div class="versions-section-header">
+            <div class="versions-section-header-top">
+              <h3 class="section-dropdown-trigger">Installed</h3>
+              <div class="versions-section-header-actions">
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle installed mods section">
+                  <span class="section-dropdown-indicator">⏷</span>
+                </span>
+              </div>
+            </div>
+            <span id="installed-mods-subtitle" class="versions-section-subtitle">Your installed mods (0 installed, 0 disabled)</span>
+          </div>
+          <div class="section-dropdown-body">
+            <div id="installed-modpacks-list" class="versions-list"></div>
+            <div id="installed-mods-list" class="versions-list"></div>
+          </div>
+        </section>
+
+        <section id="available-mods-section" class="info-box collapsible-section">
+          <div class="versions-section-header">
+            <div class="versions-section-header-top">
+              <h3 class="section-dropdown-trigger">Available</h3>
+              <div class="versions-section-header-actions">
+                <button id="mods-refresh-btn" title="Refresh mod list">Refresh</button>
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle available mods section">
+                  <span class="section-dropdown-indicator">⏷</span>
+                </span>
+              </div>
+            </div>
+            <span class="versions-section-subtitle">Mods from <span id="mods-provider-display">Modrinth</span></span>
+          </div>
+          <div class="section-dropdown-body">
+            <div id="available-mods-list" class="versions-list"></div>
+            <div id="mods-loading" class="mods-loading hidden">
+              <img src="assets/images/settings.gif" width="32" height="32" alt="Loading...">
+              <span>Loading...</span>
+            </div>
+            <div id="mods-pagination" class="mods-pagination"></div>
+          </div>
         </section>
       </div>
     </div>
@@ -129,60 +338,100 @@
       <h2 class="section-title"><img width="24px" height="24px" src="assets/images/settings.gif"/> Settings</h2>
 
       <br>
-      <h3>Account</h3>
-      <br>
+      <h3 class="settings-dropdown-title">Account <span class="dropdown-indicator">⏷</span></h3>
+      <div class="settings-dropdown-content">
+        <br>
 
-      <div class="row" id="username-row">
-        <label>Username:</label>
-        <input type="text" id="settings-username" maxlength="16" size="15"/>
-      </div>
-
-      <div class="row">
-        <label>Account Type:</label>
-        <select id="settings-account-type">
-          <option value="Local">Local</option>
-          <option value="Histolauncher">Histolauncher</option>
-        </select>
-        <button id="connect-account-btn" class="primary" style="margin-left:12px; display:none;">Connect Account</button>
-        <button id="disconnect-account-btn" class="danger" style="margin-left:8px; display:none;">Disconnect</button>
-      </div>
-
-      <br>
-      <h3>Client</h3>
-      <br>
-
-      <div class="row">
-        <label>Minimum RAM:</label>
-        <input type="text" id="settings-min-ram" placeholder="64M" size="5"/>B
-      </div>
-      <div class="row">
-        <label>Maximum RAM:</label>
-        <input type="text" id="settings-max-ram" placeholder="2048M" size="5"/>B
-      </div>
-      <div class="row">
-        <label>Storage directory:</label>
-        <select id="settings-storage-dir">
-          <option value="global">Global</option>
-          <option value="version">Version</option>
-        </select>
+        <div class="row" id="username-row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Your in-game username (3-16 characters)"/>
+          <label><span class="invalid-indicator hidden" title="Username must be 3-16 characters long!">⚠ </span>Username:</label>
+          <input type="text" id="settings-username" maxlength="16" size="15"/>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Local: This is the default, no custom skins can be set.\n\nHistolauncher: Personal account, your own custom skin customizeable from the website."/>
+          <label>Account Type:</label>
+          <select id="settings-account-type">
+            <option value="Local">Local</option>
+            <option value="Histolauncher">Histolauncher</option>
+          </select>
+          <button id="connect-account-btn" class="primary" style="margin-left:12px; display:none;">Connect Account</button>
+          <button id="disconnect-account-btn" class="danger" style="margin-left:8px; display:none;">Disconnect</button>
+        </div>
       </div>
 
       <br>
-      <h3>Launcher</h3>
-      <p style="color:#ff505099;font-size:12px;">Do not change these settings here unless you know what you are doing! Anything here can change the behavior of the Launcher.</p>
-      <br>
+      <h3 class="settings-dropdown-title">Client <span class="dropdown-indicator">⏷</span></h3>
+      <div class="settings-dropdown-content">
+        <br>
 
-      <div class="row">
-        <label>URL Proxy:</label>
-        <input type="text" id="settings-url-proxy" placeholder="https://yourproxy.com/?url=" size="40"/>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Minimum RAM allocated to the game\n  - Must be a positive number\n  - Must be smaller than Maximum RAM\n\nExample format: 256, 256M, 2G, etc.\n\n(performance tip: allocate more RAM for better performance, also match it with maximum RAM for less frame drops)"/>
+          <label><span class="invalid-indicator hidden" title="RAM format: number with optional K, M, G, or T suffix (e.g., 2048M, 2G)">⚠ </span>Minimum RAM:</label>
+          <input type="text" id="settings-min-ram" placeholder="2048M" size="5"/>B
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Maximum RAM allocated to the game\n  - Must be a positive number\n  - Must be greater than Minimum RAM\n  - Must be at least 1 byte\n\nExample format: 256, 256M, 2G, etc.\n\n(performance tip: allocate more RAM for better performance, also match it with minimum RAM for less frame drops)"/>
+          <label><span class="invalid-indicator hidden" id="max-ram-indicator">⚠ </span>Maximum RAM:</label>
+          <input type="text" id="settings-max-ram" placeholder="4096M" size="5"/>B
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Global: All game versions share the same data directory.\n\nVersion: Separate game data directory for each version, best used for testing or version sandboxing. (deleting the version also deletes the data)"/>
+          <label>Storage directory:</label>
+          <select id="settings-storage-dir">
+            <option value="global">Global</option>
+            <option value="version">Version</option>
+          </select>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Extra JVM arguments appended to every launch command. Useful for performance tuning or debugging.\n\nExample: -XX:+UseG1GC -XX:MaxGCPauseMillis=50"/>
+          <label>Extra JVM arguments:</label>
+          <input type="text" id="settings-extra-jvm-args" placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=50" size="46"/>
+        </div>
       </div>
-      <div class="row">
-        <label>Low-Data Mode:</label>
-        <input type="checkbox" id="settings-low-data"/>
+
+      <br>
+      <h3 class="settings-dropdown-title">Launcher <span class="dropdown-indicator">⏷</span></h3>
+      <div class="settings-dropdown-content">
+        <p style="color:#ff505099;font-size:12px;font-style:italic;">WARNING: These are advanced settings that can change the launcher's behavior in unexpected ways!</p>
+        <br>
+
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Choose which Java runtime to use for Minecraft launches.\n\nAuto uses the default Java from PATH."/>
+          <label>Java Runtime:</label>
+          <select id="settings-java-runtime" style="min-width: 420px;"></select>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Routes all launcher requests through a proxy server. (having an invalid URL will cause requests to fail, recommended to keep empty)"/>
+          <label>URL Proxy:</label>
+          <input type="text" id="settings-url-proxy" placeholder="https://yourproxy.com/?url=" size="40"/>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Downloads ONLY the required client & libraries (no sounds, no extra textures, recommended for slow connections and/or low storage)"/>
+          <label>Low-Data Mode:</label>
+          <input type="checkbox" id="settings-low-data"/>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Uses aggressive parallel downloads (may cause issues, not recommended unless needed)"/>
+          <label>Fast Download (Experimental):</label>
+          <input type="checkbox" id="settings-fast-download"/>
+        </div>
       </div>
-      <div class="row">
-        <label>Data Folder:</label>
-        <button id="open-data-folder-btn">Open Data Folder</button>
+
+      <br>
+      <h3 class="settings-dropdown-title">Data & Storage <span class="dropdown-indicator">⏷</span></h3>
+      <div class="settings-dropdown-content">
+        <br>
+
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Opens up Histolauncher's data folder (`~/.histolauncher`)"/>
+          <label>Data Folder:</label>
+          <button id="open-data-folder-btn">Open Data Folder</button>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Clears all log files of both clients and the launcher (helps free up disk space)"/>
+          <label>Logs:</label>
+          <button id="clear-logs-btn" class="danger">Clear Logs</button>
+        </div>
       </div>
     </div>
 

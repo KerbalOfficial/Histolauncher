@@ -1,36 +1,142 @@
 # server/api_handler.py
+
 import os
 import sys
 import shutil
+import time
 import urllib.request
 import urllib.parse
+
 from typing import Any, Dict
 
-from core.version_manager import scan_categories
+from core.discord_rpc import set_game_presence, set_install_presence, set_launcher_presence
+from core.logger import colorize_log
+from core.version_manager import scan_categories, get_version_loaders, get_clients_dir
 from core.java_launcher import launch_version
-from core.settings import load_global_settings, save_global_settings, get_base_dir, clear_account_token, save_account_token
+from core.settings import load_global_settings, save_global_settings, get_base_dir, clear_account_token, _apply_url_proxy
+from core.java_runtime import detect_java_runtimes
 from core.downloader import _wiki_image_url
-
+from core import modloaders as core_modloaders
 from core import manifest as core_manifest
 from core import downloader as core_downloader
 
 GITHUB_RAW_VERSION_URL = "https://raw.githubusercontent.com/KerbalOfficial/Histolauncher/main/version.dat"
 REMOTE_TIMEOUT = 5.0
 
+_corrupted_versions_checked = False
 
-def _get_url_proxy_prefix() -> str:
-    try:
-        cfg = load_global_settings()
-        return (cfg.get("url_proxy") or "").strip()
-    except Exception:
-        return ""
+MAX_VERSION_ID_LENGTH = 64
+MAX_CATEGORY_LENGTH = 64
+MAX_USERNAME_LENGTH = 16
+MAX_LOADER_VERSION_LENGTH = 64
+MAX_PAYLOAD_SIZE = 10000 * 1048576 # 10 GB
+
+CURRENT_MD_VERSION = "1.0"
+
+# Pre-FML Forge builds for these MC versions are ModLoader addons and are
+# intentionally not installable via the Forge installer flow.
+FORGE_INSTALL_BLOCKED_VERSIONS = {"1.2.4", "1.2.3", "1.1"}
+_rpc_install_started_at: Dict[str, float] = {}
 
 
-def _apply_url_proxy(url: str) -> str:
-    prefix = _get_url_proxy_prefix()
-    if not prefix:
-        return url
-    return prefix + url
+def _parse_install_key(version_key: str) -> Dict[str, Any]:
+    parts = (version_key or "").split("/")
+    if len(parts) >= 3 and parts[2].startswith("modloader-"):
+        tail = parts[2][len("modloader-"):]
+        loader_type = ""
+        loader_version = ""
+        if "-" in tail:
+            loader_type, loader_version = tail.split("-", 1)
+        else:
+            loader_type = tail
+        return {
+            "category": parts[0],
+            "folder": parts[1],
+            "is_modloader": True,
+            "loader_type": loader_type,
+            "loader_version": loader_version,
+        }
+
+    if len(parts) >= 2:
+        return {
+            "category": parts[0],
+            "folder": parts[1],
+            "is_modloader": False,
+            "loader_type": None,
+            "loader_version": None,
+        }
+
+    return {
+        "category": None,
+        "folder": None,
+        "is_modloader": False,
+        "loader_type": None,
+        "loader_version": None,
+    }
+
+
+def _update_rpc_install_presence(version_key: str, status: Dict[str, Any]) -> None:
+    info = _parse_install_key(version_key)
+    if not info.get("category") or not info.get("folder"):
+        return
+
+    state = str((status or {}).get("status") or "").lower()
+    start_time = _rpc_install_started_at.get(version_key)
+    version_identifier = f"{info['category']}/{info['folder']}"
+
+    if state in ("downloading", "installing", "starting", "paused"):
+        set_install_presence(
+            version_identifier,
+            progress_percent=(status or {}).get("overall_percent"),
+            start_time=start_time,
+            loader_type=info.get("loader_type"),
+            loader_version=info.get("loader_version"),
+        )
+        return
+
+    if state in ("installed", "failed", "error", "cancelled"):
+        _rpc_install_started_at.pop(version_key, None)
+        set_launcher_presence()
+
+
+def _validate_version_string(version_id: str, max_length: int = MAX_VERSION_ID_LENGTH) -> bool:
+    if not isinstance(version_id, str):
+        return False
+    version_id = version_id.strip()
+    if not version_id or len(version_id) > max_length:
+        return False
+    # Allow alphanumeric, dots, dashes, underscores, and forward slashes
+    import re
+    return bool(re.match(r'^[a-zA-Z0-9._\-/]+$', version_id))
+
+
+def _validate_category_string(category: str, max_length: int = MAX_CATEGORY_LENGTH) -> bool:
+    """Validate category string format and length."""
+    if not isinstance(category, str):
+        return False
+    category = category.strip()
+    if not category or len(category) > max_length:
+        return False
+    # Allow alphanumeric and spaces
+    import re
+    return bool(re.match(r'^[a-zA-Z0-9 ]+$', category))
+
+
+def _validate_loader_type(loader_type: str) -> bool:
+    """Validate loader type is one of the allowed values."""
+    return loader_type in ["fabric", "forge"]
+
+
+def _format_bytes(bytes_size: int) -> str:
+    """Format bytes to human-readable string (B, KB, MB, GB)."""
+    if bytes_size < 1024:
+        return f"{bytes_size} B"
+    elif bytes_size < 1024 * 1024:
+        return f"{bytes_size / 1024:.1f} KB"
+    elif bytes_size < 1024 * 1024 * 1024:
+        return f"{bytes_size / (1024 * 1024):.1f} MB"
+    else:
+        return f"{bytes_size / (1024 * 1024 * 1024):.2f} GB"
 
 
 def read_local_version(project_root: str = None, base_dir: str = None) -> str:
@@ -126,77 +232,101 @@ def _get_installing_map_from_progress() -> Dict[str, Dict[str, Any]]:
             if not isinstance(prog, dict): continue
             status = (prog.get("status") or "").lower()
             if status in ("downloading", "paused"): installing[vkey] = prog
-    except Exception: pass
+    except (IOError, OSError, ValueError, KeyError):
+        # Progress file reading is best-effort; silently handle file errors
+        pass
     return installing
 
 
 def handle_api_request(path: str, data: Any):
+    """Route API requests to appropriate handler functions.
+    
+    Supports both exact-match endpoints and parameter-based endpoints:
+    - Exact: /api/account/status -> handler()
+    - With data: /api/install -> handler(data)
+    - With path param: /api/status/{id} -> handler(id)
+    """
     p = path.split("?", 1)[0].rstrip("/")
-
-    if p == "/api/account/status":
-        return api_account_status()
-
-    if p == "/api/account/current":
-        return api_account_current()
-
-    if p == "/api/account/connect":
-        return api_account_connect(data)
-
-    if p == "/api/account/verify-session":
-        return api_account_verify_session(data)
-
-    if p == "/api/account/disconnect":
-        return api_account_disconnect()
-
-    if p == "/api/is-launcher-outdated":
-        return is_launcher_outdated()
-
-    if p == "/api/initial":
-        return api_initial()
-
-    if p.startswith("/api/versions"):
-        parts = p.split("/api/versions", 1)[1].lstrip("/").split("/")
-        category = parts[0] if parts and parts[0] else None
-        return api_versions(category)
-
-    if p == "/api/search":
-        return api_search(data)
-
-    if p == "/api/launch":
-        return api_launch(data)
-
-    if p == "/api/settings":
-        return api_settings(data)
-
-    if p == "/api/install":
-        return api_install(data)
-
-    if p.startswith("/api/status/"):
-        version_id = p[len("/api/status/"):]
-        return api_status(version_id)
-
-    if p.startswith("/api/cancel/"):
-        version_id = p[len("/api/cancel/"):]
-        return api_cancel(version_id)
-
-    if p.startswith("/api/pause/"):
-        version_id = p[len("/api/pause/"):]
-        return api_pause(version_id)
-
-    if p.startswith("/api/resume/"):
-        version_id = p[len("/api/resume/"):]
-        return api_resume(version_id)
-
-    if p == "/api/installed":
-        return api_installed()
-
-    if p == "/api/open_data_folder":
-        return api_open_data_folder()
-
-    if p == "/api/delete":
-        return api_delete_version(data)
-
+    
+    # Exact-match endpoints with no parameters
+    EXACT_NO_PARAMS = {
+        "/api/account/status": api_account_status,
+        "/api/account/current": api_account_current,
+        "/api/account/disconnect": api_account_disconnect,
+        "/api/is-launcher-outdated": is_launcher_outdated,
+        "/api/initial": api_initial,
+        "/api/clear-logs": api_clear_logs,
+        "/api/installed": api_installed,
+        "/api/open_data_folder": api_open_data_folder,
+        "/api/corrupted-versions": api_corrupted_versions,
+        "/api/java-runtimes": api_java_runtimes,
+        "/api/java-runtimes-refresh": api_java_runtimes_refresh,
+        "/api/mods/installed": api_mods_installed,
+        "/api/mods/version-options": api_mods_version_options,
+        "/api/modpacks/installed": api_modpacks_installed,
+    }
+    
+    # Exact-match endpoints that take request data
+    EXACT_WITH_DATA = {
+        "/api/account/verify-session": api_account_verify_session,
+        "/api/search": api_search,
+        "/api/launch": api_launch,
+        "/api/crash-log": api_crash_log,
+        "/api/open-crash-log": api_open_crash_log,
+        "/api/settings": api_settings,
+        "/api/install": api_install,
+        "/api/delete": api_delete_version,
+        "/api/install-loader": api_install_loader,
+        "/api/delete-loader": api_delete_loader,
+        "/api/delete-corrupted-versions": api_delete_corrupted_versions,
+        "/api/versions/export": api_export_versions,
+        "/api/versions/import": api_import_versions,
+        "/api/mods/search": api_mods_search,
+        "/api/mods/versions": api_mods_versions,
+        "/api/mods/install": api_mods_install,
+        "/api/mods/import": api_mods_import,
+        "/api/mods/delete": api_mods_delete,
+        "/api/mods/toggle": api_mods_toggle,
+        "/api/mods/set-active-version": api_mods_set_active_version,
+        "/api/mods/detail": api_mods_detail,
+        "/api/modpacks/export": api_modpacks_export,
+        "/api/modpacks/import": api_modpacks_import,
+        "/api/modpacks/toggle": api_modpacks_toggle,
+        "/api/modpacks/delete": api_modpacks_delete,
+    }
+    
+    # Prefix-match endpoints (extract parameter from path)
+    PREFIX_HANDLERS = [
+        ("/api/versions", lambda path: api_versions(_extract_category(path))),
+        ("/api/launch_status/", lambda path: api_launch_status(path[len("/api/launch_status/"):])),
+        ("/api/game_window_visible/", lambda path: api_game_window_visible(path[len("/api/game_window_visible/"):])),
+        ("/api/status/", lambda path: api_status(path[len("/api/status/"):])),
+        ("/api/cancel/", lambda path: api_cancel(path[len("/api/cancel/"):])),
+        ("/api/pause/", lambda path: api_pause(path[len("/api/pause/"):])),
+        ("/api/resume/", lambda path: api_resume(path[len("/api/resume/"):])),
+        ("/api/loaders/", lambda path: api_loaders(path[len("/api/loaders/"):])),
+    ]
+    
+    # Check exact matches without parameters
+    if p in EXACT_NO_PARAMS:
+        return EXACT_NO_PARAMS[p]()
+    
+    # Check exact matches with data
+    if p in EXACT_WITH_DATA:
+        return EXACT_WITH_DATA[p](data)
+    
+    # Check prefix matches
+    for prefix, handler in PREFIX_HANDLERS:
+        if p.startswith(prefix):
+            return handler(p)
+    
     return {"error": "Unknown endpoint"}
+
+
+def _extract_category(path: str) -> str:
+    """Extract category from /api/versions/{category} path."""
+    parts = path.split("/api/versions", 1)[1].lstrip("/").split("/")
+    return parts[0] if parts and parts[0] else None
 
 
 def api_initial():
@@ -286,6 +416,48 @@ def api_initial():
         "settings": settings_dict,
         "manifest_error": manifest_error,
     }
+
+
+def _build_java_runtime_response(force_refresh: bool = False):
+    settings = load_global_settings() or {}
+    selected_java_path = (settings.get("java_path") or "").strip()
+
+    runtimes = detect_java_runtimes(force_refresh=force_refresh)
+    options = []
+    for rt in runtimes:
+        path = str(rt.get("path") or "")
+        label = str(rt.get("label") or "Java")
+        version = str(rt.get("version") or "unknown")
+        major = int(rt.get("major") or 0)
+        options.append(
+            {
+                "path": path,
+                "label": label,
+                "version": version,
+                "major": major,
+                "display": f"{label} ({version}) - {path}",
+            }
+        )
+
+    return {
+        "ok": True,
+        "selected_java_path": selected_java_path,
+        "runtimes": options,
+    }
+
+
+def api_java_runtimes():
+    try:
+        return _build_java_runtime_response(force_refresh=False)
+    except Exception as e:
+        return {"ok": False, "error": str(e), "runtimes": []}
+
+
+def api_java_runtimes_refresh():
+    try:
+        return _build_java_runtime_response(force_refresh=True)
+    except Exception as e:
+        return {"ok": False, "error": str(e), "runtimes": []}
 
 
 def api_versions(category):
@@ -398,9 +570,27 @@ def api_launch(data):
     category = data.get("category")
     folder = data.get("folder")
     username = data.get("username")
+    loader = data.get("loader")  # Optional loader type: "fabric", "forge", etc.
+    loader_version = data.get("loader_version")  # Optional specific loader version
 
     if not category or not folder:
         return {"ok": False, "message": "Missing category or folder"}
+    
+    # Validate input strings
+    if not _validate_category_string(category):
+        return {"ok": False, "message": "Invalid category format"}
+    
+    if not _validate_version_string(folder):
+        return {"ok": False, "message": "Invalid folder format"}
+    
+    if username and len(str(username)) > MAX_USERNAME_LENGTH:
+        return {"ok": False, "message": "Username is too long"}
+    
+    if loader and not _validate_loader_type(loader):
+        return {"ok": False, "message": "Invalid loader type"}
+    
+    if loader_version and not _validate_version_string(loader_version, MAX_LOADER_VERSION_LENGTH):
+        return {"ok": False, "message": "Invalid loader version format"}
 
     data_base = get_base_dir()
     clients_dir = os.path.join(data_base, "clients")
@@ -412,13 +602,425 @@ def api_launch(data):
     if not os.path.exists(jar_path):
         return {"ok": False, "message": "Client not installed. Please download it from Versions first."}
 
-    version_identifier = f"{category}/{folder}"
-    ok = launch_version(version_identifier, username_override=username)
+    # If a loader was requested, make sure installed mods are compatible with
+    # the loader version.  This prevents users from launching the game only to
+    # have Fabric log a mixin failure seconds later (e.g. due to a newer mod
+    # downloaded from CurseForge).
+    if loader:
+        from core.java_launcher import (
+            check_mod_loader_compatibility,
+            _get_loader_version,
+            _legacy_forge_requires_modloader,
+            _has_modloader_runtime,
+        )
+        # determine version_dir same as launch_version will
+        data_base = get_base_dir()
+        clients_dir = os.path.join(data_base, "clients")
+        storage_cat = category.lower()
+        version_dir = os.path.join(clients_dir, storage_cat, folder)
+        current_loader = _get_loader_version(version_dir, loader)
 
-    return {
-        "ok": ok,
-        "message": f"Launched {folder} as {username}" if ok else f"Failed to launch {folder}",
+        if not current_loader:
+            return {
+                "ok": False,
+                "message": (
+                    f"{loader.capitalize()} is not installed for {folder}. "
+                    "Install the loader first from Versions -> Modloaders."
+                ),
+            }
+
+        if loader.lower() == "forge":
+            if _legacy_forge_requires_modloader(version_dir, current_loader) and not _has_modloader_runtime(version_dir):
+                return {
+                    "ok": False,
+                    "message": (
+                        f"Forge {current_loader} for Minecraft {folder} is a ModLoader-era build. "
+                        "It requires ModLoader runtime classes (BaseMod/ModLoader), which are not present in this client. "
+                        "Place a matching modloader jar in this version folder (for example: modloader-<mc>.jar), then relaunch Forge."
+                    ),
+                }
+
+        issues = check_mod_loader_compatibility(version_dir, loader)
+        if issues:
+            # build a human‑readable message with one line per problematic mod
+            lines = []
+            for mod_id, jar_name, req in issues:
+                lines.append(f"{mod_id} ({jar_name}) requires loader {req} (current {current_loader})")
+            return {"ok": False, "message": "Mod compatibility issue:\n" + "\n".join(lines)}
+
+    version_identifier = f"{category}/{folder}"
+    process_id = launch_version(version_identifier, username_override=username, loader=loader, loader_version=loader_version)
+
+    if process_id:
+        set_game_presence(
+            version_identifier,
+            username=username,
+            start_time=time.time(),
+            phase="Launching",
+            loader_type=loader,
+            loader_version=loader_version,
+        )
+        return {
+            "ok": True,
+            "process_id": process_id,
+            "message": f"Launching {folder} as {username}"
+        }
+    else:
+        set_launcher_presence()
+        return {
+            "ok": False,
+            "message": f"Failed to launch {folder}"
+        }
+
+
+def api_launch_status(process_id):
+    """Check if a launched game is still running or has crashed."""
+    from core.java_launcher import _get_process_status
+    
+    if not process_id:
+        set_launcher_presence()
+        return {"ok": False, "error": "Invalid process ID"}
+    
+    status_info = _get_process_status(process_id)
+    
+    if status_info is None:
+        # Process not found in registry (may have been cleaned up)
+        set_launcher_presence()
+        return {
+            "ok": False,
+            "error": "Process not found",
+            "status": "unknown"
+        }
+    
+    if status_info["status"] == "running":
+        # Game is still running
+        return {
+            "ok": True,
+            "status": "running",
+            "elapsed": status_info.get("elapsed", 0)
+        }
+    else:
+        # Game has exited
+        exit_code = status_info.get("exit_code", -1)
+        # By default nonzero means crash
+        is_crash = exit_code != 0
+        
+        # Special case: alpha category exit code 1 is normal
+        version_id = status_info.get("version", "")
+        category = version_id.split("/", 1)[0].lower() if "/" in version_id else version_id.lower()
+        if category == "alpha" and exit_code == 1:
+            is_crash = False
+        
+        log_path = status_info.get("log_path")
+        
+        # Debug logging
+        print(colorize_log(f"[api_launch_status] exit_code={exit_code}, category={category}, is_crash={is_crash}, log_path={log_path}"))
+        set_launcher_presence()
+        
+        return {
+            "ok": not is_crash,
+            "status": "crashed" if is_crash else "exited",
+            "exit_code": exit_code,
+            "log_path": log_path
+        }
+
+
+def api_game_window_visible(process_id):
+    """Check if the game window is visible for a launched process."""
+    from core.java_launcher import _get_game_window_visible
+    
+    if not process_id:
+        set_launcher_presence()
+        return {"ok": False, "error": "Invalid process ID"}
+
+    result = _get_game_window_visible(process_id)
+
+    if result.get("ok"):
+        set_game_presence(
+            result.get("version"),
+            start_time=result.get("start_time"),
+            phase="Playing" if result.get("visible") else "Launching",
+        )
+    else:
+        set_launcher_presence()
+
+    return result
+
+
+def _analyze_crash_log(log_content: str) -> dict:
+    """
+    Analyze crash log content for known errors and return helpful diagnostics.
+    
+    Returns a dict with:
+    {
+        "has_error": bool,
+        "error_type": str,
+        "message": str,
+        "suggestion": str
     }
+    """
+    import re
+    
+    # Class file version mapping to Java version
+    class_file_versions = {
+        52: "Java 8",
+        55: "Java 11",
+        56: "Java 12",
+        57: "Java 13",
+        58: "Java 14",
+        59: "Java 15",
+        60: "Java 16",
+        61: "Java 17",
+        62: "Java 18",
+        63: "Java 19",
+        64: "Java 20",
+        65: "Java 21",
+        66: "Java 22",
+        67: "Java 23",
+        68: "Java 24",
+        69: "Java 25",
+    }
+    
+    # Check for UnsupportedClassVersionError
+    match = re.search(r"UnsupportedClassVersionError:.*?class file version (\d+\.0).*?version of the Java Runtime only recognizes class file versions up to (\d+\.0)", log_content, re.DOTALL)
+    if match:
+        required_version_str = match.group(1).split('.')[0]
+        current_version_str = match.group(2).split('.')[0]
+        
+        try:
+            required_major = int(required_version_str)
+            current_major = int(current_version_str)
+            
+            required_java = class_file_versions.get(required_major, f"Java with class version {required_major}")
+            current_java = class_file_versions.get(current_major, f"Java with class version {current_major}")
+            
+            return {
+                "has_error": True,
+                "error_type": "JavaVersionMismatch",
+                "message": f"Java version mismatch detected!",
+                "details": f"You are using an older version of Java! ({current_java}). This version requires {required_java}.",
+                "suggestion": f"Please install {required_java} and try launching again."
+            }
+        except (ValueError, IndexError):
+            pass
+    
+    # Check for OutOfMemoryError
+    if "OutOfMemoryError" in log_content:
+        return {
+            "has_error": True,
+            "error_type": "OutOfMemory",
+            "message": "Out of Memory Error",
+            "details": "The game ran out of allocated RAM.",
+            "suggestion": "Try increasing the maximum RAM allocation in the launcher settings."
+        }
+    
+    # Check for ModNotFoundException (common mod loader error)
+    if "ModNotFoundException" in log_content or "net.minecraftforge.fml.ModLoadingException" in log_content:
+        return {
+            "has_error": True,
+            "error_type": "ModError",
+            "message": "Mod Loading Error",
+            "details": "A required mod could not be found or loaded.",
+            "suggestion": "Check that all required mods are installed correctly."
+        }
+    
+    # Check for texture/resource errors
+    if re.search(r"(missing texture|Unable to load resource)", log_content, re.IGNORECASE):
+        return {
+            "has_error": True,
+            "error_type": "ResourceError",
+            "message": "Missing Resource",
+            "details": "The game encountered missing textures or resources.",
+            "suggestion": "Try verifying game files or reinstalling the version."
+        }
+    
+    return {
+        "has_error": False,
+        "error_type": None,
+        "message": None,
+        "details": None,
+        "suggestion": None
+    }
+
+
+def api_crash_log(data: Any):
+    """
+    Retrieve crash log content for a given log file path.
+    
+    Request body:
+    {
+        "log_path": "/path/to/crash/log"
+    }
+    """
+    if not isinstance(data, dict):
+        return {"ok": False, "error": "Invalid request", "content": ""}
+    
+    log_path = (data.get("log_path") or "").strip()
+    
+    if not log_path:
+        return {"ok": False, "error": "Missing log_path", "content": ""}
+    
+    try:
+        # Verify the file exists and is readable
+        if not os.path.isfile(log_path):
+            return {
+                "ok": False,
+                "error": f"Log file not found: {log_path}",
+                "content": ""
+            }
+        
+        # Read the log file
+        with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        
+        # Analyze the log for known errors
+        error_analysis = _analyze_crash_log(content)
+        
+        # Keep only last 100KB to avoid sending huge responses
+        if len(content) > 102400:
+            content = "... (content truncated) ...\n" + content[-102400:]
+        
+        return {
+            "ok": True,
+            "filename": os.path.basename(log_path),
+            "filepath": log_path,
+            "content": content,
+            "error_analysis": error_analysis
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": f"Could not read log file: {str(e)}",
+            "content": ""
+        }
+
+
+def _cache_crash_info(process_id, crash_info):
+    """Cache crash information for later retrieval."""
+    if not hasattr(api_crash_log, '_cached_crashes'):
+        api_crash_log._cached_crashes = {}
+    
+    api_crash_log._cached_crashes[process_id] = crash_info
+    
+    # Clean up old crashes (keep last 10)
+    if len(api_crash_log._cached_crashes) > 10:
+        oldest_key = list(api_crash_log._cached_crashes.keys())[0]
+        del api_crash_log._cached_crashes[oldest_key]
+
+
+def api_open_crash_log(data: Any):
+    """
+    Open a crash log file in the system's default app.
+    
+    Request body:
+    {
+        "log_path": "/path/to/crash/log"
+    }
+    """
+    if not isinstance(data, dict):
+        return {"ok": False, "error": "invalid request"}
+    
+    log_path = (data.get("log_path") or "").strip()
+    
+    if not log_path:
+        return {"ok": False, "error": "missing log_path"}
+    
+    if not os.path.exists(log_path):
+        return {"ok": False, "error": f"Log file not found: {log_path}"}
+    
+    try:
+        import platform
+        import subprocess
+        
+        # Debug: Print the file being opened
+        print(colorize_log(f"[api_open_crash_log] Opening file: {log_path}"))
+        print(colorize_log(f"[api_open_crash_log] File exists: {os.path.isfile(log_path)}"))
+        if os.path.isfile(log_path):
+            file_size = os.path.getsize(log_path)
+            print(colorize_log(f"[api_open_crash_log] File size: {file_size} bytes"))
+        
+        system = platform.system()
+        
+        if system == "Windows":
+            # Open with default app on Windows
+            os.startfile(log_path)
+        elif system == "Darwin":
+            # Open with default app on macOS
+            subprocess.run(["open", log_path])
+        else:
+            # Open with default app on Linux
+            subprocess.run(["xdg-open", log_path])
+        
+        return {
+            "ok": True,
+            "message": f"Opening {os.path.basename(log_path)}..."
+        }
+    
+    except Exception as e:
+        print(colorize_log(f"[api] Error opening crash log: {e}"))
+        return {"ok": False, "error": f"Failed to open log file: {str(e)}"}
+
+
+def api_clear_logs():
+    """
+    Clear all logs in ~/.histolauncher/logs/ directory.
+    Skips files that are currently in use (like active log files).
+    """
+    try:
+        import shutil
+        
+        base_dir = get_base_dir()
+        logs_dir = os.path.join(base_dir, "logs")
+        
+        if not os.path.exists(logs_dir):
+            return {"ok": True, "message": "No logs directory found"}
+        
+        skipped_files = []
+        deleted_count = 0
+        
+        # Recursively walk through all files and try to delete them
+        for root, dirs, files in os.walk(logs_dir, topdown=False):
+            for file in files:
+                file_path = os.path.join(root, file)
+                try:
+                    os.remove(file_path)
+                    deleted_count += 1
+                except (OSError, PermissionError) as e:
+                    # File is locked or in use, skip it
+                    skipped_files.append(os.path.basename(file_path))
+                    print(colorize_log(f"[api_clear_logs] Skipped (in use): {file_path}"))
+            
+            # Try to remove empty directories
+            for dir_name in dirs:
+                dir_path = os.path.join(root, dir_name)
+                try:
+                    if not os.listdir(dir_path):  # Only if empty
+                        os.rmdir(dir_path)
+                except (OSError, PermissionError):
+                    pass
+        
+        # Try to remove the main logs directory if empty
+        try:
+            if os.path.exists(logs_dir) and not os.listdir(logs_dir):
+                os.rmdir(logs_dir)
+        except (OSError, PermissionError):
+            pass
+        
+        print(colorize_log(f"[api_clear_logs] Cleared logs: {deleted_count} files deleted, {len(skipped_files)} files skipped"))
+        
+        message = f"Deleted {deleted_count} log files."
+        if skipped_files:
+            message += f" {len(skipped_files)} active log file(s) are still in use and will be cleared next time."
+        
+        return {
+            "ok": True,
+            "message": message,
+            "deleted": deleted_count,
+            "skipped": len(skipped_files)
+        }
+    except Exception as e:
+        print(colorize_log(f"[api_clear_logs] Error clearing logs: {e}"))
+        return {"ok": False, "error": f"Failed to clear logs: {str(e)}"}
 
 
 def api_settings(data):
@@ -439,42 +1041,14 @@ def api_settings(data):
             pass
 
     # Debug logging
-    if data.get("account_type") == "Histolauncher":
-        print(f"[api_settings] Histolauncher account configured: username={data.get('username')}, uuid={data.get('uuid')}")
+    if current.get("account_type") == "Histolauncher":
+        # Note: username/uuid are NOT stored in settings for security.
+        # They're retrieved on-demand from session token via get_verified_account()
+        username = data.get('username') or current.get('username') or '(from session token)'
+        uuid = data.get('uuid') or current.get('uuid') or '(from session token)'
+        print(colorize_log(f"[api_settings] Histolauncher account configured: username={username}, uuid={uuid}"))
 
     return {"ok": True, "message": "Settings saved.", "settings": current}
-
-
-def api_account_connect(data):
-    """Connect to Histolauncher account (Cloudflare Workers API)."""
-    try:
-        if not isinstance(data, dict):
-            return {"ok": False, "error": "invalid request"}
-
-        # New API: no token required, just UUID and username
-        username = data.get("username", "").strip()
-        account_uuid = data.get("uuid", "").strip()
-
-        if not username or not account_uuid:
-            return {"ok": False, "error": "missing username or uuid"}
-
-        try:
-            s = load_global_settings() or {}
-            s["account_type"] = "Histolauncher"
-            s["username"] = username
-            s["uuid"] = account_uuid
-            save_global_settings(s)
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
-
-        return {
-            "ok": True,
-            "message": "Account connected.",
-            "username": username,
-            "uuid": account_uuid,
-        }
-    except Exception as e:
-        return {"ok": False, "error": str(e)}
 
 
 def api_account_verify_session(data):
@@ -497,15 +1071,15 @@ def api_account_verify_session(data):
             return {"ok": False, "error": "missing sessionToken"}
 
         # Verify the session token with Cloudflare
-        from .cloudflare_auth import get_user_info
-        from core.settings import save_session_token
+        from .auth import get_user_info
+        from core.settings import save_account_token
         
         success, user_data, error = get_user_info(session_token)
         if not success:
             return {"ok": False, "error": error or "Failed to verify session"}
 
         # Token is valid, save it locally (in account.token, NOT in settings.ini)
-        save_session_token(session_token)
+        save_account_token(session_token)
 
         # Mark account as Histolauncher type in settings
         # But DO NOT store UUID/username - those will be verified on-demand with Cloudflare
@@ -519,9 +1093,12 @@ def api_account_verify_session(data):
         except Exception as e:
             return {"ok": False, "error": f"Failed to save settings: {str(e)}"}
 
-        # Return the verified user data from Cloudflare
         username = user_data.get("username", "")
         account_uuid = user_data.get("uuid", "")
+        
+        # Log successful authentication
+        print(colorize_log(f"[api_account_verify_session] Account verified: username={username}, uuid={account_uuid}"))
+        
         return {
             "ok": True,
             "message": "Session verified and stored",
@@ -529,31 +1106,26 @@ def api_account_verify_session(data):
             "uuid": account_uuid,
         }
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         return {"ok": False, "error": str(e)}
 
 
 def api_account_current():
-    """Get the currently authenticated user by verifying session with Cloudflare.
-    
-    This endpoint verifies the session token with Cloudflare and returns the
-    authenticated user's UUID and username. This is SECURE because it:
-    - Validates with Cloudflare on every call
-    - Prevents settings.ini spoofing (UUID/username not stored there)
-    - Returns the REAL account data from Cloudflare
-    
-    Returns:
-        - If authenticated: {"ok": true, "uuid": "...", "username": "..."}
-        - If not authenticated: {"ok": false, "error": "...", "authenticated": false}
-    """
     try:
-        from .cloudflare_auth import get_verified_account
+        from .auth import get_verified_account
         
         success, user_data, error = get_verified_account()
         if not success:
+            err_msg = (error or "").lower()
+            unauthorized = False
+            if "not logged in" in err_msg or "session expired" in err_msg:
+                unauthorized = True
             return {
                 "ok": False,
                 "error": error or "Not authenticated",
-                "authenticated": False
+                "authenticated": False,
+                "unauthorized": unauthorized
             }
         
         return {
@@ -566,7 +1138,8 @@ def api_account_current():
         return {
             "ok": False,
             "error": str(e),
-            "authenticated": False
+            "authenticated": False,
+            "network_error": True
         }
 
 
@@ -591,13 +1164,22 @@ def api_account_disconnect():
 
 
 def api_install(data):
-    if not isinstance(data, dict): return {"error": "invalid request"}
+    if not isinstance(data, dict):
+        return {"error": "invalid request"}
 
     version_id = data.get("version") or data.get("folder")
     category = data.get("category")
     full_assets = bool(data.get("full_assets", False))
 
-    if not version_id or not category: return {"error": "missing version or category"}
+    if not version_id or not category:
+        return {"error": "missing version or category"}
+    
+    # Validate input strings
+    if not _validate_version_string(version_id):
+        return {"error": "invalid version format"}
+    
+    if not _validate_category_string(category):
+        return {"error": "invalid category format"}
 
     storage_type = category.lower()
 
@@ -609,6 +1191,8 @@ def api_install(data):
     )
 
     version_key = f"{storage_type}/{version_id}"
+    _rpc_install_started_at[version_key] = time.time()
+    set_install_presence(f"{category}/{version_id}", start_time=_rpc_install_started_at[version_key])
     return {"started": True, "version": version_key}
 
 
@@ -618,9 +1202,17 @@ def api_status(version_key):
         if "/" not in decoded: return {"status": "unknown"}
         category, version_id = decoded.split("/", 1)
         status = core_downloader.get_install_status(version_id, category)
-        if not status: return {"status": "unknown"}
+        if not status:
+            if decoded in _rpc_install_started_at:
+                _rpc_install_started_at.pop(decoded, None)
+                set_launcher_presence()
+            return {"status": "unknown"}
+
+        _update_rpc_install_presence(decoded, status)
         return status
     except Exception as e: return {"error": str(e)}
+
+
 
 
 def api_cancel(version_key):
@@ -632,6 +1224,8 @@ def api_cancel(version_key):
         category, version_id = decoded.split("/", 1)
 
         core_downloader.cancel_install(version_id, category)
+        _rpc_install_started_at.pop(decoded, None)
+        set_launcher_presence()
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -645,6 +1239,8 @@ def api_pause(version_key):
 
         category, version_id = decoded.split("/", 1)
         core_downloader.pause_install(version_id, category)
+        prog = core_downloader.get_install_status(version_id, category) or {"status": "paused"}
+        _update_rpc_install_presence(decoded, prog)
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -658,6 +1254,8 @@ def api_resume(version_key):
 
         category, version_id = decoded.split("/", 1)
         core_downloader.resume_install(version_id, category)
+        prog = core_downloader.get_install_status(version_id, category) or {"status": "downloading"}
+        _update_rpc_install_presence(decoded, prog)
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -679,9 +1277,11 @@ def api_open_data_folder():
             os.startfile(base)
         else:
             if sys.platform == "darwin":
-                os.system(f'open "{base}"')
+                import subprocess
+                subprocess.Popen(["open", base])
             else:
-                os.system(f'xdg-open "{base}"')
+                import subprocess
+                subprocess.Popen(["xdg-open", base])
 
         return {"ok": True}
     except Exception as e:
@@ -697,10 +1297,26 @@ def api_delete_version(data):
 
     if not category or not folder:
         return {"ok": False, "error": "missing category or folder"}
+    
+    # Validate input strings
+    if not _validate_category_string(category):
+        return {"ok": False, "error": "invalid category format"}
+    
+    if not _validate_version_string(folder):
+        return {"ok": False, "error": "invalid folder format"}
 
     base = get_base_dir()
     clients_dir = os.path.join(base, "clients")
     version_dir = os.path.join(clients_dir, category.lower(), folder)
+    
+    # Security: Verify that the resolved path is within clients_dir (prevent path traversal)
+    try:
+        real_version_dir = os.path.realpath(version_dir)
+        real_clients_dir = os.path.realpath(clients_dir)
+        if not real_version_dir.startswith(real_clients_dir):
+            return {"ok": False, "error": "invalid version path"}
+    except (OSError, ValueError):
+        return {"ok": False, "error": "invalid version path"}
 
     if not os.path.isdir(version_dir):
         return {"ok": False, "error": "version directory does not exist"}
@@ -712,4 +1328,1392 @@ def api_delete_version(data):
         scan_categories(force_refresh=True)
         return {"ok": True}
     except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_loaders(version_key: str):
+    """
+    GET /api/loaders/{category}/{folder}
+    Returns available and installed loaders for a version.
+    """
+    if not version_key or "/" not in version_key:
+        return {"ok": False, "error": "invalid version key"}
+    
+    parts = version_key.split("/", 1)
+    category_input, folder = parts[0], parts[1]
+    
+    # Force cache refresh to get latest loader data
+    categories_data = scan_categories(force_refresh=True)
+    
+    # Find the actual category name (case-insensitive match)
+    category = None
+    for cat_name in categories_data.keys():
+        if cat_name.lower() == category_input.lower():
+            category = cat_name
+            break
+    
+    if not category:
+        return {"ok": False, "error": f"category not found: {category_input}"}
+    
+    # Get installed loaders
+    installed = get_version_loaders(category, folder)
+    
+    # Calculate sizes for installed loaders
+    loaders_base = os.path.join(get_clients_dir(), category, folder, "loaders")
+    
+    for loader_type in installed:
+        for loader in installed[loader_type]:
+            loader_path = os.path.join(loaders_base, loader_type, loader["version"])
+            total_size = 0
+            if os.path.isdir(loader_path):
+                # walk the entire directory tree instead of only top level
+                for root, dirs, files in os.walk(loader_path):
+                    for fname in files:
+                        try:
+                            total_size += os.path.getsize(os.path.join(root, fname))
+                        except Exception:
+                            pass
+            loader["size"] = total_size
+            loader["size_display"] = _format_bytes(total_size)
+    
+    # Get available loaders from APIs
+    fabric_loaders = core_modloaders.get_fabric_loaders_for_version(folder, stable_only=False)
+    forge_versions = core_modloaders.get_forge_versions_for_mc(folder)
+    if folder in FORGE_INSTALL_BLOCKED_VERSIONS:
+        forge_versions = []
+    
+    return {
+        "ok": True,
+        "version_key": version_key,
+        "installed": installed,
+        "available": {
+            "fabric": [{"version": loader.get("version"), "stable": loader.get("stable", False)} for loader in fabric_loaders],
+            "forge": [{"version": fv.get("forge_version")} for fv in forge_versions],
+        },
+        "total_available": {
+            "fabric": len(fabric_loaders),
+            "forge": len(forge_versions)
+        }
+    }
+
+
+def api_install_loader(data: Any):
+    if not isinstance(data, dict):
+        return {"ok": False, "error": "invalid request"}
+    
+    category = (data.get("category") or "").strip()
+    folder = (data.get("folder") or "").strip()
+    loader_type = (data.get("loader_type") or "").lower().strip()
+    loader_version = (data.get("loader_version") or "").strip()
+    
+    if not all([category, folder, loader_type, loader_version]):
+        return {"ok": False, "error": "missing required fields"}
+    
+    # Validate input strings
+    if not _validate_category_string(category):
+        return {"ok": False, "error": "invalid category format"}
+    
+    if not _validate_version_string(folder):
+        return {"ok": False, "error": "invalid folder format"}
+    
+    if not _validate_loader_type(loader_type):
+        return {"ok": False, "error": "invalid loader type"}
+    
+    if not _validate_version_string(loader_version, MAX_LOADER_VERSION_LENGTH):
+        return {"ok": False, "error": "invalid loader version format"}
+
+    if loader_type == "forge" and folder in FORGE_INSTALL_BLOCKED_VERSIONS:
+        return {
+            "ok": False,
+            "error": (
+                f"Forge installation is disabled for Minecraft {folder}. "
+                "These legacy Forge builds are ModLoader addons and are not supported by automatic Forge installation."
+            ),
+        }
+    
+    # Create a unique install key for progress tracking
+    # Format: {category}/{folder}/modloader-{loader_type}-{loader_version}
+    install_key = f"{category.lower()}/{folder}/modloader-{loader_type}-{loader_version}"
+    _rpc_install_started_at[install_key] = time.time()
+    set_install_presence(
+        f"{category}/{folder}",
+        start_time=_rpc_install_started_at[install_key],
+        loader_type=loader_type,
+        loader_version=loader_version,
+    )
+    
+    # Start async installation (same pattern as install_version)
+    import threading
+    
+    def install_loader_background():
+        try:
+            result = core_downloader.download_loader(
+                loader_type=loader_type,
+                mc_version=folder,
+                loader_version=loader_version,
+                category=category,
+                folder=folder,
+            )
+            
+            if result.get("ok"):
+                # Refresh version cache to include the newly installed loader
+                scan_categories(force_refresh=True)
+                
+                # Send notification
+                try:
+                    from core.libraries.plyer import notification
+                    loader_name = "Fabric" if loader_type == "fabric" else "Forge"
+                    notification.notify(
+                        title=f"[{loader_name} {loader_version}] Mod Loader Installation complete!",
+                        message=f"{loader_name} {loader_version} for {category} {folder} has installed successfully!",
+                        app_icon=os.path.join(
+                            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            "ui",
+                            "assets",
+                            "images",
+                            "histolauncher_256x256.ico",
+                        ),
+                    )
+                except Exception as e:
+                    print(colorize_log(f"[api] Could not send notification: {e}"))
+                
+                print(colorize_log(f"[api] {loader_type.capitalize()} {loader_version} installed successfully for {install_key}"))
+            else:
+                error_msg = result.get("error", "Unknown error")
+                print(colorize_log(f"[api] Failed to install {loader_type} loader: {error_msg}"))
+        except Exception as e:
+            print(colorize_log(f"[api] Exception during loader installation: {e}"))
+    
+    # Start the installation in a background thread
+    thread = threading.Thread(target=install_loader_background, daemon=True)
+    thread.start()
+    
+    # Return immediately with the install key for progress tracking
+    return {
+        "ok": True,
+        "install_key": install_key,
+        "loader_type": loader_type,
+        "loader_version": loader_version,
+        "message": f"Installing {loader_type.capitalize()} {loader_version}..."
+    }
+
+
+def api_delete_loader(data: Any):
+    """
+    DELETE /api/delete-loader
+    Deletes a mod loader for a version.
+    
+    Request body:
+    {
+        "category": "Release",
+        "folder": "1.20.2",
+        "loader_type": "fabric" or "forge",
+        "loader_version": "0.14.22" (fabric) or "49.0.0" (forge)
+    }
+    """
+    if not isinstance(data, dict):
+        return {"ok": False, "error": "invalid request"}
+    
+    category = (data.get("category") or "").strip()
+    folder = (data.get("folder") or "").strip()
+    loader_type = (data.get("loader_type") or "").lower().strip()
+    loader_version = (data.get("loader_version") or "").strip()
+    
+    if not all([category, folder, loader_type, loader_version]):
+        return {"ok": False, "error": "missing required fields"}
+    
+    # Validate input strings
+    if not _validate_category_string(category):
+        return {"ok": False, "error": "invalid category format"}
+    
+    if not _validate_version_string(folder):
+        return {"ok": False, "error": "invalid folder format"}
+    
+    if not _validate_loader_type(loader_type):
+        return {"ok": False, "error": "invalid loader type"}
+    
+    if not _validate_version_string(loader_version, MAX_LOADER_VERSION_LENGTH):
+        return {"ok": False, "error": "invalid loader version format"}
+    
+    try:
+        # Get the loader directory path
+        loader_path = os.path.join(get_clients_dir(), category, folder, "loaders", loader_type, loader_version)
+        
+        if not os.path.isdir(loader_path):
+            return {"ok": False, "error": f"Loader directory not found: {loader_path}"}
+        
+        # Delete the loader directory
+        shutil.rmtree(loader_path)
+        print(colorize_log(f"[api] Deleted {loader_type} loader {loader_version} for {category}/{folder}"))
+        
+        # Refresh cache to reflect the deletion
+        scan_categories(force_refresh=True)
+        
+        return {
+            "ok": True,
+            "loader_type": loader_type,
+            "loader_version": loader_version,
+            "message": f"{loader_type.capitalize()} {loader_version} deleted successfully"
+        }
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": f"Failed to delete loader: {str(e)}"}
+
+
+def api_corrupted_versions():
+    global _corrupted_versions_checked
+    
+    # If already checked in this session, return empty list
+    if _corrupted_versions_checked:
+        return {"ok": True, "corrupted": []}
+    
+    try:
+        corrupted = []
+        
+        base_dir = get_base_dir()
+        clients_dir = os.path.join(base_dir, "clients")
+        
+        if not os.path.isdir(clients_dir):
+            _corrupted_versions_checked = True
+            return {"ok": True, "corrupted": []}
+        
+        # Scan all installed versions
+        for category_name in os.listdir(clients_dir):
+            category_path = os.path.join(clients_dir, category_name)
+            if not os.path.isdir(category_path):
+                continue
+            
+            for version_folder in os.listdir(category_path):
+                version_path = os.path.join(category_path, version_folder)
+                if not os.path.isdir(version_path):
+                    continue
+                
+                # Check if data.ini exists
+                data_ini_path = os.path.join(version_path, "data.ini")
+                if not os.path.exists(data_ini_path):
+                    # This version is corrupted (missing data.ini)
+                    corrupted.append({
+                        "category": category_name,
+                        "folder": version_folder,
+                        "display": version_folder,
+                        "full_path": version_path
+                    })
+        
+        # Mark as checked after first successful scan
+        _corrupted_versions_checked = True
+        return {"ok": True, "corrupted": corrupted}
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        # Mark as checked even on error to avoid repeated attempts
+        _corrupted_versions_checked = True
+        return {"ok": False, "error": str(e), "corrupted": []}
+
+
+def api_delete_corrupted_versions(data):
+    """
+    Delete multiple corrupted versions at once.
+    
+    Request body:
+    {
+        "versions": [
+            {"category": "Release", "folder": "1.20.2"},
+            ...
+        ]
+    }
+    """
+    if not isinstance(data, dict):
+        return {"ok": False, "error": "invalid request"}
+    
+    versions_to_delete = data.get("versions", [])
+    if not isinstance(versions_to_delete, list):
+        return {"ok": False, "error": "versions must be an array"}
+    
+    base_dir = get_base_dir()
+    clients_dir = os.path.join(base_dir, "clients")
+    deleted = []
+    failed = []
+    
+    try:
+        for v in versions_to_delete:
+            if not isinstance(v, dict):
+                failed.append({"error": "invalid item", "item": v})
+                continue
+            
+            category = (v.get("category") or "").strip()
+            folder = (v.get("folder") or "").strip()
+            
+            if not category or not folder:
+                failed.append({"error": "missing category or folder", "item": v})
+                continue
+            
+            version_path = os.path.join(clients_dir, category, folder)
+            
+            # Security: verify path is within clients_dir
+            try:
+                real_version_path = os.path.realpath(version_path)
+                real_clients_dir = os.path.realpath(clients_dir)
+                if not real_version_path.startswith(real_clients_dir):
+                    failed.append({"error": "invalid path", "category": category, "folder": folder})
+                    continue
+            except (OSError, ValueError):
+                failed.append({"error": "invalid path", "category": category, "folder": folder})
+                continue
+            
+            if not os.path.isdir(version_path):
+                failed.append({"error": "directory not found", "category": category, "folder": folder})
+                continue
+            
+            try:
+                shutil.rmtree(version_path)
+                deleted.append({"category": category, "folder": folder})
+                print(colorize_log(f"[api] Deleted corrupted version: {category}/{folder}"))
+            except Exception as e:
+                failed.append({"error": str(e), "category": category, "folder": folder})
+        
+        # Refresh version cache
+        try:
+            scan_categories(force_refresh=True)
+        except Exception:
+            pass
+        
+        return {
+            "ok": True,
+            "deleted": deleted,
+            "failed": failed
+        }
+    
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"ok": False, "error": str(e)}
+
+
+def api_export_versions(data):
+    """
+    Export a single selected version as a ZIP file (.hlvdf format).
+    
+    Request body:
+    {
+        "category": "Release",
+        "folder": "1.20.2",
+        "export_options": {
+            "include_loaders": true,
+            "include_assets": true,
+            "include_logs": false,
+            "include_config": false,
+            "compression": "standard"
+        }
+    }
+    
+    Returns: Path to the saved .hlvdf file and opens file explorer
+    """
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+        
+        category = (data.get("category") or "").strip()
+        folder = (data.get("folder") or "").strip()
+        
+        if not category or not folder:
+            return {"ok": False, "error": "missing category or folder"}
+        
+        # Validate strings
+        if not _validate_category_string(category):
+            return {"ok": False, "error": "invalid category format"}
+        
+        if not _validate_version_string(folder):
+            return {"ok": False, "error": "invalid folder format"}
+        
+        # Import required modules
+        import io
+        import zipfile
+        import tempfile
+        
+        # Parse export options
+        export_options = data.get("export_options", {})
+        include_loaders = export_options.get("include_loaders", True)
+        include_assets = export_options.get("include_assets", True)
+        include_config = export_options.get("include_config", False)
+        compression = export_options.get("compression", "standard")
+        
+        # Validate compression level
+        if compression not in ["quick", "standard", "full"]:
+            compression = "standard"
+        
+        # Map compression to zipfile compression level
+        if compression == "quick":
+            compress_type = zipfile.ZIP_STORED
+        elif compression == "full":
+            compress_type = zipfile.ZIP_DEFLATED
+        else:
+            compress_type = zipfile.ZIP_DEFLATED
+        
+        print(colorize_log(f"[api] Starting export of {category}/{folder}..."))
+        print(colorize_log(f"[api] Export options: loaders={include_loaders}, assets={include_assets}, config={include_config}, compression={compression}"))
+        
+        base_dir = get_base_dir()
+        clients_dir = os.path.join(base_dir, "clients")
+        version_path = os.path.join(clients_dir, category, folder)
+        
+        # Security: verify path is within clients_dir
+        try:
+            real_version_path = os.path.realpath(version_path)
+            real_clients_dir = os.path.realpath(clients_dir)
+            if not real_version_path.startswith(real_clients_dir):
+                return {"ok": False, "error": "invalid version path"}
+        except (OSError, ValueError):
+            return {"ok": False, "error": "invalid version path"}
+        
+        if not os.path.isdir(version_path):
+            return {"ok": False, "error": "version not found"}
+        
+        zip_buffer = io.BytesIO()
+        
+        try:
+            print(colorize_log(f"[api] Scanning files in {version_path}..."))
+            file_count = 0
+            
+            with zipfile.ZipFile(zip_buffer, 'w', compress_type) as zipf:
+                # Helper function to check if a path should be excluded
+                def should_skip_file(relative_path, base_root):
+                    # Skip mod loaders if not included
+                    if not include_loaders:
+                        if 'fabric-' in relative_path or 'forge-' in relative_path:
+                            return True
+                    # Always skip logs folder
+                    if relative_path.startswith('logs') or relative_path.startswith('crash-reports'):
+                        return True
+                    # Skip config/saves unless explicitly included
+                    if not include_config:
+                        if relative_path.startswith('config') or relative_path.startswith('saves'):
+                            return True
+                    return False
+                
+                # First, add all files from the version directory
+                for root, dirs, files in os.walk(version_path):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, version_path)
+                        
+                        # Check if file should be skipped
+                        if should_skip_file(arcname, version_path):
+                            continue
+                        
+                        if arcname == "data.ini":
+                            existing_data = {}
+                            try:
+                                with open(file_path, "r", encoding="utf-8") as f:
+                                    for line in f:
+                                        line = line.strip()
+                                        if "=" in line and not line.startswith("#"):
+                                            k, v = line.split("=", 1)
+                                            existing_data[k.strip()] = v.strip()
+                            except Exception:
+                                pass
+                            
+                            # Ensure metadata fields exist
+                            if "md_version" not in existing_data:
+                                existing_data["md_version"] = CURRENT_MD_VERSION
+                            if "category" not in existing_data:
+                                existing_data["category"] = category
+                            
+                            # Write modified data.ini to ZIP
+                            modified_data = "\n".join(f"{k}={v}" for k, v in existing_data.items()) + "\n"
+                            zipf.writestr(arcname, modified_data)
+                            
+                            file_size_kb = len(modified_data) / 1024
+                            print(colorize_log(f"[api]   Adding: {arcname} ({file_size_kb:.1f} KB)"))
+                        else:
+                            # Regular file
+                            file_size_kb = os.path.getsize(file_path) / 1024
+                            print(colorize_log(f"[api]   Adding: {arcname} ({file_size_kb:.1f} KB)"))
+                            zipf.write(file_path, arcname)
+                        
+                        file_count += 1
+                
+                # Also add assets directory if it exists and is included
+                if include_assets:
+                    assets_path = os.path.join(base_dir, "assets")
+                    if os.path.isdir(assets_path):
+                        print(colorize_log(f"[api] Including assets directory..."))
+                        for root, dirs, files in os.walk(assets_path):
+                            for file in files:
+                                file_path = os.path.join(root, file)
+                                arcname = os.path.join("assets", os.path.relpath(file_path, assets_path))
+                                
+                                file_size_kb = os.path.getsize(file_path) / 1024
+                                print(colorize_log(f"[api]   Adding: {arcname} ({file_size_kb:.1f} KB)"))
+                                zipf.write(file_path, arcname)
+                                file_count += 1
+            
+            zip_buffer.seek(0)
+            zip_data = zip_buffer.getvalue()
+            zip_size_mb = len(zip_data) / 1024 / 1024
+            
+            print(colorize_log(f"[api] Successfully created ZIP: {file_count} files, {zip_size_mb:.2f} MB"))
+            
+            filename = f"{folder}.hlvdf"
+            
+            # Save to a temporary file
+            temp_dir = tempfile.gettempdir()
+            temp_path = os.path.join(temp_dir, filename)
+            
+            print(colorize_log(f"[api] Saving temporary file to {temp_path}..."))
+            with open(temp_path, 'wb') as f:
+                f.write(zip_data)
+            
+            print(colorize_log(f"[api] Temporary file saved successfully"))
+            
+            # Use tkinter to open file save dialog
+            try:
+                from tkinter import Tk
+                from tkinter.filedialog import asksaveasfilename
+                
+                print(colorize_log(f"[api] Opening file save dialog..."))
+                
+                root = Tk()
+                root.withdraw()  # Hide the window
+                root.attributes('-topmost', True)  # Bring to front
+                
+                # Ask user where to save
+                initial_name = filename
+                default_dir = os.path.expanduser("~")
+                
+                save_path = asksaveasfilename(
+                    initialfile=initial_name,
+                    defaultextension=".hlvdf",
+                    filetypes=[("Histolauncher Version", "*.hlvdf"), ("All Files", "*.*")],
+                    initialdir=default_dir,
+                    title=f"Save {category} {folder} Export"
+                )
+                
+                root.destroy()
+                
+                if save_path:
+                    # Copy from temp to user's selected location
+                    print(colorize_log(f"[api] Copying file to {save_path}..."))
+                    shutil.copy2(temp_path, save_path)
+                    
+                    # Clean up temp file
+                    try:
+                        os.remove(temp_path)
+                        print(colorize_log(f"[api] Cleaned up temporary file"))
+                    except Exception:
+                        pass
+                    
+                    print(colorize_log(f"[api] [OK] Export completed successfully!"))
+                    print(colorize_log(f"[api] File saved to: {save_path}"))
+                    
+                    return {
+                        "ok": True,
+                        "filename": os.path.basename(save_path),
+                        "filepath": save_path,
+                        "size_bytes": len(zip_data),
+                        "message": f"Successfully exported {category}/{folder}"
+                    }
+                else:
+                    # User cancelled
+                    print(colorize_log(f"[api] Export cancelled by user"))
+                    try:
+                        os.remove(temp_path)
+                    except Exception:
+                        pass
+                    return {
+                        "ok": False,
+                        "error": "Export cancelled by user"
+                    }
+            
+            except ImportError:
+                # Fallback: save to Downloads folder
+                print(colorize_log(f"[api] tkinter not available, using Downloads folder fallback"))
+                
+                downloads_dir = os.path.expanduser("~/Downloads")
+                if not os.path.isdir(downloads_dir):
+                    downloads_dir = os.path.expanduser("~")
+                
+                save_path = os.path.join(downloads_dir, filename)
+                
+                # If file exists, add number
+                base_name, ext = os.path.splitext(filename)
+                counter = 1
+                while os.path.exists(save_path):
+                    save_path = os.path.join(downloads_dir, f"{base_name}_{counter}{ext}")
+                    counter += 1
+                
+                print(colorize_log(f"[api] Copying file to {save_path}..."))
+                shutil.copy2(temp_path, save_path)
+                
+                # Clean up temp file
+                try:
+                    os.remove(temp_path)
+                    print(colorize_log(f"[api] Cleaned up temporary file"))
+                except Exception:
+                    pass
+                
+                print(colorize_log(f"[api] [OK] Export completed successfully!"))
+                print(colorize_log(f"[api] File saved to: {save_path}"))
+                
+                # Open the Downloads folder
+                try:
+                    import platform
+                    import subprocess
+                    
+                    if platform.system() == "Windows":
+                        os.startfile(os.path.dirname(save_path))
+                    elif platform.system() == "Darwin":
+                        subprocess.run(["open", os.path.dirname(save_path)])
+                    else:
+                        subprocess.run(["xdg-open", os.path.dirname(save_path)])
+                except Exception:
+                    pass
+                
+                return {
+                    "ok": True,
+                    "filename": os.path.basename(save_path),
+                    "filepath": save_path,
+                    "size_bytes": len(zip_data),
+                    "message": f"Exported to {os.path.dirname(save_path)}"
+                }
+        
+        except Exception as zip_err:
+            # Clean up temp file
+            print(colorize_log(f"[api] [FAILED] Export failed: {str(zip_err)}"))
+            try:
+                if 'temp_path' in locals():
+                    os.remove(temp_path)
+            except Exception:
+                pass
+            return {"ok": False, "error": f"Failed to create ZIP: {str(zip_err)}"}
+    
+    except Exception as e:
+        import traceback
+        print(colorize_log(f"[api] [FAILED] Export error: {str(e)}"))
+        traceback.print_exc()
+        return {"ok": False, "error": f"Failed to export version: {str(e)}"}
+
+
+def api_import_versions(data):
+    """
+    Import a version from a .hlvdf ZIP file.
+    
+    Request body:
+    {
+        "version_name": "1.20.2",  # filename without extension
+        "zip_data": "base64-encoded zip file data"
+    }
+    
+    The category is extracted from data.ini inside the ZIP.
+    Returns metadata version compatibility info
+    """
+    try:
+        print(colorize_log(f"[api] api_import_versions called with data type: {type(data)}, data: {str(data)[:200] if data else 'None'}"))
+        
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+        
+        version_name = (data.get("version_name") or "").strip()
+        zip_data_base64 = (data.get("zip_data") or "").strip()
+        
+        print(colorize_log(f"[api] version_name: '{version_name}', zip_data length: {len(zip_data_base64) if zip_data_base64 else 0}"))
+        
+        if not version_name or not zip_data_base64:
+            return {"ok": False, "error": "missing version_name or zip_data"}
+        
+        # Validate version name string
+        if not _validate_version_string(version_name):
+            return {"ok": False, "error": "invalid version_name format"}
+        
+        # Convert base64 back to binary and extract ZIP
+        import io
+        import zipfile
+        import base64
+        
+        # Current metadata version - increment this when changing metadata handling
+        CURRENT_MD_VERSION = "1.0"
+        
+        try:
+            zip_bytes = base64.b64decode(zip_data_base64)
+            zip_buffer = io.BytesIO(zip_bytes)
+            
+            # First, read data.ini from the ZIP to get the category
+            category = None
+            exported_md_version = None
+            existing_data = {}
+            
+            with zipfile.ZipFile(zip_buffer, 'r') as zipf:
+                # Try to read data.ini from the ZIP
+                if 'data.ini' in zipf.namelist():
+                    try:
+                        with zipf.open('data.ini') as f:
+                            content = f.read().decode('utf-8')
+                            for line in content.split('\n'):
+                                line = line.strip()
+                                if "=" in line and not line.startswith("#"):
+                                    k, v = line.split("=", 1)
+                                    existing_data[k.strip()] = v.strip()
+                    except Exception as read_err:
+                        print(colorize_log(f"[api] Warning: Could not read data.ini from ZIP: {str(read_err)}"))
+        
+            # Get category from data.ini
+            category = existing_data.get("category", "").strip()
+            
+            # Validate category from the extracted data
+            if not category:
+                # Default to Release if no category found
+                print(colorize_log(f"[api] Warning: No category found in data.ini, defaulting to Release"))
+                category = "Release"
+            
+            if not _validate_category_string(category):
+                return {"ok": False, "error": f"invalid category in data.ini: {category}"}
+            
+            base_dir = get_base_dir()
+            clients_dir = os.path.join(base_dir, "clients")
+            version_path = os.path.join(clients_dir, category, version_name)
+            
+            try:
+                real_version_path = os.path.realpath(version_path)
+                real_clients_dir = os.path.realpath(clients_dir)
+                if not real_version_path.startswith(real_clients_dir):
+                    return {"ok": False, "error": "invalid version path"}
+            except (OSError, ValueError):
+                return {"ok": False, "error": "invalid version path"}
+            
+            if os.path.isdir(version_path):
+                return {"ok": False, "error": f"Version already exists at {category}/{version_name}.<br><i>Delete it and try again.</i>"}
+            
+            category_path = os.path.join(clients_dir, category)
+            os.makedirs(category_path, exist_ok=True)
+            
+            try:
+                zip_buffer.seek(0)
+                with zipfile.ZipFile(zip_buffer, 'r') as zipf:
+                    os.makedirs(version_path, exist_ok=True)
+                    
+                    # Extract files, handling assets specially
+                    for name in zipf.namelist():
+                        # If it's in the assets folder, extract to the root assets directory
+                        if name.startswith('assets/'):
+                            assets_path = os.path.join(base_dir, 'assets')
+                            os.makedirs(assets_path, exist_ok=True)
+                            
+                            # Get the path relative to assets/
+                            rel_path = os.path.relpath(os.path.join('assets', name[7:]), 'assets')
+                            
+                            # Only extract if it's not a directory
+                            if not name.endswith('/'):
+                                member_path = os.path.join(assets_path, rel_path)
+                                os.makedirs(os.path.dirname(member_path), exist_ok=True)
+                                with zipf.open(name) as source, open(member_path, 'wb') as target:
+                                    target.write(source.read())
+                        else:
+                            # Regular file - extract to version directory
+                            zipf.extract(name, version_path)
+            except zipfile.BadZipFile:
+                if version_path and os.path.isdir(version_path):
+                    shutil.rmtree(version_path, ignore_errors=True)
+                return {"ok": False, "error": "Invalid ZIP file"}
+            
+            # Auto-upgrade old versions to current metadata version
+            old_md_version = existing_data.get("md_version", "missing").strip()
+            if not old_md_version or old_md_version == "missing":
+                print(colorize_log(f"[api] Auto-upgrading old version from no metadata version to {CURRENT_MD_VERSION}"))
+            
+            data_ini_path = os.path.join(version_path, "data.ini")
+            if os.path.exists(data_ini_path):
+                with open(data_ini_path, "r", encoding="utf-8") as f:
+                    existing_data = {}
+                    for line in f:
+                        line = line.strip()
+                        if "=" in line and not line.startswith("#"):
+                            k, v = line.split("=", 1)
+                            existing_data[k.strip()] = v.strip()
+                
+                existing_data["imported"] = "true"
+                existing_data["md_version"] = CURRENT_MD_VERSION
+                existing_data["category"] = category
+                
+                with open(data_ini_path, "w", encoding="utf-8") as f:
+                    for k, v in existing_data.items():
+                        f.write(f"{k}={v}\n")
+            else:
+                # Create data.ini with metadata if it doesn't exist
+                with open(data_ini_path, "w", encoding="utf-8") as f:
+                    f.write("imported=true\n")
+                    f.write(f"md_version={CURRENT_MD_VERSION}\n")
+                    f.write(f"category={category}\n")
+            
+            # Refresh cache
+            scan_categories(force_refresh=True)
+            
+            print(colorize_log(f"[api] [OK] Imported version: {category}/{version_name}"))
+            
+            result = {
+                "ok": True,
+                "message": f"Successfully imported {category}/{version_name}",
+                "category": category,
+                "folder": version_name,
+                "is_imported": True
+            }
+            
+            return result
+        
+        except Exception as zip_err:
+            # Clean up if extraction fails
+            try:
+                if 'version_path' in locals() and version_path and os.path.isdir(version_path):
+                    shutil.rmtree(version_path, ignore_errors=True)
+            except Exception:
+                pass
+            print(colorize_log(f"[api] [FAILED] Import failed: {str(zip_err)}"))
+            return {"ok": False, "error": f"Failed to extract ZIP: {str(zip_err)}"}
+    
+    except Exception as e:
+        import traceback
+        print(colorize_log(f"[api] [FAILED] Import error: {str(e)}"))
+        traceback.print_exc()
+        return {"ok": False, "error": f"Failed to import version: {str(e)}"}
+
+
+# ==================== MODS API ====================
+
+def api_mods_installed(data=None):
+    """Get list of installed mods."""
+    try:
+        from core import mod_manager
+
+        mods = mod_manager.get_installed_mods()
+
+        return {
+            "ok": True,
+            "mods": mods
+        }
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to get installed mods: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_mods_search(data):
+    """Search for mods from CurseForge or Modrinth."""
+    try:
+        from core import mod_manager
+        
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        
+        provider = (data.get("provider") or "modrinth").lower()
+        search_query = data.get("search_query", "")
+        game_version = data.get("game_version")
+        mod_loader = data.get("mod_loader")
+        page_size = data.get("page_size", 20)
+        page_index = data.get("page_index", 0)
+        api_key = data.get("api_key")  # For CurseForge
+        
+        if provider == "curseforge":
+            result = mod_manager.search_mods_curseforge(
+                search_query=search_query,
+                game_version=game_version,
+                mod_loader_type=mod_loader,
+                page_size=page_size,
+                index=page_index,
+                api_key=api_key
+            )
+        elif provider == "modrinth":
+            result = mod_manager.search_mods_modrinth(
+                search_query=search_query,
+                game_version=game_version,
+                mod_loader=mod_loader,
+                limit=page_size,
+                offset=page_index * page_size
+            )
+        else:
+            return {"ok": False, "error": f"Unknown provider: {provider}"}
+        
+        return {
+            "ok": True,
+            "total_count": result.get("total", 0),
+            **result
+        }
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to search mods: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_mods_version_options():
+    """Return installed versions that have at least one Fabric/Forge loader installed."""
+    try:
+        categories = scan_categories(force_refresh=True)
+        installed_versions = categories.get("* All", []) if isinstance(categories, dict) else []
+
+        options = []
+        seen_versions = set()
+        for item in installed_versions:
+            category = (item or {}).get("category")
+            folder = (item or {}).get("folder")
+            if not category or not folder:
+                continue
+
+            installed_loaders = get_version_loaders(category, folder)
+            has_supported_loader = bool(installed_loaders.get("fabric") or installed_loaders.get("forge"))
+            if not has_supported_loader:
+                continue
+
+            version_value = folder
+            if version_value in seen_versions:
+                continue
+            seen_versions.add(version_value)
+
+            options.append({
+                "category": category,
+                "folder": folder,
+                "display": (item or {}).get("display_name") or folder,
+                "version": version_value,
+            })
+
+        options.sort(key=lambda x: x.get("version", ""), reverse=True)
+
+        return {
+            "ok": True,
+            "versions": options,
+        }
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to get mod version options: {e}"))
+        return {"ok": False, "error": str(e), "versions": []}
+
+
+def api_mods_versions(data):
+    """Get available versions/files for a mod."""
+    try:
+        from core import mod_manager
+        
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        
+        provider = (data.get("provider") or "modrinth").lower()
+        mod_id = data.get("mod_id")
+        game_version = data.get("game_version")
+        mod_loader = data.get("mod_loader")
+        api_key = data.get("api_key")  # For CurseForge
+        
+        if not mod_id:
+            return {"ok": False, "error": "mod_id is required"}
+        
+        if provider == "curseforge":
+            versions = mod_manager.get_mod_files_curseforge(
+                mod_id=mod_id,
+                game_version=game_version,
+                mod_loader_type=mod_loader,
+                api_key=api_key
+            )
+        elif provider == "modrinth":
+            versions = mod_manager.get_mod_versions_modrinth(
+                mod_id=mod_id,
+                game_version=game_version,
+                mod_loader=mod_loader
+            )
+        else:
+            return {"ok": False, "error": f"Unknown provider: {provider}"}
+        
+        return {
+            "ok": True,
+            "versions": versions
+        }
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to get mod versions: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_mods_install(data):
+    """Download and install a mod version."""
+    try:
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        provider = (data.get("provider") or "modrinth").lower()
+        mod_id = data.get("mod_id")
+        mod_slug = data.get("mod_slug")
+        mod_name = data.get("mod_name", mod_slug)
+        mod_loader = data.get("mod_loader")
+        download_url = data.get("download_url")
+        file_name = data.get("file_name")
+        description = data.get("description", "")
+        icon_url = data.get("icon_url", "")
+        version = data.get("version", "unknown")
+
+        if not mod_slug or not mod_loader or not download_url or not file_name:
+            return {"ok": False, "error": "Missing required fields"}
+
+        if mod_loader.lower() not in ["fabric", "forge"]:
+            return {"ok": False, "error": "Invalid mod_loader (must be fabric or forge)"}
+
+        # Version label used as subdirectory name
+        version_label = version
+
+        # Download the mod file into mods/{loader}/{slug}/{version}/
+        success = mod_manager.download_mod_file(
+            download_url=download_url,
+            mod_loader=mod_loader,
+            mod_slug=mod_slug,
+            version_label=version_label,
+            file_name=file_name
+        )
+
+        if not success:
+            return {"ok": False, "error": "Failed to download mod file"}
+
+        # Save version-level metadata
+        mod_manager.save_version_metadata(mod_loader, mod_slug, version_label, {
+            "version": version,
+            "mod_loader": mod_loader,
+            "file_name": file_name,
+            "download_url": download_url,
+            "provider": provider,
+        })
+
+        # Save / update mod-level metadata
+        mod_dir = mod_manager.get_mod_dir(mod_loader, mod_slug)
+        meta_file = os.path.join(mod_dir, "mod_meta.json")
+        if os.path.isfile(meta_file):
+            try:
+                with open(meta_file, "r", encoding="utf-8") as f:
+                    existing = json.load(f)
+            except Exception:
+                existing = {}
+        else:
+            existing = {}
+
+        existing.update({
+            "mod_id": mod_id,
+            "name": mod_name,
+            "description": description,
+            "icon_url": icon_url,
+            "provider": provider,
+            "mod_loader": mod_loader,
+            "disabled": existing.get("disabled", False),
+        })
+        # If first version or no active version, set this as active
+        if not existing.get("active_version"):
+            existing["active_version"] = version_label
+        mod_manager.save_mod_metadata(mod_loader, mod_slug, existing)
+
+        # Download icon as display.png at mod root
+        if icon_url:
+            mod_manager.download_mod_icon(icon_url, mod_loader, mod_slug)
+
+        print(colorize_log(f"[api] Installed mod version: {mod_name} v{version} ({mod_loader})"))
+
+        return {
+            "ok": True,
+            "message": f"Successfully installed {mod_name} v{version}"
+        }
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to install mod: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_mods_import(data):
+    """Import a custom JAR mod from the user's filesystem."""
+    try:
+        from core import mod_manager
+        import re as _re
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        mod_loader = (data.get("mod_loader") or "").strip().lower()
+        jar_name = (data.get("jar_name") or "").strip()
+        jar_data = data.get("jar_data")  # raw bytes from multipart
+
+        if not mod_loader or mod_loader not in ("fabric", "forge"):
+            return {"ok": False, "error": "mod_loader must be fabric or forge"}
+        if not jar_name or not jar_name.lower().endswith(".jar"):
+            return {"ok": False, "error": "A .jar file is required"}
+        if not jar_data or len(jar_data) == 0:
+            return {"ok": False, "error": "JAR file data is empty"}
+
+        # Derive slug from filename: strip .jar, lowercase, replace non-alnum with dashes
+        base_name = jar_name[:-4]  # remove .jar
+        mod_slug = _re.sub(r'[^a-z0-9]+', '-', base_name.lower()).strip('-') or "imported-mod"
+        version_label = "imported"
+
+        # Save the jar file directly
+        ver_dir = mod_manager.get_mod_version_dir(mod_loader, mod_slug, version_label)
+        jar_path = os.path.join(ver_dir, jar_name)
+        with open(jar_path, "wb") as f:
+            f.write(jar_data)
+
+        # Save version metadata
+        mod_manager.save_version_metadata(mod_loader, mod_slug, version_label, {
+            "version": version_label,
+            "mod_loader": mod_loader,
+            "file_name": jar_name,
+            "provider": "imported",
+        })
+
+        # Save / update mod-level metadata
+        mod_dir = mod_manager.get_mod_dir(mod_loader, mod_slug)
+        meta_file = os.path.join(mod_dir, "mod_meta.json")
+        if os.path.isfile(meta_file):
+            try:
+                with open(meta_file, "r", encoding="utf-8") as f:
+                    existing = json.load(f)
+            except Exception:
+                existing = {}
+        else:
+            existing = {}
+
+        existing.update({
+            "name": base_name,
+            "description": f"This mod was imported from an unknown source, no proper description is available.",
+            "provider": "imported",
+            "mod_loader": mod_loader,
+            "is_imported": True,
+            "disabled": existing.get("disabled", False),
+        })
+        if not existing.get("active_version"):
+            existing["active_version"] = version_label
+        mod_manager.save_mod_metadata(mod_loader, mod_slug, existing)
+
+        print(colorize_log(f"[api] Imported custom mod: {jar_name} ({mod_loader})"))
+
+        return {
+            "ok": True,
+            "message": f"Successfully imported {jar_name} ({mod_loader})"
+        }
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to import mod: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_mods_delete(data):
+    """Delete an installed mod or a specific version."""
+    try:
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        mod_slug = data.get("mod_slug")
+        mod_loader = data.get("mod_loader")
+        version_label = data.get("version_label")  # optional
+
+        if not mod_slug or not mod_loader:
+            return {"ok": False, "error": "Missing mod_slug or mod_loader"}
+
+        success = mod_manager.delete_mod(mod_loader, mod_slug, version_label)
+
+        if success:
+            what = f"{mod_slug}/{version_label}" if version_label else mod_slug
+            return {"ok": True, "message": f"Deleted {what}"}
+        return {"ok": False, "error": "Failed to delete mod"}
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to delete mod: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_mods_toggle(data):
+    """Toggle a mod between enabled/disabled."""
+    try:
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        mod_slug = data.get("mod_slug")
+        mod_loader = data.get("mod_loader")
+        disabled = bool(data.get("disabled", False))
+
+        if not mod_slug or not mod_loader:
+            return {"ok": False, "error": "Missing mod_slug or mod_loader"}
+
+        success = mod_manager.toggle_mod_disabled(mod_loader, mod_slug, disabled)
+        if success:
+            return {"ok": True, "disabled": disabled}
+        return {"ok": False, "error": "Failed to toggle mod"}
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to toggle mod: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_mods_set_active_version(data):
+    """Set the active version for an installed mod."""
+    try:
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        mod_slug = data.get("mod_slug")
+        mod_loader = data.get("mod_loader")
+        version_label = data.get("version_label")
+
+        if not mod_slug or not mod_loader or not version_label:
+            return {"ok": False, "error": "Missing mod_slug, mod_loader or version_label"}
+
+        success = mod_manager.set_active_version(mod_loader, mod_slug, version_label)
+        if success:
+            return {"ok": True, "active_version": version_label}
+        return {"ok": False, "error": "Failed to set active version"}
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to set active version: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_mods_detail(data):
+    """Get detailed info about a mod (description, gallery, screenshots)."""
+    try:
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        provider = (data.get("provider") or "modrinth").lower()
+        mod_id = data.get("mod_id")
+
+        if not mod_id:
+            return {"ok": False, "error": "mod_id is required"}
+
+        if provider == "modrinth":
+            detail = mod_manager.get_mod_detail_modrinth(mod_id)
+        elif provider == "curseforge":
+            detail = mod_manager.get_mod_detail_curseforge(mod_id)
+        else:
+            return {"ok": False, "error": f"Unknown provider: {provider}"}
+
+        if detail:
+            return {"ok": True, **detail}
+        return {"ok": False, "error": "Failed to fetch mod details"}
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to get mod detail: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+# ==================== Modpack API ====================
+
+def api_modpacks_installed(data=None):
+    """Get list of installed modpacks."""
+    try:
+        from core import mod_manager
+        packs = mod_manager.get_installed_modpacks()
+        return {"ok": True, "modpacks": packs}
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to get installed modpacks: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_modpacks_export(data):
+    """Export a modpack as .hlmp (Histolauncher Modpack) bytes (base64-encoded in response)."""
+    try:
+        import base64
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        name = (data.get("name") or "").strip()
+        version = (data.get("version") or "").strip()
+        description = (data.get("description") or "").strip()
+        mod_loader = (data.get("mod_loader") or "").strip().lower()
+        mods_list = data.get("mods") or []
+
+        if not name or len(name) > 64:
+            return {"ok": False, "error": "Name must be 1-64 characters"}
+        import re as _re
+        if _re.search(r'[<>:"/\\|?*\x00-\x1f]', name):
+            return {"ok": False, "error": "Name contains forbidden characters"}
+        if not version or len(version) > 16:
+            return {"ok": False, "error": "Version must be 1-16 characters"}
+        if len(description) > 8192:
+            return {"ok": False, "error": "Description too long (max 8192)"}
+        if mod_loader not in ("fabric", "forge"):
+            return {"ok": False, "error": "mod_loader must be fabric or forge"}
+        if not mods_list:
+            return {"ok": False, "error": "At least one mod is required"}
+
+        # Decode optional image
+        image_data = None
+        image_b64 = data.get("image_data")
+        if image_b64:
+            image_data = base64.b64decode(image_b64)
+
+        hlmp_bytes = mod_manager.export_modpack(
+            name=name, version=version, description=description,
+            mod_loader=mod_loader, mods=mods_list, image_data=image_data,
+        )
+
+        return {
+            "ok": True,
+            "hlmp_data": base64.b64encode(hlmp_bytes).decode("ascii"),
+            "filename": f"{name}.hlmp",
+        }
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to export modpack: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_modpacks_import(data):
+    """Import a .hlmp (Histolauncher Modpack) file (raw bytes passed from multipart handler)."""
+    try:
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        hlmp_data = data.get("hlmp_data")
+        if not hlmp_data or len(hlmp_data) == 0:
+            return {"ok": False, "error": "No .hlmp file data"}
+
+        result = mod_manager.import_modpack(hlmp_data)
+        return result
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to import modpack: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_modpacks_toggle(data):
+    """Toggle a modpack between enabled/disabled."""
+    try:
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        slug = (data.get("slug") or "").strip()
+        disabled = bool(data.get("disabled", False))
+
+        if not slug:
+            return {"ok": False, "error": "Missing modpack slug"}
+
+        success = mod_manager.toggle_modpack(slug, disabled)
+        if success:
+            return {"ok": True, "disabled": disabled}
+        return {"ok": False, "error": "Failed to toggle modpack"}
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to toggle modpack: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
+def api_modpacks_delete(data):
+    """Delete an installed modpack."""
+    try:
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        slug = (data.get("slug") or "").strip()
+        if not slug:
+            return {"ok": False, "error": "Missing modpack slug"}
+
+        success = mod_manager.delete_modpack(slug)
+        if success:
+            return {"ok": True, "message": f"Deleted modpack {slug}"}
+        return {"ok": False, "error": "Failed to delete modpack"}
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to delete modpack: {e}"))
         return {"ok": False, "error": str(e)}

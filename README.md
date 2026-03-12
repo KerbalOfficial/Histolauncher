@@ -7,8 +7,6 @@ The goal is simple: make it easy for anyone to play any Minecraft version offlin
 
 Histolauncher is a passion project - built for easy access to Minecraft clients offline whenever.
 
-If you'd like to contribute, report issues, or help expand the project, you're invited to help!
-
 Join the Discord Server: **https://discord.gg/P8dddrXFkn**
 
 Official Website: **https://histolauncher.org**
@@ -16,28 +14,51 @@ Backup Website: **https://histolauncher.pages.dev**
 
 # Requirements
 You will need:
-- **Java Runtime** *(JRE)* for the clients
+- **Java** for the clients *(only **1** java required!)*:
+  - **JRE 8** - used by versions **oldest - 1.16.5**
+  - **JDK 11** - used by versions **1.17 - 1.17.1**
+  - **JDK 17** - used by versions **1.18 - 1.20.4**
+  - **JDK 21** *(recommended)* - used by versions **1.20.5 - latest**
 - **Python 3.x** for the launcher
 
 ## How to install:
-### Java Runtime (JRE):
-- Download from **https://www.java.com/download/manual.jsp**
-- Click on the OS and what architecture your machine is using
-- Follow the instructions the installer tells you
-- Done! The clients should load once you try to launch!
+### Java (8, 11, 17, 21):
+- JRE 8 (**oldest - 1.16.5**):
+  1. Go to the official download page: **https://www.java.com/download/manual.jsp**
+  2. Choose your operating system (Windows, macOS, or Linux).
+  3. Select the correct architecture (64‑bit for most modern systems).
+  4. Run the installer and follow the on‑screen steps.
+  5. Done! The clients should load once you try to launch them!
+- JDK 11 (**1.17 - 1.17.1**):
+  1. Go to the official download page: **https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html**
+  2. Choose your operating system and the correct architecture.
+  3. Download the installer (you may need to sign in with an Oracle account).
+  4. Run the installer and follow the instructions.
+  5. Done! The clients should load once you try to launch them!
+- JDK 17 (**1.18 - 1.20.4**):
+  1. Go to the official download page: **https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html**
+  2. Choose your operating system and the correct architecture.
+  3. Download the installer.
+  4. Run the installer and follow the instructions.
+  5. Done! The clients should load once you try to launch them!
+- JDK 21 (*recommended*, **1.20.5 - latest**):
+  1. Go to the official download page: **https://www.oracle.com/java/technologies/downloads/#java21**
+  2. Choose your operating system (Windows, macOS, or Linux).
+  3. Select the correct architecture (64‑bit for most modern systems).
+  4. Run the installer and follow the on‑screen steps.
+  5. Done! The clients should load once you try to launch them!
 
 ### Python 3.x:
-METHOD 1:
-- Download from **https://www.python.org/downloads/**
-- Click on the latest release (should be a bugfix or security patch, pre-releases are probably not recommended)
-- Click on the OS your machine is using
-- Follow the instructions the installer tells you
-- Done! The launcher should load once you try to open it!
-
-METHOD 2:
-- For **Windows**, install it using the 'Microsoft store' *(Python 3.13)*: **https://apps.microsoft.com/detail/9pnrbtzxmb4z**
+- METHOD 1:
+  1. Download from **https://www.python.org/downloads/**
+  2. Click on the latest release (should be a bugfix or security patch, pre-releases are probably not recommended)
+  3. Click on the OS your machine is using
+  4. Follow the instructions the installer tells you
+  5. Done! The launcher should load once you try to open it!
+- METHOD 2:
+  1. For **Windows**, install it using the 'Microsoft store' *(Python 3.13)*: **https://apps.microsoft.com/detail/9pnrbtzxmb4z**
 
 # Opening the Launcher
-To open the launcher, download the latest version from the **[release page](https://github.com/KerbalOfficial/Histolauncher/releases)**. After it installs, unzip the `.zip` (can be `.tar`) file. Then, make sure you have the requirements (instructions for installing them are above). After that, run `launcher.py` which will start the launcher.
+To open the launcher, download the latest release from the **[release page](https://github.com/KerbalOfficial/Histolauncher/releases)**. After it installs, unzip the `.zip` (can be `.tar`) file. Then, make sure you have the requirements (instructions for installing them are above). After that, run `launcher.py` which will start the launcher.
 
 Enjoy!
