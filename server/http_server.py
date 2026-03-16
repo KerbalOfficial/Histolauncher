@@ -1,17 +1,22 @@
 # server/http_server.py
+
 import os
 import sys
 import json
 import threading
-import io
+import re
 import base64
+import urllib.request
+import urllib.error
 
 from http.server import SimpleHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, unquote
 
 from .api_handler import handle_api_request, read_local_version, MAX_PAYLOAD_SIZE
 from . import yggdrasil
+from core.version_manager import get_clients_dir
 from core.settings import get_base_dir
+from core import mod_manager
 from core.logger import colorize_log, dim_line
 
 
@@ -205,10 +210,8 @@ class RequestHandler(SimpleHTTPRequestHandler):
         if path.startswith("/api/"):
             length = int(self.headers.get("Content-Length", 0))
             
-            # Special handling for multipart/form-data (file upload for import)
             if path.startswith("/api/versions/import") and "multipart/form-data" in self.headers.get("Content-Type", ""):
                 try:
-                    # Read multipart form data
                     body_bytes = self.rfile.read(length)
                     form_data = parse_multipart_form(body_bytes, self.headers.get("Content-Type", ""))
                     
@@ -217,7 +220,6 @@ class RequestHandler(SimpleHTTPRequestHandler):
                         zip_data_binary = form_data.get('zip_file')
                         
                         if zip_data_binary:
-                            # Encode binary data to base64
                             zip_data_base64 = base64.b64encode(zip_data_binary).decode('utf-8')
                             data = {
                                 'version_name': version_name,
@@ -270,10 +272,8 @@ class RequestHandler(SimpleHTTPRequestHandler):
                     print(f"[HTTP] Error parsing multipart form data for modpacks import: {e}")
                     data = None
             else:
-                # Regular JSON POST
                 body = self.rfile.read(length).decode("utf-8")
                 
-                # Debug logging for import endpoint
                 if path.startswith("/api/versions/import"):
                     print(f"[HTTP] POST /api/versions/import - Body length: {len(body)}, First 100 chars: {body[:100]}")
                 
@@ -293,12 +293,21 @@ class RequestHandler(SimpleHTTPRequestHandler):
         path = path.split("?", 1)[0]
 
         if path.startswith("/clients/"):
-            client_rel = path.lstrip("/")
-            return os.path.join(get_base_dir(), client_rel)
+            client_rel = unquote(path[len("/clients/"):]).replace("/", os.sep)
+            clients_root = get_clients_dir()
+            target_path = os.path.normpath(os.path.join(clients_root, client_rel))
+
+            try:
+                if os.path.commonpath([clients_root, target_path]) != clients_root:
+                    return os.path.join(UI_DIR, "__invalid_clients_path__")
+            except ValueError:
+                return os.path.join(UI_DIR, "__invalid_clients_path__")
+
+            return target_path
 
         if path.startswith("/mods-cache/"):
             rel_path = unquote(path[len("/mods-cache/"):]).replace("/", os.sep)
-            mods_root = os.path.join(get_base_dir(), "mods")
+            mods_root = mod_manager.get_mods_storage_dir()
             target_path = os.path.normpath(os.path.join(mods_root, rel_path))
 
             try:
@@ -311,7 +320,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
 
         if path.startswith("/modpacks-cache/"):
             rel_path = unquote(path[len("/modpacks-cache/"):]).replace("/", os.sep)
-            packs_root = os.path.join(get_base_dir(), "modpacks")
+            packs_root = mod_manager.get_modpacks_storage_dir()
             target_path = os.path.normpath(os.path.join(packs_root, rel_path))
 
             try:
@@ -340,28 +349,20 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 self.send_error(404, "Invalid texture path")
                 return
             
-            texture_type = parts[1]  # 'skin', 'cape', 'head', etc.
-            texture_id = "/".join(parts[2:])  # UUID or identifier
+            texture_type = parts[1]
+            texture_id = "/".join(parts[2:])
             
-            # For now, only support skin textures
             if texture_type != "skin":
                 self.send_error(404, "Texture type not supported")
                 return
             
-            # Validate texture_id to prevent path traversal
-            # UUIDs should only contain hex characters and hyphens
-            import re
             if not re.match(r'^[a-fA-F0-9\-]+$', texture_id):
                 self.send_error(400, "Invalid texture ID")
                 return
             
-            # Try to load skin from local storage
-            import os
-            from core.settings import get_base_dir
             base_dir = get_base_dir()
             skins_dir = os.path.join(base_dir, "skins")
 
-            # Normalize texture id: accept both dashed and undashed UUIDs
             def _ensure_dashed_uuid(u: str) -> str:
                 if not u:
                     return u
@@ -373,7 +374,6 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 return u
 
             dashed = _ensure_dashed_uuid(texture_id)
-            # Prefer dashed filename (Histolauncher storage uses dashed UUIDs)
             skin_path_candidates = [
                 os.path.join(skins_dir, f"{dashed}.png"),
                 os.path.join(skins_dir, f"{texture_id}.png"),
@@ -386,7 +386,6 @@ class RequestHandler(SimpleHTTPRequestHandler):
                     texture_id = os.path.splitext(os.path.basename(candidate))[0]
                     break
 
-            # Check if skin file exists
             if skin_path:
                 try:
                     with open(skin_path, 'rb') as f:
@@ -403,11 +402,6 @@ class RequestHandler(SimpleHTTPRequestHandler):
                     print(colorize_log(f"[http_server] error reading skin file: {e}"))
                     self.send_error(500, "Error reading skin")
             else:
-                # Fallback: proxy remote skin so multiplayer players' skins
-                # still render even when not cached locally.
-                import urllib.request
-                import urllib.error
-
                 remote_url = f"https://textures.histolauncher.workers.dev/skin/{dashed}"
                 try:
                     req = urllib.request.Request(

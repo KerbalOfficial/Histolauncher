@@ -5,39 +5,107 @@ import json
 import shutil
 import time
 import zipfile
-import re as _re
+import re
+import io
 import urllib.request
 import urllib.parse
 import urllib.error
-from typing import List, Dict, Any, Optional
 import logging
 
-from core.settings import get_base_dir, _apply_url_proxy
+from typing import List, Dict, Any, Optional
+
+from core.settings import get_mods_profile_dir, _apply_url_proxy
 
 logger = logging.getLogger(__name__)
 
-# API endpoints
-# CurseForge requests are proxied through our Cloudflare Worker so the API key
-# never leaves the server.
 CURSEFORGE_API_BASE = "https://mods.histolauncher.workers.dev/curseforge"
 MODRINTH_API_BASE = "https://mods.histolauncher.workers.dev/modrinth"
 
-# Minecraft game ID for CurseForge
 CURSEFORGE_MINECRAFT_GAME_ID = 432
 
-# CurseForge mod loader type IDs
 CURSEFORGE_MODLOADER_TYPE_FORGE = 1
 CURSEFORGE_MODLOADER_TYPE_FABRIC = 4
 
-# Request timeout
 REQUEST_TIMEOUT = 30.0
 
-# ---------------------------------------------------------------------------
-# Simple in-memory TTL cache for Modrinth responses
-# ---------------------------------------------------------------------------
-_MODRINTH_CACHE: Dict[str, Any] = {}  # key -> {"data": ..., "expires": float}
-_MODRINTH_SEARCH_TTL = 120   # search results: 2 minutes
-_MODRINTH_DETAIL_TTL = 300   # project detail / versions: 5 minutes
+_MODRINTH_CACHE: Dict[str, Any] = {}
+_MODRINTH_SEARCH_TTL = 120
+_MODRINTH_DETAIL_TTL = 300
+
+_MAX_SAFE_COMPONENT_LENGTH = 128
+
+
+def _is_within_dir(base_dir: str, target_path: str) -> bool:
+    base_real = os.path.realpath(base_dir)
+    target_real = os.path.realpath(target_path)
+    return target_real == base_real or target_real.startswith(base_real + os.sep)
+
+
+def _validate_mod_slug(mod_slug: str) -> bool:
+    if not isinstance(mod_slug, str):
+        return False
+    s = mod_slug.strip().lower()
+    if not s or len(s) > _MAX_SAFE_COMPONENT_LENGTH:
+        return False
+    if "/" in s or "\\" in s or ".." in s:
+        return False
+    return bool(re.match(r"^[a-z0-9][a-z0-9._-]*$", s))
+
+
+def _validate_modpack_slug(slug: str) -> bool:
+    if not isinstance(slug, str):
+        return False
+    s = slug.strip().lower()
+    if not s or len(s) > _MAX_SAFE_COMPONENT_LENGTH:
+        return False
+    if "/" in s or "\\" in s or ".." in s:
+        return False
+    return bool(re.match(r"^[a-z0-9][a-z0-9-]*$", s))
+
+
+def normalize_version_label(version_label: str) -> str:
+    raw = str(version_label or "").strip()
+    raw = raw.replace("/", "_").replace("\\", "_").replace("|", "_").replace("..", "_")
+    safe_label = re.sub(r"[^a-zA-Z0-9._ +()-]+", "_", raw).strip(" .")
+    if not safe_label:
+        safe_label = "unknown"
+    return safe_label[:_MAX_SAFE_COMPONENT_LENGTH]
+
+
+def _validate_jar_filename(file_name: str) -> bool:
+    if not isinstance(file_name, str):
+        return False
+    f = file_name.strip()
+    if not f or len(f) > 255:
+        return False
+    if os.path.basename(f) != f:
+        return False
+    if "/" in f or "\\" in f or ".." in f:
+        return False
+    if any(c in f for c in '<>:"|?*'):
+        return False
+    return f.lower().endswith(".jar")
+
+
+def _normalize_download_url(download_url: str) -> str:
+    raw = str(download_url or "").strip()
+    if not raw:
+        return ""
+    try:
+        parts = urllib.parse.urlsplit(raw)
+        if not parts.scheme or not parts.netloc:
+            return raw
+        encoded_path = urllib.parse.quote(
+            urllib.parse.unquote(parts.path),
+            safe="/@%+~!$&'()*,;=:-._"
+        )
+        encoded_query = urllib.parse.quote(
+            urllib.parse.unquote(parts.query),
+            safe="=&%+/:,.-_~!$'()[]*"
+        )
+        return urllib.parse.urlunsplit((parts.scheme, parts.netloc, encoded_path, encoded_query, parts.fragment))
+    except Exception:
+        return raw
 
 
 def _modrinth_cache_get(key: str) -> Optional[Any]:
@@ -54,28 +122,15 @@ def _modrinth_cache_set(key: str, data: Any, ttl: float) -> None:
 
 
 def get_mods_storage_dir() -> str:
-    """Get the base directory for storing downloaded mods."""
-    base = get_base_dir()
-    mods_dir = os.path.join(base, "mods")
+    profile_root = get_mods_profile_dir()
+    mods_dir = os.path.join(profile_root, "mods")
     os.makedirs(mods_dir, exist_ok=True)
     return mods_dir
 
 
 def get_mod_dir(mod_loader: str, mod_slug: str) -> str:
-    """Get the directory path for a specific mod (mod-level root).
-
-    Layout:
-        mods/{mod_loader}/{mod_slug}/mod_meta.json
-        mods/{mod_loader}/{mod_slug}/display.png
-        mods/{mod_loader}/{mod_slug}/{version_label}/version_meta.json + .jar
-
-    Args:
-        mod_loader: The mod loader (fabric/forge)
-        mod_slug:   The mod's slug/identifier
-
-    Returns:
-        Full path to the mod's root directory
-    """
+    if not _validate_mod_slug(mod_slug):
+        raise ValueError(f"Invalid mod slug: {mod_slug}")
     mods_storage = get_mods_storage_dir()
     mod_dir = os.path.join(mods_storage, mod_loader.lower(), mod_slug)
     os.makedirs(mod_dir, exist_ok=True)
@@ -83,34 +138,14 @@ def get_mod_dir(mod_loader: str, mod_slug: str) -> str:
 
 
 def get_mod_version_dir(mod_loader: str, mod_slug: str, version_label: str) -> str:
-    """Get the directory for a specific installed version of a mod.
-
-    Args:
-        mod_loader:    The mod loader (fabric/forge)
-        mod_slug:      Mod slug
-        version_label: Human-readable version string (e.g. "0.5.8")
-
-    Returns:
-        Full path to the version subdirectory
-    """
     mod_dir = get_mod_dir(mod_loader, mod_slug)
-    # Sanitise the label so it's safe as a directory name
-    safe_label = version_label.replace("/", "_").replace("\\", "_").strip() or "unknown"
+    safe_label = normalize_version_label(version_label)
     ver_dir = os.path.join(mod_dir, safe_label)
     os.makedirs(ver_dir, exist_ok=True)
     return ver_dir
 
 
 def get_installed_mods() -> List[Dict[str, Any]]:
-    """Get list of all installed mods with their version sub-entries.
-
-    Directory layout:
-        mods/{loader}/{slug}/mod_meta.json
-        mods/{loader}/{slug}/{version}/version_meta.json + .jar
-
-    Returns:
-        List of installed mod dicts, each containing a ``versions`` list.
-    """
     mods_storage = get_mods_storage_dir()
     installed = []
 
@@ -143,7 +178,6 @@ def get_installed_mods() -> List[Dict[str, Any]]:
                 logger.warning(f"Failed to read mod meta for {loader_name}/{mod_slug}: {e}")
                 continue
 
-            # Collect versions (subdirectories with version_meta.json)
             versions = []
             for entry in os.listdir(mod_path):
                 ver_path = os.path.join(mod_path, entry)
@@ -184,7 +218,6 @@ def get_installed_mods() -> List[Dict[str, Any]]:
 
 
 def save_mod_metadata(mod_loader: str, mod_slug: str, metadata: Dict[str, Any]):
-    """Save mod-level metadata to disk."""
     mod_dir = get_mod_dir(mod_loader, mod_slug)
     meta_file = os.path.join(mod_dir, "mod_meta.json")
 
@@ -196,7 +229,6 @@ def save_mod_metadata(mod_loader: str, mod_slug: str, metadata: Dict[str, Any]):
 
 
 def save_version_metadata(mod_loader: str, mod_slug: str, version_label: str, metadata: Dict[str, Any]):
-    """Save version-level metadata inside the version subdirectory."""
     ver_dir = get_mod_version_dir(mod_loader, mod_slug, version_label)
     meta_file = os.path.join(ver_dir, "version_meta.json")
 
@@ -208,10 +240,6 @@ def save_version_metadata(mod_loader: str, mod_slug: str, version_label: str, me
 
 
 def set_active_version(mod_loader: str, mod_slug: str, version_label: str) -> bool:
-    """Set the active version for a mod.
-
-    Returns True on success.
-    """
     mod_dir = get_mod_dir(mod_loader, mod_slug)
     meta_file = os.path.join(mod_dir, "mod_meta.json")
     if not os.path.isfile(meta_file):
@@ -230,10 +258,6 @@ def set_active_version(mod_loader: str, mod_slug: str, version_label: str) -> bo
 
 
 def toggle_mod_disabled(mod_loader: str, mod_slug: str, disabled: bool) -> bool:
-    """Enable or disable a mod (mod-level toggle).
-
-    Returns True on success.
-    """
     mod_dir = get_mod_dir(mod_loader, mod_slug)
     meta_file = os.path.join(mod_dir, "mod_meta.json")
     if not os.path.isfile(meta_file):
@@ -252,13 +276,12 @@ def toggle_mod_disabled(mod_loader: str, mod_slug: str, disabled: bool) -> bool:
 
 
 def download_mod_icon(icon_url: str, mod_loader: str, mod_slug: str) -> bool:
-    """Download a mod's icon as display.png at the mod root."""
     if not icon_url:
         return False
     mod_dir = get_mod_dir(mod_loader, mod_slug)
     display_path = os.path.join(mod_dir, "display.png")
     if os.path.isfile(display_path):
-        return True  # already have it
+        return True
     try:
         url = _apply_url_proxy(icon_url)
         req = urllib.request.Request(url, headers={"User-Agent": "Histolauncher/1.0"})
@@ -272,7 +295,6 @@ def download_mod_icon(icon_url: str, mod_loader: str, mod_slug: str) -> bool:
 
 
 def get_mod_detail_modrinth(mod_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch detailed info about a Modrinth project (description, gallery, etc.)."""
     cache_key = f"detail:{mod_id}"
     cached = _modrinth_cache_get(cache_key)
     if cached is not None:
@@ -298,7 +320,6 @@ def get_mod_detail_modrinth(mod_id: str) -> Optional[Dict[str, Any]]:
 
 
 def get_mod_detail_curseforge(mod_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch detailed info about a CurseForge mod (description, screenshots, etc.)."""
     response = _curseforge_request(f"/mods/{mod_id}")
     if not response or "data" not in response:
         return None
@@ -309,7 +330,6 @@ def get_mod_detail_curseforge(mod_id: str) -> Optional[Dict[str, Any]]:
         if isinstance(ss, dict) and ss.get("url"):
             screenshots.append({"url": ss["url"], "title": ss.get("title", "")})
     
-    # Fetch HTML description
     desc_resp = _curseforge_request(f"/mods/{mod_id}/description")
     body_html = ""
     if desc_resp and "data" in desc_resp:
@@ -330,34 +350,26 @@ def get_mod_detail_curseforge(mod_id: str) -> Optional[Dict[str, Any]]:
 
 
 def delete_mod(mod_loader: str, mod_slug: str, version_label: str = None) -> bool:
-    """Delete an installed mod or a specific version of it.
+    if not _validate_mod_slug(mod_slug):
+        return False
 
-    Args:
-        mod_loader:    The mod loader (fabric/forge)
-        mod_slug:      The mod's slug/identifier
-        version_label: If given, delete only that version subfolder.
-                       If None, delete the entire mod.
-
-    Returns:
-        True if deleted successfully, False otherwise
-    """
     mod_dir = get_mod_dir(mod_loader, mod_slug)
 
     try:
         if version_label:
-            # Delete only the specific version subfolder
-            ver_dir = os.path.join(mod_dir, version_label)
+            safe_version_label = normalize_version_label(version_label)
+            ver_dir = os.path.join(mod_dir, safe_version_label)
+            if not _is_within_dir(mod_dir, ver_dir):
+                return False
             if os.path.isdir(ver_dir):
                 shutil.rmtree(ver_dir)
-                logger.info(f"Deleted version {version_label} of mod {mod_slug}")
+                logger.info(f"Deleted version {safe_version_label} of mod {mod_slug}")
 
-                # If that was the active version, clear or re-assign
                 meta_file = os.path.join(mod_dir, "mod_meta.json")
                 if os.path.isfile(meta_file):
                     with open(meta_file, "r", encoding="utf-8") as f:
                         meta = json.load(f)
-                    if meta.get("active_version") == version_label:
-                        # Pick another version if one exists
+                    if meta.get("active_version") == safe_version_label:
                         remaining = [d for d in os.listdir(mod_dir)
                                      if os.path.isdir(os.path.join(mod_dir, d))
                                      and os.path.isfile(os.path.join(mod_dir, d, "version_meta.json"))]
@@ -365,17 +377,15 @@ def delete_mod(mod_loader: str, mod_slug: str, version_label: str = None) -> boo
                         with open(meta_file, "w", encoding="utf-8") as f:
                             json.dump(meta, f, indent=2)
 
-                # If no versions remain, delete the whole mod
                 remaining = [d for d in os.listdir(mod_dir)
                              if os.path.isdir(os.path.join(mod_dir, d))
                              and os.path.isfile(os.path.join(mod_dir, d, "version_meta.json"))]
                 if not remaining:
                     shutil.rmtree(mod_dir)
-                    logger.info(f"No versions left – deleted entire mod {mod_slug}")
+                    logger.info(f"No versions left - deleted entire mod {mod_slug}")
                 return True
             return False
         else:
-            # Delete entire mod
             if os.path.isdir(mod_dir):
                 shutil.rmtree(mod_dir)
                 logger.info(f"Deleted mod {mod_slug}")
@@ -388,25 +398,41 @@ def delete_mod(mod_loader: str, mod_slug: str, version_label: str = None) -> boo
 
 # ==================== Modpack Management ====================
 
-# Characters forbidden in modpack names (Windows filesystem safety + slash)
-_MODPACK_NAME_FORBIDDEN = _re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_MODPACK_NAME_FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 
 def get_modpacks_storage_dir() -> str:
-    """Get the base directory for storing modpacks."""
-    base = get_base_dir()
-    d = os.path.join(base, "modpacks")
+    profile_root = get_mods_profile_dir()
+    d = os.path.join(profile_root, "modpacks")
     os.makedirs(d, exist_ok=True)
     return d
 
 
 def _modpack_slug(name: str) -> str:
-    """Derive a filesystem-safe slug from a modpack name."""
-    return _re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-') or "modpack"
+    return re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-') or "modpack"
+
+
+def _is_modpack_mod_enabled(mod_entry: Dict[str, Any]) -> bool:
+    return not bool(mod_entry.get("disabled", False))
+
+
+def _get_modpack_mod_icon_path(pack_dir: str, mod_loader: str, mod_slug: str) -> str:
+    icon_new = os.path.join(pack_dir, "mods", mod_slug, "display.png")
+    if os.path.isfile(icon_new):
+        return icon_new
+
+    icon_legacy = os.path.join(pack_dir, "mod_icons", mod_slug, "display.png")
+    if os.path.isfile(icon_legacy):
+        return icon_legacy
+
+    icon_legacy_loader = os.path.join(pack_dir, "mods", mod_loader, mod_slug, "display.png")
+    if os.path.isfile(icon_legacy_loader):
+        return icon_legacy_loader
+
+    return ""
 
 
 def get_installed_modpacks() -> List[Dict[str, Any]]:
-    """Return metadata for every installed modpack."""
     base = get_modpacks_storage_dir()
     result = []
     if not os.path.isdir(base):
@@ -426,10 +452,14 @@ def get_installed_modpacks() -> List[Dict[str, Any]]:
                 icon_url = f"/modpacks-cache/{slug}/display.png"
             data["slug"] = slug
             data["icon_url"] = icon_url
+            mod_loader = (data.get("mod_loader") or "").lower()
             for mod_entry in data.get("mods", []):
                 ms = mod_entry.get("mod_slug", "")
-                if ms and os.path.isfile(os.path.join(pack_dir, "mod_icons", ms, "display.png")):
-                    mod_entry["icon_url"] = f"/modpacks-cache/{slug}/mod_icons/{ms}/display.png"
+                mod_entry["disabled"] = bool(mod_entry.get("disabled", False))
+                icon_path = _get_modpack_mod_icon_path(pack_dir, mod_loader, ms) if ms else ""
+                if icon_path:
+                    rel = os.path.relpath(icon_path, pack_dir).replace("\\", "/")
+                    mod_entry["icon_url"] = f"/modpacks-cache/{slug}/{rel}"
                 else:
                     mod_entry["icon_url"] = ""
             result.append(data)
@@ -441,20 +471,6 @@ def get_installed_modpacks() -> List[Dict[str, Any]]:
 def export_modpack(name: str, version: str, description: str,
                    mod_loader: str, mods: List[Dict[str, Any]],
                    image_data: bytes = None) -> bytes:
-    """Build a .hlmp (Histolauncher Modpack) zip file in memory and return its bytes.
-
-    Args:
-        name:        Modpack name (1-64 chars, no forbidden chars)
-        version:     Modpack version string (1-16 chars)
-        description: Optional description (max 8192 chars)
-        mod_loader:  fabric / forge
-        mods:        List of dicts with mod_slug, version_label
-        image_data:  Optional PNG bytes for display.png
-
-    Returns:
-        Raw bytes of the .hlmp (Histolauncher Modpack) zip archive.
-    """
-    import io
     buf = io.BytesIO()
     mods_storage = get_mods_storage_dir()
     mod_entries = []
@@ -474,20 +490,27 @@ def export_modpack(name: str, version: str, description: str,
             if not os.path.isdir(ver_dir):
                 continue
 
-            # Copy all JARs for this version
+            disabled_in_pack = bool(m.get("disabled", False))
+
             for fn in os.listdir(ver_dir):
                 src = os.path.join(ver_dir, fn)
                 if not os.path.isfile(src):
                     continue
-                arc_path = f"mods/{mod_loader.lower()}/{slug}/{ver_label}/{fn}"
+                arc_path = f"mods/{slug}/{ver_label}/{fn}"
                 zf.write(src, arc_path)
 
-            # Pack the mod's display icon if present
+            ver_meta_src = os.path.join(ver_dir, "version_meta.json")
+            if os.path.isfile(ver_meta_src):
+                zf.write(ver_meta_src, f"mods/{slug}/{ver_label}/version_meta.json")
+
+            meta_src = os.path.join(mod_dir, "mod_meta.json")
+            if os.path.isfile(meta_src):
+                zf.write(meta_src, f"mods/{slug}/mod_meta.json")
+
             mod_icon_src = os.path.join(mod_dir, "display.png")
             if os.path.isfile(mod_icon_src):
-                zf.write(mod_icon_src, f"mod_icons/{slug}/display.png")
+                zf.write(mod_icon_src, f"mods/{slug}/display.png")
 
-            # Read mod meta for name
             meta_file = os.path.join(mod_dir, "mod_meta.json")
             mod_name = slug
             if os.path.isfile(meta_file):
@@ -502,6 +525,7 @@ def export_modpack(name: str, version: str, description: str,
                 "mod_slug": slug,
                 "mod_name": mod_name,
                 "version_label": ver_label,
+                "disabled": disabled_in_pack,
             })
 
         data_json = {
@@ -518,10 +542,6 @@ def export_modpack(name: str, version: str, description: str,
 
 
 def import_modpack(hlmp_bytes: bytes) -> Dict[str, Any]:
-    """Import a .hlmp (Histolauncher Modpack) zip archive.
-
-    Returns a dict with ``ok`` and either the modpack metadata or an error.
-    """
     import io
 
     try:
@@ -545,16 +565,30 @@ def import_modpack(hlmp_bytes: bytes) -> Dict[str, Any]:
     if mod_loader not in ("fabric", "forge"):
         return {"ok": False, "error": "Invalid mod_loader in modpack"}
 
-    pack_mods = data.get("mods", [])
+    normalized_mods = []
+    for pm in data.get("mods", []):
+        if not isinstance(pm, dict):
+            continue
+        mod_slug = str(pm.get("mod_slug") or "").strip().lower()
+        if not mod_slug:
+            continue
+        normalized_mods.append({
+            "mod_slug": mod_slug,
+            "mod_name": pm.get("mod_name", mod_slug),
+            "version_label": str(pm.get("version_label") or "").strip(),
+            "disabled": bool(pm.get("disabled", False)),
+        })
+
+    data["mods"] = normalized_mods
+    pack_mods = normalized_mods
     slug = _modpack_slug(pack_name)
 
-    # --- Conflict detection against other installed modpacks ---
     existing_packs = get_installed_modpacks()
     incoming_slugs = {m.get("mod_slug") for m in pack_mods if m.get("mod_slug")}
 
     for ep in existing_packs:
         if ep.get("slug") == slug:
-            continue  # replacing same modpack is fine
+            continue
         ep_slugs = {m.get("mod_slug") for m in ep.get("mods", []) if m.get("mod_slug")}
         overlap = incoming_slugs & ep_slugs
         if overlap:
@@ -564,39 +598,91 @@ def import_modpack(hlmp_bytes: bytes) -> Dict[str, Any]:
                 "error": f"Conflict with modpack \"{ep.get('name', ep.get('slug'))}\": overlapping mods ({names})",
             }
 
-    # --- Extract to storage ---
     base = get_modpacks_storage_dir()
     pack_dir = os.path.join(base, slug)
+    pack_dir_real = os.path.realpath(pack_dir)
     if os.path.isdir(pack_dir):
         shutil.rmtree(pack_dir)
     os.makedirs(pack_dir, exist_ok=True)
 
-    # Extract mods/ and mod_icons/ folders
     for zi in zf.infolist():
         if zi.is_dir():
             continue
         if zi.filename.startswith("mods/") or zi.filename.startswith("mod_icons/"):
-            target = os.path.join(pack_dir, zi.filename.replace("/", os.sep))
+            normalized = zi.filename.replace("\\", "/")
+            parts = normalized.split("/")
+            if any(part in ("", ".", "..") for part in parts):
+                shutil.rmtree(pack_dir, ignore_errors=True)
+                zf.close()
+                return {"ok": False, "error": f"Invalid path in modpack archive: {zi.filename}"}
+
+            target = os.path.join(pack_dir, normalized.replace("/", os.sep))
+            target_real = os.path.realpath(target)
+            if not _is_within_dir(pack_dir_real, target_real):
+                shutil.rmtree(pack_dir, ignore_errors=True)
+                zf.close()
+                return {"ok": False, "error": f"Unsafe archive entry: {zi.filename}"}
+
             os.makedirs(os.path.dirname(target), exist_ok=True)
             with zf.open(zi) as src, open(target, "wb") as dst:
                 shutil.copyfileobj(src, dst)
 
-    # Extract display.png
     if "display.png" in zf.namelist():
         display_target = os.path.join(pack_dir, "display.png")
         with zf.open("display.png") as src, open(display_target, "wb") as dst:
             shutil.copyfileobj(src, dst)
 
-    # Write data.json (ensure disabled defaults to false)
+    legacy_loader_root = os.path.join(pack_dir, "mods", mod_loader)
+    if os.path.isdir(legacy_loader_root):
+        for slug_name in os.listdir(legacy_loader_root):
+            legacy_slug_dir = os.path.join(legacy_loader_root, slug_name)
+            if not os.path.isdir(legacy_slug_dir):
+                continue
+
+            canonical_slug_dir = os.path.join(pack_dir, "mods", slug_name)
+            os.makedirs(canonical_slug_dir, exist_ok=True)
+
+            for entry in os.listdir(legacy_slug_dir):
+                src = os.path.join(legacy_slug_dir, entry)
+                dst = os.path.join(canonical_slug_dir, entry)
+                if os.path.exists(dst):
+                    continue
+                shutil.move(src, dst)
+
+            try:
+                if not os.listdir(legacy_slug_dir):
+                    os.rmdir(legacy_slug_dir)
+            except Exception:
+                pass
+
+        try:
+            if not os.listdir(legacy_loader_root):
+                os.rmdir(legacy_loader_root)
+        except Exception:
+            pass
+
+    legacy_icons_root = os.path.join(pack_dir, "mod_icons")
+    if os.path.isdir(legacy_icons_root):
+        for slug_name in os.listdir(legacy_icons_root):
+            icon_src = os.path.join(legacy_icons_root, slug_name, "display.png")
+            if not os.path.isfile(icon_src):
+                continue
+            icon_dst = os.path.join(pack_dir, "mods", slug_name, "display.png")
+            os.makedirs(os.path.dirname(icon_dst), exist_ok=True)
+            if not os.path.isfile(icon_dst):
+                shutil.copy2(icon_src, icon_dst)
+
     data["disabled"] = False
     data["slug"] = slug
+    data["mods"] = pack_mods
     with open(os.path.join(pack_dir, "data.json"), "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
 
-    # --- Disable standalone mods that conflict ---
     mods_storage = get_mods_storage_dir()
     disabled_standalone = []
     for pm in pack_mods:
+        if not _is_modpack_mod_enabled(pm):
+            continue
         ms = pm.get("mod_slug", "")
         if not ms:
             continue
@@ -624,8 +710,35 @@ def import_modpack(hlmp_bytes: bytes) -> Dict[str, Any]:
     }
 
 
+def toggle_mod_in_modpack(pack_slug: str, mod_slug: str, disabled: bool) -> bool:
+    if not _validate_modpack_slug(pack_slug) or not _validate_mod_slug(mod_slug):
+        return False
+    base = get_modpacks_storage_dir()
+    data_file = os.path.join(base, pack_slug, "data.json")
+    if not os.path.isfile(data_file):
+        return False
+    try:
+        with open(data_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        found = False
+        for m in data.get("mods", []):
+            if m.get("mod_slug") == mod_slug:
+                m["disabled"] = disabled
+                found = True
+        if not found:
+            return False
+        with open(data_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+        logger.info(f"Toggled mod {mod_slug} in modpack {pack_slug}: disabled={disabled}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to toggle mod in modpack {pack_slug}/{mod_slug}: {e}")
+        return False
+
+
 def toggle_modpack(slug: str, disabled: bool) -> bool:
-    """Enable or disable a modpack."""
+    if not _validate_modpack_slug(slug):
+        return False
     base = get_modpacks_storage_dir()
     data_file = os.path.join(base, slug, "data.json")
     if not os.path.isfile(data_file):
@@ -637,15 +750,15 @@ def toggle_modpack(slug: str, disabled: bool) -> bool:
         with open(data_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
-        # When disabling modpack, unblock any standalone mods that were blocked by it
         if disabled:
             _unblock_standalone_mods(slug)
 
-        # When enabling modpack, re-block standalone mods
         if not disabled:
             mods_storage = get_mods_storage_dir()
             mod_loader = data.get("mod_loader", "")
             for pm in data.get("mods", []):
+                if not _is_modpack_mod_enabled(pm):
+                    continue
                 ms = pm.get("mod_slug", "")
                 if not ms:
                     continue
@@ -669,7 +782,8 @@ def toggle_modpack(slug: str, disabled: bool) -> bool:
 
 
 def delete_modpack(slug: str) -> bool:
-    """Delete a modpack and unblock any standalone mods it had blocked."""
+    if not _validate_modpack_slug(slug):
+        return False
     base = get_modpacks_storage_dir()
     pack_dir = os.path.join(base, slug)
     if not os.path.isdir(pack_dir):
@@ -685,7 +799,6 @@ def delete_modpack(slug: str) -> bool:
 
 
 def _unblock_standalone_mods(modpack_slug: str):
-    """Re-enable standalone mods that were blocked by a given modpack."""
     mods_storage = get_mods_storage_dir()
     if not os.path.isdir(mods_storage):
         return
@@ -713,30 +826,15 @@ def _unblock_standalone_mods(modpack_slug: str):
 # ==================== CurseForge API ====================
 
 def _curseforge_request(endpoint: str, params: Dict[str, Any] = None, api_key: str = None) -> Optional[Dict[str, Any]]:
-    """Make a request to the CurseForge proxy Worker.
-    
-    Args:
-        endpoint: API endpoint path
-        params: Query parameters
-        api_key: Unused – the API key is stored securely in the Cloudflare Worker.
-        
-    Returns:
-        JSON response data or None on error
-    """
     url = f"{CURSEFORGE_API_BASE}{endpoint}"
     
     if params:
         url += "?" + urllib.parse.urlencode(params)
     
-    # Do NOT apply the general URL proxy here – the CurseForge Worker URL is
-    # already our own Cloudflare infrastructure. Routing it through the general
-    # proxy would cause a workers.dev→workers.dev fetch which Cloudflare blocks.
-    
     headers = {
         "Accept": "application/json",
         "User-Agent": "Histolauncher/1.0"
     }
-    # No x-api-key here – the Cloudflare Worker injects it server-side.
     
     try:
         req = urllib.request.Request(url, headers=headers)
@@ -774,37 +872,24 @@ def search_mods_curseforge(
     mod_loader_type: str = None,
     page_size: int = 20,
     index: int = 0,
-    api_key: str = None  # kept for API compatibility; key is handled by the Worker
+    api_key: str = None 
 ) -> Dict[str, Any]:
-    """Search for mods on CurseForge.
-    
-    Args:
-        search_query: Search term
-        game_version: Minecraft version filter (e.g., "1.16.5")
-        mod_loader_type: Mod loader filter ("fabric" or "forge")
-        page_size: Number of results per page
-        index: Page index (0-based)
-        api_key: CurseForge API key
-        
-    Returns:
-        Dictionary with search results and pagination info
-    """
     safe_page_size = max(1, min(int(page_size or 20), 50))
     safe_index = max(0, int(index or 0))
     offset = safe_index * safe_page_size
 
     params = {
         "gameId": CURSEFORGE_MINECRAFT_GAME_ID,
-        "classId": 6,  # Mods class
+        "classId": 6,
         "pageSize": safe_page_size,
         "index": offset,
-        "sortField": 2,   # 2 = Popularity
+        "sortField": 2,
         "sortOrder": "desc",
     }
     
     if search_query:
         params["searchFilter"] = search_query
-        params["sortField"] = 1  # 1 = Featured (relevance) when searching
+        params["sortField"] = 1
     
     if game_version:
         params["gameVersion"] = game_version
@@ -859,18 +944,7 @@ def search_mods_curseforge(
     }
 
 
-def get_mod_files_curseforge(mod_id: str, game_version: str = None, mod_loader_type: str = None, api_key: str = None) -> List[Dict[str, Any]]:  # api_key unused; handled by Worker
-    """Get available files/versions for a mod from CurseForge.
-    
-    Args:
-        mod_id: CurseForge mod ID
-        game_version: Filter by Minecraft version
-        mod_loader_type: Filter by mod loader (fabric/forge)
-        api_key: CurseForge API key
-        
-    Returns:
-        List of available mod files
-    """
+def get_mod_files_curseforge(mod_id: str, game_version: str = None, mod_loader_type: str = None, api_key: str = None) -> List[Dict[str, Any]]:
     PAGE_SIZE = 50
     params = {"pageSize": PAGE_SIZE, "index": 0}
 
@@ -908,7 +982,6 @@ def get_mod_files_curseforge(mod_id: str, game_version: str = None, mod_loader_t
             else:
                 clean_versions.append(gv)
 
-        # CurseForge releaseType: 1=Release, 2=Beta, 3=Alpha
         cf_release_type = file_data.get("releaseType", 1)
         if cf_release_type == 1:
             version_type = "release"
@@ -924,7 +997,7 @@ def get_mod_files_curseforge(mod_id: str, game_version: str = None, mod_loader_t
             "version_number": file_data.get("displayName", file_data.get("fileName", "")),
             "version_type": version_type,
             "file_date": file_data.get("fileDate", ""),
-            "download_url": file_data.get("downloadUrl", ""),
+            "download_url": _cf_resolve_download_url(file_data),
             "file_length": file_data.get("fileLength", 0),
             "game_versions": clean_versions,
             "loaders": loaders,
@@ -933,25 +1006,29 @@ def get_mod_files_curseforge(mod_id: str, game_version: str = None, mod_loader_t
     return files
 
 
+def _cf_resolve_download_url(file_data: Dict[str, Any]) -> str:
+    url = file_data.get("downloadUrl") or ""
+    if url:
+        return url
+    file_id = file_data.get("id", 0)
+    file_name = file_data.get("fileName", "")
+    if file_id and file_name:
+        file_id_str = str(int(file_id))
+        if len(file_id_str) >= 4:
+            part1 = file_id_str[:-3]
+            part2 = str(int(file_id_str[-3:]))  # strip leading zeros
+            encoded_name = urllib.parse.quote(str(file_name), safe="")
+            return f"https://edge.forgecdn.net/files/{part1}/{part2}/{encoded_name}"
+    return ""
+
+
 # ==================== Modrinth API ====================
 
 def _modrinth_request(endpoint: str, params: Dict[str, Any] = None) -> Optional[Dict[str, Any]]:
-    """Make a request to Modrinth API.
-    
-    Args:
-        endpoint: API endpoint path
-        params: Query parameters
-        
-    Returns:
-        JSON response data or None on error
-    """
     url = f"{MODRINTH_API_BASE}{endpoint}"
     
     if params:
         url += "?" + urllib.parse.urlencode(params)
-    
-    # Do NOT apply the general URL proxy here – the Modrinth Worker URL is
-    # already our own Cloudflare infrastructure.
     
     headers = {
         "Accept": "application/json",
@@ -975,18 +1052,6 @@ def search_mods_modrinth(
     limit: int = 20,
     offset: int = 0
 ) -> Dict[str, Any]:
-    """Search for mods on Modrinth.
-    
-    Args:
-        search_query: Search term
-        game_version: Minecraft version filter (e.g., "1.16.5")
-        mod_loader: Mod loader filter ("fabric" or "forge")
-        limit: Number of results per page
-        offset: Page offset
-        
-    Returns:
-        Dictionary with search results and pagination info
-    """
     facets = [["project_type:mod"]]
     
     if game_version:
@@ -1002,7 +1067,6 @@ def search_mods_modrinth(
         "facets": json.dumps(facets, separators=(",", ":")),
     }
 
-    # With no search text, prefer a stable browse feed over relevance-only ranking.
     if not (search_query or "").strip():
         params["index"] = "downloads"
 
@@ -1018,8 +1082,6 @@ def search_mods_modrinth(
     
     mods = []
     for hit in response.get("hits", []):
-        # Only skip if project_type is explicitly set to something other than 'mod'.
-        # Missing project_type is fine — facets already guarantee project_type:mod.
         pt = (hit.get("project_type") or "mod").lower()
         if pt != "mod":
             continue
@@ -1048,16 +1110,6 @@ def search_mods_modrinth(
 
 
 def get_mod_versions_modrinth(mod_id: str, game_version: str = None, mod_loader: str = None) -> List[Dict[str, Any]]:
-    """Get available versions for a mod from Modrinth.
-    
-    Args:
-        mod_id: Modrinth project ID or slug
-        game_version: Filter by Minecraft version
-        mod_loader: Filter by mod loader (fabric/forge)
-        
-    Returns:
-        List of available mod versions
-    """
     params = {}
     
     loaders = []
@@ -1087,7 +1139,6 @@ def get_mod_versions_modrinth(mod_id: str, game_version: str = None, mod_loader:
     
     versions = []
     for version_data in response:
-        # Get primary file (first file in the list)
         files = version_data.get("files", [])
         if not files:
             continue
@@ -1112,23 +1163,20 @@ def get_mod_versions_modrinth(mod_id: str, game_version: str = None, mod_loader:
 
 
 def download_mod_file(download_url: str, mod_loader: str, mod_slug: str, version_label: str, file_name: str) -> bool:
-    """Download a mod file into its version subdirectory.
+    if not _validate_jar_filename(file_name):
+        logger.error(f"Refusing unsafe mod filename: {file_name}")
+        return False
 
-    Args:
-        download_url:  URL to download the mod file from
-        mod_loader:    The mod loader (fabric/forge)
-        mod_slug:      The mod's slug/identifier
-        version_label: Version string (used as subdirectory name)
-        file_name:     Name to save the file as
-
-    Returns:
-        True if download successful, False otherwise
-    """
     ver_dir = get_mod_version_dir(mod_loader, mod_slug, version_label)
-    file_path = os.path.join(ver_dir, file_name)
+    safe_file_name = os.path.basename(file_name)
+    file_path = os.path.join(ver_dir, safe_file_name)
 
-    # Apply URL proxy if configured
-    url = _apply_url_proxy(download_url)
+    if not _is_within_dir(ver_dir, file_path):
+        logger.error(f"Refusing unsafe output path for mod file: {file_name}")
+        return False
+
+    normalized_url = _normalize_download_url(download_url)
+    url = _apply_url_proxy(normalized_url)
 
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Histolauncher/1.0"})
@@ -1136,7 +1184,7 @@ def download_mod_file(download_url: str, mod_loader: str, mod_slug: str, version
             with open(file_path, "wb") as f:
                 shutil.copyfileobj(response, f)
 
-        logger.info(f"Downloaded mod file: {file_name} to {ver_dir}")
+        logger.info(f"Downloaded mod file: {safe_file_name} to {ver_dir}")
         return True
     except Exception as e:
         logger.error(f"Failed to download mod file {file_name}: {e}")

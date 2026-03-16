@@ -1,6 +1,7 @@
 # core/java_launcher.py
 
 import os
+import sys
 import subprocess
 import platform
 import zipfile
@@ -11,14 +12,13 @@ import json
 import hashlib
 import shutil
 import tempfile
-import urllib.error
 import urllib.request
 import shlex
 
 from datetime import datetime
 from uuid import uuid3, NAMESPACE_DNS
 
-from core.settings import load_global_settings, get_base_dir
+from core.settings import load_global_settings, get_base_dir, get_versions_profile_dir
 from core.logger import colorize_log
 from server.yggdrasil import _get_username_and_uuid
 
@@ -128,7 +128,7 @@ def _copy_mods_for_launch(game_dir, mod_loader):
         
         # --- Copy modpack mods ---
         try:
-            modpacks_dir = os.path.join(os.path.dirname(mods_storage), "modpacks")
+            modpacks_dir = mod_manager.get_modpacks_storage_dir()
             if os.path.isdir(modpacks_dir):
                 for pack_slug in os.listdir(modpacks_dir):
                     pack_dir = os.path.join(modpacks_dir, pack_slug)
@@ -149,16 +149,51 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                     if pack_loader != mod_loader.lower():
                         print(colorize_log(f"[mods] Skipping modpack {pack_slug} (loader mismatch: {pack_loader} != {mod_loader})"))
                         continue
-                    # Iterate mods inside pack: modpacks/{slug}/mods/{loader}/{mod_slug}/{ver}/
-                    pack_mods_dir = os.path.join(pack_dir, "mods", pack_loader)
-                    if not os.path.isdir(pack_mods_dir):
-                        continue
-                    for pm_slug in os.listdir(pack_mods_dir):
-                        pm_dir = os.path.join(pack_mods_dir, pm_slug)
-                        if not os.path.isdir(pm_dir):
+
+                    pack_mod_entries = pack_data.get("mods") if isinstance(pack_data.get("mods"), list) else []
+
+                    # Prefer metadata-driven iteration so we can respect per-mod disabled state
+                    # and support both new and legacy on-disk layouts.
+                    for pm in pack_mod_entries:
+                        if not isinstance(pm, dict):
                             continue
-                        for ver_name in os.listdir(pm_dir):
-                            ver_dir = os.path.join(pm_dir, ver_name)
+                        if pm.get("disabled", False):
+                            continue
+
+                        pm_slug = str(pm.get("mod_slug") or "").strip()
+                        ver_name = str(pm.get("version_label") or "").strip()
+                        if not pm_slug:
+                            continue
+
+                        ver_candidates = []
+                        if ver_name:
+                            # New layout: modpacks/{slug}/mods/{mod_slug}/{ver}/
+                            ver_candidates.append(os.path.join(pack_dir, "mods", pm_slug, ver_name))
+                            # Legacy layout: modpacks/{slug}/mods/{loader}/{mod_slug}/{ver}/
+                            ver_candidates.append(os.path.join(pack_dir, "mods", pack_loader, pm_slug, ver_name))
+
+                        # Fallback when version label is missing/outdated.
+                        if not ver_candidates:
+                            base_new = os.path.join(pack_dir, "mods", pm_slug)
+                            if os.path.isdir(base_new):
+                                ver_candidates.extend(
+                                    [
+                                        os.path.join(base_new, d)
+                                        for d in os.listdir(base_new)
+                                        if os.path.isdir(os.path.join(base_new, d))
+                                    ]
+                                )
+                            base_old = os.path.join(pack_dir, "mods", pack_loader, pm_slug)
+                            if os.path.isdir(base_old):
+                                ver_candidates.extend(
+                                    [
+                                        os.path.join(base_old, d)
+                                        for d in os.listdir(base_old)
+                                        if os.path.isdir(os.path.join(base_old, d))
+                                    ]
+                                )
+
+                        for ver_dir in ver_candidates:
                             if not os.path.isdir(ver_dir):
                                 continue
                             for filename in os.listdir(ver_dir):
@@ -175,6 +210,33 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                                     print(colorize_log(f"[mods] Copied (modpack {pack_slug}): {filename}"))
                                 except Exception as e:
                                     print(colorize_log(f"[mods] Warning: Failed to copy modpack file {filename}: {e}"))
+
+                    # Legacy fallback for packs that do not have usable mods metadata.
+                    if not pack_mod_entries:
+                        pack_mods_dir = os.path.join(pack_dir, "mods", pack_loader)
+                        if os.path.isdir(pack_mods_dir):
+                            for pm_slug in os.listdir(pack_mods_dir):
+                                pm_dir = os.path.join(pack_mods_dir, pm_slug)
+                                if not os.path.isdir(pm_dir):
+                                    continue
+                                for ver_name in os.listdir(pm_dir):
+                                    ver_dir = os.path.join(pm_dir, ver_name)
+                                    if not os.path.isdir(ver_dir):
+                                        continue
+                                    for filename in os.listdir(ver_dir):
+                                        if not filename.endswith(".jar"):
+                                            continue
+                                        if filename.lower() in existing_files:
+                                            continue
+                                        src = os.path.join(ver_dir, filename)
+                                        dst = os.path.join(target_mods_dir, filename)
+                                        try:
+                                            shutil.copy2(src, dst)
+                                            copied_files.append(dst)
+                                            existing_files.add(filename.lower())
+                                            print(colorize_log(f"[mods] Copied (legacy modpack {pack_slug}): {filename}"))
+                                        except Exception as e:
+                                            print(colorize_log(f"[mods] Warning: Failed to copy legacy modpack file {filename}: {e}"))
         except Exception as e:
             print(colorize_log(f"[mods] Error copying modpack mods: {e}"))
 
@@ -239,6 +301,52 @@ def _cleanup_copied_mods(copied_files):
                 print(colorize_log(f"[mods]   - {p}"))
     except Exception as e:
         print(colorize_log(f"[mods] Error during cleanup: {e}"))
+
+
+def _finalize_process_exit(process_id, exit_code=None):
+    cleanup_files = []
+    snapshot = None
+
+    with _process_lock:
+        proc_info = _active_processes.get(process_id)
+        if not proc_info:
+            return None
+
+        process_obj = proc_info.get("process")
+        if exit_code is None and process_obj is not None:
+            exit_code = process_obj.poll()
+
+        if exit_code is None:
+            return dict(proc_info)
+
+        proc_info["status"] = "exited"
+        proc_info["exit_code"] = exit_code
+        proc_info.setdefault("end_time", time.time())
+
+        if not proc_info.get("cleanup_started"):
+            proc_info["cleanup_started"] = True
+            cleanup_files = list(proc_info.get("copied_mods") or [])
+
+        snapshot = dict(proc_info)
+
+    if cleanup_files:
+        _cleanup_copied_mods(cleanup_files)
+
+    with _process_lock:
+        proc_info = _active_processes.get(process_id)
+        if not proc_info:
+            return snapshot
+
+        proc_info["status"] = "exited"
+        proc_info["exit_code"] = exit_code
+        proc_info.setdefault("end_time", time.time())
+        proc_info["cleanup_started"] = True
+        proc_info["cleanup_done"] = True
+        if cleanup_files:
+            proc_info["copied_mods"] = []
+        snapshot = dict(proc_info)
+
+    return snapshot
 
 # ========== WINDOW DETECTION ==========
 def _is_minecraft_window_visible(process_pid):
@@ -457,8 +565,6 @@ def _get_latest_log_path(version_dir):
 
 def _output_reader_thread(process, log_file, version_name):
     try:
-        import sys
-
         if not process.stdout:
             return
         
@@ -500,9 +606,11 @@ def _output_reader_thread(process, log_file, version_name):
 
 def _process_monitor_thread(process_id, process_obj):
     try:
-        process_obj.wait()
+        exit_code = process_obj.wait()
     except Exception:
-        pass
+        exit_code = process_obj.poll()
+
+    _finalize_process_exit(process_id, exit_code)
 
 
 def _register_process(process_id, process_obj, version_identifier, log_file_path=None, copied_mods=None):
@@ -513,7 +621,12 @@ def _register_process(process_id, process_obj, version_identifier, log_file_path
             "start_time": time.time(),
             "process": process_obj,
             "log_path": log_file_path,
-            "copied_mods": copied_mods or []
+            "copied_mods": copied_mods or [],
+            "status": "running",
+            "exit_code": None,
+            "cleanup_started": False,
+            "cleanup_done": False,
+            "end_time": None,
         }
     
     monitor = threading.Thread(
@@ -528,15 +641,16 @@ def _get_process_status(process_id):
     with _process_lock:
         if process_id not in _active_processes:
             return None
-        
+
         proc_info = _active_processes[process_id]
         process_obj = proc_info["process"]
         version = proc_info["version"]
         elapsed = time.time() - proc_info["start_time"]
-        
+        status = proc_info.get("status", "running")
+
         poll_result = process_obj.poll()
-        
-        if poll_result is None:
+
+        if poll_result is None and status != "exited":
             # Process is still running
             return {
                 "ok": True,
@@ -546,62 +660,59 @@ def _get_process_status(process_id):
                 "elapsed": elapsed,
                 "start_time": proc_info["start_time"],
             }
+
+    proc_info = _finalize_process_exit(process_id, poll_result)
+    if not proc_info:
+        return None
+
+    log_path = proc_info.get("log_path")  # Use the log file we created during launch
+
+    # If we stored a log path, use that (it has all the stdout/stderr)
+    if log_path:
+        print(colorize_log(f"[_get_process_status] Using stored log path: {log_path}"))
+    else:
+        # Fallback: try to find log file in version directory
+        clients_dir = get_versions_profile_dir()
+
+        # Reconstruct version_dir from version identifier
+        version_dir = None
+        if "/" in version:
+            parts = version.replace("\\", "/").split("/", 1)
+            category, folder = parts[0], parts[1]
+            # Case-insensitive directory lookup
+            for cat in os.listdir(clients_dir):
+                if cat.lower() == category.lower():
+                    candidate = os.path.join(clients_dir, cat, folder)
+                    if os.path.isdir(candidate):
+                        version_dir = candidate
+                        break
+            if not version_dir:
+                version_dir = os.path.join(clients_dir, category, folder)
+            print(colorize_log(f"[_get_process_status] Reconstructed version_dir from '/' split: {version_dir}"))
         else:
-            # Process has exited
-            log_path = proc_info.get("log_path")  # Use the log file we created during launch
-            
-            # If we stored a log path, use that (it has all the stdout/stderr)
-            if log_path:
-                print(colorize_log(f"[_get_process_status] Using stored log path: {log_path}"))
-            else:
-                # Fallback: try to find log file in version directory
-                base_dir = get_base_dir()
-                clients_dir = os.path.join(base_dir, "clients")
-                
-                # Reconstruct version_dir from version identifier
-                version_dir = None
-                if "/" in version:
-                    parts = version.replace("\\", "/").split("/", 1)
-                    category, folder = parts[0], parts[1]
-                    # Case-insensitive directory lookup
-                    for cat in os.listdir(clients_dir):
-                        if cat.lower() == category.lower():
-                            candidate = os.path.join(clients_dir, cat, folder)
-                            if os.path.isdir(candidate):
-                                version_dir = candidate
-                                break
-                    if not version_dir:
-                        version_dir = os.path.join(clients_dir, category, folder)
-                    print(colorize_log(f"[_get_process_status] Reconstructed version_dir from '/' split: {version_dir}"))
-                else:
-                    for cat in os.listdir(clients_dir):
-                        p = os.path.join(clients_dir, cat, version)
-                        if os.path.isdir(p):
-                            version_dir = p
-                            print(colorize_log(f"[_get_process_status] Found version_dir from directory scan: {version_dir}"))
-                            break
-                
-                log_path = _get_latest_log_path(version_dir) if version_dir else None
-                print(colorize_log(f"[_get_process_status] Fallback log search - version_dir: {version_dir}, log_path: {log_path}"))
-            
-            # Clean up any mods that were copied during launch
-            copied_mods = proc_info.get("copied_mods", [])
-            if copied_mods:
-                _cleanup_copied_mods(copied_mods)
-            
-            # Clean up the process entry to prevent memory leak
-            del _active_processes[process_id]
-            
-            return {
-                "ok": True,
-                "status": "exited",
-                "process_id": process_id,
-                "version": version,
-                "exit_code": poll_result,
-                "elapsed": elapsed,
-                "start_time": proc_info["start_time"],
-                "log_path": log_path
-            }
+            for cat in os.listdir(clients_dir):
+                p = os.path.join(clients_dir, cat, version)
+                if os.path.isdir(p):
+                    version_dir = p
+                    print(colorize_log(f"[_get_process_status] Found version_dir from directory scan: {version_dir}"))
+                    break
+
+        log_path = _get_latest_log_path(version_dir) if version_dir else None
+        print(colorize_log(f"[_get_process_status] Fallback log search - version_dir: {version_dir}, log_path: {log_path}"))
+
+    with _process_lock:
+        _active_processes.pop(process_id, None)
+
+    return {
+        "ok": True,
+        "status": "exited",
+        "process_id": process_id,
+        "version": version,
+        "exit_code": proc_info.get("exit_code", poll_result),
+        "elapsed": elapsed,
+        "start_time": proc_info["start_time"],
+        "log_path": log_path
+    }
 
 
 def _get_game_window_visible(process_id):
@@ -2656,7 +2767,7 @@ def _stage_legacy_fml_libraries(game_dir: str) -> None:
 
 def launch_version(version_identifier, username_override=None, loader=None, loader_version=None):
     base_dir = get_base_dir()
-    clients_dir = os.path.join(base_dir, "clients")
+    clients_dir = get_versions_profile_dir()
     if "/" in version_identifier:
         parts = version_identifier.replace("\\", "/").split("/", 1)
         category, folder = parts[0], parts[1]
@@ -2705,7 +2816,6 @@ def launch_version(version_identifier, username_override=None, loader=None, load
                     for jar in os.listdir(forge_dir) if os.path.isdir(forge_dir) else []:
                         if jar.endswith(".jar"):
                             try:
-                                import zipfile
                                 with zipfile.ZipFile(os.path.join(forge_dir, jar), 'r') as z:
                                     if any("launchwrapper" in name.lower() for name in z.namelist()):
                                         has_launchwrapper = True
@@ -3047,7 +3157,6 @@ def launch_version(version_identifier, username_override=None, loader=None, load
                 ))
 
     if loader and loader.lower() == "forge" and main_class == "net.minecraft.launchwrapper.Launch":
-        import zipfile
         tweak_class = None
 
         # Pre-1.6 Forge uses FML's patched Minecraft.class inside the merged jar
@@ -3235,7 +3344,6 @@ def launch_version(version_identifier, username_override=None, loader=None, load
                                         os.link(src_jar, dst_jar)
                                         print(colorize_log(f"[launcher] Linked universal JAR to Maven path"))
                                     except (OSError, NotImplementedError):
-                                        import shutil
                                         shutil.copy2(src_jar, dst_jar)
                                         print(colorize_log(f"[launcher] Copied universal JAR to Maven path"))
                             except Exception as link_err:
@@ -3252,7 +3360,6 @@ def launch_version(version_identifier, username_override=None, loader=None, load
                                             os.link(client_jar_path, dst_client_jar)
                                             print(colorize_log(f"[launcher] Linked client JAR to Maven path"))
                                         except (OSError, NotImplementedError):
-                                            import shutil
                                             shutil.copy2(client_jar_path, dst_client_jar)
                                             print(colorize_log(f"[launcher] Copied client JAR to Maven path"))
                                 except Exception as e:
@@ -3394,7 +3501,6 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             reader_thread.start()
             print(colorize_log(f"[launcher] Output reader thread started"))
         
-        import hashlib
         process_id = hashlib.sha1(
             f"{time.time()}{process.pid}".encode()
         ).hexdigest()[:16]

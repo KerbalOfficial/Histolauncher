@@ -163,3 +163,30 @@ def get_verified_account() -> Tuple[bool, Optional[Dict], Optional[str]]:
         return False, None, "Not logged in"
     
     return get_user_info(session_token)
+
+
+def get_launcher_message() -> Tuple[bool, Optional[Dict], Optional[str]]:
+    endpoint = "/api/launcher-message"
+
+    def _attempt(use_proxy: bool) -> Tuple[bool, Optional[Dict], Optional[str], int]:
+        status, data = _make_request("GET", endpoint, use_proxy=use_proxy)
+        if status == 200 and isinstance(data, dict):
+            return True, data, None, status
+
+        error = "Failed to load launcher message"
+        if isinstance(data, dict) and data.get("error"):
+            error = str(data.get("error"))
+        return False, None, error, status
+
+    ok, payload, error, _ = _attempt(use_proxy=True)
+    if ok:
+        return True, payload, None
+
+    proxied_url = _apply_url_proxy(ACCOUNT_API_URL + endpoint)
+    if proxied_url != ACCOUNT_API_URL + endpoint:
+        ok2, payload2, error2, _ = _attempt(use_proxy=False)
+        if ok2:
+            return True, payload2, None
+        return False, None, error2
+
+    return False, None, error

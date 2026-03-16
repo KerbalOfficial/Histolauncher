@@ -18,11 +18,12 @@ You will need:
   - **JRE 8** - used by versions **oldest - 1.16.5**
   - **JDK 11** - used by versions **1.17 - 1.17.1**
   - **JDK 17** - used by versions **1.18 - 1.20.4**
-  - **JDK 21** *(recommended)* - used by versions **1.20.5 - latest**
+  - **JDK 21** *(recommended)* - used by versions **1.20.5 - 1.21.11**
+  - **JDK 25** - used by versions **26.1 - latest**
 - **Python 3.x** for the launcher
 
 ## How to install:
-### Java (8, 11, 17, 21):
+### Java (8, 11, 17, 21, 25):
 - JRE 8 (**oldest - 1.16.5**):
   1. Go to the official download page: **https://www.java.com/download/manual.jsp**
   2. Choose your operating system (Windows, macOS, or Linux).
@@ -41,8 +42,14 @@ You will need:
   3. Download the installer.
   4. Run the installer and follow the instructions.
   5. Done! The clients should load once you try to launch them!
-- JDK 21 (*recommended*, **1.20.5 - latest**):
+- JDK 21 (*recommended*, **1.20.5 - 1.21.11**):
   1. Go to the official download page: **https://www.oracle.com/java/technologies/downloads/#java21**
+  2. Choose your operating system (Windows, macOS, or Linux).
+  3. Select the correct architecture (64‑bit for most modern systems).
+  4. Run the installer and follow the on‑screen steps.
+  5. Done! The clients should load once you try to launch them!
+- JDK 25 (**26.1 - latest**):
+  1. Go to the official download page: **https://www.oracle.com/java/technologies/downloads/#java25**
   2. Choose your operating system (Windows, macOS, or Linux).
   3. Select the correct architecture (64‑bit for most modern systems).
   4. Run the installer and follow the on‑screen steps.

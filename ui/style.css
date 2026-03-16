@@ -4,7 +4,41 @@
   padding: 0;
   font-family: 'MacMinecraft';
   image-rendering: pixelated;
-  image-rendering: crisp-edges;
+  scrollbar-width: auto;
+  scrollbar-color: #6b7280 #1f2327;
+  -webkit-box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+*::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+  border-radius: 0 !important;
+}
+
+*::-webkit-scrollbar-track {
+  background: #1f2327;
+  border: 2px solid #111417;
+  border-radius: 0 !important;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #6b7280;
+  border: 2px solid #3f4650;
+  border-radius: 0 !important;
+  background-clip: padding-box !important;
+  -webkit-appearance: none;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+  border-radius: 0 !important;
+}
+
+*::-webkit-scrollbar-corner {
+  background: #1f2327;
+  border-radius: 0 !important;
 }
 
 @font-face {
@@ -67,6 +101,9 @@ input[type="checkbox"] {
   text-align: right;
   color: #ffffff;
   padding: 0px !important;
+  background: #3c3f41;
+  border: 4px solid #1a1c1d;
+  padding: 6px 8px;
 }
 input[type="checkbox"]::before {
   content: " ";
@@ -115,9 +152,8 @@ input[type="checkbox"]:checked::before {
   overflow-y: auto;
 }
 
-/* Message box with large content */
+/* Message box */
 #msgbox-box {
-  width: min(1100px, 94vw);
   max-width: 94vw;
 }
 
@@ -199,15 +235,54 @@ input[type="checkbox"]:checked::before {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 12px;
+  margin: -16px -16px 12px -16px;
+  min-height: 60px;
+  background: #111;
+  border-bottom: 4px solid #333;
+  padding: 8px 16px;
 }
 
 #refresh-btn {
   margin-left: auto;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 !important;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#refresh-btn:hover {
+  background: transparent;
+}
+
+#refresh-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 #topbar-profile {
   display: none;
+  align-items: center;
+  gap: 8px;
+  background: #111;
+  border: none;
+  padding: 4px 8px;
+}
+
+#topbar-profile-pic {
+  border: 2px solid #1c1c1c;
+}
+
+#topbar-username {
+  color: #e5e7eb;
+  font-size: 14px;
 }
 
 .title {
@@ -218,6 +293,141 @@ input[type="checkbox"]:checked::before {
 /* PAGES */
 .page {
   margin-top: 8px;
+}
+
+.global-message-float {
+  position: relative;
+  margin: 8px;
+  z-index: 2;
+  padding: 12px 16px;
+  border: 4px solid transparent;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  max-height: 40vh;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.global-message-message {
+  background: rgba(63, 143, 255, 0.25);
+  color: #d7ebff;
+  border-color: #1d5d96;
+}
+
+.global-message-warning {
+  background: rgba(243, 182, 43, 0.25);
+  color: #ffe6b0;
+  border-color: #9a6400;
+}
+
+.global-message-important {
+  background: rgba(226, 60, 60, 0.25);
+  color: #ffd4d4;
+  border-color: #8f1b1b;
+}
+
+.global-message-content {
+  grid-column: 2;
+  justify-self: center;
+  text-align: center;
+  max-width: 100%;
+}
+
+.global-message-dismiss {
+  grid-column: 3;
+  justify-self: end;
+  align-self: center;
+  width: 26px;
+  min-width: 26px;
+  max-width: 26px;
+  height: 26px;
+  min-height: 26px;
+  max-height: 26px;
+  aspect-ratio: 1 / 1;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0 !important;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.global-message-dismiss:hover {
+  color: #fff;
+  background: transparent;
+}
+
+.global-message-float {
+  scrollbar-color: #8aa4c2 #1a2430;
+}
+
+.global-message-message {
+  scrollbar-color: #8aa4c2 #1a2430;
+}
+
+.global-message-warning {
+  scrollbar-color: #d6a24a #2b1f09;
+}
+
+.global-message-important {
+  scrollbar-color: #d46b6b #2c0f0f;
+}
+
+.global-message-float::-webkit-scrollbar-track {
+  background: #1a2430;
+  border: 2px solid #111922;
+  border-radius: 0 !important;
+}
+
+.global-message-warning::-webkit-scrollbar-track {
+  background: #2b1f09;
+  border: 2px solid #1d1406;
+}
+
+.global-message-important::-webkit-scrollbar-track {
+  background: #2c0f0f;
+  border: 2px solid #1f0a0a;
+}
+
+.global-message-float::-webkit-scrollbar-thumb {
+  background: #8aa4c2;
+  border: 2px solid #5d738d;
+  border-radius: 0 !important;
+  -webkit-appearance: none;
+}
+
+.global-message-warning::-webkit-scrollbar-thumb {
+  background: #d6a24a;
+  border: 2px solid #9a6400;
+}
+
+.global-message-important::-webkit-scrollbar-thumb {
+  background: #d46b6b;
+  border: 2px solid #8f1b1b;
+}
+
+.global-message-float::-webkit-scrollbar-thumb:hover {
+  background: #b5c8dd;
+  border-radius: 0 !important;
+}
+
+.global-message-warning::-webkit-scrollbar-thumb:hover {
+  background: #e7b86d;
+}
+
+.global-message-important::-webkit-scrollbar-thumb:hover {
+  background: #e08a8a;
 }
 
 /* HOME INFO BOX */
@@ -420,15 +630,51 @@ input[type="checkbox"]:checked::before {
   margin-bottom: 2px;
 }
 
+.installed-mods-group {
+  width: 100%;
+}
+
+.installed-mods-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.installed-mods-group-toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.installed-mods-group-title {
+  flex: 1;
+}
+
+.installed-mods-group-count {
+  color: #9ca3af;
+  font-size: 10px;
+}
+
+.installed-mods-group-indicator {
+  color: #d1d5db;
+  font-size: 12px;
+}
+
+.installed-mods-group-body {
+  width: 100%;
+}
+
 /* DISABLED MOD CARD */
 .mod-card-disabled {
-  opacity: 0.55;
-  filter: grayscale(60%);
+  opacity: 0.5;
+  filter: grayscale(100%);
 }
 
 .mod-card-disabled:hover {
-  opacity: 0.75;
-  filter: grayscale(30%);
+  opacity: 0.68;
+  filter: grayscale(85%);
 }
 
 /* VERSION DROPDOWN ROW */
@@ -657,6 +903,50 @@ input[type="checkbox"]:checked::before {
   color: #e5e7eb;
   padding: 4px 6px;
   font-size: 12px;
+}
+
+.modpack-detail-mod-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modpack-detail-mod-card {
+  display: flex;
+  align-items: stretch;
+  min-height: 72px;
+  background: #2b2f34;
+  border: 1px solid #1f2937;
+  overflow: hidden;
+}
+
+.modpack-detail-mod-image {
+  width: 72px;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #111827;
+}
+
+.modpack-detail-mod-info {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.modpack-detail-mod-name {
+  color: #e5e7eb;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.modpack-detail-mod-meta {
+  color: #9ca3af;
+  font-size: 11px;
 }
 
 .mod-detail-version-list {
@@ -1103,6 +1393,40 @@ input[type="checkbox"]:checked::before {
   display: block;
 }
 
+/* Profile action icon buttons should render as pure image icons,
+   not regular bordered text buttons. */
+button.profile-action-btn,
+button.profile-delete-btn {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button.profile-action-btn img,
+button.profile-delete-btn img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  display: block;
+}
+
+button.profile-action-btn:hover,
+button.profile-delete-btn:hover {
+  background: transparent;
+}
+
+button.profile-action-btn:disabled img,
+button.profile-delete-btn:disabled img {
+  opacity: 0.5;
+}
+
 /* CARD FOOTER / ACTIONS */
 .version-actions {
   display: flex;
@@ -1113,6 +1437,31 @@ input[type="checkbox"]:checked::before {
 .version-actions button {
   flex: 1;
   font-size: 12px;
+}
+
+/* QUICK INSTALL BUTTON in Available mod cards */
+.quick-install-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+}
+
+.quick-install-wrap button {
+  width: 100%;
+  font-size: 11px;
+  padding: 4px 8px;
+}
+
+.quick-install-version {
+  font-size: 10px;
+  color: #9ca3af;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 /* VERSION DOWNLOAD PROGRESS BAR */

@@ -10,6 +10,8 @@ import urllib.request
 
 from typing import Tuple
 from urllib.parse import urlparse
+
+from server.auth import get_verified_account
 from core.settings import load_global_settings, _apply_url_proxy
 from core.logger import colorize_log
 
@@ -23,20 +25,11 @@ def _ensure_uuid(username: str) -> str:
 
 
 def _get_username_and_uuid() -> Tuple[str, str]:
-    """
-    Get the current user's username and UUID.
-    
-    For Histolauncher accounts: Verifies session with Cloudflare API (secure)
-    For Local accounts: Uses settings.ini (offline mode)
-    """
     settings = load_global_settings()
     account_type = settings.get("account_type", "Local")
-    
-    # For Histolauncher accounts, verify the session at Cloudflare
-    # This prevents someone from editing settings.ini to impersonate another user
+
     if account_type == "Histolauncher":
         try:
-            from server.auth import get_verified_account
             success, account_data, error = get_verified_account()
             if success and account_data:
                 username = account_data.get("username", "Player")
@@ -49,7 +42,6 @@ def _get_username_and_uuid() -> Tuple[str, str]:
                         pass
         except Exception as e:
                 print(colorize_log(f"[yggdrasil] Failed to verify Histolauncher session: {e}"))
-    # Fallback for local accounts or if verification fails
     username = (settings.get("username") or "Player").strip() or "Player"
     u = _ensure_uuid(username)
     return username, u.replace("-", "")
@@ -183,6 +175,7 @@ def _get_skin_property(port: int, target_uuid_hex: str = "", target_username: st
         from cryptography.hazmat.primitives import hashes, serialization
         from cryptography.hazmat.primitives.asymmetric import padding
         from cryptography.hazmat.backends import default_backend
+
         priv_path = os.path.join(os.path.dirname(__file__), "..", "assets", "skins-signature-privkey.pem")
         with open(priv_path, "rb") as f:
             priv = serialization.load_pem_private_key(f.read(), password=None, backend=default_backend())

@@ -10,6 +10,9 @@ import time
 import urllib.parse
 import urllib.request
 import zipfile
+import tempfile
+import traceback
+import subprocess
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -357,8 +360,6 @@ def _check_pause(version_key: str) -> None:
         },
     )
     
-    # Block while paused, checking every 100ms
-    import time
     while _pause_flags.get(version_key):
         time.sleep(0.1)
 
@@ -1456,8 +1457,7 @@ def install_version(
                             "bytes_total": 0,
                         },
                     )
-                    # Delete progress file after brief delay to allow UI to register cancellation
-                    import time
+
                     time.sleep(0.5)
                     delete_progress(vk)
                 else:
@@ -1476,8 +1476,7 @@ def install_version(
                             "bytes_total": 0,
                         },
                     )
-                    # Clean up progress file after error to prevent ghost versions
-                    import time
+
                     time.sleep(2.0)
                     delete_progress(vk)
                     
@@ -1647,9 +1646,6 @@ def download_loader(
                 f"{loader_name} installation complete"
             )
             
-            # For modloaders, delete progress file immediately without writing "installed" status
-            # (modloaders should not appear in the installed section like versions do)
-            import time
             time.sleep(0.2)
             delete_progress(version_key)
         else:
@@ -1673,7 +1669,7 @@ def download_loader(
                     "bytes_total": 0,
                 },
             )
-            import time
+
             time.sleep(2.0)
             delete_progress(version_key)
         
@@ -1685,7 +1681,6 @@ def download_loader(
             print(colorize_log(f"[downloader] {loader_type.capitalize()} loader installation cancelled"))
             # Clean up the partial loader directory
             try:
-                import shutil
                 loader_dir = os.path.join(os.path.dirname(loaders_dir), f"{loader_type}")
                 if os.path.exists(loader_dir):
                     # Only clean up version subdirs that are incomplete
@@ -1747,7 +1742,7 @@ def download_loader(
                 "bytes_total": 0,
             },
         )
-        import time
+
         time.sleep(2.0)
         delete_progress(version_key)
         
@@ -1778,10 +1773,6 @@ def _record_failed_yarn_build(version_dir: str, build_id: str) -> None:
 
 def _download_yarn_mappings(version_dir: str, mc_version: str, version_key: str) -> Optional[str]:
     try:
-        import ssl
-        import urllib.request
-        from core.settings import load_global_settings
-        
         # Check for existing Yarn mappings (reuse if found)
         try:
             for filename in os.listdir(version_dir):
@@ -2032,7 +2023,6 @@ def _install_fabric_loader(
     
     except Exception as e:
         print(colorize_log(f"[fabric] Error: {e}"))
-        import traceback
         traceback.print_exc()
         _update_progress(version_key, "failed", 0, "Failed to install loader")
         return {"ok": False, "error": str(e)}
@@ -2041,14 +2031,8 @@ def _install_fabric_loader(
 def _install_forge_loader(
     mc_version: str, loader_version: str, loaders_dir: str, version_key: str
 ) -> Dict[str, Any]:
-    import subprocess
-    import tempfile
-    import json
-    
-    # Clear any previous cancel flag for this version
     _cancel_flags.pop(version_key, None)
     
-    # Define version_dir (parent of loaders_dir)
     version_dir = os.path.dirname(loaders_dir)
 
     def _is_modlauncher_era(mc_ver: str) -> bool:
@@ -2069,7 +2053,6 @@ def _install_forge_loader(
         if not artifact_urls:
             return {"ok": False, "error": "Could not resolve Forge artifact URLs"}
         
-        # Create temp directory
         with tempfile.TemporaryDirectory() as temp_dir:
             downloaded_artifact_path = ""
             downloaded_artifact_name = ""
@@ -2299,17 +2282,11 @@ def _install_forge_loader(
             
             if libraries:
                 try:
-                    import hashlib
-                    
                     print(f"[forge] Processing {len(libraries)} libraries from Forge metadata")
                     
-                    # Track which libraries we've already downloaded
                     downloaded_libs = set()
                     libs_count = 0
                     
-                    # Track bytes for progress display.
-                    # Keep bytes_total fixed for the whole install to avoid
-                    # jittery totals caused by per-file average estimation.
                     bytes_done = 0
                     bytes_total = 0
                     for lib in libraries:
@@ -2323,17 +2300,13 @@ def _install_forge_loader(
                             continue
 
                     for lib in libraries:
-                        # Handle both dict format (version.json) and string format (install_profile.json old format)
                         lib_name = lib.get("name", "") if isinstance(lib, dict) else lib
                         if not lib_name or ("net.minecraftforge:forge:" in lib_name and ":client" in lib_name):
-                            # Skip client variant (already in universal JAR)
                             continue
                         
-                        # Skip duplicates
                         if lib_name in downloaded_libs:
                             continue
                         
-                        # Determine download URL and SHA1 based on format
                         download_url = None
                         expected_sha1 = None
                         jar_path = None
@@ -2513,12 +2486,10 @@ def _install_forge_loader(
                         print(colorize_log(f"[forge] Library download cancelled"))
                         raise
                     print(colorize_log(f"[forge] ERROR: Could not process Forge metadata: {e}"))
-                    import traceback
                     traceback.print_exc()
                     return {"ok": False, "error": f"Failed to download Forge libraries: {e}"}
                 except Exception as e:
                     print(colorize_log(f"[forge] ERROR: Could not process Forge metadata: {e}"))
-                    import traceback
                     traceback.print_exc()
             else:
                 print(f"[forge] WARNING: No library metadata found (version.json or install_profile.json)!")
@@ -2984,10 +2955,6 @@ def _install_forge_loader(
                 if recovered > 0:
                     print(f"[forge] Recovered {recovered} nested legacy Forge core JAR(s)")
 
-            # Some very old Forge distributions publish a universal ZIP that is
-            # itself a Java archive (classes/resources at zip root) instead of
-            # containing separate JAR files. In that case, stage the downloaded
-            # archive as a .jar so LaunchWrapper can put it on classpath.
             has_forge_core_jar = any(
                 n.endswith(".jar") and (n.startswith("forge-") or n.startswith("minecraftforge-"))
                 for n in os.listdir(loader_dest_dir)
@@ -3004,8 +2971,6 @@ def _install_forge_loader(
                 except Exception as e:
                     print(f"[forge] Failed to stage legacy universal archive as JAR: {e}")
 
-            # Forge 1.4.x often ships without bundled FML classes. If FMLTweaker
-            # is missing, download the matching FML universal artifact from Maven.
             def _jar_contains_class(jar_path: str, class_path: str) -> bool:
                 try:
                     with zipfile.ZipFile(jar_path, 'r') as z:
@@ -3562,14 +3527,11 @@ def _install_forge_loader(
     
     except Exception as e:
         print(f"[forge] Error: {e}")
-        import traceback
         traceback.print_exc()
         return {"ok": False, "error": str(e)}
 
 
 def _get_java_executable() -> Optional[str]:
-    import subprocess
-    
     settings = load_global_settings()
     java_path = settings.get("java_path")
     

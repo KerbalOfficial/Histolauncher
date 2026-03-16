@@ -9,6 +9,19 @@
   let categoriesList = [];
   let settingsState = { mods_view: 'list' };
       settingsState.mods_view = 'list';
+  let profilesState = {
+    profiles: [{ id: 'default', name: 'Default' }],
+    activeProfile: 'default',
+  };
+  let versionsProfilesState = {
+    profiles: [{ id: 'default', name: 'Default' }],
+    activeProfile: 'default',
+  };
+  let modsProfilesState = {
+    profiles: [{ id: 'default', name: 'Default' }],
+    activeProfile: 'default',
+  };
+  const ADD_PROFILE_OPTION = '__add_new_profile__';
   let javaRuntimes = [];
   let histolauncherUsername = '';
   let localUsernameModified = false;
@@ -38,6 +51,26 @@
     el.classList[on ? 'add' : 'remove'](className);
   };
 
+  const DEFAULT_LOADING_TEXT = 'Loading...';
+
+  const setLoadingOverlayText = (message = DEFAULT_LOADING_TEXT) => {
+    const loadingBox = getEl('loading-box');
+    const loadingText = loadingBox ? loadingBox.querySelector('.loading-text') : null;
+    if (loadingText) loadingText.textContent = message || DEFAULT_LOADING_TEXT;
+  };
+
+  const showLoadingOverlay = (message = DEFAULT_LOADING_TEXT) => {
+    setLoadingOverlayText(message);
+    toggleClass(getEl('loading-overlay'), 'hidden', false);
+    toggleClass(getEl('loading-box'), 'hidden', false);
+  };
+
+  const hideLoadingOverlay = () => {
+    toggleClass(getEl('loading-overlay'), 'hidden', true);
+    toggleClass(getEl('loading-box'), 'hidden', true);
+    setLoadingOverlayText(DEFAULT_LOADING_TEXT);
+  };
+
   const safeAddEvent = (el, type, handler) => {
     if (el) el.addEventListener(type, handler);
   };
@@ -52,6 +85,580 @@
     }
     const res = await fetch(path, opts);
     return res.json();
+  };
+
+  const normalizeProfilesList = (profiles) => {
+    const normalized = Array.isArray(profiles)
+      ? profiles
+          .map((p) => ({
+            id: String((p && p.id) || '').trim(),
+            name: String((p && p.name) || '').trim(),
+          }))
+          .filter((p) => p.id)
+      : [];
+
+    return normalized.length > 0 ? normalized : [{ id: 'default', name: 'Default' }];
+  };
+
+  const applyProfilesState = (profiles, activeProfile) => {
+    profilesState.profiles = normalizeProfilesList(profiles);
+    const active = String(activeProfile || '').trim() || 'default';
+    const exists = profilesState.profiles.some((p) => p.id === active);
+    profilesState.activeProfile = exists ? active : profilesState.profiles[0].id;
+  };
+
+  const getScopeStateRef = (scope) => {
+    const key = String(scope || '').trim().toLowerCase();
+    if (key === 'versions') return versionsProfilesState;
+    if (key === 'mods') return modsProfilesState;
+    return null;
+  };
+
+  const getScopeApiBase = (scope) => {
+    const key = String(scope || '').trim().toLowerCase();
+    if (key === 'versions') return '/api/profiles/versions';
+    if (key === 'mods') return '/api/profiles/mods';
+    return null;
+  };
+
+  const getScopeProfileSelectId = (scope) => {
+    const key = String(scope || '').trim().toLowerCase();
+    if (key === 'versions') return 'versions-profile-select';
+    if (key === 'mods') return 'mods-profile-select';
+    return null;
+  };
+
+  const getScopeProfileDeleteButtonId = (scope) => {
+    const key = String(scope || '').trim().toLowerCase();
+    if (key === 'versions') return 'versions-profile-delete-btn';
+    if (key === 'mods') return 'mods-profile-delete-btn';
+    return null;
+  };
+
+  const getScopeProfileEditButtonId = (scope) => {
+    const key = String(scope || '').trim().toLowerCase();
+    if (key === 'versions') return 'versions-profile-edit-btn';
+    if (key === 'mods') return 'mods-profile-edit-btn';
+    return null;
+  };
+
+  const getScopeProfileDeleteIconId = (scope) => {
+    const key = String(scope || '').trim().toLowerCase();
+    if (key === 'versions') return 'versions-profile-delete-icon';
+    if (key === 'mods') return 'mods-profile-delete-icon';
+    return null;
+  };
+
+  const getScopeProfileEditIconId = (scope) => {
+    const key = String(scope || '').trim().toLowerCase();
+    if (key === 'versions') return 'versions-profile-edit-icon';
+    if (key === 'mods') return 'mods-profile-edit-icon';
+    return null;
+  };
+
+  const getScopeLabel = (scope) => {
+    const key = String(scope || '').trim().toLowerCase();
+    if (key === 'versions') return 'Versions';
+    if (key === 'mods') return 'Mods';
+    return 'Scope';
+  };
+
+  const applyScopeProfilesState = (scope, profiles, activeProfile) => {
+    const stateRef = getScopeStateRef(scope);
+    if (!stateRef) return;
+
+    stateRef.profiles = normalizeProfilesList(profiles);
+    const active = String(activeProfile || '').trim() || 'default';
+    const exists = stateRef.profiles.some((p) => p.id === active);
+    stateRef.activeProfile = exists ? active : stateRef.profiles[0].id;
+  };
+
+  const renderScopeProfilesSelect = (scope) => {
+    const stateRef = getScopeStateRef(scope);
+    const selectId = getScopeProfileSelectId(scope);
+    if (!stateRef || !selectId) return;
+
+    const select = getEl(selectId);
+    if (!select) return;
+
+    select.innerHTML = '';
+    stateRef.profiles.forEach((profile) => {
+      const opt = document.createElement('option');
+      opt.value = profile.id;
+      opt.textContent = profile.name || profile.id;
+      select.appendChild(opt);
+    });
+
+    const addOpt = document.createElement('option');
+    addOpt.value = ADD_PROFILE_OPTION;
+    addOpt.textContent = '+ Add new profile';
+    select.appendChild(addOpt);
+
+    select.value = stateRef.activeProfile;
+    updateScopeProfileDeleteButtonState(scope);
+    updateScopeProfileEditButtonState(scope);
+  };
+
+  const updateScopeProfileEditButtonState = (scope) => {
+    const stateRef = getScopeStateRef(scope);
+    const editBtnId = getScopeProfileEditButtonId(scope);
+    if (!stateRef || !editBtnId) return;
+
+    const editBtn = getEl(editBtnId);
+    if (!editBtn) return;
+
+    const canEdit = !!stateRef.activeProfile && stateRef.activeProfile !== 'default';
+    editBtn.disabled = !canEdit;
+    editBtn.style.opacity = canEdit ? '1' : '0.5';
+    editBtn.style.cursor = canEdit ? 'pointer' : 'not-allowed';
+  };
+
+  const updateScopeProfileDeleteButtonState = (scope) => {
+    const stateRef = getScopeStateRef(scope);
+    const deleteBtnId = getScopeProfileDeleteButtonId(scope);
+    if (!stateRef || !deleteBtnId) return;
+
+    const deleteBtn = getEl(deleteBtnId);
+    if (!deleteBtn) return;
+
+    const canDelete = stateRef.profiles.length > 1 && stateRef.activeProfile !== 'default';
+    deleteBtn.disabled = !canDelete;
+    deleteBtn.style.opacity = canDelete ? '1' : '0.5';
+    deleteBtn.style.cursor = canDelete ? 'pointer' : 'not-allowed';
+  };
+
+  const showDeleteScopeProfileModal = (scope) => {
+    const stateRef = getScopeStateRef(scope);
+    const apiBase = getScopeApiBase(scope);
+    const scopeLabel = getScopeLabel(scope);
+    if (!stateRef || !apiBase) return;
+
+    const active = stateRef.profiles.find((p) => p.id === stateRef.activeProfile);
+    const activeName = (active && active.name) || stateRef.activeProfile || 'profile';
+
+    if (stateRef.activeProfile === 'default') {
+      showMessageBox({
+        title: 'Cannot Delete',
+        message: 'The Default profile cannot be deleted.',
+        buttons: [{ label: 'OK' }],
+      });
+      return;
+    }
+
+    showMessageBox({
+      title: `Delete ${scopeLabel} Profile`,
+      message: `Delete profile <b>${activeName}</b>?<br>This will delete all the data stored in the profile and cannot be undone!`,
+      buttons: [
+        {
+          label: 'Delete',
+          classList: ['danger'],
+          onClick: async () => {
+            const res = await api(`${apiBase}/delete`, 'POST', {
+              profile_id: stateRef.activeProfile,
+            });
+            if (!res || !res.ok) {
+              showMessageBox({
+                title: 'Delete Failed',
+                message: (res && res.error) || 'Failed to delete profile.',
+                buttons: [{ label: 'OK' }],
+              });
+              return;
+            }
+            await init();
+          },
+        },
+        { label: 'Cancel' },
+      ],
+    });
+  };
+
+  const showRenameScopeProfileModal = (scope) => {
+    const stateRef = getScopeStateRef(scope);
+    const apiBase = getScopeApiBase(scope);
+    const scopeLabel = getScopeLabel(scope);
+    if (!stateRef || !apiBase) return;
+
+    const active = stateRef.profiles.find((p) => p.id === stateRef.activeProfile);
+    const activeName = (active && active.name) || stateRef.activeProfile || '';
+    if (!stateRef.activeProfile) {
+      renderScopeProfilesSelect(scope);
+      return;
+    }
+
+    const content = document.createElement('div');
+
+    const label = document.createElement('p');
+    label.style.marginBottom = '8px';
+    label.textContent = `Rename active ${scopeLabel.toLowerCase()} profile (1-32 characters):`;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 32;
+    input.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;background:#3c3f41;border:1px solid #1f2937;color:#e5e7eb;';
+    input.value = activeName;
+
+    content.appendChild(label);
+    content.appendChild(input);
+
+    showMessageBox({
+      title: `Rename ${scopeLabel} Profile`,
+      customContent: content,
+      buttons: [
+        {
+          label: 'Save',
+          classList: ['primary'],
+          onClick: async () => {
+            const name = String(input.value || '').trim();
+            if (name.length < 1 || name.length > 32) {
+              showMessageBox({
+                title: 'Invalid Name',
+                message: 'Profile name must be between 1 and 32 characters.',
+                buttons: [{ label: 'OK', onClick: () => showRenameScopeProfileModal(scope) }],
+              });
+              return;
+            }
+
+            const res = await api(`${apiBase}/rename`, 'POST', {
+              profile_id: stateRef.activeProfile,
+              name,
+            });
+            if (!res || !res.ok) {
+              showMessageBox({
+                title: 'Rename Failed',
+                message: (res && res.error) || 'Failed to rename profile.',
+                buttons: [{ label: 'OK', onClick: () => showRenameScopeProfileModal(scope) }],
+              });
+              return;
+            }
+
+            await init();
+          },
+        },
+        {
+          label: 'Cancel',
+          onClick: () => {
+            renderScopeProfilesSelect(scope);
+          },
+        },
+      ],
+    });
+
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 30);
+  };
+
+  const switchScopeProfile = async (scope, profileId) => {
+    const apiBase = getScopeApiBase(scope);
+    if (!apiBase) return;
+
+    const res = await api(`${apiBase}/switch`, 'POST', { profile_id: profileId });
+    if (!res || !res.ok) {
+      showMessageBox({
+        title: `${getScopeLabel(scope)} Profile Switch Failed`,
+        message: (res && res.error) || 'Failed to switch profile.',
+        buttons: [{ label: 'OK' }],
+      });
+      renderScopeProfilesSelect(scope);
+      return;
+    }
+
+    await init();
+  };
+
+  const showCreateScopeProfileModal = (scope) => {
+    const apiBase = getScopeApiBase(scope);
+    if (!apiBase) return;
+
+    const scopeLabel = getScopeLabel(scope);
+    const content = document.createElement('div');
+
+    const label = document.createElement('p');
+    label.style.marginBottom = '8px';
+    label.textContent = `Enter a ${scopeLabel.toLowerCase()} profile name (1-32 characters):`;
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 32;
+    input.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;background:#3c3f41;border:1px solid #1f2937;color:#e5e7eb;';
+    input.placeholder = 'New profile name';
+
+    content.appendChild(label);
+    content.appendChild(input);
+
+    showMessageBox({
+      title: `Create ${scopeLabel} Profile`,
+      customContent: content,
+      buttons: [
+        {
+          label: 'Create',
+          classList: ['primary'],
+          onClick: async () => {
+            const name = String(input.value || '').trim();
+            if (name.length < 1 || name.length > 32) {
+              showMessageBox({
+                title: 'Invalid Name',
+                message: 'Profile name must be between 1 and 32 characters.',
+                buttons: [{ label: 'OK', onClick: () => showCreateScopeProfileModal(scope) }],
+              });
+              return;
+            }
+
+            const res = await api(`${apiBase}/create`, 'POST', { name });
+            if (!res || !res.ok) {
+              showMessageBox({
+                title: 'Create Failed',
+                message: (res && res.error) || 'Failed to create profile.',
+                buttons: [{ label: 'OK', onClick: () => showCreateScopeProfileModal(scope) }],
+              });
+              return;
+            }
+
+            await init();
+          },
+        },
+        {
+          label: 'Cancel',
+          onClick: () => {
+            renderScopeProfilesSelect(scope);
+          },
+        },
+      ],
+    });
+
+    setTimeout(() => {
+      input.focus();
+    }, 30);
+  };
+
+  const renderProfilesSelect = () => {
+    const select = getEl('settings-profile-select');
+    if (!select) return;
+
+    select.innerHTML = '';
+    profilesState.profiles.forEach((profile) => {
+      const opt = document.createElement('option');
+      opt.value = profile.id;
+      opt.textContent = profile.name || profile.id;
+      select.appendChild(opt);
+    });
+
+    const addOpt = document.createElement('option');
+    addOpt.value = ADD_PROFILE_OPTION;
+    addOpt.textContent = '+ Add new profile';
+    select.appendChild(addOpt);
+
+    select.value = profilesState.activeProfile;
+    updateProfileDeleteButtonState();
+    updateProfileEditButtonState();
+  };
+
+  const updateProfileDeleteButtonState = () => {
+    const deleteBtn = getEl('settings-profile-delete-btn');
+    if (!deleteBtn) return;
+    const canDelete = profilesState.profiles.length > 1 && profilesState.activeProfile !== 'default';
+    deleteBtn.disabled = !canDelete;
+    deleteBtn.style.opacity = canDelete ? '1' : '0.5';
+    deleteBtn.style.cursor = canDelete ? 'pointer' : 'not-allowed';
+  };
+
+  const updateProfileEditButtonState = () => {
+    const editBtn = getEl('settings-profile-edit-btn');
+    if (!editBtn) return;
+
+    const canEdit = !!profilesState.activeProfile && profilesState.activeProfile !== 'default';
+    editBtn.disabled = !canEdit;
+    editBtn.style.opacity = canEdit ? '1' : '0.5';
+    editBtn.style.cursor = canEdit ? 'pointer' : 'not-allowed';
+  };
+
+  const switchProfile = async (profileId) => {
+    const res = await api('/api/profiles/switch', 'POST', { profile_id: profileId });
+    if (!res || !res.ok) {
+      showMessageBox({
+        title: 'Profile Switch Failed',
+        message: (res && res.error) || 'Failed to switch profile.',
+        buttons: [{ label: 'OK' }],
+      });
+      renderProfilesSelect();
+      return;
+    }
+    await init();
+  };
+
+  const showCreateProfileModal = () => {
+    const content = document.createElement('div');
+
+    const label = document.createElement('p');
+    label.style.marginBottom = '8px';
+    label.textContent = 'Enter a profile name (1-32 characters):';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 32;
+    input.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;background:#3c3f41;border:1px solid #1f2937;color:#e5e7eb;';
+    input.placeholder = 'New profile name';
+
+    content.appendChild(label);
+    content.appendChild(input);
+
+    showMessageBox({
+      title: 'Create Profile',
+      customContent: content,
+      buttons: [
+        {
+          label: 'Create',
+          classList: ['primary'],
+          onClick: async () => {
+            const name = String(input.value || '').trim();
+            if (name.length < 1 || name.length > 32) {
+              showMessageBox({
+                title: 'Invalid Name',
+                message: 'Profile name must be between 1 and 32 characters.',
+                buttons: [{ label: 'OK', onClick: () => showCreateProfileModal() }],
+              });
+              return;
+            }
+
+            const res = await api('/api/profiles/create', 'POST', { name });
+            if (!res || !res.ok) {
+              showMessageBox({
+                title: 'Create Failed',
+                message: (res && res.error) || 'Failed to create profile.',
+                buttons: [{ label: 'OK', onClick: () => showCreateProfileModal() }],
+              });
+              return;
+            }
+
+            await init();
+          },
+        },
+        {
+          label: 'Cancel',
+          onClick: () => {
+            renderProfilesSelect();
+          },
+        },
+      ],
+    });
+
+    setTimeout(() => {
+      input.focus();
+    }, 30);
+  };
+
+  const showDeleteProfileModal = () => {
+    const active = profilesState.profiles.find((p) => p.id === profilesState.activeProfile);
+    const activeName = (active && active.name) || profilesState.activeProfile || 'profile';
+
+    if (profilesState.activeProfile === 'default') {
+      showMessageBox({
+        title: 'Cannot Delete',
+        message: 'The Default profile cannot be deleted.',
+        buttons: [{ label: 'OK' }],
+      });
+      return;
+    }
+
+    showMessageBox({
+      title: 'Delete Profile',
+      message: `Delete profile <b>${activeName}</b>?<br><i>This will delete all the data stored in the profile and cannot be undone!</i>` ,
+      buttons: [
+        {
+          label: 'Delete',
+          classList: ['danger'],
+          onClick: async () => {
+            const res = await api('/api/profiles/delete', 'POST', {
+              profile_id: profilesState.activeProfile,
+            });
+            if (!res || !res.ok) {
+              showMessageBox({
+                title: 'Delete Failed',
+                message: (res && res.error) || 'Failed to delete profile.',
+                buttons: [{ label: 'OK' }],
+              });
+              return;
+            }
+            await init();
+          },
+        },
+        { label: 'Cancel' },
+      ],
+    });
+  };
+
+  const showRenameProfileModal = () => {
+    const active = profilesState.profiles.find((p) => p.id === profilesState.activeProfile);
+    const activeName = (active && active.name) || profilesState.activeProfile || '';
+
+    if (!profilesState.activeProfile) {
+      renderProfilesSelect();
+      return;
+    }
+
+    const content = document.createElement('div');
+
+    const label = document.createElement('p');
+    label.style.marginBottom = '8px';
+    label.textContent = 'Rename active profile (1-32 characters):';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.maxLength = 32;
+    input.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;background:#3c3f41;border:1px solid #1f2937;color:#e5e7eb;';
+    input.value = activeName;
+
+    content.appendChild(label);
+    content.appendChild(input);
+
+    showMessageBox({
+      title: 'Rename Profile',
+      customContent: content,
+      buttons: [
+        {
+          label: 'Save',
+          classList: ['primary'],
+          onClick: async () => {
+            const name = String(input.value || '').trim();
+            if (name.length < 1 || name.length > 32) {
+              showMessageBox({
+                title: 'Invalid Name',
+                message: 'Profile name must be between 1 and 32 characters.',
+                buttons: [{ label: 'OK', onClick: () => showRenameProfileModal() }],
+              });
+              return;
+            }
+
+            const res = await api('/api/profiles/rename', 'POST', {
+              profile_id: profilesState.activeProfile,
+              name,
+            });
+            if (!res || !res.ok) {
+              showMessageBox({
+                title: 'Rename Failed',
+                message: (res && res.error) || 'Failed to rename profile.',
+                buttons: [{ label: 'OK', onClick: () => showRenameProfileModal() }],
+              });
+              return;
+            }
+
+            await init();
+          },
+        },
+        {
+          label: 'Cancel',
+          onClick: () => {
+            renderProfilesSelect();
+          },
+        },
+      ],
+    });
+
+    setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 30);
   };
 
   const imageAttachErrorPlaceholder = (img, placeholderLink) => {
@@ -92,6 +699,71 @@
   const makeInfoRowErrorHTML = (label, value, parens, titleAttr) => {
     const par = parens ? ` <span class="tooltip-parens">(${parens})</span>` : '';
     return `<span class="home-info-error" title="${titleAttr}">⚠ <span class="tooltip-label">${label}:</span> <span class="tooltip-value">${value}</span>${par}</span>`;
+  };
+
+  const sanitizeGlobalMessageHtml = (input) => {
+    const template = document.createElement('template');
+    template.innerHTML = String(input || '');
+    template.content.querySelectorAll('script').forEach((el) => el.remove());
+    return template.innerHTML;
+  };
+
+  const setHomeGlobalMessageHidden = (hidden) => {
+    const box = getEl('home-global-message');
+    if (!box) return;
+    toggleClass(box, 'hidden', !!hidden);
+  };
+
+  const renderHomeGlobalMessage = (payload) => {
+    const box = getEl('home-global-message');
+    const content = getEl('home-global-message-content');
+    const dismissBtn = getEl('home-global-message-dismiss');
+    if (!box || !content || !dismissBtn) return;
+
+    const active = !!(payload && payload.active);
+    const message = String((payload && payload.message) || '').trim();
+    if (!active || !message) {
+      content.textContent = '';
+      setHomeGlobalMessageHidden(true);
+      return;
+    }
+
+    const messageType = String((payload && payload.type) || 'message').toLowerCase();
+    const normalizedType = ['message', 'warning', 'important'].includes(messageType)
+      ? messageType
+      : 'message';
+    box.classList.remove('global-message-message', 'global-message-warning', 'global-message-important');
+    box.classList.add(`global-message-${normalizedType}`);
+
+    dismissBtn.classList.add('hidden');
+    dismissBtn.onclick = null;
+
+    const nonDismissible = normalizedType === 'important';
+    if (nonDismissible) {
+      content.innerHTML = sanitizeGlobalMessageHtml(message);
+      setHomeGlobalMessageHidden(false);
+      return;
+    }
+
+    content.innerHTML = sanitizeGlobalMessageHtml(message);
+    dismissBtn.classList.remove('hidden');
+    dismissBtn.onclick = () => {
+      setHomeGlobalMessageHidden(true);
+    };
+    setHomeGlobalMessageHidden(false);
+  };
+
+  const refreshHomeGlobalMessage = async () => {
+    try {
+      const res = await api('/api/account/launcher-message', 'GET');
+      if (!res || res.ok !== true) {
+        setHomeGlobalMessageHidden(true);
+        return;
+      }
+      renderHomeGlobalMessage(res);
+    } catch (e) {
+      setHomeGlobalMessageHidden(true);
+    }
   };
 
   const updateHomeInfo = () => {
@@ -226,25 +898,34 @@
     const topbarProfile = getEl('topbar-profile');
     const topbarUsername = getEl('topbar-username');
     const topbarProfilePic = getEl('topbar-profile-pic');
-    
-    if (acctType === 'Histolauncher' && settingsState.uuid) {
-      if (topbarProfile) {
-        topbarProfile.style.display = 'flex';
-        topbarProfile.style.alignItems = 'center';
-        topbarProfile.style.gap = '8px';
-      }
-      if (topbarUsername) topbarUsername.textContent = username;
-      if (topbarProfilePic) {
+
+    if (topbarProfile) {
+      topbarProfile.style.display = 'flex';
+      topbarProfile.style.alignItems = 'center';
+      topbarProfile.style.gap = '8px';
+    }
+    if (topbarUsername) topbarUsername.textContent = username;
+
+    const showHistolauncherAvatar = acctType === 'Histolauncher' && !!settingsState.uuid;
+    if (topbarProfilePic) {
+      if (showHistolauncherAvatar) {
+        topbarProfilePic.style.display = 'block';
         const textureUrl = `https://textures.histolauncher.workers.dev/head/${settingsState.uuid}`;
         topbarProfilePic.src = textureUrl;
         imageAttachErrorPlaceholder(topbarProfilePic, '/assets/images/unknown.png');
+      } else {
+        topbarProfilePic.style.display = 'none';
+        topbarProfilePic.removeAttribute('src');
       }
-    } else {
-      if (topbarProfile) topbarProfile.style.display = 'none';
     }
   };
 
-  const initSettings = async (data) => {
+  const initSettings = async (data, profilePayload = null) => {
+    if (profilePayload && Array.isArray(profilePayload.profiles)) {
+      applyProfilesState(profilePayload.profiles, profilePayload.active_profile);
+      renderProfilesSelect();
+    }
+
     settingsState = { ...settingsState, ...data };
 
     if (!settingsState.mods_view) {
@@ -281,6 +962,7 @@
       }
     } else {
       settingsState.username = data.username || 'Player';
+      settingsState.uuid = null;
     }
 
     const usernameInput = getEl('settings-username');
@@ -323,7 +1005,6 @@
     const connectBtn = getEl('connect-account-btn');
     const disconnectBtn = getEl('disconnect-account-btn');
     const acctType = settingsState.account_type || 'Local';
-    const isConnected = !!settingsState.uuid;
     
     if (accountSelect) accountSelect.value = acctType;
     if (connectBtn) connectBtn.style.display = 'none';
@@ -435,11 +1116,73 @@
     });
 
     sel.value = '';
-    sel.addEventListener('change', renderAllVersionSections);
+    sel.onchange = renderAllVersionSections;
 
     const searchEl = getEl('versions-search');
     if (searchEl) {
-      searchEl.addEventListener('input', renderAllVersionSections);
+      searchEl.oninput = renderAllVersionSections;
+    }
+
+    const profileSelect = getEl('versions-profile-select');
+    if (profileSelect) {
+      renderScopeProfilesSelect('versions');
+      profileSelect.onchange = async (e) => {
+        const selected = String((e && e.target && e.target.value) || '').trim();
+        if (!selected) {
+          renderScopeProfilesSelect('versions');
+          return;
+        }
+
+        if (selected === ADD_PROFILE_OPTION) {
+          profileSelect.value = versionsProfilesState.activeProfile;
+          showCreateScopeProfileModal('versions');
+          return;
+        }
+
+        if (selected === versionsProfilesState.activeProfile) {
+          return;
+        }
+
+        await switchScopeProfile('versions', selected);
+      };
+    }
+
+    const profileEditBtn = getEl('versions-profile-edit-btn');
+    const profileEditIcon = getEl('versions-profile-edit-icon');
+    if (profileEditBtn) {
+      if (profileEditIcon) {
+        profileEditBtn.onmouseenter = () => {
+          if (!profileEditBtn.disabled) profileEditIcon.src = 'assets/images/filled_pencil.png';
+        };
+        profileEditBtn.onmouseleave = () => {
+          profileEditIcon.src = 'assets/images/unfilled_pencil.png';
+        };
+      }
+      profileEditBtn.onclick = (e) => {
+        e.preventDefault();
+        if (profileEditBtn.disabled) return;
+        showRenameScopeProfileModal('versions');
+      };
+      updateScopeProfileEditButtonState('versions');
+    }
+
+    const profileDeleteBtn = getEl('versions-profile-delete-btn');
+    const profileDeleteIcon = getEl('versions-profile-delete-icon');
+    if (profileDeleteBtn) {
+      if (profileDeleteIcon) {
+        profileDeleteBtn.onmouseenter = () => {
+          if (!profileDeleteBtn.disabled) profileDeleteIcon.src = 'assets/images/filled_delete.png';
+        };
+        profileDeleteBtn.onmouseleave = () => {
+          profileDeleteIcon.src = 'assets/images/unfilled_delete.png';
+        };
+      }
+      profileDeleteBtn.onclick = (e) => {
+        e.preventDefault();
+        if (profileDeleteBtn.disabled) return;
+        showDeleteScopeProfileModal('versions');
+      };
+      updateScopeProfileDeleteButtonState('versions');
     }
   };
 
@@ -1318,13 +2061,12 @@
       if (!hasFabric && !hasForge) {
         html += `<p style="color:#999;font-size:12px;font-style:italic;">No loaders installed</p>`;
       } else {
-        // Display installed Fabric loaders
         if (installed.fabric?.length) {
           installed.fabric.forEach((loader, idx) => {
             html += `
               <div style="background:#2a2a2a;border-left:3px solid #bebb88;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
                 <div>
-                  <strong style="color:#bebb88;">Fabric</strong>
+                  <p style="color:#bebb88;"><b>Fabric</b></p>
                   <span style="color:#aaa; font-size: 12px;"> ${loader.version}</span>
                   <span style="color:#666; font-size: 11px;"> - ${loader.size_display || 'Unknown size'}</span>
                 </div>
@@ -1336,13 +2078,12 @@
           });
         }
         
-        // Display installed Forge loaders
         if (installed.forge?.length) {
           installed.forge.forEach((loader, idx) => {
             html += `
               <div style="background:#2a2a2a;border-left:3px solid #646ec9;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;">
                 <div>
-                  <strong style="color:#646ec9;">Forge</strong>
+                  <p style="color:#646ec9;"><b>Forge</b></p>
                   <span style="color:#aaa; font-size: 12px;"> ${loader.version}</span>
                   <span style="color:#666; font-size: 11px;"> - ${loader.size_display || 'Unknown size'}</span>
                 </div>
@@ -1494,7 +2235,7 @@
         let msg = `
           <div style="font-family: Arial, sans-serif;">
             <p style="margin-top: 0; color: #aaa; font-size: 12px; margin-bottom: 12px;">
-              Select a ${loaderType} version for <strong>${v.display}</strong>
+              Select a ${loaderType} version for <b>${v.display}</b>
             </p>
             ${renderVersionList(displayedVersions)}
             <p style="margin-top: 8px; margin-bottom: 8px; color: #666; font-size: 11px;">
@@ -2140,7 +2881,7 @@
         toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
         const indicator = toggle.querySelector('.section-dropdown-indicator');
         if (indicator) {
-          indicator.textContent = expanded ? '⏷' : '⏶';
+          indicator.textContent = expanded ? '⏷' : '⏵';
         }
         body.classList.toggle('hidden', !expanded);
       };
@@ -2196,7 +2937,7 @@
               Exporting <b>${category}/${folder}</b>
             </div>
             
-            <div class="row" style="display:grid;gap:8px;max-height:300px;overflow-y:auto;padding:8px 0;">
+            <div style="display:grid;gap:8px;max-height:300px;overflow-y:auto;padding:8px 0;">
               <div style="color:#fff;font-size:12px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">Include Options</div>
               <br>
               
@@ -2273,27 +3014,16 @@
         }, 100);
       }).then(async (confirmed) => {
         if (!confirmed) return;
-        
-        // Show loading message
-        const loadingBox = getEl('loading-box');
-        if (loadingBox) {
-          const loadingText = loadingBox.querySelector('.loading-text');
-          if (loadingText) loadingText.textContent = 'Exporting version...';
-          toggleClass(getEl('loading-overlay'), 'hidden', false);
-          toggleClass(loadingBox, 'hidden', false);
-        }
-        
+
+        showLoadingOverlay('Exporting version...');
+
         const result = await api('/api/versions/export', 'POST', { 
           category, 
           folder,
           export_options: exportOptions
         });
-        
-        // Hide loading
-        if (loadingBox) {
-          toggleClass(getEl('loading-overlay'), 'hidden', true);
-          toggleClass(loadingBox, 'hidden', true);
-        }
+
+        hideLoadingOverlay();
         
         if (!result.ok) {
           if (result.error === 'Export cancelled by user') {
@@ -2309,6 +3039,7 @@
         await init();
       });
     } catch (e) {
+      hideLoadingOverlay();
       console.error('Export error:', e);
       showMessageBox({ title: 'Export Error', message: 'An error occurred during export:<br><br>' + e.message, buttons: [{ label: 'OK' }] });
     }
@@ -2321,15 +3052,8 @@
     input.onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
-      
-      // Show loading
-      const loadingBox = getEl('loading-box');
-      if (loadingBox) {
-        const loadingText = loadingBox.querySelector('.loading-text');
-        if (loadingText) loadingText.textContent = 'Importing version...';
-        toggleClass(getEl('loading-overlay'), 'hidden', false);
-        toggleClass(loadingBox, 'hidden', false);
-      }
+
+      showLoadingOverlay('Importing version...');
       
       try {
         const filename = file.name;
@@ -2338,11 +3062,7 @@
         const versionName = filename.endsWith('.hlvdf') ? filename.slice(0, -6) : filename;
         
         if (!versionName || versionName.length === 0) {
-          // Hide loading
-          if (loadingBox) {
-            toggleClass(getEl('loading-overlay'), 'hidden', true);
-            toggleClass(loadingBox, 'hidden', true);
-          }
+          hideLoadingOverlay();
           
           showMessageBox({
             title: 'Import Error',
@@ -2369,12 +3089,8 @@
           });
           
           const result = await response.json();
-          
-          // Hide loading
-          if (loadingBox) {
-            toggleClass(getEl('loading-overlay'), 'hidden', true);
-            toggleClass(loadingBox, 'hidden', true);
-          }
+
+          hideLoadingOverlay();
           
           if (!result.ok) {
             showMessageBox({
@@ -2394,11 +3110,7 @@
           // Refresh the versions list
           await init();
         } catch (e) {
-          // Hide loading on error
-          if (loadingBox) {
-            toggleClass(getEl('loading-overlay'), 'hidden', true);
-            toggleClass(loadingBox, 'hidden', true);
-          }
+          hideLoadingOverlay();
           
           console.error('Import error:', e);
           showMessageBox({
@@ -2408,11 +3120,7 @@
           });
         }
       } catch (e) {
-        // Hide loading on any outer error
-        if (loadingBox) {
-          toggleClass(getEl('loading-overlay'), 'hidden', true);
-          toggleClass(loadingBox, 'hidden', true);
-        }
+        hideLoadingOverlay();
         console.error('Unexpected error during import:', e);
         showMessageBox({
           title: 'Import Error',
@@ -2986,12 +3694,12 @@
         if (crashRes.ok && crashRes.error_analysis) {
           const analysis = crashRes.error_analysis;
           if (analysis.has_error && analysis.message) {
-            crashDetails += `<br><strong style="color:#ff6b6b;">${analysis.message}</strong><br>`;
+            crashDetails += `<br><b style="color:#ff6b6b;">${analysis.message}</b><br>`;
             if (analysis.details) {
               crashDetails += analysis.details;
             }
             if (analysis.suggestion) {
-              crashDetails += `<br><br><strong>Suggestion:</strong> ${analysis.suggestion}`;
+              crashDetails += `<br><br><b>Suggestion:</b> ${analysis.suggestion}`;
             }
           }
         }
@@ -3231,6 +3939,71 @@
       });
     }
 
+    const profileSelect = getEl('settings-profile-select');
+    if (profileSelect) {
+      profileSelect.addEventListener('change', async (e) => {
+        const selected = String(e.target.value || '').trim();
+        if (!selected) {
+          renderProfilesSelect();
+          return;
+        }
+
+        if (selected === ADD_PROFILE_OPTION) {
+          e.target.value = profilesState.activeProfile;
+          showCreateProfileModal();
+          return;
+        }
+
+        if (selected === profilesState.activeProfile) {
+          return;
+        }
+
+        await switchProfile(selected);
+      });
+    }
+
+    const profileDeleteBtn = getEl('settings-profile-delete-btn');
+    const profileDeleteIcon = getEl('settings-profile-delete-icon');
+    const profileEditBtn = getEl('settings-profile-edit-btn');
+    const profileEditIcon = getEl('settings-profile-edit-icon');
+    if (profileEditBtn) {
+      profileEditBtn.disabled = !profilesState.activeProfile;
+      profileEditBtn.style.opacity = profileEditBtn.disabled ? '0.5' : '1';
+      profileEditBtn.style.cursor = profileEditBtn.disabled ? 'not-allowed' : 'pointer';
+
+      if (profileEditIcon) {
+        profileEditBtn.addEventListener('mouseenter', () => {
+          if (!profileEditBtn.disabled) profileEditIcon.src = 'assets/images/filled_pencil.png';
+        });
+        profileEditBtn.addEventListener('mouseleave', () => {
+          profileEditIcon.src = 'assets/images/unfilled_pencil.png';
+        });
+      }
+
+      profileEditBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (profileEditBtn.disabled) return;
+        showRenameProfileModal();
+      });
+    }
+
+    if (profileDeleteBtn) {
+      if (profileDeleteIcon) {
+        profileDeleteBtn.addEventListener('mouseenter', () => {
+          if (!profileDeleteBtn.disabled) profileDeleteIcon.src = 'assets/images/filled_delete.png';
+        });
+        profileDeleteBtn.addEventListener('mouseleave', () => {
+          profileDeleteIcon.src = 'assets/images/unfilled_delete.png';
+        });
+      }
+      profileDeleteBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (profileDeleteBtn.disabled) return;
+        showDeleteProfileModal();
+      });
+      updateProfileDeleteButtonState();
+    }
+
     const accountSelect = getEl('settings-account-type');
     const connectBtn = getEl('connect-account-btn');
     const disconnectBtn = getEl('disconnect-account-btn');
@@ -3241,7 +4014,7 @@
     if (accountSelect) {
       accountSelect.addEventListener('change', async (e) => {
         const val = e.target.value === 'Histolauncher' ? 'Histolauncher' : 'Local';
-        const isConnected = !!settingsState.uuid;
+        const isConnected = settingsState.account_type === 'Histolauncher' && !!settingsState.uuid;
 
         if (settingsState.account_type === 'Histolauncher' && val === 'Local') {
           histolauncherUsername = settingsState.username;
@@ -3613,11 +4386,7 @@
   // ---------------- Init ----------------
 
   const init = async () => {
-    const overlay = getEl('loading-overlay');
-    const box = getEl('loading-box');
-
-    if (overlay) overlay.classList.remove('hidden');
-    if (box) box.classList.remove('hidden');
+    showLoadingOverlay();
 
     const data = await api('/api/initial');
 
@@ -3812,7 +4581,23 @@
 
     selectedVersion = data.selected_version || null;
 
-    await initSettings(data.settings || {});
+    await initSettings(data.settings || {}, {
+      profiles: Array.isArray(data.profiles) ? data.profiles : [],
+      active_profile: data.active_profile || 'default',
+    });
+
+    applyScopeProfilesState(
+      'versions',
+      Array.isArray(data.versions_profiles) ? data.versions_profiles : [],
+      data.active_versions_profile || 'default'
+    );
+    applyScopeProfilesState(
+      'mods',
+      Array.isArray(data.mods_profiles) ? data.mods_profiles : [],
+      data.active_mods_profile || 'default'
+    );
+    renderScopeProfilesSelect('versions');
+    renderScopeProfilesSelect('mods');
 
     const accountSelect = getEl('settings-account-type');
     const connectBtn = getEl('connect-account-btn');
@@ -3825,9 +4610,11 @@
     if (disconnectBtn) disconnectBtn.style.display = 'none';
     
     updateHomeInfo();
+    refreshHomeGlobalMessage();
 
     initCategoryFilter();
     renderAllVersionSections();
+    refreshModsPageState();
 
     // After rendering, restart polling for any installing versions to ensure
     // progress elements are properly cached from the newly rendered cards
@@ -3870,8 +4657,7 @@
       updateHomeInfo();
     }
 
-    if (overlay) overlay.classList.add('hidden');
-    if (box) box.classList.add('hidden');
+    hideLoadingOverlay();
 
     // Check for corrupted versions after UI is fully loaded
     await checkForCorruptedVersions();
@@ -4078,7 +4864,7 @@
           indicator.textContent = '⏷';
         } else {
           content.classList.add('collapsed');
-          indicator.textContent = '⏶';
+          indicator.textContent = '⏵';
         }
       });
     });
@@ -4102,6 +4888,12 @@
     installedMods: [],
     installedModpacks: [],
     lastError: null,
+    installedGroupsCollapsed: {
+      modpacks: false,
+      fabric: false,
+      forge: false,
+      other: false,
+    },
   };
 
   const resetModsSearch = () => {
@@ -4182,6 +4974,7 @@
       getEl('installed-modpacks-list'),
       getEl('installed-mods-list'),
       getEl('available-mods-list'),
+      ...$$('.installed-mods-group-body'),
     ];
     containers.forEach((c) => {
       if (c) c.classList.toggle('list-view', mode === 'list');
@@ -4217,6 +5010,68 @@
   };
 
   const initModsPage = () => {
+    const modsProfileSelect = getEl('mods-profile-select');
+    if (modsProfileSelect) {
+      renderScopeProfilesSelect('mods');
+      modsProfileSelect.onchange = async (e) => {
+        const selected = String((e && e.target && e.target.value) || '').trim();
+        if (!selected) {
+          renderScopeProfilesSelect('mods');
+          return;
+        }
+
+        if (selected === ADD_PROFILE_OPTION) {
+          modsProfileSelect.value = modsProfilesState.activeProfile;
+          showCreateScopeProfileModal('mods');
+          return;
+        }
+
+        if (selected === modsProfilesState.activeProfile) {
+          return;
+        }
+
+        await switchScopeProfile('mods', selected);
+      };
+    }
+
+    const modsProfileDeleteBtn = getEl('mods-profile-delete-btn');
+    const modsProfileDeleteIcon = getEl('mods-profile-delete-icon');
+    const modsProfileEditBtn = getEl('mods-profile-edit-btn');
+    const modsProfileEditIcon = getEl('mods-profile-edit-icon');
+    if (modsProfileEditBtn) {
+      if (modsProfileEditIcon) {
+        modsProfileEditBtn.onmouseenter = () => {
+          if (!modsProfileEditBtn.disabled) modsProfileEditIcon.src = 'assets/images/filled_pencil.png';
+        };
+        modsProfileEditBtn.onmouseleave = () => {
+          modsProfileEditIcon.src = 'assets/images/unfilled_pencil.png';
+        };
+      }
+      modsProfileEditBtn.onclick = (e) => {
+        e.preventDefault();
+        if (modsProfileEditBtn.disabled) return;
+        showRenameScopeProfileModal('mods');
+      };
+      updateScopeProfileEditButtonState('mods');
+    }
+
+    if (modsProfileDeleteBtn) {
+      if (modsProfileDeleteIcon) {
+        modsProfileDeleteBtn.onmouseenter = () => {
+          if (!modsProfileDeleteBtn.disabled) modsProfileDeleteIcon.src = 'assets/images/filled_delete.png';
+        };
+        modsProfileDeleteBtn.onmouseleave = () => {
+          modsProfileDeleteIcon.src = 'assets/images/unfilled_delete.png';
+        };
+      }
+      modsProfileDeleteBtn.onclick = (e) => {
+        e.preventDefault();
+        if (modsProfileDeleteBtn.disabled) return;
+        showDeleteScopeProfileModal('mods');
+      };
+      updateScopeProfileDeleteButtonState('mods');
+    }
+
     const clearBtn = getEl('mods-clear-filters-btn');
 
     if (clearBtn) {
@@ -4307,6 +5162,7 @@
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(() => {
           modsState.searchQuery = searchInput.value.trim();
+          renderInstalledMods();
           resetModsSearch();
           searchMods();
         }, 500);
@@ -4317,7 +5173,7 @@
     if (modsRefreshBtn) {
       modsRefreshBtn.addEventListener('click', () => {
         resetModsSearch();
-        searchMods();
+        refreshModsPageState();
       });
     }
 
@@ -4358,9 +5214,7 @@
     }
 
     initModsViewToggle();
-    populateModsVersionDropdown();
-    loadInstalledMods();
-    searchMods();
+    refreshModsPageState();
   };
 
   const updateModsProviderDisplay = () => {
@@ -4374,6 +5228,7 @@
     const select = getEl('mods-version-select');
     if (!select) return;
 
+    const previousValue = modsState.gameVersion || select.value || '';
     select.innerHTML = '<option value="">All</option>';
 
     api('/api/mods/version-options', 'GET')
@@ -4388,8 +5243,37 @@
           opt.textContent = ver;
           select.appendChild(opt);
         });
+
+        if (previousValue && Array.from(select.options).some((opt) => opt.value === previousValue)) {
+          select.value = previousValue;
+          modsState.gameVersion = previousValue;
+        } else {
+          select.value = '';
+          if (previousValue) modsState.gameVersion = '';
+        }
       })
       .catch((err) => console.error('Failed to load mod version options:', err));
+  };
+
+  const refreshModsPageState = () => {
+    const providerSelect = getEl('mods-provider-select');
+    const loaderSelect = getEl('mods-loader-select');
+    const versionSelect = getEl('mods-version-select');
+    const categorySelect = getEl('mods-category-select');
+    const sortSelect = getEl('mods-sort-select');
+    const searchInput = getEl('mods-search');
+
+    if (providerSelect) providerSelect.value = modsState.provider || 'modrinth';
+    if (loaderSelect) loaderSelect.value = modsState.modLoader || '';
+    if (versionSelect) versionSelect.value = modsState.gameVersion || '';
+    if (categorySelect) categorySelect.value = modsState.category || '';
+    if (sortSelect) sortSelect.value = modsState.sortBy || 'relevance';
+    if (searchInput) searchInput.value = modsState.searchQuery || '';
+
+    updateModsProviderDisplay();
+    populateModsVersionDropdown();
+    loadInstalledMods();
+    searchMods();
   };
 
   const loadInstalledMods = async () => {
@@ -4481,6 +5365,64 @@
     }
   };
 
+  const getInstalledGroupLabel = (groupKey) => {
+    if (groupKey === 'modpacks') return 'Modpacks';
+    if (groupKey === 'other') return 'Other';
+    const label = String(groupKey || 'Other');
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  };
+
+  const appendInstalledGroup = (container, groupKey, items, renderItem) => {
+    if (!container || !Array.isArray(items) || items.length === 0) return;
+
+    const group = document.createElement('section');
+    group.className = 'installed-mods-group';
+    group.dataset.groupKey = groupKey;
+
+    const header = document.createElement('button');
+    header.type = 'button';
+    header.className = 'installed-mods-loader-header installed-mods-group-toggle';
+
+    const title = document.createElement('span');
+    title.className = 'installed-mods-group-title';
+    title.textContent = getInstalledGroupLabel(groupKey);
+
+    const count = document.createElement('span');
+    count.className = 'installed-mods-group-count';
+    count.textContent = `${items.length}`;
+
+    const indicator = document.createElement('span');
+    indicator.className = 'installed-mods-group-indicator';
+
+    const body = document.createElement('div');
+    body.className = 'versions-list installed-mods-group-body';
+    body.classList.toggle('list-view', (settingsState.mods_view || 'list') === 'list');
+
+    const applyCollapsedState = () => {
+      const collapsed = !!modsState.installedGroupsCollapsed[groupKey];
+      header.setAttribute('aria-expanded', String(!collapsed));
+      indicator.textContent = collapsed ? '⏵' : '⏷';
+      body.classList.toggle('hidden', collapsed);
+    };
+
+    items.forEach((item) => body.appendChild(renderItem(item)));
+
+    header.appendChild(title);
+    header.appendChild(count);
+    header.appendChild(indicator);
+
+    header.addEventListener('click', () => {
+      modsState.installedGroupsCollapsed[groupKey] = !modsState.installedGroupsCollapsed[groupKey];
+      applyCollapsedState();
+    });
+
+    applyCollapsedState();
+
+    group.appendChild(header);
+    group.appendChild(body);
+    container.appendChild(group);
+  };
+
   // --- Pagination ---
   const renderModsPagination = () => {
     const container = getEl('mods-pagination');
@@ -4550,6 +5492,21 @@
       subtitle.textContent = text;
     }
 
+    const normalizeSearchText = (value) => {
+      let text = String(value || '').toLowerCase();
+      try {
+        text = decodeURIComponent(text);
+      } catch (_) {
+        // Keep original text if it is not valid URI-encoded content.
+      }
+      // Treat URL-encoded and separator variants the same for matching.
+      return text
+        .replace(/\+/g, ' ')
+        .replace(/[%_\-]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
     // Render modpacks
     if (packsList) {
       packsList.innerHTML = '';
@@ -4558,13 +5515,15 @@
       if (loaderFilter) {
         packs = packs.filter((p) => (p.mod_loader || '').toLowerCase() === loaderFilter);
       }
-      if (packs.length > 0) {
-        const header = document.createElement('div');
-        header.className = 'installed-mods-loader-header';
-        header.textContent = 'Modpacks';
-        packsList.appendChild(header);
-        packs.forEach((pack) => packsList.appendChild(createModpackCard(pack)));
+      const installSearchQ = normalizeSearchText(modsState.searchQuery || '');
+      if (installSearchQ) {
+        packs = packs.filter((pack) => {
+          const name = normalizeSearchText(pack.name || pack.slug || '');
+          const slug = normalizeSearchText(pack.slug || '');
+          return name.includes(installSearchQ) || slug.includes(installSearchQ);
+        });
       }
+      appendInstalledGroup(packsList, 'modpacks', packs, (pack) => createModpackCard(pack));
     }
 
     list.innerHTML = '';
@@ -4575,11 +5534,11 @@
     if (loaderFilter) {
       filtered = filtered.filter((m) => (m.mod_loader || '').toLowerCase() === loaderFilter);
     }
-    const installSearchQ = (modsState.searchQuery || '').toLowerCase();
+    const installSearchQ = normalizeSearchText(modsState.searchQuery || '');
     if (installSearchQ) {
       filtered = filtered.filter((m) => {
-        const name = (m.display_name || m.mod_slug || m.name || '').toLowerCase();
-        const slug = (m.mod_slug || '').toLowerCase();
+        const name = normalizeSearchText(m.mod_name || m.display_name || m.mod_slug || m.name || '');
+        const slug = normalizeSearchText(m.mod_slug || '');
         return name.includes(installSearchQ) || slug.includes(installSearchQ);
       });
     }
@@ -4590,29 +5549,26 @@
       return;
     }
 
-    // Group by loader, fabric first then forge then others
-    const groups = {};
-    filtered.forEach((mod) => {
-      const loader = (mod.mod_loader || 'other').toLowerCase();
-      if (!groups[loader]) groups[loader] = [];
-      groups[loader].push(mod);
-    });
-    const loaderOrder = ['fabric', 'forge'];
-    const allLoaders = [
-      ...loaderOrder.filter((l) => groups[l]),
-      ...Object.keys(groups).filter((l) => !loaderOrder.includes(l)),
-    ];
-    const showHeaders = allLoaders.length > 1;
+    const groups = {
+      fabric: [],
+      forge: [],
+      other: [],
+    };
 
-    allLoaders.forEach((loader) => {
-      if (showHeaders) {
-        const header = document.createElement('div');
-        header.className = 'installed-mods-loader-header';
-        header.textContent = loader.charAt(0).toUpperCase() + loader.slice(1);
-        list.appendChild(header);
+    filtered.forEach((mod) => {
+      const loader = (mod.mod_loader || '').toLowerCase();
+      if (loader === 'fabric') {
+        groups.fabric.push(mod);
+      } else if (loader === 'forge') {
+        groups.forge.push(mod);
+      } else {
+        groups.other.push(mod);
       }
-      groups[loader].forEach((mod) => list.appendChild(createModCard(mod, true)));
     });
+
+    appendInstalledGroup(list, 'fabric', groups.fabric, (mod) => createModCard(mod, true));
+    appendInstalledGroup(list, 'forge', groups.forge, (mod) => createModCard(mod, true));
+    appendInstalledGroup(list, 'other', groups.other, (mod) => createModCard(mod, true));
 
     applyModsViewMode();
   };
@@ -4687,7 +5643,7 @@
               if (result && result.ok) {
                 showMessageBox({
                   title: 'Import Successful',
-                  message: `Successfully imported <strong>${fileName}</strong> for ${modLoader}.`,
+                  message: `Successfully imported <b>${fileName}</b> for ${modLoader}.`,
                   buttons: [{ label: 'OK' }],
                 });
                 loadInstalledMods();
@@ -4859,6 +5815,72 @@
       actions.appendChild(toggleBtn);
     }
 
+    if (!isInstalled) {
+      // Quick install button for available mod cards
+      const quickInstallWrap = document.createElement('div');
+      quickInstallWrap.className = 'quick-install-wrap';
+
+      const quickInstallBtn = document.createElement('button');
+      quickInstallBtn.className = 'primary';
+      quickInstallBtn.textContent = 'Install';
+
+      const quickInstallVersion = document.createElement('div');
+      quickInstallVersion.className = 'quick-install-version';
+      quickInstallVersion.textContent = 'Latest';
+
+      let resolvedQuickVersion = null;
+
+      quickInstallBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (quickInstallBtn.disabled) return;
+        quickInstallBtn.disabled = true;
+        quickInstallBtn.textContent = 'Fetching...';
+        try {
+          const versRes = await api('/api/mods/versions', 'POST', {
+            provider: mod.provider || modsState.provider,
+            mod_id: mod.mod_id,
+            game_version: modsState.gameVersion || '',
+            mod_loader: modsState.modLoader || '',
+          });
+          const allVers = (versRes && versRes.ok && Array.isArray(versRes.versions)) ? versRes.versions : [];
+          if (allVers.length === 0) {
+            quickInstallBtn.disabled = false;
+            quickInstallBtn.textContent = 'Install';
+            quickInstallVersion.textContent = 'No versions found';
+            return;
+          }
+          // Apply same filter logic as detail modal
+          const selLoader = (modsState.modLoader || '').toLowerCase();
+          const selGV = modsState.gameVersion || '';
+          let filtered = allVers;
+          if (selLoader) filtered = filtered.filter((v) => (v.loaders || []).some((l) => String(l).toLowerCase() === selLoader));
+          if (selGV) filtered = filtered.filter((v) => (v.game_versions || []).includes(selGV));
+          if (filtered.length === 0) filtered = allVers; // fall back if no match
+          const recIdx = (() => {
+            let idx = filtered.findIndex((v) => (v.version_type || '').toLowerCase() === 'release');
+            if (idx === -1) idx = filtered.findIndex((v) => (v.version_type || '').toLowerCase() === 'beta');
+            if (idx === -1) idx = 0;
+            return idx;
+          })();
+          resolvedQuickVersion = filtered[recIdx];
+          const verLabel = resolvedQuickVersion.version_number || resolvedQuickVersion.display_name || 'Latest';
+          quickInstallVersion.textContent = verLabel;
+          const modLoader = selLoader || (resolvedQuickVersion.loaders && resolvedQuickVersion.loaders[0]) || 'fabric';
+          quickInstallBtn.textContent = 'Install';
+          installMod(mod, resolvedQuickVersion, modLoader, quickInstallBtn);
+        } catch (err) {
+          console.error('Quick install failed to fetch versions:', err);
+          quickInstallBtn.disabled = false;
+          quickInstallBtn.textContent = 'Install';
+        }
+      });
+
+      quickInstallWrap.addEventListener('click', (e) => e.stopPropagation());
+      quickInstallWrap.appendChild(quickInstallBtn);
+      quickInstallWrap.appendChild(quickInstallVersion);
+      actions.appendChild(quickInstallWrap);
+    }
+
     card.appendChild(icon);
     card.appendChild(info);
     if (isInstalled) card.appendChild(deleteIconContainer);
@@ -4915,8 +5937,8 @@
         '<a href="$2">$1</a>');
 
       // Strong / emphasis
-      out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      out = out.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+      out = out.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+      out = out.replace(/__([^_]+)__/g, '<b>$1</b>');
       out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
       out = out.replace(/_([^_]+)_/g, '<em>$1</em>');
 
@@ -4924,6 +5946,33 @@
       out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
 
       return out;
+    };
+
+    const sanitizeRemoteHtml = (html) => {
+      const template = document.createElement('template');
+      template.innerHTML = String(html || '');
+
+      template.content
+        .querySelectorAll('script, iframe, object, embed, link, meta, base, form, input, button, textarea, select')
+        .forEach((el) => el.remove());
+
+      template.content.querySelectorAll('*').forEach((el) => {
+        Array.from(el.attributes).forEach((attr) => {
+          const name = String(attr.name || '').toLowerCase();
+          const value = String(attr.value || '');
+
+          if (name.startsWith('on')) {
+            el.removeAttribute(attr.name);
+            return;
+          }
+
+          if ((name === 'href' || name === 'src' || name === 'xlink:href') && /^\s*javascript:/i.test(value)) {
+            el.removeAttribute(attr.name);
+          }
+        });
+      });
+
+      return template.innerHTML;
     };
 
     const renderModrinthMarkdown = (md) => {
@@ -4979,7 +6028,8 @@
         // render correctly instead of being escaped inside <p>...</p>.
         if (/^<\/?(?:h[1-6]|p|ul|ol|li|hr|blockquote|pre|code|img|table|thead|tbody|tr|td|th|div|br|details|summary)\b/i.test(line)) {
           flushList();
-          chunks.push(line);
+          const safeLine = sanitizeRemoteHtml(line);
+          if (safeLine) chunks.push(safeLine);
           continue;
         }
 
@@ -5016,10 +6066,16 @@
     const content = document.createElement('div');
     content.className = 'mod-detail-content';
 
-    const loadingMsg = document.createElement('p');
-    loadingMsg.textContent = 'Loading mod details...';
-    loadingMsg.style.color = '#999';
-    content.appendChild(loadingMsg);
+    const loadingEl = document.createElement('div');
+    loadingEl.style.cssText = 'display:flex;align-items:center;gap:10px;color:#999;padding:8px 0;';
+    const loadingGif = document.createElement('img');
+    loadingGif.src = 'assets/images/settings.gif';
+    loadingGif.style.cssText = 'width:22px;height:22px;flex-shrink:0;';
+    const loadingText = document.createElement('span');
+    loadingText.textContent = 'Loading mod details...';
+    loadingEl.appendChild(loadingGif);
+    loadingEl.appendChild(loadingText);
+    content.appendChild(loadingEl);
 
     showMessageBox({
       title: modName,
@@ -5053,7 +6109,7 @@
         if (detailProvider === 'modrinth') {
           descSection.innerHTML = renderModrinthMarkdown(description);
         } else if (description.includes('<') && description.includes('>')) {
-          descSection.innerHTML = description;
+          descSection.innerHTML = sanitizeRemoteHtml(description);
         } else {
           descSection.textContent = description;
         }
@@ -5248,7 +6304,7 @@
             // Check if this version is already installed
             const versionStr = ver.version_number || ver.display_name || 'unknown';
             const isVersionInstalled = modsState.installedMods.some((m) =>
-              m.mod_slug === (mod.mod_slug || mod.slug) &&
+              m.mod_slug === mod.mod_slug &&
               m.versions && m.versions.some((iv) => iv.version_label === versionStr)
             );
 
@@ -5331,13 +6387,18 @@
           installBtn.style.background = 'transparent';
           installBtn.style.cursor = 'default';
         }
-        loadInstalledMods();
+        await loadInstalledMods();
       } else {
         if (installBtn) {
           installBtn.disabled = false;
           installBtn.textContent = 'Install';
           installBtn.className = 'primary';
         }
+        showMessageBox({
+          title: 'Install Failed',
+          message: (res && res.error) ? res.error : 'Failed to install mod.',
+          buttons: [{ label: 'OK' }],
+        });
       }
     } catch (err) {
       console.error('Failed to install mod:', err);
@@ -5346,6 +6407,11 @@
         installBtn.textContent = 'Install';
         installBtn.className = 'primary';
       }
+      showMessageBox({
+        title: 'Install Failed',
+        message: 'An unexpected error occurred while installing the mod.',
+        buttons: [{ label: 'OK' }],
+      });
     }
   };
 
@@ -5361,7 +6427,7 @@
       if (blockingPack) {
         showMessageBox({
           title: 'Cannot Enable',
-          message: `This mod is managed by the modpack <strong>${blockingPack.name || blockingPack.slug}</strong>. Disable or delete that modpack first.`,
+          message: `This mod is managed by the modpack <b>${blockingPack.name || blockingPack.slug}</b>. Disable or delete that modpack first.`,
           buttons: [{ label: 'OK' }],
         });
         return;
@@ -5459,7 +6525,7 @@
     } else {
       showMessageBox({
         title: 'Delete Mod',
-        message: `Are you sure you want to delete <strong>${mod.mod_name}</strong>? This cannot be undone!`,
+        message: `Are you sure you want to delete <b>${mod.mod_name}</b>? This cannot be undone!`,
         buttons: [
           { label: 'Delete', classList: ['danger'], onClick: () => doDelete(null) },
           { label: 'Cancel' },
@@ -5588,29 +6654,59 @@
       modsSection.appendChild(modsTitle);
 
       const modsListEl = document.createElement('div');
-      modsListEl.className = 'mod-detail-version-list';
+      modsListEl.className = 'modpack-detail-mod-list';
 
       modsList.forEach((m) => {
         const row = document.createElement('div');
-        row.className = 'mod-detail-version-row';
-        row.style.gap = '8px';
+        row.className = 'modpack-detail-mod-card';
 
         const iconEl = document.createElement('img');
-        iconEl.style.cssText = 'width:28px;height:28px;object-fit:cover;flex-shrink:0;';
+        iconEl.className = 'modpack-detail-mod-image';
         iconEl.src = m.icon_url || 'assets/images/java_icon.png';
         iconEl.onerror = () => { iconEl.src = 'assets/images/java_icon.png'; };
 
+        const infoEl = document.createElement('div');
+        infoEl.className = 'modpack-detail-mod-info';
+
         const nameEl = document.createElement('span');
-        nameEl.className = 'mod-detail-version-name';
+        nameEl.className = 'modpack-detail-mod-name';
         nameEl.textContent = m.mod_name || m.mod_slug || 'Unknown';
 
         const metaEl = document.createElement('span');
-        metaEl.className = 'mod-detail-version-meta';
-        metaEl.textContent = m.version_label || '';
+        metaEl.className = 'modpack-detail-mod-meta';
+        const metaParts = [];
+        if (m.version_label) metaParts.push(m.version_label);
+        if (m.disabled) metaParts.push('Disabled');
+        metaEl.textContent = metaParts.join(' --- ');
+
+        infoEl.appendChild(nameEl);
+        infoEl.appendChild(metaEl);
+
+        const toggleModBtn = document.createElement('button');
+        toggleModBtn.className = m.disabled ? 'primary' : 'mild';
+        toggleModBtn.textContent = m.disabled ? 'Enable' : 'Disable';
+        toggleModBtn.style.cssText = 'font-size:11px;padding:3px 10px;flex-shrink:0;align-self:center;margin-right:10px;';
+        toggleModBtn.addEventListener('click', async () => {
+          toggleModBtn.disabled = true;
+          const newDisabled = !m.disabled;
+          const res = await api('/api/modpacks/toggle-mod', 'POST', {
+            pack_slug: pack.slug,
+            mod_slug: m.mod_slug,
+            disabled: newDisabled,
+          });
+          if (res && res.ok) {
+            m.disabled = newDisabled;
+            toggleModBtn.className = m.disabled ? 'primary' : 'mild';
+            toggleModBtn.textContent = m.disabled ? 'Enable' : 'Disable';
+            const newMeta = [m.version_label, m.disabled ? 'Disabled' : ''].filter(Boolean).join(' --- ');
+            metaEl.textContent = newMeta;
+          }
+          toggleModBtn.disabled = false;
+        });
 
         row.appendChild(iconEl);
-        row.appendChild(nameEl);
-        row.appendChild(metaEl);
+        row.appendChild(infoEl);
+        row.appendChild(toggleModBtn);
         modsListEl.appendChild(row);
       });
 
@@ -5649,7 +6745,7 @@
   const deleteModpack = (pack) => {
     showMessageBox({
       title: 'Delete Modpack',
-      message: `Are you sure you want to delete modpack <strong>${pack.name || pack.slug}</strong>? This cannot be undone!`,
+      message: `Are you sure you want to delete modpack <b>${pack.name || pack.slug}</b>?<i>This cannot be undone!</i>`,
       buttons: [
         {
           label: 'Delete',
@@ -5681,14 +6777,17 @@
     const formData = new FormData();
     formData.append('hlmp_file', file);
 
+    showLoadingOverlay('Importing modpack...');
+
     fetch('/api/modpacks/import', { method: 'POST', body: formData })
       .then((r) => r.json())
       .then((result) => {
+        hideLoadingOverlay();
         if (result && result.ok) {
-          let msg = `Successfully imported modpack <strong>${result.name || ''}</strong>.`;
+          let msg = `Successfully imported modpack <b>${result.name || ''}</b>.`;
           if (result.disabled_standalone && result.disabled_standalone.length > 0) {
             msg += `<br><br>The following standalone mods were disabled because they conflict with the modpack:<br>` +
-              result.disabled_standalone.map((s) => `• ${s}`).join('<br>');
+                    result.disabled_standalone.map((s) => `- ${s}`).join('<br>');
           }
           showMessageBox({
             title: 'Import Successful',
@@ -5705,6 +6804,7 @@
         }
       })
       .catch((err) => {
+        hideLoadingOverlay();
         console.error('Failed to import modpack:', err);
         showMessageBox({
           title: 'Import Error',
@@ -5778,6 +6878,11 @@
     selectAll.appendChild(document.createTextNode('Select All'));
     step2Content.appendChild(selectAll);
 
+    const disableHint = document.createElement('p');
+    disableHint.style.cssText = 'font-size:11px;color:#9ca3af;margin:0 0 8px 0;';
+    disableHint.textContent = 'Optional: mark mods as disabled in the modpack so they are included but not active by default.';
+    step2Content.appendChild(disableHint);
+
     const modListEl = document.createElement('div');
     modListEl.style.cssText = 'max-height:300px;overflow-y:auto;border:1px solid #1f2937;padding:8px;';
 
@@ -5790,6 +6895,16 @@
       const cb = document.createElement('input');
       cb.type = 'checkbox';
       cb.checked = true;
+
+      const disabledWrap = document.createElement('label');
+      disabledWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:#9ca3af;white-space:nowrap;';
+      const disabledCb = document.createElement('input');
+      disabledCb.type = 'checkbox';
+      disabledCb.checked = false;
+      const disabledTxt = document.createElement('span');
+      disabledTxt.textContent = 'Disabled';
+      disabledWrap.appendChild(disabledCb);
+      disabledWrap.appendChild(disabledTxt);
 
       const label = document.createElement('span');
       label.style.cssText = 'flex:1;font-size:13px;color:#e5e7eb;';
@@ -5808,14 +6923,17 @@
 
       row.appendChild(cb);
       row.appendChild(label);
+      row.appendChild(disabledWrap);
       row.appendChild(versionSel);
       modListEl.appendChild(row);
 
-      modEntries.push({ mod, checkbox: cb, versionSelect: versionSel });
+      modEntries.push({ mod, checkbox: cb, disabledCheckbox: disabledCb, versionSelect: versionSel });
     });
 
     selectAllCb.addEventListener('change', () => {
-      modEntries.forEach((e) => { e.checkbox.checked = selectAllCb.checked; });
+      modEntries.forEach((e) => {
+        e.checkbox.checked = selectAllCb.checked;
+      });
     });
 
     step2Content.appendChild(modListEl);
@@ -5838,6 +6956,7 @@
                 mod_slug: e.mod.mod_slug,
                 version_label: e.versionSelect.value,
                 mod_name: e.mod.mod_name || e.mod.mod_slug,
+                disabled: e.disabledCheckbox.checked,
               }));
             if (selected.length === 0) {
               showMessageBox({
@@ -5962,6 +7081,8 @@
             }
 
             try {
+              showLoadingOverlay('Exporting modpack...');
+
               const res = await api('/api/modpacks/export', 'POST', {
                 name: packName,
                 version: packVersion,
@@ -5992,6 +7113,7 @@
                   } catch (saveErr) {
                     // User cancelled the dialog — do nothing
                     if (saveErr.name !== 'AbortError') console.error('Save failed:', saveErr);
+                    hideLoadingOverlay();
                     return;
                   }
                 } else {
@@ -6006,12 +7128,15 @@
                   URL.revokeObjectURL(url);
                 }
 
+                hideLoadingOverlay();
+
                 showMessageBox({
                   title: 'Export Successful',
-                  message: `Modpack <strong>${packName}</strong> exported successfully.`,
+                  message: `Modpack <b>${packName}</b> exported successfully.`,
                   buttons: [{ label: 'OK' }],
                 });
               } else {
+                hideLoadingOverlay();
                 showMessageBox({
                   title: 'Export Error',
                   message: (res && res.error) || 'Failed to export modpack.',
@@ -6019,6 +7144,7 @@
                 });
               }
             } catch (err) {
+              hideLoadingOverlay();
               console.error('Failed to export modpack:', err);
               showMessageBox({
                 title: 'Export Error',

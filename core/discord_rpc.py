@@ -25,7 +25,7 @@ _stop_event = threading.Event()
 _state_lock = threading.Lock()
 _desired_presence = {
     "state": "Browsing launcher",
-    "details": "Idle in Histolauncher",
+    "details": "",
     "start": _start_time,
 }
 _launcher_version = None

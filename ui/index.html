@@ -63,16 +63,23 @@
 
     <!-- TOPBAR -->
     <div class="topbar">
-      <div id="topbar-profile" style="display:none;align-items:center;gap:8px;">
-        <img id="topbar-profile-pic" width="32" height="32" style="border:solid 2px #1c1c1c;" alt="Profile" title="Histolauncher Account"/>
-        <span id="topbar-username" style="color:#e5e7eb;font-size:14px;"></span>
+      <div id="topbar-profile" style="display:none;">
+        <img id="topbar-profile-pic" width="32" height="32" alt="Profile" title="Histolauncher Account"/>
+        <span id="topbar-username"></span>
       </div>
-      <button id="refresh-btn" title="Refresh values (Hold shift to refresh page)">Refresh</button>
+      <button id="refresh-btn" title="Refresh values (Hold shift to refresh page)">
+        <img src="assets/images/refresh.png" alt="Refresh"/>
+      </button>
     </div>
 
     <!-- HOME PAGE -->
     <div id="page-home" class="page">
       <h2 class="section-title"><img width="24px" height="24px" src="assets/images/histolauncher.png"/> Home</h2>
+
+      <div id="home-global-message" class="global-message-float global-message-message hidden" role="status" aria-live="polite">
+        <div id="home-global-message-content" class="global-message-content"></div>
+        <button id="home-global-message-dismiss" class="global-message-dismiss" type="button" title="Dismiss message">×</button>
+      </div>
 
       <div id="home-info" class="info-box" style="max-width:720px;margin:40px auto 20px auto;">
         <div id="home-version-panel">
@@ -106,6 +113,15 @@
         <h2 class="section-title"><img width="24px" height="24px" src="assets/images/library.png"/> Versions</h2>
 
         <div class="versions-filter">
+          <label for="versions-profile-select">Profile:</label>
+          <select id="versions-profile-select"></select>
+          <button id="versions-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" title="Rename active versions profile">
+            <img id="versions-profile-edit-icon" src="assets/images/unfilled_pencil.png" alt="rename versions profile"/>
+          </button>
+          <button id="versions-profile-delete-btn" class="icon-button profile-delete-btn" title="Delete active versions profile">
+            <img id="versions-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete versions profile"/>
+          </button>
+
           <label for="versions-category-select">Category:</label>
           <select id="versions-category-select"></select>
 
@@ -203,6 +219,15 @@
         <h2 class="section-title"><img width="24px" height="24px" src="assets/images/anvil_hammer.png"/> Mods</h2>
 
         <div class="versions-filter mods-topbar-filter">
+          <label for="mods-profile-select">Profile:</label>
+          <select id="mods-profile-select"></select>
+          <button id="mods-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" title="Rename active mods profile">
+            <img id="mods-profile-edit-icon" src="assets/images/unfilled_pencil.png" alt="rename mods profile"/>
+          </button>
+          <button id="mods-profile-delete-btn" class="icon-button profile-delete-btn" title="Delete active mods profile">
+            <img id="mods-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete mods profile"/>
+          </button>
+
           <label for="mods-search">Search:</label>
           <input id="mods-search" type="search" placeholder="Search...">
 
@@ -356,6 +381,17 @@
           </select>
           <button id="connect-account-btn" class="primary" style="margin-left:12px; display:none;">Connect Account</button>
           <button id="disconnect-account-btn" class="danger" style="margin-left:8px; display:none;">Disconnect</button>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Profiles keep separate launcher settings and account sessions.\n\nDefault is created automatically. Use the [+ Add new profile] to create and switch between profiles."/>
+          <label>Profile:</label>
+          <select id="settings-profile-select" style="min-width: 250px;"></select>
+          <button id="settings-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" title="Rename active profile" style="margin-left:8px;">
+            <img id="settings-profile-edit-icon" src="assets/images/unfilled_pencil.png" alt="rename profile"/>
+          </button>
+          <button id="settings-profile-delete-btn" class="icon-button profile-delete-btn" title="Delete active profile" style="margin-left:8px;">
+            <img id="settings-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete profile"/>
+          </button>
         </div>
       </div>
 

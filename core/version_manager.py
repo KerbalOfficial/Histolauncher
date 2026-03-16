@@ -3,7 +3,7 @@
 import os
 import time
 
-from core.settings import get_base_dir
+from core.settings import get_base_dir, get_versions_profile_dir
 
 _CACHE = None
 _CACHE_TS = 0
@@ -11,7 +11,7 @@ _CACHE_TTL = 2.0
 
 
 def get_clients_dir():
-    return os.path.join(get_base_dir(), "clients")
+    return get_versions_profile_dir()
 
 
 def _read_data_ini(path):

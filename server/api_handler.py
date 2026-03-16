@@ -4,6 +4,8 @@ import os
 import sys
 import shutil
 import time
+import json
+import re
 import urllib.request
 import urllib.parse
 
@@ -13,7 +15,25 @@ from core.discord_rpc import set_game_presence, set_install_presence, set_launch
 from core.logger import colorize_log
 from core.version_manager import scan_categories, get_version_loaders, get_clients_dir
 from core.java_launcher import launch_version
-from core.settings import load_global_settings, save_global_settings, get_base_dir, clear_account_token, _apply_url_proxy
+from core.settings import (
+    load_global_settings,
+    save_global_settings,
+    get_base_dir,
+    clear_account_token,
+    _apply_url_proxy,
+    list_profiles,
+    create_profile,
+    set_active_profile,
+    delete_profile,
+    rename_profile,
+    get_active_profile_id,
+    list_scope_profiles,
+    create_scope_profile,
+    set_active_scope_profile,
+    delete_scope_profile,
+    rename_scope_profile,
+    get_active_scope_profile_id,
+)
 from core.java_runtime import detect_java_runtimes
 from core.downloader import _wiki_image_url
 from core import modloaders as core_modloaders
@@ -30,6 +50,10 @@ MAX_CATEGORY_LENGTH = 64
 MAX_USERNAME_LENGTH = 16
 MAX_LOADER_VERSION_LENGTH = 64
 MAX_PAYLOAD_SIZE = 10000 * 1048576 # 10 GB
+MAX_MOD_SLUG_LENGTH = 128
+MAX_MODPACK_SLUG_LENGTH = 128
+MAX_VERSION_LABEL_LENGTH = 128
+MAX_FILENAME_LENGTH = 255
 
 CURRENT_MD_VERSION = "1.0"
 
@@ -125,6 +149,70 @@ def _validate_category_string(category: str, max_length: int = MAX_CATEGORY_LENG
 def _validate_loader_type(loader_type: str) -> bool:
     """Validate loader type is one of the allowed values."""
     return loader_type in ["fabric", "forge"]
+
+
+def _looks_like_path_traversal(value: str) -> bool:
+    if not isinstance(value, str):
+        return True
+    if "\x00" in value:
+        return True
+    normalized = value.replace("\\", "/")
+    if "/" in normalized:
+        return True
+    if ".." in normalized:
+        return True
+    if os.path.isabs(value):
+        return True
+    # Block Windows drive-letter patterns like C:foo and C:\foo
+    if len(value) >= 2 and value[1] == ":":
+        return True
+    return False
+
+
+def _validate_mod_slug(mod_slug: str, max_length: int = MAX_MOD_SLUG_LENGTH) -> bool:
+    if not isinstance(mod_slug, str):
+        return False
+    mod_slug = mod_slug.strip().lower()
+    if not mod_slug or len(mod_slug) > max_length:
+        return False
+    if _looks_like_path_traversal(mod_slug):
+        return False
+    return bool(re.match(r"^[a-z0-9][a-z0-9._-]*$", mod_slug))
+
+
+def _validate_modpack_slug(slug: str, max_length: int = MAX_MODPACK_SLUG_LENGTH) -> bool:
+    if not isinstance(slug, str):
+        return False
+    slug = slug.strip().lower()
+    if not slug or len(slug) > max_length:
+        return False
+    if _looks_like_path_traversal(slug):
+        return False
+    return bool(re.match(r"^[a-z0-9][a-z0-9-]*$", slug))
+
+
+def _validate_version_label(version_label: str, max_length: int = MAX_VERSION_LABEL_LENGTH) -> bool:
+    if not isinstance(version_label, str):
+        return False
+    version_label = version_label.strip()
+    if not version_label or len(version_label) > max_length:
+        return False
+    return not _looks_like_path_traversal(version_label)
+
+
+def _validate_jar_filename(file_name: str, max_length: int = MAX_FILENAME_LENGTH) -> bool:
+    if not isinstance(file_name, str):
+        return False
+    file_name = file_name.strip()
+    if not file_name or len(file_name) > max_length:
+        return False
+    if _looks_like_path_traversal(file_name):
+        return False
+    if os.path.basename(file_name) != file_name:
+        return False
+    if any(c in file_name for c in '<>:"|?*'):
+        return False
+    return file_name.lower().endswith('.jar')
 
 
 def _format_bytes(bytes_size: int) -> str:
@@ -252,7 +340,11 @@ def handle_api_request(path: str, data: Any):
     EXACT_NO_PARAMS = {
         "/api/account/status": api_account_status,
         "/api/account/current": api_account_current,
+        "/api/account/launcher-message": api_account_launcher_message,
         "/api/account/disconnect": api_account_disconnect,
+        "/api/profiles": api_profiles,
+        "/api/profiles/versions": api_profiles_versions,
+        "/api/profiles/mods": api_profiles_mods,
         "/api/is-launcher-outdated": is_launcher_outdated,
         "/api/initial": api_initial,
         "/api/clear-logs": api_clear_logs,
@@ -269,6 +361,18 @@ def handle_api_request(path: str, data: Any):
     # Exact-match endpoints that take request data
     EXACT_WITH_DATA = {
         "/api/account/verify-session": api_account_verify_session,
+        "/api/profiles/create": api_profiles_create,
+        "/api/profiles/switch": api_profiles_switch,
+        "/api/profiles/delete": api_profiles_delete,
+        "/api/profiles/rename": api_profiles_rename,
+        "/api/profiles/versions/create": api_profiles_versions_create,
+        "/api/profiles/versions/switch": api_profiles_versions_switch,
+        "/api/profiles/versions/delete": api_profiles_versions_delete,
+        "/api/profiles/versions/rename": api_profiles_versions_rename,
+        "/api/profiles/mods/create": api_profiles_mods_create,
+        "/api/profiles/mods/switch": api_profiles_mods_switch,
+        "/api/profiles/mods/delete": api_profiles_mods_delete,
+        "/api/profiles/mods/rename": api_profiles_mods_rename,
         "/api/search": api_search,
         "/api/launch": api_launch,
         "/api/crash-log": api_crash_log,
@@ -292,6 +396,7 @@ def handle_api_request(path: str, data: Any):
         "/api/modpacks/export": api_modpacks_export,
         "/api/modpacks/import": api_modpacks_import,
         "/api/modpacks/toggle": api_modpacks_toggle,
+        "/api/modpacks/toggle-mod": api_modpacks_toggle_mod,
         "/api/modpacks/delete": api_modpacks_delete,
     }
     
@@ -406,6 +511,12 @@ def api_initial():
         filtered_remote.append(v)
 
     settings_dict = load_global_settings()
+    profiles = list_profiles()
+    active_profile = get_active_profile_id()
+    versions_profiles = list_scope_profiles("versions")
+    active_versions_profile = get_active_scope_profile_id("versions")
+    mods_profiles = list_scope_profiles("mods")
+    active_mods_profile = get_active_scope_profile_id("mods")
 
     return {
         "versions": filtered_remote,
@@ -414,8 +525,309 @@ def api_initial():
         "categories": sorted(list(categories)),
         "selected_version": settings_dict.get("selected_version", ""),
         "settings": settings_dict,
+        "profiles": profiles,
+        "active_profile": active_profile,
+        "versions_profiles": versions_profiles,
+        "active_versions_profile": active_versions_profile,
+        "mods_profiles": mods_profiles,
+        "active_mods_profile": active_mods_profile,
         "manifest_error": manifest_error,
     }
+
+
+def api_profiles(data=None):
+    try:
+        profiles = list_profiles()
+        active_profile = get_active_profile_id()
+        return {
+            "ok": True,
+            "profiles": profiles,
+            "active_profile": active_profile,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_create(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        name = str(data.get("name") or "").strip()
+        if not name:
+            return {"ok": False, "error": "Profile name is required"}
+        if len(name) > 32:
+            return {"ok": False, "error": "Profile name must be 1-32 characters"}
+
+        profile = create_profile(name)
+        profiles = list_profiles()
+        active_profile = get_active_profile_id()
+        return {
+            "ok": True,
+            "profile": profile,
+            "profiles": profiles,
+            "active_profile": active_profile,
+        }
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_switch(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        profile_id = str(data.get("profile_id") or "").strip()
+        if not profile_id:
+            return {"ok": False, "error": "profile_id is required"}
+
+        if not set_active_profile(profile_id):
+            return {"ok": False, "error": "Profile not found"}
+
+        settings_dict = load_global_settings()
+        return {
+            "ok": True,
+            "active_profile": get_active_profile_id(),
+            "settings": settings_dict,
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_delete(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        profile_id = str(data.get("profile_id") or "").strip()
+        if not profile_id:
+            return {"ok": False, "error": "profile_id is required"}
+
+        if not delete_profile(profile_id):
+            return {
+                "ok": False,
+                "error": "Failed to delete profile (cannot delete Default or last profile)",
+            }
+
+        return {
+            "ok": True,
+            "profiles": list_profiles(),
+            "active_profile": get_active_profile_id(),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_rename(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        profile_id = str(data.get("profile_id") or "").strip()
+        name = str(data.get("name") or "").strip()
+        if not profile_id:
+            return {"ok": False, "error": "profile_id is required"}
+        if not name:
+            return {"ok": False, "error": "Profile name is required"}
+        if len(name) > 32:
+            return {"ok": False, "error": "Profile name must be 1-32 characters"}
+
+        if not rename_profile(profile_id, name):
+            return {"ok": False, "error": "Profile not found"}
+
+        return {
+            "ok": True,
+            "profiles": list_profiles(),
+            "active_profile": get_active_profile_id(),
+        }
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_versions(data=None):
+    try:
+        return {
+            "ok": True,
+            "profiles": list_scope_profiles("versions"),
+            "active_profile": get_active_scope_profile_id("versions"),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_versions_create(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        name = str(data.get("name") or "").strip()
+        if not name:
+            return {"ok": False, "error": "Profile name is required"}
+        if len(name) > 32:
+            return {"ok": False, "error": "Profile name must be 1-32 characters"}
+
+        profile = create_scope_profile("versions", name)
+        return {
+            "ok": True,
+            "profile": profile,
+            "profiles": list_scope_profiles("versions"),
+            "active_profile": get_active_scope_profile_id("versions"),
+        }
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_versions_switch(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        profile_id = str(data.get("profile_id") or "").strip()
+        if not profile_id:
+            return {"ok": False, "error": "profile_id is required"}
+        if not set_active_scope_profile("versions", profile_id):
+            return {"ok": False, "error": "Profile not found"}
+        return {"ok": True, "active_profile": get_active_scope_profile_id("versions")}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_versions_delete(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        profile_id = str(data.get("profile_id") or "").strip()
+        if not profile_id:
+            return {"ok": False, "error": "profile_id is required"}
+        if not delete_scope_profile("versions", profile_id):
+            return {"ok": False, "error": "Failed to delete profile (cannot delete Default or last profile)"}
+        return {
+            "ok": True,
+            "profiles": list_scope_profiles("versions"),
+            "active_profile": get_active_scope_profile_id("versions"),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_versions_rename(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        profile_id = str(data.get("profile_id") or "").strip()
+        name = str(data.get("name") or "").strip()
+        if not profile_id:
+            return {"ok": False, "error": "profile_id is required"}
+        if not name:
+            return {"ok": False, "error": "Profile name is required"}
+        if len(name) > 32:
+            return {"ok": False, "error": "Profile name must be 1-32 characters"}
+
+        if not rename_scope_profile("versions", profile_id, name):
+            return {"ok": False, "error": "Profile not found"}
+
+        return {
+            "ok": True,
+            "profiles": list_scope_profiles("versions"),
+            "active_profile": get_active_scope_profile_id("versions"),
+        }
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_mods(data=None):
+    try:
+        return {
+            "ok": True,
+            "profiles": list_scope_profiles("mods"),
+            "active_profile": get_active_scope_profile_id("mods"),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_mods_create(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        name = str(data.get("name") or "").strip()
+        if not name:
+            return {"ok": False, "error": "Profile name is required"}
+        if len(name) > 32:
+            return {"ok": False, "error": "Profile name must be 1-32 characters"}
+
+        profile = create_scope_profile("mods", name)
+        return {
+            "ok": True,
+            "profile": profile,
+            "profiles": list_scope_profiles("mods"),
+            "active_profile": get_active_scope_profile_id("mods"),
+        }
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_mods_switch(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        profile_id = str(data.get("profile_id") or "").strip()
+        if not profile_id:
+            return {"ok": False, "error": "profile_id is required"}
+        if not set_active_scope_profile("mods", profile_id):
+            return {"ok": False, "error": "Profile not found"}
+        return {"ok": True, "active_profile": get_active_scope_profile_id("mods")}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_mods_delete(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        profile_id = str(data.get("profile_id") or "").strip()
+        if not profile_id:
+            return {"ok": False, "error": "profile_id is required"}
+        if not delete_scope_profile("mods", profile_id):
+            return {"ok": False, "error": "Failed to delete profile (cannot delete Default or last profile)"}
+        return {
+            "ok": True,
+            "profiles": list_scope_profiles("mods"),
+            "active_profile": get_active_scope_profile_id("mods"),
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def api_profiles_mods_rename(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+        profile_id = str(data.get("profile_id") or "").strip()
+        name = str(data.get("name") or "").strip()
+        if not profile_id:
+            return {"ok": False, "error": "profile_id is required"}
+        if not name:
+            return {"ok": False, "error": "Profile name is required"}
+        if len(name) > 32:
+            return {"ok": False, "error": "Profile name must be 1-32 characters"}
+
+        if not rename_scope_profile("mods", profile_id, name):
+            return {"ok": False, "error": "Profile not found"}
+
+        return {
+            "ok": True,
+            "profiles": list_scope_profiles("mods"),
+            "active_profile": get_active_scope_profile_id("mods"),
+        }
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 def _build_java_runtime_response(force_refresh: bool = False):
@@ -592,8 +1004,7 @@ def api_launch(data):
     if loader_version and not _validate_version_string(loader_version, MAX_LOADER_VERSION_LENGTH):
         return {"ok": False, "message": "Invalid loader version format"}
 
-    data_base = get_base_dir()
-    clients_dir = os.path.join(data_base, "clients")
+    clients_dir = get_clients_dir()
 
     storage_cat = category.lower()
     version_dir = os.path.join(clients_dir, storage_cat, folder)
@@ -613,11 +1024,6 @@ def api_launch(data):
             _legacy_forge_requires_modloader,
             _has_modloader_runtime,
         )
-        # determine version_dir same as launch_version will
-        data_base = get_base_dir()
-        clients_dir = os.path.join(data_base, "clients")
-        storage_cat = category.lower()
-        version_dir = os.path.join(clients_dir, storage_cat, folder)
         current_loader = _get_loader_version(version_dir, loader)
 
         if not current_loader:
@@ -1143,6 +1549,39 @@ def api_account_current():
         }
 
 
+def api_account_launcher_message():
+    try:
+        from .auth import get_launcher_message
+
+        success, payload, error = get_launcher_message()
+        if not success:
+            return {
+                "ok": False,
+                "active": False,
+                "error": error or "Failed to load launcher message",
+            }
+
+        if not isinstance(payload, dict):
+            return {"ok": False, "active": False, "error": "Invalid launcher message response"}
+
+        active = bool(payload.get("active"))
+        message = str(payload.get("message") or "")
+        msg_type = str(payload.get("type") or "message").strip().lower()
+        if msg_type not in {"message", "warning", "important"}:
+            msg_type = "message"
+
+        return {
+            "ok": True,
+            "active": active,
+            "message": message,
+            "type": msg_type,
+            "updatedAt": payload.get("updatedAt"),
+            "updatedBy": payload.get("updatedBy"),
+        }
+    except Exception as e:
+        return {"ok": False, "active": False, "error": str(e)}
+
+
 def api_account_status():
     try:
         s = load_global_settings() or {}
@@ -1305,8 +1744,7 @@ def api_delete_version(data):
     if not _validate_version_string(folder):
         return {"ok": False, "error": "invalid folder format"}
 
-    base = get_base_dir()
-    clients_dir = os.path.join(base, "clients")
+    clients_dir = get_clients_dir()
     version_dir = os.path.join(clients_dir, category.lower(), folder)
     
     # Security: Verify that the resolved path is within clients_dir (prevent path traversal)
@@ -1572,8 +2010,7 @@ def api_corrupted_versions():
     try:
         corrupted = []
         
-        base_dir = get_base_dir()
-        clients_dir = os.path.join(base_dir, "clients")
+        clients_dir = get_clients_dir()
         
         if not os.path.isdir(clients_dir):
             _corrupted_versions_checked = True
@@ -2336,14 +2773,14 @@ def api_mods_install(data):
 
         provider = (data.get("provider") or "modrinth").lower()
         mod_id = data.get("mod_id")
-        mod_slug = data.get("mod_slug")
+        mod_slug = (data.get("mod_slug") or "").strip().lower()
         mod_name = data.get("mod_name", mod_slug)
         mod_loader = data.get("mod_loader")
         download_url = data.get("download_url")
-        file_name = data.get("file_name")
+        file_name = (data.get("file_name") or "").strip()
         description = data.get("description", "")
         icon_url = data.get("icon_url", "")
-        version = data.get("version", "unknown")
+        raw_version = str(data.get("version", "unknown") or "unknown").strip()
 
         if not mod_slug or not mod_loader or not download_url or not file_name:
             return {"ok": False, "error": "Missing required fields"}
@@ -2351,8 +2788,18 @@ def api_mods_install(data):
         if mod_loader.lower() not in ["fabric", "forge"]:
             return {"ok": False, "error": "Invalid mod_loader (must be fabric or forge)"}
 
-        # Version label used as subdirectory name
-        version_label = version
+        if not _validate_mod_slug(mod_slug):
+            return {"ok": False, "error": "Invalid mod_slug format"}
+
+        if not _validate_jar_filename(file_name):
+            return {"ok": False, "error": "Invalid file_name format"}
+
+        # Normalize version label before using it as a filesystem path component.
+        if len(raw_version) > MAX_VERSION_LABEL_LENGTH * 4:
+            return {"ok": False, "error": "Invalid version label"}
+        version_label = mod_manager.normalize_version_label(raw_version)
+        if not _validate_version_label(version_label):
+            return {"ok": False, "error": "Invalid version label"}
 
         # Download the mod file into mods/{loader}/{slug}/{version}/
         success = mod_manager.download_mod_file(
@@ -2368,7 +2815,7 @@ def api_mods_install(data):
 
         # Save version-level metadata
         mod_manager.save_version_metadata(mod_loader, mod_slug, version_label, {
-            "version": version,
+            "version": raw_version,
             "mod_loader": mod_loader,
             "file_name": file_name,
             "download_url": download_url,
@@ -2405,11 +2852,11 @@ def api_mods_install(data):
         if icon_url:
             mod_manager.download_mod_icon(icon_url, mod_loader, mod_slug)
 
-        print(colorize_log(f"[api] Installed mod version: {mod_name} v{version} ({mod_loader})"))
+        print(colorize_log(f"[api] Installed mod version: {mod_name} v{raw_version} ({mod_loader})"))
 
         return {
             "ok": True,
-            "message": f"Successfully installed {mod_name} v{version}"
+            "message": f"Successfully installed {mod_name} v{raw_version}"
         }
     except Exception as e:
         print(colorize_log(f"[api] Failed to install mod: {e}"))
@@ -2431,8 +2878,10 @@ def api_mods_import(data):
 
         if not mod_loader or mod_loader not in ("fabric", "forge"):
             return {"ok": False, "error": "mod_loader must be fabric or forge"}
-        if not jar_name or not jar_name.lower().endswith(".jar"):
-            return {"ok": False, "error": "A .jar file is required"}
+        if not _validate_jar_filename(jar_name):
+            return {"ok": False, "error": "A valid .jar filename is required"}
+        if not isinstance(jar_data, (bytes, bytearray)):
+            return {"ok": False, "error": "Invalid JAR file data"}
         if not jar_data or len(jar_data) == 0:
             return {"ok": False, "error": "JAR file data is empty"}
 
@@ -2498,12 +2947,21 @@ def api_mods_delete(data):
         if not isinstance(data, dict):
             return {"ok": False, "error": "Invalid request"}
 
-        mod_slug = data.get("mod_slug")
-        mod_loader = data.get("mod_loader")
+        mod_slug = (data.get("mod_slug") or "").strip().lower()
+        mod_loader = (data.get("mod_loader") or "").strip().lower()
         version_label = data.get("version_label")  # optional
 
         if not mod_slug or not mod_loader:
             return {"ok": False, "error": "Missing mod_slug or mod_loader"}
+
+        if mod_loader not in ["fabric", "forge"]:
+            return {"ok": False, "error": "Invalid mod_loader"}
+
+        if not _validate_mod_slug(mod_slug):
+            return {"ok": False, "error": "Invalid mod_slug format"}
+
+        if version_label is not None and not _validate_version_label(str(version_label)):
+            return {"ok": False, "error": "Invalid version_label"}
 
         success = mod_manager.delete_mod(mod_loader, mod_slug, version_label)
 
@@ -2524,12 +2982,18 @@ def api_mods_toggle(data):
         if not isinstance(data, dict):
             return {"ok": False, "error": "Invalid request"}
 
-        mod_slug = data.get("mod_slug")
-        mod_loader = data.get("mod_loader")
+        mod_slug = (data.get("mod_slug") or "").strip().lower()
+        mod_loader = (data.get("mod_loader") or "").strip().lower()
         disabled = bool(data.get("disabled", False))
 
         if not mod_slug or not mod_loader:
             return {"ok": False, "error": "Missing mod_slug or mod_loader"}
+
+        if mod_loader not in ["fabric", "forge"]:
+            return {"ok": False, "error": "Invalid mod_loader"}
+
+        if not _validate_mod_slug(mod_slug):
+            return {"ok": False, "error": "Invalid mod_slug format"}
 
         success = mod_manager.toggle_mod_disabled(mod_loader, mod_slug, disabled)
         if success:
@@ -2548,12 +3012,21 @@ def api_mods_set_active_version(data):
         if not isinstance(data, dict):
             return {"ok": False, "error": "Invalid request"}
 
-        mod_slug = data.get("mod_slug")
-        mod_loader = data.get("mod_loader")
+        mod_slug = (data.get("mod_slug") or "").strip().lower()
+        mod_loader = (data.get("mod_loader") or "").strip().lower()
         version_label = data.get("version_label")
 
         if not mod_slug or not mod_loader or not version_label:
             return {"ok": False, "error": "Missing mod_slug, mod_loader or version_label"}
+
+        if mod_loader not in ["fabric", "forge"]:
+            return {"ok": False, "error": "Invalid mod_loader"}
+
+        if not _validate_mod_slug(mod_slug):
+            return {"ok": False, "error": "Invalid mod_slug format"}
+
+        if not _validate_version_label(str(version_label)):
+            return {"ok": False, "error": "Invalid version_label"}
 
         success = mod_manager.set_active_version(mod_loader, mod_slug, version_label)
         if success:
@@ -2635,6 +3108,26 @@ def api_modpacks_export(data):
         if not mods_list:
             return {"ok": False, "error": "At least one mod is required"}
 
+        normalized_mods = []
+        for entry in mods_list:
+            if not isinstance(entry, dict):
+                continue
+            mod_slug = (entry.get("mod_slug") or "").strip().lower()
+            version_label = (entry.get("version_label") or "").strip()
+            if not _validate_mod_slug(mod_slug):
+                continue
+            if not _validate_version_label(version_label):
+                continue
+            normalized_mods.append({
+                "mod_slug": mod_slug,
+                "version_label": version_label,
+                "mod_name": (entry.get("mod_name") or mod_slug).strip(),
+                "disabled": bool(entry.get("disabled", False)),
+            })
+
+        if not normalized_mods:
+            return {"ok": False, "error": "No valid mods to export"}
+
         # Decode optional image
         image_data = None
         image_b64 = data.get("image_data")
@@ -2643,7 +3136,7 @@ def api_modpacks_export(data):
 
         hlmp_bytes = mod_manager.export_modpack(
             name=name, version=version, description=description,
-            mod_loader=mod_loader, mods=mods_list, image_data=image_data,
+            mod_loader=mod_loader, mods=normalized_mods, image_data=image_data,
         )
 
         return {
@@ -2675,6 +3168,36 @@ def api_modpacks_import(data):
         return {"ok": False, "error": str(e)}
 
 
+def api_modpacks_toggle_mod(data):
+    """Toggle disabled state for a specific mod entry within an installed modpack."""
+    try:
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        pack_slug = (data.get("pack_slug") or "").strip().lower()
+        mod_slug = (data.get("mod_slug") or "").strip().lower()
+        disabled = bool(data.get("disabled", False))
+
+        if not pack_slug or not mod_slug:
+            return {"ok": False, "error": "Missing pack_slug or mod_slug"}
+
+        if not _validate_modpack_slug(pack_slug):
+            return {"ok": False, "error": "Invalid pack_slug"}
+
+        if not _validate_mod_slug(mod_slug):
+            return {"ok": False, "error": "Invalid mod_slug"}
+
+        success = mod_manager.toggle_mod_in_modpack(pack_slug, mod_slug, disabled)
+        if success:
+            return {"ok": True, "disabled": disabled}
+        return {"ok": False, "error": "Mod not found in modpack"}
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to toggle mod in modpack: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
 def api_modpacks_toggle(data):
     """Toggle a modpack between enabled/disabled."""
     try:
@@ -2683,11 +3206,14 @@ def api_modpacks_toggle(data):
         if not isinstance(data, dict):
             return {"ok": False, "error": "Invalid request"}
 
-        slug = (data.get("slug") or "").strip()
+        slug = (data.get("slug") or "").strip().lower()
         disabled = bool(data.get("disabled", False))
 
         if not slug:
             return {"ok": False, "error": "Missing modpack slug"}
+
+        if not _validate_modpack_slug(slug):
+            return {"ok": False, "error": "Invalid modpack slug"}
 
         success = mod_manager.toggle_modpack(slug, disabled)
         if success:
@@ -2706,9 +3232,12 @@ def api_modpacks_delete(data):
         if not isinstance(data, dict):
             return {"ok": False, "error": "Invalid request"}
 
-        slug = (data.get("slug") or "").strip()
+        slug = (data.get("slug") or "").strip().lower()
         if not slug:
             return {"ok": False, "error": "Missing modpack slug"}
+
+        if not _validate_modpack_slug(slug):
+            return {"ok": False, "error": "Invalid modpack slug"}
 
         success = mod_manager.delete_modpack(slug)
         if success:

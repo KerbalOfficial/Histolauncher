@@ -22,27 +22,51 @@ def set_console_visible(visible: bool):
     try:
         if sys.platform.startswith("win"):
             import ctypes
+            import uuid
             kernel32 = ctypes.windll.kernel32
             user32 = ctypes.windll.user32
 
-            hwnd = kernel32.GetConsoleWindow()
-            if hwnd:
-                GWL_EXSTYLE = -20
-                WS_EX_APPWINDOW = 0x00040000
-                WS_EX_TOOLWINDOW = 0x00000080
+            SW_SHOW = 5
+            SW_HIDE = 0
+            SW_RESTORE = 9
+            GWL_EXSTYLE = -20
+            WS_EX_APPWINDOW = 0x00040000
+            WS_EX_TOOLWINDOW = 0x00000080
 
+            hwnd = 0
+            original_title = ctypes.create_unicode_buffer(1024)
+            kernel32.GetConsoleTitleW(original_title, 1024)
+
+            temp_title = f"histolauncher-{uuid.uuid4()}"
+            try:
+                kernel32.SetConsoleTitleW(temp_title)
+                time.sleep(0.05)
+                hwnd = user32.FindWindowW("CASCADIA_HOSTING_WINDOW_CLASS", temp_title)
+                if not hwnd:
+                    hwnd = user32.FindWindowW(None, temp_title)
+            finally:
+                kernel32.SetConsoleTitleW(original_title.value)
+
+            if not hwnd:
+                hwnd = kernel32.GetConsoleWindow()
+
+            if hwnd:
                 if visible:
-                    user32.ShowWindow(hwnd, 5)
+                    user32.ShowWindowAsync(hwnd, SW_RESTORE)
+                    user32.ShowWindowAsync(hwnd, SW_SHOW)
                     style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
                     style = (style & ~WS_EX_TOOLWINDOW) | WS_EX_APPWINDOW
                     user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
                 else:
-                    user32.ShowWindow(hwnd, 0)
+                    user32.ShowWindowAsync(hwnd, SW_HIDE)
                     style = user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
                     style = (style & ~WS_EX_APPWINDOW) | WS_EX_TOOLWINDOW
                     user32.SetWindowLongW(hwnd, GWL_EXSTYLE, style)
     except Exception as e:
-        print(colorize_log(f"[launcher] Console visibility error: {e}"))
+        try:
+            print(colorize_log(f"[launcher] Console visibility error: {e}"))
+        except Exception:
+            print(f"[launcher] Console visibility error: {e}")
 
 debug_flag_path = os.path.join(PROJECT_ROOT, "__debug__")
 console_should_be_visible = os.path.exists(debug_flag_path)

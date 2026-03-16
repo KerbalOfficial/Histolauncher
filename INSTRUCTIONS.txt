@@ -2,8 +2,8 @@ Thank you for installing Histolauncher! (Beta build)
 
 —————————————————————————————————————————————————————————————————————————————
 
-[NOTE]: This version (b1.3) is best tested on Windows and there seems to be
-        no future plans on adding Linux & Mac support soon.
+[NOTE]: This version (b1.3.1) is best tested on Windows and there seems to
+        be no future plans on adding Linux & Mac support soon.
         
         Although, there is hope! Soon, I might have the perfect time to add
         support for both, stay tuned!
@@ -21,12 +21,16 @@ How to get a custom skin:
 - Once you make an account, log-in and click on your profile in the top
   right, then click 'Settings'
 - Upload your custom skin (needs to be a PNG and 64x64 or 64x32 size)
+  and set the correct skin type (Classic, Slim)
 - Once successful, go to Histolauncher app, then go to Settings and switch
   the 'Account type' setting to 'Histolauncher'
 - Enter your Histolauncher account credentials and press 'Log in'
 - Successfully log-in, you should see your profile icon and name on the top
   left, the username you signed-up with will be your Minecraft username.
-- Skins will successfully load in 1.13 - 1.21.11+!
+- Skins will successfully load in 1.13 - 26.1+!
+
+NOTICE: Custom skins will only load in 1.13 - 1.20.1 if you do not install
+        the additional python package component: cryptography
 
 —————————————————————————————————————————————————————————————————————————————
 
