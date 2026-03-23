@@ -23,10 +23,19 @@
   };
   const ADD_PROFILE_OPTION = '__add_new_profile__';
   let javaRuntimes = [];
+  let javaRuntimesLoaded = false;
+  let modsPageDataLoaded = false;
   let histolauncherUsername = '';
   let localUsernameModified = false;
   const activeInstallPollers = {};
-  let visibleAvailableCount = 0;
+  const INSTALL_POLL_MS_ACTIVE = 500;
+  const INSTALL_POLL_MS_PAUSED = 1500;
+  const INSTALL_POLL_MS_BACKOFF_BASE = 800;
+  const INSTALL_POLL_MS_BACKOFF_MAX = 2000;
+  const JAVA_RUNTIME_AUTO = 'auto';
+  const JAVA_RUNTIME_PATH = '__java_path_default__';
+  let versionsAvailablePage = 1;
+  let selectedVersionCategories = [];
   const AVAILABLE_PAGE_SIZE = 30;
 
   // ---------------- DOM helpers ----------------
@@ -75,6 +84,53 @@
     if (el) el.addEventListener(type, handler);
   };
 
+  const isTruthySetting = (value) => {
+    return ['1', 'true', 'yes', 'on'].includes(String(value || '').trim().toLowerCase());
+  };
+
+  const CACHE_INIT_KEY = 'histolauncher_init_cache_v1';
+  const MAX_CACHED_REMOTE_VERSIONS = 200;
+  let initialCacheDirty = false;
+
+  const trimInitialDataForCache = (data) => {
+    if (!data || typeof data !== 'object') return data;
+    const out = { ...data };
+    if (Array.isArray(out.versions) && out.versions.length > MAX_CACHED_REMOTE_VERSIONS) {
+      out.versions = out.versions.slice(0, MAX_CACHED_REMOTE_VERSIONS);
+    }
+    return out;
+  };
+
+  const loadCachedInitialData = () => {
+    try {
+      const raw = localStorage.getItem(CACHE_INIT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const saveCachedInitialData = (data) => {
+    try {
+      const trimmed = trimInitialDataForCache(data);
+      localStorage.setItem(CACHE_INIT_KEY, JSON.stringify(trimmed));
+      initialCacheDirty = false;
+    } catch (e) {
+      // Ignore
+    }
+  };
+
+  const invalidateInitialCache = () => {
+    initialCacheDirty = true;
+    try {
+      localStorage.removeItem(CACHE_INIT_KEY);
+    } catch (e) {
+      // Ignore
+    }
+  };
+
   // ---------------- API helper ----------------
 
   const api = async (path, method = 'GET', body = null) => {
@@ -83,6 +139,12 @@
       opts.headers['Content-Type'] = 'application/json';
       opts.body = JSON.stringify(body);
     }
+
+    const normalizedMethod = String(method || 'GET').toUpperCase();
+    if (normalizedMethod !== 'GET' && String(path || '').startsWith('/api/')) {
+      invalidateInitialCache();
+    }
+
     const res = await fetch(path, opts);
     return res.json();
   };
@@ -686,8 +748,6 @@
     return [];
   };
 
-  // Build a styled info-row HTML: icon | Label: Value (parens)
-  // Mirrors the tooltip label/value/parens CSS classes used in the hover tooltips.
   const makeInfoRowHTML = (iconSrc, label, value, parens) => {
     const icon = `<img width="16px" height="16px" src="${iconSrc}"/>`;
     const lbl = `<span class="tooltip-label">${label}:</span>`;
@@ -707,6 +767,15 @@
     template.content.querySelectorAll('script').forEach((el) => el.remove());
     return template.innerHTML;
   };
+
+  const setGlobalMessageContent = (el, input) => {
+    if (!el) return;
+    el.innerHTML = sanitizeGlobalMessageHtml(input);
+  };
+
+  const DEBUG = false;
+  const debug = (...args) => { if (DEBUG) console.log.apply(console, args); };
+  const debugWarn = (...args) => { if (DEBUG) console.warn.apply(console, args); };
 
   const setHomeGlobalMessageHidden = (hidden) => {
     const box = getEl('home-global-message');
@@ -740,12 +809,12 @@
 
     const nonDismissible = normalizedType === 'important';
     if (nonDismissible) {
-      content.innerHTML = sanitizeGlobalMessageHtml(message);
+      setGlobalMessageContent(content, message);
       setHomeGlobalMessageHidden(false);
       return;
     }
 
-    content.innerHTML = sanitizeGlobalMessageHtml(message);
+    setGlobalMessageContent(content, message);
     dismissBtn.classList.remove('hidden');
     dismissBtn.onclick = () => {
       setHomeGlobalMessageHidden(true);
@@ -844,7 +913,7 @@
         const imgSrc = vData
           ? (vData.image_url ||
               (vData.installed
-                ? `clients/${vData.category}/${vData.folder}/display.png`
+                ? `/clients/${vData.category}/${vData.folder}/display.png`
                 : 'assets/images/version_placeholder.png'))
           : 'assets/images/version_placeholder.png';
         homeVersionImg.src = imgSrc;
@@ -1001,6 +1070,9 @@
     const fastDownloadEl = getEl('settings-fast-download');
     if (fastDownloadEl) fastDownloadEl.checked = settingsState.fast_download === "1";
 
+    const showThirdPartyEl = getEl('settings-show-third-party-versions');
+    if (showThirdPartyEl) showThirdPartyEl.checked = isTruthySetting(settingsState.show_third_party_versions);
+
     const accountSelect = getEl('settings-account-type');
     const connectBtn = getEl('connect-account-btn');
     const disconnectBtn = getEl('disconnect-account-btn');
@@ -1009,8 +1081,6 @@
     if (accountSelect) accountSelect.value = acctType;
     if (connectBtn) connectBtn.style.display = 'none';
     if (disconnectBtn) disconnectBtn.style.display = 'none';
-
-    await refreshJavaRuntimeOptions(false);
 
     updateHomeInfo();
     updateSettingsValidationUI();
@@ -1031,10 +1101,16 @@
     javaRuntimes = Array.isArray(res.runtimes) ? res.runtimes : [];
 
     select.innerHTML = '';
+
     const autoOpt = document.createElement('option');
-    autoOpt.value = '';
-    autoOpt.textContent = 'Auto (default Java from PATH)';
+    autoOpt.value = JAVA_RUNTIME_AUTO;
+    autoOpt.textContent = 'Auto';
     select.appendChild(autoOpt);
+
+    const pathOpt = document.createElement('option');
+    pathOpt.value = JAVA_RUNTIME_PATH;
+    pathOpt.textContent = 'Default (Java PATH)';
+    select.appendChild(pathOpt);
 
     javaRuntimes.forEach((rt) => {
       const opt = document.createElement('option');
@@ -1043,15 +1119,24 @@
       select.appendChild(opt);
     });
 
-    const selectedPath = (settingsState.java_path || res.selected_java_path || '').trim();
-    select.value = selectedPath;
+    const selectedRaw = String(settingsState.java_path || res.selected_java_path || '').trim();
+    let selectedValue = selectedRaw || JAVA_RUNTIME_PATH;
+    if (selectedValue !== JAVA_RUNTIME_AUTO && selectedValue !== JAVA_RUNTIME_PATH) {
+      selectedValue = selectedRaw;
+    }
+    select.value = selectedValue;
 
-    if (selectedPath && !javaRuntimes.some((rt) => rt.path === selectedPath)) {
+    if (
+      selectedRaw &&
+      selectedRaw !== JAVA_RUNTIME_AUTO &&
+      selectedRaw !== JAVA_RUNTIME_PATH &&
+      !javaRuntimes.some((rt) => rt.path === selectedRaw)
+    ) {
       const missingOpt = document.createElement('option');
-      missingOpt.value = selectedPath;
-      missingOpt.textContent = `[Missing] ${selectedPath}`;
+      missingOpt.value = selectedRaw;
+      missingOpt.textContent = `[Missing] ${selectedRaw}`;
       select.appendChild(missingOpt);
-      select.value = selectedPath;
+      select.value = selectedRaw;
     }
   };
 
@@ -1066,18 +1151,19 @@
   };
 
   const getFilterState = () => {
-    const sel = getEl('versions-category-select');
     const searchEl = getEl('versions-search');
-    const category = sel ? sel.value : '';
     const q = searchEl ? (searchEl.value || '').trim().toLowerCase() : '';
-    return { category, q };
+    return { categories: selectedVersionCategories.slice(), q };
   };
 
   const filterVersionsForUI = () => {
-    const { category, q } = getFilterState();
+    const { categories, q } = getFilterState();
     let list = versionsList.slice();
 
-    if (category) list = list.filter((v) => v.category === category);
+    // Only filter by category if at least one is selected
+    if (categories && categories.length > 0) {
+      list = list.filter((v) => categories.includes(v.category));
+    }
 
     if (q) {
       list = list.filter((v) => {
@@ -1101,26 +1187,69 @@
     const sel = getEl('versions-category-select');
     if (!sel) return;
 
-    sel.innerHTML = '';
+    selectedVersionCategories = selectedVersionCategories.filter((c) =>
+      categoriesList.includes(c)
+    );
 
-    const allOpt = document.createElement('option');
-    allOpt.value = '';
-    allOpt.textContent = '* All';
-    sel.appendChild(allOpt);
+    const renderCategoryOptions = () => {
+      sel.innerHTML = '';
 
-    categoriesList.forEach((c) => {
-      const opt = document.createElement('option');
-      opt.value = c;
-      opt.textContent = c;
-      sel.appendChild(opt);
-    });
+      const allOpt = document.createElement('option');
+      allOpt.value = '';
+      allOpt.textContent =
+        selectedVersionCategories.length > 0
+          ? selectedVersionCategories.join(', ')
+          : '* All';
+      sel.appendChild(allOpt);
 
-    sel.value = '';
-    sel.onchange = renderAllVersionSections;
+      const selectAllOpt = document.createElement('option');
+      selectAllOpt.value = '[SELECT ALL]';
+      selectAllOpt.textContent = '[ SELECT ALL ]';
+      sel.appendChild(selectAllOpt);
+
+      const deselectAllOpt = document.createElement('option');
+      deselectAllOpt.value = '[DESELECT ALL]';
+      deselectAllOpt.textContent = '[ DESELECT ALL ]';
+      sel.appendChild(deselectAllOpt);
+
+      categoriesList.forEach((c) => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = selectedVersionCategories.includes(c) ? `☑ ${c}` : `☐ ${c}`;
+        sel.appendChild(opt);
+      });
+
+      sel.value = '';
+    };
+
+    renderCategoryOptions();
+    sel.onchange = () => {
+      const picked = sel.value;
+      if (!picked) {
+        selectedVersionCategories = [];
+      } else if (picked === '[SELECT ALL]') {
+        selectedVersionCategories = categoriesList.slice();
+      } else if (picked === '[DESELECT ALL]') {
+        selectedVersionCategories = [];
+      } else if (selectedVersionCategories.includes(picked)) {
+        selectedVersionCategories = selectedVersionCategories.filter(
+          (c) => c !== picked
+        );
+      } else {
+        selectedVersionCategories.push(picked);
+      }
+
+      renderCategoryOptions();
+      versionsAvailablePage = 1;
+      renderAllVersionSections();
+    };
 
     const searchEl = getEl('versions-search');
     if (searchEl) {
-      searchEl.oninput = renderAllVersionSections;
+      searchEl.oninput = () => {
+        versionsAvailablePage = 1;
+        renderAllVersionSections();
+      };
     }
 
     const profileSelect = getEl('versions-profile-select');
@@ -1387,7 +1516,7 @@
         method: 'POST',
       });
       const json = await res.json().catch(() => null);
-      console.log('cancel response', json);
+      debug('cancel response', json);
 
       versionsList = versionsList.map((x) => {
         const matchesKey =
@@ -1426,7 +1555,7 @@
         method: 'POST',
       });
       const json = await res.json().catch(() => null);
-      console.log('pause response', json);
+      debug('pause response', json);
     } catch (e) {
       console.warn('pause failed', e);
     }
@@ -1439,7 +1568,7 @@
         method: 'POST',
       });
       const json = await res.json().catch(() => null);
-      console.log('resume response', json);
+      debug('resume response', json);
     } catch (e) {
       console.warn('resume failed', e);
     }
@@ -1570,47 +1699,71 @@
     }
   };
 
+  const refreshVersionsAfterTerminalInstall = async () => {
+    try {
+      const refreshed = await refreshInitialData();
+      if (!refreshed) renderAllVersionSections();
+    } catch (e) {
+      renderAllVersionSections();
+    }
+  };
+
   const startPollingForInstall = (versionKeyEncoded, vMeta) => {
     if (!versionKeyEncoded) return;
     if (activeInstallPollers[versionKeyEncoded]) return;
 
     let unknownCount = 0;
     let hadProgress = false;
+    let transientErrorCount = 0;
+
+    const scheduleNextPoll = (delayMs) => {
+      activeInstallPollers[versionKeyEncoded] = setTimeout(poll, delayMs);
+    };
 
     const poll = async () => {
       try {
         const r = await fetch(`/api/status/${versionKeyEncoded}`);
         if (!r.ok) {
-          activeInstallPollers[versionKeyEncoded] = setTimeout(poll, 300);
+          transientErrorCount += 1;
+          const retryDelay = Math.min(
+            INSTALL_POLL_MS_BACKOFF_BASE + transientErrorCount * 300,
+            INSTALL_POLL_MS_BACKOFF_MAX
+          );
+          scheduleNextPoll(retryDelay);
           return;
         }
 
         const s = await r.json();
         if (!s) {
-          activeInstallPollers[versionKeyEncoded] = setTimeout(poll, 300);
+          transientErrorCount += 1;
+          const retryDelay = Math.min(
+            INSTALL_POLL_MS_BACKOFF_BASE + transientErrorCount * 300,
+            INSTALL_POLL_MS_BACKOFF_MAX
+          );
+          scheduleNextPoll(retryDelay);
           return;
         }
 
+        transientErrorCount = 0;
         const status = s.status;
         
-        // Safety mechanism: if we had progress but now getting unknown repeatedly, stop polling
         if (status === 'unknown') {
-          if (hadProgress) {
-            unknownCount++;
-            // After 10 consecutive unknown responses, assume installation is done and stop polling
-            if (unknownCount >= 10) {
-              console.log('[poll] Installation likely complete (too many unknown responses)');
-              clearTimeout(activeInstallPollers[versionKeyEncoded]);
-              delete activeInstallPollers[versionKeyEncoded];
-              await init();
-              return;
-            }
+          unknownCount += 1;
+          if (hadProgress && unknownCount >= 8) {
+            debug('[poll] Installation likely complete (too many unknown responses)');
+            clearTimeout(activeInstallPollers[versionKeyEncoded]);
+            delete activeInstallPollers[versionKeyEncoded];
+            await refreshVersionsAfterTerminalInstall();
+            return;
           }
-          activeInstallPollers[versionKeyEncoded] = setTimeout(poll, 200);
+          const unknownDelay = Math.min(
+            INSTALL_POLL_MS_BACKOFF_BASE + (unknownCount - 1) * 300,
+            INSTALL_POLL_MS_BACKOFF_MAX
+          );
+          scheduleNextPoll(unknownDelay);
           return;
         }
         
-        // Reset unknown counter when we get valid status
         unknownCount = 0;
         if (status === 'downloading' || status === 'starting') {
           hadProgress = true;
@@ -1635,93 +1788,45 @@
           return;
         }
 
+        // Keep progress monotonic to avoid visual jitter from transient backend regressions.
+        const previousPct = Number(currentVMeta._progressOverall || 0);
+        const stablePct = Math.max(previousPct, Number(pct || 0));
+
         if (status === 'downloading' || status === 'starting') {
           currentVMeta.paused = false;
           text =
             bytesTotal > 0
-              ? `${pct}% (${mbDone.toFixed(1)} MB / ${mbTotal.toFixed(1)} MB)`
+              ? `${stablePct}% (${mbDone.toFixed(1)} MB / ${mbTotal.toFixed(1)} MB)`
               : bytesDone > 0
-              ? `${pct}% (${mbDone.toFixed(1)} MB)`
-              : `${pct}%`;
+              ? `${stablePct}% (${mbDone.toFixed(1)} MB)`
+              : `${stablePct}%`;
 
           updateVersionInListByKey(versionKeyEncoded, (x) => ({
             ...x,
             paused: false,
             _progressText: text,
-            _progressOverall: pct,
+            _progressOverall: stablePct,
           }));
 
-          updateCardProgressUI(currentVMeta, pct, text, {
+          updateCardProgressUI(currentVMeta, stablePct, text, {
             paused: false,
             statusLabel: 'Installing',
             keepInstalling: true,
           });
           
-          // Schedule next poll and return to avoid the generic updateCardProgressUI call below
-          activeInstallPollers[versionKeyEncoded] = setTimeout(poll, 200);
+          scheduleNextPoll(INSTALL_POLL_MS_ACTIVE);
           return;
         } else if (status === 'installed') {
           text = 'Installed';
           keepPolling = false;
-
-          const isImported = currentVMeta.raw?.is_imported === true;
           updateVersionInListByKey(versionKeyEncoded, (x) => ({
             ...x,
             installed: true,
             installing: false,
             _installKey: null,
             _progressOverall: 100,
-            _progressText: isImported ? 'Imported' : 'Installed',
+            _progressText: 'Installed',
           }));
-
-          renderAllVersionSections();
-
-          try {
-            const fresh = await api('/api/initial');
-            const backendInstalled = Array.isArray(fresh.installed)
-              ? fresh.installed
-              : [];
-
-            versionsList = versionsList.filter((v) => !v.installed);
-
-            backendInstalled.forEach((b) => {
-              const isImported = b.is_imported === true;
-              versionsList.push({
-                display: b.display_name || b.display || b.folder,
-                category: b.category,
-                folder: b.folder,
-                installed: true,
-                installing: false,
-                is_remote: false,
-                source: 'local',
-                image_url: b.image_url || null,
-                total_size_bytes: b.total_size_bytes || 0,
-                _progressOverall: 100,
-                _progressText: isImported ? 'Imported' : 'Installed',
-                raw: b,
-              });
-            });
-
-            categoriesList =
-              Array.isArray(fresh.categories) && fresh.categories.length > 0
-                ? fresh.categories.slice()
-                : buildCategoryListFromVersions(versionsList);
-
-            initCategoryFilter();
-            renderAllVersionSections();
-
-            if (selectedVersion) {
-              $$('.version-card').forEach((c) =>
-                c.classList.remove('selected')
-              );
-              const selCard = document.querySelector(
-                `.version-card[data-full-id="${selectedVersion}"]`
-              );
-              if (selCard) selCard.classList.add('selected');
-            }
-          } catch (e) {
-            // ignore
-          }
         } else if (status === 'failed') {
           text = 'Failed: ' + (s.message || '');
           keepPolling = false;
@@ -1733,59 +1838,6 @@
             _progressOverall: pct,
             _progressText: text,
           }));
-          
-          // Refresh backend data to update the list
-          try {
-            const fresh = await api('/api/initial');
-            const backendInstalled = Array.isArray(fresh.installed) ? fresh.installed : [];
-            const backendInstalling = Array.isArray(fresh.installing) ? fresh.installing : [];
-            const backendRemote = Array.isArray(fresh.versions) ? fresh.versions : [];
-            
-            versionsList = versionsList.filter((v) => !v.installed && !v.installing);
-            
-            backendInstalled.forEach((b) => {
-              const isImported = b.is_imported === true;
-              versionsList.push({
-                display: b.display_name || b.display || b.folder,
-                category: b.category,
-                folder: b.folder,
-                installed: true,
-                installing: false,
-                is_remote: false,
-                source: 'local',
-                image_url: b.image_url || null,
-                total_size_bytes: b.total_size_bytes || 0,
-                _progressOverall: 100,
-                _progressText: isImported ? 'Imported' : 'Installed',
-                raw: b,
-              });
-            });
-            
-            backendRemote.forEach((r) => {
-              if (!versionsList.find((v) => v.category === r.category && v.folder === r.folder)) {
-                versionsList.push({
-                  display: r.display || r.folder,
-                  category: r.category || 'Release',
-                  folder: r.folder,
-                  installed: false,
-                  installing: false,
-                  is_remote: !!r.is_remote,
-                  source: r.source || 'mojang',
-                  image_url: r.image_url || null,
-                  total_size_bytes: r.total_size_bytes,
-                });
-              }
-            });
-            
-            categoriesList = Array.isArray(fresh.categories) && fresh.categories.length > 0
-              ? fresh.categories.slice()
-              : buildCategoryListFromVersions(versionsList);
-            
-            initCategoryFilter();
-            renderAllVersionSections();
-          } catch (e) {
-            renderAllVersionSections();
-          }
         } else if (status === 'cancelled') {
           text = 'Cancelled';
           keepPolling = false;
@@ -1797,59 +1849,6 @@
             _progressOverall: pct,
             _progressText: text,
           }));
-          
-          // Refresh backend data to update the list
-          try {
-            const fresh = await api('/api/initial');
-            const backendInstalled = Array.isArray(fresh.installed) ? fresh.installed : [];
-            const backendInstalling = Array.isArray(fresh.installing) ? fresh.installing : [];
-            const backendRemote = Array.isArray(fresh.versions) ? fresh.versions : [];
-            
-            versionsList = versionsList.filter((v) => !v.installed && !v.installing);
-            
-            backendInstalled.forEach((b) => {
-              const isImported = b.is_imported === true;
-              versionsList.push({
-                display: b.display_name || b.display || b.folder,
-                category: b.category,
-                folder: b.folder,
-                installed: true,
-                installing: false,
-                is_remote: false,
-                source: 'local',
-                image_url: b.image_url || null,
-                total_size_bytes: b.total_size_bytes || 0,
-                _progressOverall: 100,
-                _progressText: isImported ? 'IMPORTED' : 'Installed',
-                raw: b,
-              });
-            });
-            
-            backendRemote.forEach((r) => {
-              if (!versionsList.find((v) => v.category === r.category && v.folder === r.folder)) {
-                versionsList.push({
-                  display: r.display || r.folder,
-                  category: r.category || 'Release',
-                  folder: r.folder,
-                  installed: false,
-                  installing: false,
-                  is_remote: !!r.is_remote,
-                  source: r.source || 'mojang',
-                  image_url: r.image_url || null,
-                  total_size_bytes: r.total_size_bytes,
-                });
-              }
-            });
-            
-            categoriesList = Array.isArray(fresh.categories) && fresh.categories.length > 0
-              ? fresh.categories.slice()
-              : buildCategoryListFromVersions(versionsList);
-            
-            initCategoryFilter();
-            renderAllVersionSections();
-          } catch (e) {
-            renderAllVersionSections();
-          }
         } else if (status === 'paused') {
           text = 'Paused';
 
@@ -1868,26 +1867,35 @@
           });
 
           keepPolling = true;
-          activeInstallPollers[versionKeyEncoded] = setTimeout(poll, 600);
+          scheduleNextPoll(INSTALL_POLL_MS_PAUSED);
           return;
         }
 
-        updateCardProgressUI(currentVMeta, pct, text, {
+        const renderPct = status === 'installed' ? 100 : pct;
+        updateCardProgressUI(currentVMeta, renderPct, text, {
           keepInstalling: keepPolling,
         });
 
         if (keepPolling) {
-          activeInstallPollers[versionKeyEncoded] = setTimeout(poll, 200);
+          scheduleNextPoll(INSTALL_POLL_MS_ACTIVE);
         } else {
           clearTimeout(activeInstallPollers[versionKeyEncoded]);
           delete activeInstallPollers[versionKeyEncoded];
+          if (status === 'installed' || status === 'failed' || status === 'cancelled') {
+            await refreshVersionsAfterTerminalInstall();
+          }
         }
       } catch (e) {
-        activeInstallPollers[versionKeyEncoded] = setTimeout(poll, 300);
+        transientErrorCount += 1;
+        const retryDelay = Math.min(
+          INSTALL_POLL_MS_BACKOFF_BASE + transientErrorCount * 300,
+          INSTALL_POLL_MS_BACKOFF_MAX
+        );
+        scheduleNextPoll(retryDelay);
       }
     };
 
-    activeInstallPollers[versionKeyEncoded] = setTimeout(poll, 200);
+    scheduleNextPoll(INSTALL_POLL_MS_ACTIVE);
   };
 
   // ---------------- Version card creation ----------------
@@ -1978,13 +1986,20 @@
               });
 
               if (res && res.ok) {
-                await init();
+                const deletedFullId = `${v.category}/${v.folder}`;
+                versionsList = versionsList.filter(
+                  (item) => `${item.category}/${item.folder}` !== deletedFullId
+                );
 
-                if (selectedVersion === `${v.category}/${v.folder}`) {
+                categoriesList = buildCategoryListFromVersions(versionsList);
+
+                if (selectedVersion === deletedFullId) {
                   selectedVersion = null;
                   selectedVersionDisplay = null;
-                  updateHomeInfo();
                 }
+
+                renderAllVersionSections();
+                updateHomeInfo();
               } else {
                 showMessageBox({
                   title: 'Error',
@@ -2519,6 +2534,7 @@
               });
 
               if (deleteResult && deleteResult.ok) {
+                invalidateInitialCache();
                 setTimeout(() => {
                   showLoaderManagementModal(v);
                 }, 500);
@@ -2563,7 +2579,12 @@
         badgeSource.className =
             'version-badge ' +
             (v.source === 'mojang' ? 'official' : 'nonofficial');
-        badgeSource.textContent = v.source === 'mojang' ? 'MOJANG' : 'PROXY';
+      badgeSource.textContent =
+        v.source === 'mojang'
+          ? 'MOJANG'
+          : v.source === 'omniarchive'
+          ? 'OMNIARCHIVE'
+          : 'PROXY';
         badgeRow.appendChild(badgeSource);
     }
 
@@ -2742,7 +2763,7 @@
       v.image_url ||
       (v.is_remote
         ? 'assets/images/version_placeholder.png'
-        : `clients/${v.category}/${v.folder}/display.png`);
+        : `/clients/${v.category}/${v.folder}/display.png`);
     img.alt = v.display || '';
     imageAttachErrorPlaceholder(img, 'assets/images/version_placeholder.png');
 
@@ -3079,7 +3100,7 @@
         
         // Send to backend using FormData (multipart/form-data encoding)
         // The browser will handle streaming large files without converting to strings
-        console.log('Sending import request with file size:', file.size);
+        debug('Sending import request with file size:', file.size);
         
         try {
           const response = await fetch('/api/versions/import', {
@@ -3151,6 +3172,7 @@
     const installedContainer = getEl('installed-versions');
     const installingContainer = getEl('installing-versions');
     const availableContainer = getEl('available-versions');
+    const versionsPagination = getEl('versions-pagination');
     const availableSection = getEl('available-section');
     const installingSection = getEl('installing-section');
 
@@ -3232,32 +3254,44 @@
     if (!availableContainer) return;
     availableContainer.innerHTML = '';
 
-    const slice = available.slice(0, visibleAvailableCount);
+    const totalAvailablePages = Math.max(1, Math.ceil(available.length / AVAILABLE_PAGE_SIZE));
+    versionsAvailablePage = Math.min(Math.max(1, versionsAvailablePage), totalAvailablePages);
+    const startIndex = (versionsAvailablePage - 1) * AVAILABLE_PAGE_SIZE;
+    const slice = available.slice(startIndex, startIndex + AVAILABLE_PAGE_SIZE);
     slice.forEach((v) => {
       const card = createVersionCard(v, 'available');
       availableContainer.appendChild(card);
     });
 
-    if (available.length > visibleAvailableCount) {
-      const loadMore = document.createElement('button');
-      loadMore.textContent = 'Load more...';
-      loadMore.style.marginTop = '20px';
-      loadMore.style.width = "100%";
-      loadMore.style.height = "60px";
-      loadMore.addEventListener('click', () => {
-        visibleAvailableCount += AVAILABLE_PAGE_SIZE;
-        renderAllVersionSections();
-      });
-      availableContainer.appendChild(loadMore);
+    if (versionsPagination) {
+      renderCommonPagination(
+        versionsPagination,
+        totalAvailablePages,
+        versionsAvailablePage,
+        (page) => {
+          versionsAvailablePage = page;
+          renderAllVersionSections();
+        }
+      );
     }
   };
 
   // ---------------- Navigation / sidebar ----------------
 
-  const showPage = (page) => {
+  const showPage = async (page) => {
     $$('.page').forEach((p) => p.classList.add('hidden'));
     const el = getEl(`page-${page}`);
     if (el) el.classList.remove('hidden');
+
+    if (page === 'settings' && !javaRuntimesLoaded) {
+      await refreshJavaRuntimeOptions(false);
+      javaRuntimesLoaded = true;
+    }
+
+    if (page === 'mods' && !modsPageDataLoaded) {
+      refreshModsPageState();
+      modsPageDataLoaded = true;
+    }
   };
 
   const initSidebar = () => {
@@ -3265,7 +3299,7 @@
     items.forEach((item) => {
       const icon = item.querySelector('.sidebar-icon');
 
-      item.addEventListener('click', () => {
+      item.addEventListener('click', async () => {
         items.forEach((i) => {
           i.classList.remove('active');
           const ic = i.querySelector('.sidebar-icon');
@@ -3279,7 +3313,7 @@
           icon.src = icon.dataset.anim;
         }
 
-        showPage(item.dataset.page);
+        await showPage(item.dataset.page);
       });
 
       if (!icon) return;
@@ -3590,10 +3624,10 @@
         
         try {
           const windowRes = await api(`/api/game_window_visible/${processId}`);
-          console.log(`[Window] Visibility check:`, windowRes);
+            debug(`[Window] Visibility check:`, windowRes);
           
           if (windowRes.ok && windowRes.visible) {
-            console.log('[Window] Game window is visible, closing overlay');
+            debug('[Window] Game window is visible, closing overlay');
             overlayClosedByWindow = true;
             const overlay = getEl('loading-overlay');
             const box = getEl('launching-box');
@@ -3603,7 +3637,7 @@
             return;
           }
         } catch (err) {
-          console.log('[Window] Could not check visibility (normal if not on Windows):', err.message);
+          debug('[Window] Could not check visibility (normal if not on Windows):', err.message);
         }
         
         if (pollAttempts < maxPollAttempts && !overlayClosedByWindow) {
@@ -3614,7 +3648,7 @@
       const pollGameStatus = async () => {
         try {
           const statusRes = await api(`/api/launch_status/${processId}`);
-          console.log(`[Polling] Attempt ${pollAttempts}, Response:`, statusRes);
+          debug(`[Polling] Attempt ${pollAttempts}, Response:`, statusRes);
           
           if (statusRes.ok && statusRes.status === 'running') {
             pollAttempts++;
@@ -3641,7 +3675,7 @@
           }
           
           // Game has exited or crashed
-          console.log('[Polling] Game has exited with status:', statusRes.status);
+          debug('[Polling] Game has exited with status:', statusRes.status);
           const overlay = getEl('loading-overlay');
           const box = getEl('launching-box');
           if (overlay) overlay.classList.add('hidden');
@@ -3681,7 +3715,7 @@
 
 
   const showCrashDialog = async (processId, logPath) => {
-    console.log(`[showCrashDialog] Minecraft crashed. logPath: ${logPath}`);
+    debug(`[showCrashDialog] Minecraft crashed. logPath: ${logPath}`);
     
     let crashDetails = '';
     
@@ -3748,7 +3782,7 @@
       }
 
       // Debug logging
-      console.log(`[viewCrashLogs] Opening crash log: ${logPath}`);
+      debug(`[viewCrashLogs] Opening crash log: ${logPath}`);
 
       // Open the log file in the system's default app
       const openRes = await api('/api/open-crash-log', 'POST', {
@@ -3864,6 +3898,14 @@
   };
 
   const initSettingsInputs = () => {
+    const saveCheckboxSettingAndReinit = async (key, checked) => {
+      const val = checked ? "1" : "0";
+      settingsState[key] = val;
+      updateHomeInfo();
+      await api('/api/settings', 'POST', { [key]: val });
+      await init();
+    };
+
     const usernameInput = getEl('settings-username');
     if (usernameInput) {
       usernameInput.addEventListener('input', (e) => {
@@ -4058,58 +4100,19 @@
                       return;
                     }
 
-                    const res = await fetch('https://accounts.histolauncher.workers.dev/api/login', {
-                      method: 'POST',
-                      credentials: 'include',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ username, password }),
+                    const loginRes = await api('/api/account/login', 'POST', {
+                      username,
+                      password,
                     });
-                    let json;
-                    try { json = await res.json(); } catch (e) { json = null; }
+                    debug('[Login] Backend login response:', loginRes);
 
-                    console.log('[Login] Response status:', res.status);
-
-                    if (res.ok && json && json.success) {
-                      console.log('[Login] Success! Session token received, verifying with launcher...');
-                      
-                      const sessionToken = json.sessionToken;
-                      if (!sessionToken) {
-                        console.error('[Login] No session token in response!');
-                        showMessageBox({ title: 'Error', message: 'No session token received. Please try again.', buttons: [{ label: 'OK' }] });
-                        if (accountSelect) accountSelect.value = 'Local';
-                        autoSaveSetting('account_type', 'Local');
-                        return;
-                      }
-
-                      // Verify session with the launcher backend (which verifies with Cloudflare)
-                      const verifyRes = await api('/api/account/verify-session', 'POST', { sessionToken });
-                      console.log('[Login] Launcher verification response:', verifyRes);
-                      
-                      if (verifyRes.ok && verifyRes.username && verifyRes.uuid) {
-                        console.log('[Login] Session verified! UUID:', verifyRes.uuid);
-                        // Only store account_type, NOT username/uuid (those come from Cloudflare via /api/account/current)
-                        settingsState.account_type = 'Histolauncher';
-                        histolauncherUsername = verifyRes.username;
-                        localUsernameModified = false;
-                        await api('/api/settings', 'POST', {
-                          account_type: 'Histolauncher'
-                          // Don't send username/uuid - those will be fetched securely from /api/account/current
-                        });
-                        // Now fetch the verified account data from backend
-                        const currentUser = await api('/api/account/current', 'GET');
-                        if (currentUser.ok && currentUser.authenticated) {
-                          settingsState.username = currentUser.username;
-                          settingsState.uuid = currentUser.uuid;
-                        }
-                        await init();
-                      } else {
-                        console.error('[Login] Launcher verification failed! Response:', verifyRes);
-                        showMessageBox({ title: 'Error', message: verifyRes.error || 'Failed to verify session. Please try again.', buttons: [{ label: 'OK' }] });
-                        if (accountSelect) accountSelect.value = 'Local';
-                        autoSaveSetting('account_type', 'Local');
-                      }
+                    if (loginRes && loginRes.ok && loginRes.username && loginRes.uuid) {
+                      settingsState.account_type = 'Histolauncher';
+                      histolauncherUsername = loginRes.username;
+                      localUsernameModified = false;
+                      await init();
                     } else {
-                      const errorMsg = (json && json.error) || `Failed to authenticate (${res.status})`;
+                      const errorMsg = (loginRes && loginRes.error) || 'Failed to authenticate';
                       console.error('[Login] Error:', errorMsg);
                       showMessageBox({ title: 'Error', message: errorMsg, buttons: [{ label: 'OK' }] });
                       if (accountSelect) accountSelect.value = 'Local';
@@ -4238,18 +4241,21 @@
     const lowDataInput = getEl('settings-low-data');
     if (lowDataInput) {
       lowDataInput.addEventListener('change', async (e) => {
-        const val = e.target.checked ? "1" : "0";
-        await api('/api/settings', 'POST', { low_data_mode: val });
-        await init();
+        await saveCheckboxSettingAndReinit('low_data_mode', e.target.checked);
       });
     }
 
     const fastDownloadInput = getEl('settings-fast-download');
     if (fastDownloadInput) {
       fastDownloadInput.addEventListener('change', async (e) => {
-        const val = e.target.checked ? "1" : "0";
-        await api('/api/settings', 'POST', { fast_download: val });
-        await init();
+        await saveCheckboxSettingAndReinit('fast_download', e.target.checked);
+      });
+    }
+
+    const showThirdPartyInput = getEl('settings-show-third-party-versions');
+    if (showThirdPartyInput) {
+      showThirdPartyInput.addEventListener('change', async (e) => {
+        await saveCheckboxSettingAndReinit('show_third_party_versions', e.target.checked);
       });
     }
   };
@@ -4336,8 +4342,8 @@
                 });
 
                 if (deleteResult.ok) {
-                  console.log(`[corrupted] Deleted ${deleteResult.deleted.length} version(s)`);
-                  await init();
+                  debug(`[corrupted] Deleted ${deleteResult.deleted.length} version(s)`);
+                  await refreshInitialData();
                 } else {
                   console.error('[corrupted] Delete failed:', deleteResult.error);
                   showMessageBox({
@@ -4385,70 +4391,8 @@
 
   // ---------------- Init ----------------
 
-  const init = async () => {
-    showLoadingOverlay();
-
-    const data = await api('/api/initial');
-
-    let localVersion = null;
-    let isOutdated = false;
-
-    visibleAvailableCount = AVAILABLE_PAGE_SIZE;
-
-    try {
-      const fetchWithTimeout = (url, ms = 5000) => {
-        const controller = new AbortController();
-        const id = setTimeout(() => controller.abort(), ms);
-        return fetch(url, { signal: controller.signal }).finally(() =>
-          clearTimeout(id)
-        );
-      };
-
-      const [lvRes, iloRes] = await Promise.allSettled([
-        fetchWithTimeout('/launcher/version.dat'),
-        fetchWithTimeout('/api/is-launcher-outdated/'),
-      ]);
-
-      if (lvRes.status === 'fulfilled' && lvRes.value && lvRes.value.ok) {
-        try {
-          localVersion = (await lvRes.value.text()).trim();
-        } catch (e) {
-          localVersion = null;
-        }
-      }
-
-      if (iloRes.status === 'fulfilled' && iloRes.value && iloRes.value.ok) {
-        try {
-          isOutdated = await iloRes.value.json();
-          isOutdated = !!isOutdated;
-        } catch (e) {
-          isOutdated = false;
-        }
-      }
-    } catch (e) {
-      localVersion = localVersion || null;
-      isOutdated = false;
-    }
-
-    try {
-      const el = getEl('sidebar-version');
-      if (el) {
-        if (localVersion) {
-          if (isOutdated) {
-            el.classList.add('outdated');
-            el.textContent = `${localVersion} (outdated)`;
-          } else {
-            el.classList.remove('outdated');
-            el.textContent = localVersion;
-          }
-        } else {
-          el.classList.remove('outdated');
-          el.textContent = 'unknown';
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
+  const applyInitialData = async (data, { fromCache = false } = {}) => {
+    if (!data || typeof data !== 'object') return;
 
     const statusEl = getEl('status');
     if (statusEl) statusEl.textContent = '';
@@ -4476,6 +4420,15 @@
     const remoteFromBackend = Array.isArray(data.versions)
       ? data.versions
       : [];
+    const sortedRemoteFromBackend = remoteFromBackend.slice().sort((a, b) => {
+      const sourceOrder = (src) => {
+        const s = String(src || '').toLowerCase();
+        if (s === 'mojang') return 0;
+        if (s === 'omniarchive') return 1;
+        return 2;
+      };
+      return sourceOrder(a.source) - sourceOrder(b.source);
+    });
 
     const normalizedInstalled = installedFromBackend.map((v) => ({
       display: v.display_name || v.display || v.folder,
@@ -4547,7 +4500,7 @@
       }
     });
     
-    remoteFromBackend.forEach((r) => {
+    sortedRemoteFromBackend.forEach((r) => {
       const cat = r.category || 'Release';
       const folder = r.folder;
       const k = mapKey(cat, folder);
@@ -4614,13 +4567,9 @@
 
     initCategoryFilter();
     renderAllVersionSections();
-    refreshModsPageState();
 
-    // After rendering, restart polling for any installing versions to ensure
-    // progress elements are properly cached from the newly rendered cards
     versionsList.forEach((v) => {
       if (v.installing && v._installKey) {
-        // Delete old poller and restart it to use new card's progress elements
         if (activeInstallPollers[v._installKey]) {
           clearTimeout(activeInstallPollers[v._installKey]);
           delete activeInstallPollers[v._installKey];
@@ -4657,6 +4606,130 @@
       updateHomeInfo();
     }
 
+    const settingsPage = getEl('page-settings');
+    const modsPage = getEl('page-mods');
+
+    if (settingsPage && !settingsPage.classList.contains('hidden') && !javaRuntimesLoaded) {
+      await refreshJavaRuntimeOptions(false);
+      javaRuntimesLoaded = true;
+    }
+
+    if (modsPage && !modsPage.classList.contains('hidden') && !modsPageDataLoaded) {
+      refreshModsPageState();
+      modsPageDataLoaded = true;
+    }
+
+    hideLoadingOverlay();
+
+    await checkForCorruptedVersions();
+  };
+
+  const refreshInitialData = async () => {
+    try {
+      const data = await api('/api/initial');
+      if (!data) return false;
+      await applyInitialData(data, { fromCache: false });
+      saveCachedInitialData(data);
+      return true;
+    } catch (e) {
+      console.error('[refreshInitialData] Failed to refresh initial data:', e);
+      return false;
+    }
+  };
+
+  const init = async () => {
+    showLoadingOverlay();
+    javaRuntimesLoaded = false;
+    modsPageDataLoaded = false;
+    versionsAvailablePage = 1;
+
+    const cachedData = initialCacheDirty ? null : loadCachedInitialData();
+    const initialDataPromise = api('/api/initial');
+
+    if (cachedData) {
+      try {
+        await applyInitialData(cachedData, { fromCache: true });
+      } catch (e) {
+        console.warn('[init] Failed to render cached data:', e);
+      }
+      hideLoadingOverlay();
+    }
+
+    let data = null;
+    try {
+      data = await initialDataPromise;
+    } catch (e) {
+      console.error('[init] Failed to fetch initial data:', e);
+    }
+
+    if (data) {
+      try {
+        await applyInitialData(data, { fromCache: false });
+        saveCachedInitialData(data);
+      } catch (e) {
+        console.error('[init] Failed to render initial data:', e);
+      }
+    }
+
+    // Refresh launcher version info in sidebar
+    let localVersion = null;
+    let isOutdated = false;
+
+    try {
+      const fetchWithTimeout = (url, ms = 5000) => {
+        const controller = new AbortController();
+        const id = setTimeout(() => controller.abort(), ms);
+        return fetch(url, { signal: controller.signal }).finally(() =>
+          clearTimeout(id)
+        );
+      };
+
+      const [lvRes, iloRes] = await Promise.allSettled([
+        fetchWithTimeout('/launcher/version.dat'),
+        fetchWithTimeout('/api/is-launcher-outdated/'),
+      ]);
+
+      if (lvRes.status === 'fulfilled' && lvRes.value && lvRes.value.ok) {
+        try {
+          localVersion = (await lvRes.value.text()).trim();
+        } catch (e) {
+          localVersion = null;
+        }
+      }
+
+      if (iloRes.status === 'fulfilled' && iloRes.value && iloRes.value.ok) {
+        try {
+          isOutdated = await iloRes.value.json();
+          isOutdated = !!isOutdated;
+        } catch (e) {
+          isOutdated = false;
+        }
+      }
+    } catch (e) {
+      localVersion = localVersion || null;
+      isOutdated = false;
+    }
+
+    try {
+      const el = getEl('sidebar-version');
+      if (el) {
+        if (localVersion) {
+          if (isOutdated) {
+            el.classList.add('outdated');
+            el.textContent = `${localVersion} (outdated)`;
+          } else {
+            el.classList.remove('outdated');
+            el.textContent = localVersion;
+          }
+        } else {
+          el.classList.remove('outdated');
+          el.textContent = 'unknown';
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
     hideLoadingOverlay();
 
     // Check for corrupted versions after UI is fully loaded
@@ -4674,7 +4747,7 @@
       }
       delete activeInstallPollers[key];
     }
-    console.log('[cleanup] Cleared all active polling timers');
+    debug('[cleanup] Cleared all active polling timers');
   };
 
   // Clean up polling timers when page unloads or refreshes
@@ -5072,37 +5145,6 @@
       updateScopeProfileDeleteButtonState('mods');
     }
 
-    const clearBtn = getEl('mods-clear-filters-btn');
-
-    if (clearBtn) {
-      clearBtn.addEventListener('click', () => {
-        modsState.provider = 'modrinth';
-        modsState.modLoader = '';
-        modsState.gameVersion = '';
-        modsState.category = '';
-        modsState.sortBy = 'relevance';
-        modsState.searchQuery = '';
-        resetModsSearch();
-
-        const providerSelect = getEl('mods-provider-select');
-        const loaderSelect = getEl('mods-loader-select');
-        const versionSelect = getEl('mods-version-select');
-        const categorySelect = getEl('mods-category-select');
-        const sortSelect = getEl('mods-sort-select');
-        const searchInput = getEl('mods-search');
-
-        if (providerSelect) providerSelect.value = 'modrinth';
-        if (loaderSelect) loaderSelect.value = '';
-        if (versionSelect) versionSelect.value = '';
-        if (categorySelect) categorySelect.value = '';
-        if (sortSelect) sortSelect.value = 'relevance';
-        if (searchInput) searchInput.value = '';
-
-        updateModsProviderDisplay();
-        searchMods();
-      });
-    }
-
     let filterTimeout;
 
     const providerSelect = getEl('mods-provider-select');
@@ -5214,7 +5256,6 @@
     }
 
     initModsViewToggle();
-    refreshModsPageState();
   };
 
   const updateModsProviderDisplay = () => {
@@ -5423,14 +5464,60 @@
     container.appendChild(group);
   };
 
-  // --- Pagination ---
-  const renderModsPagination = () => {
-    const container = getEl('mods-pagination');
+  const promptForPageJump = (current, total) => {
+    if (total <= 1) return null;
+    
+    return new Promise((resolve) => {
+      showMessageBox({
+        title: `Jump to Page`,
+        message: `Enter a page number (1-${total}):`,
+        inputs: [
+          {
+            type: 'number',
+            name: 'page',
+            placeholder: `Enter page (1-${total})`,
+            value: String(current)
+          }
+        ],
+        buttons: [
+          {
+            label: 'Go',
+            classList: ['primary'],
+            onClick: (vals) => {
+              const input = vals.page || '';
+              const page = Number.parseInt(String(input).trim(), 10);
+              if (Number.isFinite(page) && page >= 1 && page <= total) {
+                resolve(page);
+              } else {
+                resolve(null);
+              }
+            }
+          },
+          {
+            label: 'Cancel',
+            onClick: () => resolve(null)
+          }
+        ]
+      });
+    });
+  };
+
+  const buildPageItems = (current, total) => {
+    const pages = [];
+    pages.push(1);
+    if (current > 3) pages.push('...');
+    for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+      pages.push(i);
+    }
+    if (current < total - 2) pages.push('...');
+    if (total > 1) pages.push(total);
+    return pages;
+  };
+
+  const renderCommonPagination = (container, total, current, onPageChange) => {
     if (!container) return;
     container.innerHTML = '';
 
-    const total = modsState.totalPages;
-    const current = modsState.currentPage;
     if (total <= 1) return;
 
     const createPageBtn = (label, page, isActive, isDisabled) => {
@@ -5441,39 +5528,48 @@
       if (isDisabled) btn.disabled = true;
       btn.addEventListener('click', () => {
         if (page !== current && !isDisabled) {
-          modsState.currentPage = page;
-          searchMods();
+          onPageChange(page);
         }
       });
       return btn;
     };
 
-    // Previous button
     container.appendChild(createPageBtn('‹', current - 1, false, current <= 1));
 
-    // Page numbers with ellipsis
-    const pages = [];
-    pages.push(1);
-    if (current > 3) pages.push('...');
-    for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
-      pages.push(i);
-    }
-    if (current < total - 2) pages.push('...');
-    if (total > 1) pages.push(total);
-
+    const pages = buildPageItems(current, total);
     pages.forEach((p) => {
       if (p === '...') {
-        const ellipsis = document.createElement('span');
-        ellipsis.className = 'mods-page-ellipsis';
-        ellipsis.textContent = '...';
-        container.appendChild(ellipsis);
+        const ellipsisBtn = document.createElement('button');
+        ellipsisBtn.type = 'button';
+        ellipsisBtn.className = 'mods-page-ellipsis mods-page-ellipsis-btn';
+        ellipsisBtn.textContent = '...';
+        ellipsisBtn.title = 'Jump to page';
+        ellipsisBtn.addEventListener('click', async () => {
+          const targetPage = await promptForPageJump(current, total);
+          if (targetPage && targetPage !== current) {
+            onPageChange(targetPage);
+          }
+        });
+        container.appendChild(ellipsisBtn);
       } else {
         container.appendChild(createPageBtn(String(p), p, p === current, false));
       }
     });
 
-    // Next button
     container.appendChild(createPageBtn('›', current + 1, false, current >= total));
+  };
+
+  // --- Pagination ---
+  const renderModsPagination = () => {
+    const container = getEl('mods-pagination');
+    if (!container) return;
+
+    const total = modsState.totalPages;
+    const current = modsState.currentPage;
+    renderCommonPagination(container, total, current, (page) => {
+      modsState.currentPage = page;
+      searchMods();
+    });
   };
 
   // --- Installed Mods (Fabric / Forge sections) ---
@@ -6894,7 +6990,7 @@
 
       const cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.checked = true;
+      cb.checked = false;
 
       const disabledWrap = document.createElement('label');
       disabledWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:#9ca3af;white-space:nowrap;';
@@ -7090,53 +7186,97 @@
                 mod_loader: modLoader,
                 mods: selectedMods,
                 image_data: imageBase64 || null,
+                save_to_disk: true,
               });
 
-              if (res && res.ok && res.hlmp_data) {
-                const fileName = res.filename || `${packName}.hlmp`;
-                const bytes = Uint8Array.from(atob(res.hlmp_data), c => c.charCodeAt(0));
-                const blob = new Blob([bytes], { type: 'application/octet-stream' });
-
-                // Use showSaveFilePicker for a native Save As dialog if available
-                if (window.showSaveFilePicker) {
-                  try {
-                    const fileHandle = await window.showSaveFilePicker({
-                      suggestedName: fileName,
-                      types: [{
-                        description: 'Histolauncher Modpack (.hlmp)',
-                        accept: { 'application/octet-stream': ['.hlmp'] },
-                      }],
-                    });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
-                  } catch (saveErr) {
-                    // User cancelled the dialog — do nothing
-                    if (saveErr.name !== 'AbortError') console.error('Save failed:', saveErr);
-                    hideLoadingOverlay();
-                    return;
-                  }
-                } else {
-                  // Fallback: browser auto-download to default Downloads folder
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = fileName;
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
-                  URL.revokeObjectURL(url);
+              if (res && res.ok) {
+                if (res.filepath) {
+                  hideLoadingOverlay();
+                  const fileSize = Number(res.size_bytes || 0);
+                  const fileSizeMb = fileSize > 0 ? (fileSize / (1024 * 1024)).toFixed(2) : null;
+                  showMessageBox({
+                    title: 'Export Successful',
+                    message: fileSizeMb
+                      ? `Modpack <b>${packName}</b> exported successfully.<br><br>Saved to:<br><b>${res.filepath}</b><br><br>File size: <b>${fileSizeMb} MB</b>`
+                      : `Modpack <b>${packName}</b> exported successfully.<br><br>Saved to:<br><b>${res.filepath}</b>`,
+                    buttons: [{ label: 'OK' }],
+                  });
+                  return;
                 }
 
-                hideLoadingOverlay();
+                if (res.hlmp_data) {
+                  const fileName = res.filename || `${packName}.hlmp`;
+                  const bytes = Uint8Array.from(atob(res.hlmp_data), (c) => c.charCodeAt(0));
+                  const blob = new Blob([bytes], { type: 'application/octet-stream' });
+                  let savedLabel = '';
 
+                  if (window.showSaveFilePicker) {
+                    try {
+                      const fileHandle = await window.showSaveFilePicker({
+                        suggestedName: fileName,
+                        types: [{
+                          description: 'Histolauncher Modpack (.hlmp)',
+                          accept: { 'application/octet-stream': ['.hlmp'] },
+                        }],
+                      });
+                      const writable = await fileHandle.createWritable();
+                      await writable.write(blob);
+                      await writable.close();
+                      savedLabel = fileName;
+                    } catch (saveErr) {
+                      if (saveErr && saveErr.name === 'AbortError') {
+                        hideLoadingOverlay();
+                        showMessageBox({
+                          title: 'Export Cancelled',
+                          message: 'You cancelled the export.',
+                          buttons: [{ label: 'OK' }],
+                        });
+                        return;
+                      }
+                      console.error('Save dialog failed, falling back to download:', saveErr);
+                    }
+                  }
+
+                  if (!savedLabel) {
+                    try {
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = fileName;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      URL.revokeObjectURL(url);
+                      savedLabel = `Downloads/${fileName}`;
+                    } catch (downloadErr) {
+                      hideLoadingOverlay();
+                      showMessageBox({
+                        title: 'Export Error',
+                        message: `Failed to save exported file.<br><br>${(downloadErr && downloadErr.message) || 'Unknown save error'}`,
+                        buttons: [{ label: 'OK' }],
+                      });
+                      return;
+                    }
+                  }
+
+                  hideLoadingOverlay();
+                  showMessageBox({
+                    title: 'Export Successful',
+                    message: `Modpack <b>${packName}</b> exported successfully.<br><br>Saved as:<br><b>${savedLabel}</b>`,
+                    buttons: [{ label: 'OK' }],
+                  });
+                  return;
+                }
+              }
+
+              hideLoadingOverlay();
+              if (res && (res.cancelled || String(res.error || '').toLowerCase().includes('cancelled'))) {
                 showMessageBox({
-                  title: 'Export Successful',
-                  message: `Modpack <b>${packName}</b> exported successfully.`,
+                  title: 'Export Cancelled',
+                  message: 'You cancelled the export.',
                   buttons: [{ label: 'OK' }],
                 });
               } else {
-                hideLoadingOverlay();
                 showMessageBox({
                   title: 'Export Error',
                   message: (res && res.error) || 'Failed to export modpack.',
@@ -7148,7 +7288,7 @@
               console.error('Failed to export modpack:', err);
               showMessageBox({
                 title: 'Export Error',
-                message: 'Network error while exporting modpack.',
+                message: `Export failed:<br><br>${(err && err.message) || 'Network or server error while exporting modpack.'}`,
                 buttons: [{ label: 'OK' }],
               });
             }

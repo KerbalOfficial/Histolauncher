@@ -5,6 +5,8 @@ import time
 
 from core.settings import get_base_dir, get_versions_profile_dir
 
+
+
 _CACHE = None
 _CACHE_TS = 0
 _CACHE_TTL = 2.0
@@ -29,20 +31,7 @@ def _read_data_ini(path):
     return cfg
 
 
-def _normalize_category_name(name: str) -> str:
-    n = (name or "").strip()
-    if not n:
-        return ""
-    return n[0].upper() + n[1:].lower()
-
-
 def _scan_loaders_in_version(version_path: str) -> dict:
-    """
-    Scan installed loaders in a version directory.
-    
-    Returns: {"fabric": [list of loader dicts], "forge": [list of loader dicts]}
-    where each loader dict has keys: type, version, folder (path to loader dir)
-    """
     loaders_dir = os.path.join(version_path, "loaders")
     result = {"fabric": [], "forge": []}
     
@@ -55,13 +44,11 @@ def _scan_loaders_in_version(version_path: str) -> dict:
             if not os.path.isdir(type_dir):
                 continue
             
-            # List subdirectories (versions) inside the loader type folder
             for version_folder in os.listdir(type_dir):
                 version_path_full = os.path.join(type_dir, version_folder)
                 if not os.path.isdir(version_path_full):
                     continue
                 
-                # Look for JAR files
                 jars = [f for f in os.listdir(version_path_full) if f.endswith(".jar")]
                 if jars:
                     result[loader_type].append({
@@ -74,7 +61,6 @@ def _scan_loaders_in_version(version_path: str) -> dict:
         pass
     
     return result
-
 
 
 def _scan_once():
@@ -90,7 +76,7 @@ def _scan_once():
         if not os.path.isdir(cat_path):
             continue
 
-        category = _normalize_category_name(raw_category)
+        category = raw_category.strip()
         versions = results.setdefault(category, [])
 
         for version in sorted(os.listdir(cat_path)):
@@ -126,10 +112,7 @@ def _scan_once():
                         msg = msg[1:-1]
                     launch_disabled_message = msg
 
-            # Scan installed loaders for this version
             installed_loaders = _scan_loaders_in_version(vpath)
-
-            # Check if this version is imported
             is_imported = meta.get("imported", "").lower() == "true"
 
             versions.append({
@@ -166,16 +149,6 @@ def scan_categories(force_refresh=False):
 
 
 def get_version_loaders(category: str, folder: str) -> dict:
-    """
-    Get installed loaders for a specific version.
-    
-    Args:
-        category: Version category (e.g., "Release")
-        folder: Version folder name (e.g., "1.20.2")
-    
-    Returns:
-        Dict with keys "fabric" and "forge", each containing list of installed loaders
-    """
     categories = scan_categories()
     versions = categories.get(category, [])
     
@@ -187,17 +160,11 @@ def get_version_loaders(category: str, folder: str) -> dict:
 
 
 def get_loaders_dir(category: str, folder: str) -> str:
-    """
-    Get the path to loaders directory for a specific version.
-    """
     clients_dir = get_clients_dir()
     return os.path.join(clients_dir, category.lower(), folder, "loaders")
 
 
 def ensure_loaders_dir(category: str, folder: str) -> str:
-    """
-    Ensure loaders directory exists for a version. Returns the path.
-    """
     loaders_dir = get_loaders_dir(category, folder)
     os.makedirs(loaders_dir, exist_ok=True)
     return loaders_dir

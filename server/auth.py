@@ -46,6 +46,42 @@ def _make_request(method: str, endpoint: str, body: Optional[str] = None, use_pr
         return 500, {"error": str(e)}
 
 
+def login_with_session(username: str, password: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    body = json.dumps({"username": username, "password": password})
+    endpoint = "/api/login"
+
+    def _attempt(use_proxy: bool) -> Tuple[bool, Optional[str], Optional[str], int]:
+        status, data = _make_request("POST", endpoint, body, use_proxy=use_proxy)
+        if status == 200 and data and data.get("success"):
+            session_token = str(data.get("sessionToken") or "").strip()
+            if session_token:
+                return True, session_token, None, status
+            return False, None, "No session token returned", status
+
+        error = "Invalid credentials"
+        if data and data.get("error"):
+            error = str(data["error"])
+        elif status >= 500:
+            error = "Server error"
+        elif status == 429:
+            error = "Too many login attempts"
+
+        return False, None, error, status
+
+    ok, session_token, error, status = _attempt(use_proxy=True)
+    if ok:
+        return True, session_token, None
+
+    proxied_url = _apply_url_proxy(ACCOUNT_API_URL + endpoint)
+    if proxied_url != ACCOUNT_API_URL + endpoint and status not in (401, 403):
+        ok2, session_token2, error2, _ = _attempt(use_proxy=False)
+        if ok2:
+            return True, session_token2, None
+        return False, None, error2
+
+    return False, None, error
+
+
 def login(username: str, password: str) -> Tuple[bool, Optional[str], Optional[str]]:
     body = json.dumps({"username": username, "password": password})
     status, data = _make_request("POST", "/api/login", body)
@@ -110,6 +146,11 @@ def get_user_info(session_token: str) -> Tuple[bool, Optional[Dict], Optional[st
                         "uuid": data.get("uuid"),
                         "username": data.get("username")
                     }
+                    try:
+                        from core.settings import save_cached_account_identity
+                        save_cached_account_identity(user_data)
+                    except Exception:
+                        pass
                     return True, user_data, None, status
                 return False, None, data.get("error", "Failed to get user info"), status
         except urllib.error.HTTPError as e:
@@ -156,13 +197,25 @@ def logout(session_token: str) -> bool:
 
 
 def get_verified_account() -> Tuple[bool, Optional[Dict], Optional[str]]:
-    from core.settings import load_account_token
+    from core.settings import load_account_token, load_cached_account_identity
     
     session_token = load_account_token()
     if not session_token:
         return False, None, "Not logged in"
-    
-    return get_user_info(session_token)
+
+    success, user_data, error = get_user_info(session_token)
+    if success:
+        return True, user_data, None
+
+    err = str(error or "").lower()
+    if "session expired" in err or "not logged in" in err or "unauthorized" in err:
+        return False, None, error
+
+    cached = load_cached_account_identity()
+    if cached:
+        return True, cached, None
+
+    return False, None, error
 
 
 def get_launcher_message() -> Tuple[bool, Optional[Dict], Optional[str]]:

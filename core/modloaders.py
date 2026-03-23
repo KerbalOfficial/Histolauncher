@@ -8,9 +8,9 @@ import time
 import xml.etree.ElementTree as ET
 import os
 
-from typing import Dict, List, Optional, Tuple, Any
-from core.settings import load_global_settings, _apply_url_proxy
-from core.logger import colorize_log
+from typing         import Dict, List, Optional, Tuple, Any
+from core.settings  import _apply_url_proxy
+from core.logger    import colorize_log
 
 FABRIC_META_API = "https://meta.fabricmc.net/v2"
 FORGE_MAVEN_METADATA_API = "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml"
@@ -247,8 +247,6 @@ def get_forge_artifact_urls(mc_version: str, forge_version: str) -> List[str]:
             return False
 
     if _is_pre_1_6(mc_version):
-        # Legacy Forge (1.5.x and below) generally ships universal/client
-        # artifacts instead of installer jars.
         candidates = [
             f"{maven_root}/forge-{base}-universal.zip",
             f"{maven_root}/forge-{base}-universal.jar",
@@ -256,7 +254,6 @@ def get_forge_artifact_urls(mc_version: str, forge_version: str) -> List[str]:
             f"{maven_root}/minecraftforge-universal-{base}.zip",
             f"{maven_root}/minecraftforge-universal-{base}.jar",
             f"{maven_root}/minecraftforge-client-{base}.zip",
-            # Keep installer last as a rare fallback.
             f"{maven_root}/forge-{base}-installer.jar",
         ]
     else:

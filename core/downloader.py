@@ -11,20 +11,21 @@ import urllib.parse
 import urllib.request
 import zipfile
 import tempfile
+import re
 import traceback
 import subprocess
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from concurrent.futures     import ThreadPoolExecutor, as_completed
+from typing                 import Any, Callable, Dict, List, Optional, Tuple
 
-from core.settings import _apply_url_proxy, get_base_dir, load_global_settings
-from core import manifest as core_manifest
-from core.libraries.plyer import notification
-from core.logger import colorize_log
+from core.settings          import _apply_url_proxy, get_base_dir, get_versions_profile_dir, load_global_settings
+from core                   import manifest
+from core.libraries.plyer   import notification
+from core.logger            import colorize_log
+from core.zip_utils         import safe_extract_zip
 
 BASE_DIR = get_base_dir()
 
-DOWNLOAD_DIR = os.path.join(BASE_DIR, "clients")
 PROGRESS_DIR = os.path.join(BASE_DIR, "cache", "progress")
 CACHE_LIBRARIES_DIR = os.path.join(BASE_DIR, "cache", "libraries")
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
@@ -228,7 +229,7 @@ STAGE_WEIGHTS = {
 
 
 def ensure_dirs() -> None:
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    os.makedirs(get_versions_profile_dir(), exist_ok=True)
     os.makedirs(PROGRESS_DIR, exist_ok=True)
     os.makedirs(CACHE_LIBRARIES_DIR, exist_ok=True)
     os.makedirs(ASSETS_DIR, exist_ok=True)
@@ -431,12 +432,21 @@ def download_file(
 ) -> None:
     _maybe_abort(version_key)
 
-    url = _apply_url_proxy(url)
+    original_url = str(url or "").strip()
+    proxied_url = _apply_url_proxy(original_url)
+    url_candidates: List[str] = []
+    if proxied_url:
+        url_candidates.append(proxied_url)
+    if original_url and original_url not in url_candidates:
+        url_candidates.append(original_url)
+    if not url_candidates:
+        raise RuntimeError("download url is empty")
+
     os.makedirs(os.path.dirname(dest_path), exist_ok=True)
 
     file_lock = _get_file_lock(dest_path)
 
-    print(colorize_log(f"[download] Starting: {url} -> {dest_path}"))
+    print(colorize_log(f"[download] Starting: {url_candidates[0]} -> {dest_path}"))
     last_err: Optional[Exception] = None
 
     with file_lock:
@@ -444,60 +454,64 @@ def download_file(
             print(colorize_log(f"[download] File already exists: {dest_path}"))
             return
 
-        for attempt in range(1, retries + 1):
-            tmp_path = dest_path + ".part"
-            try:
-                req = urllib.request.Request(url, headers={"User-Agent": "Histolauncher"})
-                with urllib.request.urlopen(req) as resp:
-                    total = getattr(resp, "length", None)
-                    if total is None:
-                        try:
-                            total = int(resp.headers.get("Content-Length") or 0) or None
-                        except Exception:
-                            total = None
+        for candidate_idx, candidate_url in enumerate(url_candidates, start=1):
+            if candidate_idx > 1:
+                print(colorize_log(f"[download] Falling back to alternate URL: {candidate_url}"))
 
-                    downloaded = 0
+            for attempt in range(1, retries + 1):
+                tmp_path = dest_path + ".part"
+                try:
+                    req = urllib.request.Request(candidate_url, headers={"User-Agent": "Histolauncher"})
+                    with urllib.request.urlopen(req) as resp:
+                        total = getattr(resp, "length", None)
+                        if total is None:
+                            try:
+                                total = int(resp.headers.get("Content-Length") or 0) or None
+                            except Exception:
+                                total = None
 
-                    with open(tmp_path, "wb") as f:
-                        while True:
-                            _maybe_abort(version_key)
-                            chunk = resp.read(DOWNLOAD_CHUNK_SIZE)
-                            if not chunk:
-                                break
-                            f.write(chunk)
-                            downloaded += len(chunk)
-                            if progress_cb:
-                                progress_cb(downloaded, total)
+                        downloaded = 0
 
-                if expected_sha1:
-                    actual = _sha1_file(tmp_path)
-                    if actual.lower() != expected_sha1.lower():
+                        with open(tmp_path, "wb") as f:
+                            while True:
+                                _maybe_abort(version_key)
+                                chunk = resp.read(DOWNLOAD_CHUNK_SIZE)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                if progress_cb:
+                                    progress_cb(downloaded, total)
+
+                    if expected_sha1:
+                        actual = _sha1_file(tmp_path)
+                        if actual.lower() != expected_sha1.lower():
+                            _safe_remove_file(tmp_path)
+                            raise ValueError(
+                                f"SHA1 mismatch for {dest_path}: expected {expected_sha1}, got {actual}"
+                            )
+
+                    if os.path.exists(dest_path):
                         _safe_remove_file(tmp_path)
-                        raise ValueError(
-                            f"SHA1 mismatch for {dest_path}: expected {expected_sha1}, got {actual}"
-                        )
+                        print(colorize_log(f"[download] File was downloaded by another thread: {dest_path}"))
+                        return
 
-                if os.path.exists(dest_path):
-                    _safe_remove_file(tmp_path)
-                    print(colorize_log(f"[download] File was downloaded by another thread: {dest_path}"))
+                    if os.path.exists(dest_path):
+                        _safe_remove_file(dest_path)
+                    os.rename(tmp_path, dest_path)
+                    print(colorize_log(f"[download] Completed: {dest_path}"))
+
+                    if __name__ != "__main__":
+                        _cleanup_file_locks()
+
                     return
+                except Exception as e:
+                    last_err = e
+                    print(colorize_log(f"[download] Error on attempt {attempt}/{retries} for {candidate_url}: {e}"))
+                    _safe_remove_file(tmp_path)
+                    _maybe_abort(version_key)
 
-                if os.path.exists(dest_path):
-                    _safe_remove_file(dest_path)
-                os.rename(tmp_path, dest_path)
-                print(colorize_log(f"[download] Completed: {dest_path}"))
-                
-                if __name__ != "__main__":
-                    _cleanup_file_locks()
-                
-                return
-            except Exception as e:
-                last_err = e
-                print(colorize_log(f"[download] Error on attempt {attempt}/{retries} for {url}: {e}"))
-                _safe_remove_file(tmp_path)
-                _maybe_abort(version_key)
-
-    raise last_err or RuntimeError(f"Failed to download {url}")
+    raise last_err or RuntimeError(f"Failed to download {original_url}")
 
 
 
@@ -585,6 +599,198 @@ def _extract_extra_args(vjson: Dict[str, Any]) -> Optional[str]:
         return legacy.strip()
 
     return None
+
+
+def _artifact_from_legacy_library_entry(lib: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not isinstance(lib, dict):
+        return None
+
+    name = str(lib.get("name") or "").strip()
+    if not name or ":" not in name:
+        return None
+
+    parts = name.split(":")
+    if len(parts) < 3:
+        return None
+
+    group, artifact, version = parts[0], parts[1], parts[2]
+    classifier = parts[3] if len(parts) >= 4 else ""
+
+    group_path = group.replace(".", "/")
+    file_base = f"{artifact}-{version}"
+    if classifier:
+        file_base += f"-{classifier}"
+    file_name = f"{file_base}.jar"
+    rel_path = f"{group_path}/{artifact}/{version}/{file_name}"
+
+    base_url = str(lib.get("url") or "https://libraries.minecraft.net/").strip()
+    if not base_url:
+        base_url = "https://libraries.minecraft.net/"
+    if not base_url.endswith("/"):
+        base_url += "/"
+
+    return {
+        "path": rel_path,
+        "url": base_url + rel_path,
+        "sha1": lib.get("sha1") or None,
+        "size": int(lib.get("size") or 0),
+    }
+
+
+def _resolve_library_artifact(lib: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    downloads = (lib or {}).get("downloads") or {}
+    artifact = downloads.get("artifact")
+    if isinstance(artifact, dict) and artifact.get("path") and artifact.get("url"):
+        return artifact
+
+    # Some entries only provide native classifiers and no base artifact JAR.
+    # Do not fabricate a base artifact URL for those, as it usually 404s.
+    classifiers = downloads.get("classifiers") or {}
+    if classifiers and not artifact:
+        return None
+
+    return _artifact_from_legacy_library_entry(lib)
+
+
+def _is_legacy_launchwrapper_family(version_id: str) -> bool:
+    v = str(version_id or "").strip().lower()
+    return bool(re.match(r'^(?:b1|a1|c0|inf-|in-|rd-)', v))
+
+
+def _ensure_legacy_launchwrapper(version_id: str, version_dir: str, copied_lib_basenames: List[str], version_key: str) -> None:
+    if not _is_legacy_launchwrapper_family(version_id):
+        return
+
+    preferred = {
+        "url": "https://libraries.minecraft.net/net/minecraft/launchwrapper/1.6/launchwrapper-1.6.jar",
+        "path": "net/minecraft/launchwrapper/1.6/launchwrapper-1.6.jar",
+    }
+    fallback = {
+        "url": "https://libraries.minecraft.net/net/minecraft/launchwrapper/1.5/launchwrapper-1.5.jar",
+        "path": "net/minecraft/launchwrapper/1.5/launchwrapper-1.5.jar",
+    }
+
+    companions = [
+        {
+            "url": "https://libraries.minecraft.net/net/sf/jopt-simple/jopt-simple/4.5/jopt-simple-4.5.jar",
+            "path": "net/sf/jopt-simple/jopt-simple/4.5/jopt-simple-4.5.jar",
+            "required": True,
+        },
+        {
+            "url": "https://libraries.minecraft.net/org/ow2/asm/asm-all/4.1/asm-all-4.1.jar",
+            "path": "org/ow2/asm/asm-all/4.1/asm-all-4.1.jar",
+            "required": True,
+        },
+    ]
+
+    def _seed_runtime_jar(runtime: Dict[str, Any]) -> bool:
+        rel_path = runtime["path"]
+        base_name = os.path.basename(rel_path)
+        cache_path = os.path.join(CACHE_LIBRARIES_DIR, rel_path)
+        dest_path = os.path.join(version_dir, base_name)
+        already_names = {str(x).strip().lower() for x in copied_lib_basenames if str(x).strip()}
+
+        if base_name.lower() in already_names:
+            return True
+
+        if os.path.isfile(dest_path):
+            copied_lib_basenames.append(base_name)
+            return True
+
+        try:
+            print(colorize_log(f"[install] Ensuring legacy runtime dependency: {base_name}"))
+            download_file(
+                runtime["url"],
+                cache_path,
+                expected_sha1=None,
+                progress_cb=None,
+                version_key=version_key,
+            )
+
+            if os.path.abspath(cache_path) != os.path.abspath(dest_path):
+                with open(cache_path, "rb") as src, open(dest_path, "wb") as dst:
+                    while True:
+                        _maybe_abort(version_key)
+                        chunk = src.read(DOWNLOAD_CHUNK_SIZE)
+                        if not chunk:
+                            break
+                        dst.write(chunk)
+
+            copied_lib_basenames.append(base_name)
+            print(colorize_log(f"[install] Added legacy runtime dependency: {base_name}"))
+            return True
+        except Exception as e:
+            print(colorize_log(f"[install] Failed to fetch {base_name}: {e}"))
+            return False
+
+    # Ensure LaunchWrapper itself (prefer 1.6, fallback 1.5).
+    lw_ok = False
+    for candidate in (preferred, fallback):
+        if _seed_runtime_jar(candidate):
+            lw_ok = True
+            break
+
+    if not lw_ok:
+        raise RuntimeError("Could not download LaunchWrapper runtime (tried 1.6 and 1.5)")
+
+    # Ensure required companions for LaunchWrapper bootstrap.
+    for dep in companions:
+        ok = _seed_runtime_jar(dep)
+        if not ok and dep.get("required"):
+            raise RuntimeError(f"Could not download required legacy dependency: {os.path.basename(dep['path'])}")
+
+
+def _infer_main_class_from_client_jar(client_jar_path: str, version_id: str = "") -> str:
+    default_main = "net.minecraft.client.Minecraft"
+
+    if not client_jar_path or not os.path.isfile(client_jar_path):
+        return default_main
+
+    try:
+        with zipfile.ZipFile(client_jar_path, "r") as jf:
+            entries = set(jf.namelist())
+
+            # Prefer explicit Main-Class if present.
+            if "META-INF/MANIFEST.MF" in entries:
+                try:
+                    mf = jf.read("META-INF/MANIFEST.MF").decode("utf-8", errors="ignore")
+                    for line in mf.splitlines():
+                        if line.startswith("Main-Class:"):
+                            manifest_main = line.split(":", 1)[1].strip()
+                            if manifest_main:
+                                return manifest_main
+                except Exception:
+                    pass
+
+            def _has(class_name: str) -> bool:
+                return class_name.replace(".", "/") + ".class" in entries
+
+            # Very old builds are often applet-based.
+            legacy_hint = bool(re.match(r"^(?:b1|a1|c0|inf-|in-|rd-)", str(version_id or "").lower()))
+            if legacy_hint:
+                for candidate in (
+                    "net.minecraft.client.MinecraftApplet",
+                    "com.mojang.minecraft.MinecraftApplet",
+                    "net.minecraft.client.Minecraft",
+                    "com.mojang.minecraft.Minecraft",
+                ):
+                    if _has(candidate):
+                        return candidate
+
+            # General fallback order.
+            for candidate in (
+                "net.minecraft.client.main.Main",
+                "net.minecraft.client.Minecraft",
+                "net.minecraft.client.MinecraftApplet",
+                "com.mojang.minecraft.Minecraft",
+                "com.mojang.minecraft.MinecraftApplet",
+            ):
+                if _has(candidate):
+                    return candidate
+    except Exception:
+        pass
+
+    return default_main
 
 
 def _choose_asset_threads() -> int:
@@ -690,10 +896,10 @@ def _compute_total_size(
 
     libs = vjson.get("libraries") or []
     for lib in libs:
-        downloads = lib.get("downloads") or {}
-        artifact = downloads.get("artifact")
+        artifact = _resolve_library_artifact(lib)
         if artifact:
             total += int(artifact.get("size") or 0)
+        downloads = lib.get("downloads") or {}
         classifiers = downloads.get("classifiers") or {}
         for nat in classifiers.values():
             total += int(nat.get("size") or 0)
@@ -730,26 +936,53 @@ def _wiki_image_url(version_id: str, version_type: str) -> Optional[str]:
     settings = load_global_settings()
     low_data = settings.get("low_data_mode") == "1"
     pixel_res = round(260/(2 if low_data else 1))
+    version_id_str = str(version_id or "")
 
-    t = (version_type or "").lower()
-    if t == "release" or t == "snapshot":
-        prefix = "Java_Edition_"
-        clean_id = version_id \
-            .replace("-", "_") \
-            .replace("pre", "Pre-Release_") \
-            .replace("rc", "Release_Candidate_") \
-            .replace("snapshot", "Snapshot")
-    elif t == "old_beta":
+    prefix = "Java_Edition_"
+    clean_id = version_id_str
+
+    lid = version_id_str.lower()
+    if lid.startswith("combat"):
+        version_num = int(re.search(r"(\d)(?!.*\d)", version_id_str).group(1))
+        if version_num <= 6:
+            prefix = "Release_"
+        clean_id = f"Combat_Test_{version_id_str[6:]}"
+        if version_num == 1:
+            prefix = "Release_1.14.3_"
+            clean_id = "Combat_Test"
+    elif lid.startswith("13w12~"):
+        clean_id = version_id_str[:6]
+    elif lid.startswith("1.5-pre"):
+        clean_id = version_id_str.replace("-pre", "")
+    elif lid == "1.0":
+        clean_id = "1.0.0"
+    elif lid.startswith("inf-"):
+        prefix = "Infdev_"
+        clean_id = version_id_str[4:12] + "_menu"
+    elif lid.startswith("in-"):
+        prefix = "Indev_"
+        clean_id = version_id_str[3:11] + "_menu"
+    elif lid.startswith("a1"):
+        prefix = "Alpha_v"
+        clean_id = (version_id_str[1:] if version_id_str.startswith("a") else version_id_str) + "_menu"
+    elif lid.startswith("b1"):
         prefix = "Beta_"
-        clean_id = (version_id[1:] if version_id.startswith("b") else version_id) + "_menu"
-    elif t == "old_alpha":
-        if version_id.startswith("i"):
-            prefix = "Infdev_"
-            clean_id = version_id[4:] + "_menu"
-        else:
-            prefix = "Alpha_v"
-            clean_id = (version_id[1:] if version_id.startswith("a") else version_id) + "_menu"
-    else: return None
+        clean_id = (version_id_str[1:] if version_id_str.startswith("b") else version_id_str) + "_menu"
+    elif lid.startswith("c0"):
+        prefix = "Classic_"
+        clean_id = version_id_str[1:]
+    
+    clean_id = clean_id \
+        .replace("-", "_") \
+        .replace("pre_", "Pre-Release_") \
+        .replace("pre", "Pre-Release_") \
+        .replace("rc_", "Release_Candidate_") \
+        .replace("rc", "Release_Candidate_") \
+        .replace("snapshot", "Snapshot") \
+        .replace("_unobf", "") \
+        .replace("_whitelinefix", "") \
+        .replace("_whitetexturefix", "") \
+        .replace("_tominecon", "")
 
     return f"https://minecraft.wiki/images/thumb/{prefix}{clean_id}.png/{pixel_res}px-.png"
 
@@ -757,7 +990,12 @@ def _wiki_image_url(version_id: str, version_type: str) -> Optional[str]:
 # ---------------- Core install pipeline ----------------
 
 
-def _install_version(version_id: str, storage_category: str, full_assets: bool) -> None:
+def _install_version(
+    version_id: str,
+    storage_category: str,
+    full_assets: bool,
+    include_third_party: bool = False,
+) -> None:
     ensure_dirs()
 
     version_key = f"{storage_category}/{version_id}"
@@ -768,7 +1006,10 @@ def _install_version(version_id: str, storage_category: str, full_assets: bool) 
     _update_progress(version_key, "version_json", 0, "Fetching version metadata...")
 
     try:
-        entry = core_manifest.get_version_entry(version_id)
+        entry = manifest.get_version_entry(
+            version_id,
+            include_third_party=include_third_party,
+        )
     except Exception as e:
         raise RuntimeError(f"failed to find version in manifest: {e}")
 
@@ -777,7 +1018,7 @@ def _install_version(version_id: str, storage_category: str, full_assets: bool) 
         raise RuntimeError("manifest entry missing version URL")
 
     try:
-        vjson = core_manifest.fetch_version_json(version_url)
+        vjson = manifest.fetch_version_json(version_url)
     except Exception as e:
         raise RuntimeError(f"failed to fetch version json: {e}")
 
@@ -797,7 +1038,7 @@ def _install_version(version_id: str, storage_category: str, full_assets: bool) 
     )
 
     storage_fs = _normalize_storage_category(storage_category)
-    version_dir = os.path.join(DOWNLOAD_DIR, storage_fs, version_id)
+    version_dir = os.path.join(get_versions_profile_dir(), storage_fs, version_id)
     os.makedirs(version_dir, exist_ok=True)
 
     _maybe_abort(version_key)
@@ -865,8 +1106,7 @@ def _install_version(version_id: str, storage_category: str, full_assets: bool) 
 
     highest_versions: Dict[str, int] = {}
     for lib in libs:
-        downloads = lib.get("downloads") or {}
-        artifact = downloads.get("artifact")
+        artifact = _resolve_library_artifact(lib)
         if not artifact:
             continue
         base_name = os.path.basename(artifact.get("path") or "")
@@ -891,8 +1131,7 @@ def _install_version(version_id: str, storage_category: str, full_assets: bool) 
         for lib in libs:
             _maybe_abort(version_key)
 
-            downloads = lib.get("downloads") or {}
-            artifact = downloads.get("artifact")
+            artifact = _resolve_library_artifact(lib)
             if artifact:
                 a_url = artifact.get("url")
                 a_sha1 = artifact.get("sha1")
@@ -987,6 +1226,8 @@ def _install_version(version_id: str, storage_category: str, full_assets: bool) 
             bytes_total=total_size,
         )
 
+    _ensure_legacy_launchwrapper(version_id, version_dir, copied_lib_basenames, version_key)
+
     _maybe_abort(version_key)
 
     # ---- Natives ----
@@ -1068,9 +1309,7 @@ def _install_version(version_id: str, storage_category: str, full_assets: bool) 
                     os.makedirs(target_dir, exist_ok=True)
                     try:
                         with zipfile.ZipFile(cache_path, "r") as zf:
-                            for member in zf.infolist():
-                                _maybe_abort(version_key)
-                                zf.extract(member, target_dir)
+                            safe_extract_zip(zf, target_dir)
                     except Exception as e:
                         raise RuntimeError(
                             f"failed to extract natives from {n_path}: {e}"
@@ -1330,8 +1569,27 @@ def _install_version(version_id: str, storage_category: str, full_assets: bool) 
         bytes_total=total_size,
     )
 
-    main_class = vjson.get("mainClass") or "net.minecraft.client.Minecraft"
+    main_class = (vjson.get("mainClass") or "").strip()
+    if not main_class:
+        if _is_legacy_launchwrapper_family(version_id):
+            main_class = "net.minecraft.launchwrapper.Launch"
+            print(colorize_log(f"[install] Using legacy LaunchWrapper main class for {version_key}"))
+        else:
+            main_class = _infer_main_class_from_client_jar(client_path, version_id)
+            print(colorize_log(f"[install] Inferred main class for {version_key}: {main_class}"))
     extra_args = _extract_extra_args(vjson)
+
+    if not extra_args and main_class == "net.minecraft.launchwrapper.Launch" and _is_legacy_launchwrapper_family(version_id):
+        # Legacy OA/Mojang manifests often omit game args. Provide a safe default
+        # so LaunchWrapper uses the legacy tweaker instead of VanillaTweaker.
+        extra_args = (
+            "${auth_player_name} 0 "
+            "--assetsDir ${game_assets} "
+            "--tweakClass net.minecraft.launchwrapper.AlphaVanillaTweaker "
+            "--gameDir ${game_directory}"
+        )
+        print(colorize_log(f"[install] Applied default legacy LaunchWrapper args for {version_key}"))
+
     version_type = entry.get("type", "") or vjson.get("type", "")
 
     seen_libs = set()
@@ -1340,6 +1598,21 @@ def _install_version(version_id: str, storage_category: str, full_assets: bool) 
         if name not in seen_libs:
             seen_libs.add(name)
             unique_libs.append(name)
+
+    if _is_legacy_launchwrapper_family(version_id):
+        # Keep LaunchWrapper and its direct companions near the front to reduce
+        # bootstrap edge-cases in old clients.
+        priority = {
+            "launchwrapper-1.6.jar": 0,
+            "launchwrapper-1.5.jar": 1,
+            "jopt-simple-4.5.jar": 2,
+            "asm-all-4.1.jar": 3,
+        }
+        pos = {name: idx for idx, name in enumerate(unique_libs)}
+        unique_libs = sorted(
+            unique_libs,
+            key=lambda name: (priority.get(str(name).lower(), 50), pos.get(name, 9999)),
+        )
 
     cp_entries = ["client.jar"] + unique_libs
     classpath_str = ",".join(cp_entries)
@@ -1421,6 +1694,7 @@ def install_version(
     storage_category: str = "Release",
     full_assets: bool = True,
     background: bool = True,
+    include_third_party: bool = False,
 ) -> None:
     version_key = _version_key(version_id, storage_category)
 
@@ -1433,14 +1707,19 @@ def install_version(
         def runner() -> None:
             vk = _version_key(version_id, storage_category)
             storage_fs = _normalize_storage_category(storage_category)
-            version_dir = os.path.join(DOWNLOAD_DIR, storage_fs, version_id)
+            version_dir = os.path.join(get_versions_profile_dir(), storage_fs, version_id)
 
             cancelled = False
             failed = False
             error_message = ""
 
             try:
-                _install_version(version_id, storage_category, full_assets)
+                _install_version(
+                    version_id,
+                    storage_category,
+                    full_assets,
+                    include_third_party=include_third_party,
+                )
             except RuntimeError as e:
                 if str(e) == "cancelled":
                     cancelled = True
@@ -1550,8 +1829,7 @@ def get_install_status(
     if not prog:
         # Progress file doesn't exist - check if version is actually installed
         try:
-            base_dir = get_base_dir()
-            clients_dir = os.path.join(base_dir, "clients")
+            clients_dir = get_versions_profile_dir()
             version_dir = os.path.join(clients_dir, storage_category.lower(), version_id.lower())
             
             # If the version directory exists and has a data.ini file, it's installed
@@ -2109,15 +2387,13 @@ def _install_forge_loader(
             )
             if lower_name.endswith(".zip"):
                 try:
-                    with zipfile.ZipFile(downloaded_artifact_path, 'r') as zip_ref:
-                        zip_ref.extractall(extraction_dir)
+                    safe_extract_zip(downloaded_artifact_path, extraction_dir)
                 except Exception as e:
                     print(f"[forge] ZIP extraction error: {e}")
                     return {"ok": False, "error": f"Failed to extract Forge archive: {str(e)}"}
             elif is_installer_archive:
                 try:
-                    with zipfile.ZipFile(downloaded_artifact_path, 'r') as zip_ref:
-                        zip_ref.extractall(extraction_dir)
+                    safe_extract_zip(downloaded_artifact_path, extraction_dir)
                 except Exception as e:
                     print(f"[forge] Installer extraction error: {e}")
                     return {"ok": False, "error": f"Failed to extract Forge installer: {str(e)}"}
@@ -2570,11 +2846,10 @@ def _install_forge_loader(
                 # the binary patcher, and to verify library checksums.
                 version_json_dst = os.path.join(mc_ver_dir, f"{mc_version}.json")
                 try:
-                    from core import manifest as mc_manifest
-                    mc_version_entry = mc_manifest.get_version_entry(mc_version)
+                    mc_version_entry = manifest.get_version_entry(mc_version)
                     mc_version_url = mc_version_entry.get("url")
                     if mc_version_url:
-                        mc_version_data = mc_manifest.fetch_version_json(mc_version_url)
+                        mc_version_data = manifest.fetch_version_json(mc_version_url)
                         with open(version_json_dst, 'w') as vf:
                             json.dump(mc_version_data, vf)
                         print(f"[forge] Placed MC {mc_version} version JSON for installer")
@@ -2917,8 +3192,6 @@ def _install_forge_loader(
                         except Exception as e:
                             print(f"[forge] Failed to copy {filename}: {e}")
 
-            # Some legacy Forge archives place universal/client jars in subfolders.
-            # Recover those jars into loader root so LaunchWrapper can bootstrap.
             has_forge_core_jar = any(
                 n.endswith(".jar") and (n.startswith("forge-") or n.startswith("minecraftforge-"))
                 for n in os.listdir(loader_dest_dir)

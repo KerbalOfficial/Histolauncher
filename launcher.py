@@ -8,10 +8,19 @@ import subprocess
 import sys
 import time
 import threading
-import tkinter as tk
+import tkinter
+import json
+import re
+import shutil
+import tempfile
+import zipfile
 
-from datetime import datetime
-from tkinter import ttk, messagebox
+from datetime       import datetime
+from tkinter        import ttk, messagebox
+from itertools      import zip_longest
+
+from core.logger    import colorize_log, dim_line
+from core.zip_utils import safe_extract_zip
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 ICO_PATH = os.path.join(PROJECT_ROOT, "ui", "favicon.ico")
@@ -66,7 +75,7 @@ def set_console_visible(visible: bool):
         try:
             print(colorize_log(f"[launcher] Console visibility error: {e}"))
         except Exception:
-            print(f"[launcher] Console visibility error: {e}")
+            print(colorize_log(f"[launcher] Console visibility error: {e}"))
 
 debug_flag_path = os.path.join(PROJECT_ROOT, "__debug__")
 console_should_be_visible = os.path.exists(debug_flag_path)
@@ -75,7 +84,7 @@ set_console_visible(console_should_be_visible)
 
 if not DATA_FILE_EXISTS:
     try:
-        root = tk.Tk()
+        root = tkinter.Tk()
         try: root.iconbitmap(ICO_PATH)
         except: pass
         root.attributes('-topmost', True)
@@ -91,14 +100,14 @@ if not DATA_FILE_EXISTS:
         if not result: sys.exit()
     except Exception: sys.exit()
 
-from server.http_server import start_server
-from server.api_handler import read_local_version, fetch_remote_version
-from core.settings import save_global_settings
-from core.discord_rpc import start_discord_rpc, set_launcher_presence, set_launcher_version, stop_discord_rpc
-from core.logger import colorize_log, dim_line
+from server.http_server     import start_server
+from server.api_handler     import read_local_version
+from core.settings          import save_global_settings
+from core.discord_rpc       import start_discord_rpc, set_launcher_presence, set_launcher_version, stop_discord_rpc
 
 GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/KerbalOfficial/Histolauncher/releases/latest"
 GITHUB_RELEASES_URL = "https://github.com/KerbalOfficial/Histolauncher/releases"
+GITHUB_API_RELEASES_URL = "https://api.github.com/repos/KerbalOfficial/Histolauncher/releases"
 
 REMOTE_TIMEOUT = 5.0
 
@@ -248,7 +257,7 @@ def install(package):
             result["success"] = False
         finally: root.after(300, root.destroy)
 
-    root = tk.Tk()
+    root = tkinter.Tk()
     try: root.iconbitmap(ICO_PATH)
     except: pass
     root.title("Installing component...")
@@ -263,7 +272,7 @@ def install(package):
     try: style.theme_use("vista")
     except Exception: pass
 
-    label = tk.Label(
+    label = tkinter.Label(
         root,
         text=f"Installing component: {package}",
         font=("Segoe UI", 11, "bold"),
@@ -272,7 +281,7 @@ def install(package):
     )
     label.pack(pady=10)
 
-    progress_label = tk.Label(
+    progress_label = tkinter.Label(
         root,
         text="Starting...",
         font=("Segoe UI", 9),
@@ -285,10 +294,10 @@ def install(package):
     progress.pack(pady=5)
     progress.start(10)
 
-    details_frame = tk.Frame(root)
+    details_frame = tkinter.Frame(root)
     details_visible = False
 
-    output_box = tk.Text(
+    output_box = tkinter.Text(
         details_frame,
         height=10,
         width=60,
@@ -333,10 +342,298 @@ def install(package):
 
 def parse_version(ver):
     if not ver:
-        return None, None
-    letter = ver[0]
-    num = ver[1:]
-    return letter, num
+        return None, tuple()
+
+    s = str(ver).strip().lower()
+    if s.startswith("v") and len(s) > 1:
+        s = s[1:]
+
+    letter = None
+    if s and s[0].isalpha():
+        letter = s[0]
+        s = s[1:]
+
+    nums = tuple(int(n) for n in re.findall(r"\d+", s))
+    return letter, nums
+
+def get_github_releases_url(owner="KerbalOfficial", repo="Histolauncher"):
+    return f"https://api.github.com/repos/{owner}/{repo}/releases"
+
+def fetch_github_releases(owner="KerbalOfficial", repo="Histolauncher", timeout=REMOTE_TIMEOUT):
+    try:
+        url = get_github_releases_url(owner, repo)
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Histolauncher-Updater/1.0",
+                "Accept": "application/vnd.github+json",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            payload = resp.read().decode("utf-8")
+        data = json.loads(payload)
+        if isinstance(data, list):
+            return data
+        return []
+    except Exception as e:
+        print(colorize_log(f"[launcher] Error fetching GitHub releases: {e}"))
+        return []
+
+def separate_releases(releases):
+    return {
+        "stable": [r for r in releases if not r.get("prerelease")],
+        "beta": [r for r in releases if r.get("prerelease")],
+    }
+
+def _compare_numeric_versions(local_nums, remote_nums):
+    if not local_nums and not remote_nums:
+        return 0
+    for l_val, r_val in zip_longest(local_nums, remote_nums, fillvalue=0):
+        if r_val > l_val:
+            return 1
+        if r_val < l_val:
+            return -1
+    return 0
+
+def is_beta_version(ver):
+    if not ver:
+        return False
+    letter, _ = parse_version(ver)
+    if letter == "b":
+        return True
+    return "beta" in str(ver).lower()
+
+def select_latest_release_for_local(local_ver, timeout=REMOTE_TIMEOUT):
+    releases = fetch_github_releases(timeout=timeout)
+    groups = separate_releases(releases)
+    wants_beta = is_beta_version(local_ver)
+    if wants_beta:
+        if groups["beta"]:
+            return groups["beta"][0], "beta"
+        return None, "missing_beta_release"
+    if groups["stable"]:
+        return groups["stable"][0], "stable"
+    return None, "missing_stable_release"
+
+def _pick_release_zip_asset(release):
+    for asset in release.get("assets", []):
+        name = (asset.get("name") or "").lower()
+        url = asset.get("browser_download_url")
+        if name.endswith(".zip") and url:
+            return {
+                "name": asset.get("name") or "launcher_update.zip",
+                "url": url,
+            }
+
+    zipball_url = release.get("zipball_url")
+    if zipball_url:
+        tag = release.get("tag_name") or "latest"
+        return {
+            "name": f"{tag}.zip",
+            "url": zipball_url,
+        }
+
+    return None
+
+def _sanitize_version_for_filename(ver):
+    if not ver:
+        return "unknown"
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", str(ver))
+
+def _strip_single_top_level_folder(path_names):
+    roots = set()
+    for name in path_names:
+        normalized = name.replace("\\", "/").strip("/")
+        if not normalized:
+            continue
+        parts = normalized.split("/")
+        roots.add(parts[0])
+    if len(roots) == 1:
+        return next(iter(roots))
+    return None
+
+def _restore_backup_zip(backup_zip_path, project_root):
+    with zipfile.ZipFile(backup_zip_path, "r") as zf:
+        safe_extract_zip(zf, project_root)
+
+def perform_self_update(release, current_version):
+    result = {"success": False, "error": None}
+
+    def ui_log(line):
+        output_box.insert("end", line + "\n")
+        output_box.see("end")
+
+    def ui_progress(percent, label_text):
+        progress_label.config(text=label_text)
+        progress.config(mode="determinate", maximum=100)
+        progress["value"] = max(0, min(100, percent))
+
+    def worker():
+        try:
+            release_tag = release.get("tag_name") or release.get("name") or "latest"
+            asset = _pick_release_zip_asset(release)
+            if not asset:
+                raise RuntimeError("No ZIP asset or zipball URL found for selected release.")
+
+            current_ver_name = _sanitize_version_for_filename(current_version)
+            backup_name = f"backup_histolauncher_{current_ver_name}.zip"
+            backup_path = os.path.join(tempfile.gettempdir(), backup_name)
+            download_name = f"histolauncher_update_{_sanitize_version_for_filename(release_tag)}.zip"
+            download_path = os.path.join(tempfile.gettempdir(), download_name)
+
+            root.after(0, lambda: ui_log(f"Selected release: {release_tag}"))
+            root.after(0, lambda: ui_progress(2, "Creating backup..."))
+
+            project_files = []
+            for base, _, files in os.walk(PROJECT_ROOT):
+                for file_name in files:
+                    abs_path = os.path.join(base, file_name)
+                    rel_path = os.path.relpath(abs_path, PROJECT_ROOT)
+                    project_files.append((abs_path, rel_path))
+
+            total_files = max(1, len(project_files))
+            with zipfile.ZipFile(backup_path, "w", compression=zipfile.ZIP_DEFLATED) as backup_zip:
+                for idx, (abs_path, rel_path) in enumerate(project_files, start=1):
+                    backup_zip.write(abs_path, rel_path)
+                    pct = 2 + int((idx / total_files) * 23)
+                    root.after(0, lambda p=pct: ui_progress(p, f"Creating backup... {p}%"))
+
+            root.after(0, lambda: ui_log(f"Backup saved: {backup_path}"))
+            root.after(0, lambda: ui_progress(26, "Downloading update package..."))
+
+            req = urllib.request.Request(
+                asset["url"],
+                headers={
+                    "User-Agent": "Histolauncher-Updater/1.0",
+                    "Accept": "application/octet-stream",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp, open(download_path, "wb") as out_f:
+                total_bytes = resp.headers.get("Content-Length")
+                total_bytes = int(total_bytes) if total_bytes and total_bytes.isdigit() else None
+                downloaded = 0
+                while True:
+                    chunk = resp.read(1024 * 64)
+                    if not chunk:
+                        break
+                    out_f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_bytes and total_bytes > 0:
+                        frac = min(1.0, downloaded / total_bytes)
+                        pct = 26 + int(frac * 29)
+                        root.after(0, lambda p=pct: ui_progress(p, f"Downloading update package... {p}%"))
+
+            root.after(0, lambda: ui_log(f"Update package downloaded: {download_path}"))
+            root.after(0, lambda: ui_progress(56, "Applying update..."))
+
+            with zipfile.ZipFile(download_path, "r") as update_zip:
+                members = [i for i in update_zip.infolist() if not i.is_dir()]
+                member_names = [m.filename for m in members]
+                top_level = _strip_single_top_level_folder(member_names)
+                def _name_transform(name, _info):
+                    rel_name = name
+                    if top_level and rel_name.startswith(top_level + "/"):
+                        rel_name = rel_name[len(top_level) + 1 :]
+                    rel_name = rel_name.strip("/")
+                    return rel_name or None
+
+                def _progress_cb(done, total, _name, _info):
+                    pct = 56 + int((done / max(1, total)) * 42)
+                    root.after(0, lambda p=pct: ui_progress(p, f"Applying update... {p}%"))
+
+                safe_extract_zip(
+                    update_zip,
+                    PROJECT_ROOT,
+                    name_transform=_name_transform,
+                    progress_cb=_progress_cb,
+                )
+
+            root.after(0, lambda: ui_progress(100, "Update complete."))
+            root.after(0, lambda: ui_log("Update completed successfully."))
+            result["success"] = True
+        except Exception as e:
+            result["error"] = str(e)
+            root.after(0, lambda: ui_log(f"Update failed: {e}"))
+            root.after(0, lambda: ui_log("Restoring from backup..."))
+            try:
+                current_ver_name = _sanitize_version_for_filename(current_version)
+                backup_name = f"backup_histolauncher_{current_ver_name}.zip"
+                backup_path = os.path.join(tempfile.gettempdir(), backup_name)
+                if os.path.exists(backup_path):
+                    _restore_backup_zip(backup_path, PROJECT_ROOT)
+                    root.after(0, lambda: ui_log("Backup restored successfully."))
+                else:
+                    root.after(0, lambda: ui_log("Backup file was not found in %temp%."))
+            except Exception as restore_err:
+                root.after(0, lambda: ui_log(f"Backup restore failed: {restore_err}"))
+        finally:
+            root.after(900, root.destroy)
+
+    root = tkinter.Tk()
+    try: root.iconbitmap(ICO_PATH)
+    except: pass
+    root.title("Updating Histolauncher...")
+    root.geometry("680x360")
+    root.resizable(False, False)
+    root.focus_set()
+    colors = themed_colors(root)
+    root.protocol("WM_DELETE_WINDOW", lambda: None)
+
+    style = ttk.Style()
+    try: style.theme_use("vista")
+    except Exception: pass
+
+    label = tkinter.Label(
+        root,
+        text="Updating Histolauncher",
+        font=("Segoe UI", 11, "bold"),
+        bg=colors["bg"],
+        fg=colors["fg"],
+    )
+    label.pack(pady=10)
+
+    progress_label = tkinter.Label(
+        root,
+        text="Starting updater...",
+        font=("Segoe UI", 9),
+        bg=colors["bg"],
+        fg=colors["fg"],
+    )
+    progress_label.pack(pady=4)
+
+    progress = ttk.Progressbar(root, mode="determinate", length=520, maximum=100)
+    progress.pack(pady=5)
+    progress["value"] = 0
+
+    details_frame = tkinter.Frame(root)
+    details_frame.pack(fill="both", expand=True, padx=10, pady=6)
+
+    output_box = tkinter.Text(
+        details_frame,
+        height=12,
+        width=90,
+        font=("Consolas", 8),
+        bg="black",
+        fg="white",
+        insertbackground="white",
+    )
+    output_box.pack(side="left", fill="both", expand=True)
+
+    scrollbar = ttk.Scrollbar(details_frame, command=output_box.yview)
+    scrollbar.pack(side="right", fill="y")
+    output_box.config(yscrollcommand=scrollbar.set)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+    root.update_idletasks()
+    root.geometry(
+        f"{root.winfo_width()}x{root.winfo_height()}+"
+        f"{(root.winfo_screenwidth()-root.winfo_width())//2}+"
+        f"{(root.winfo_screenheight()-root.winfo_height())//2}"
+    )
+
+    root.mainloop()
+    return result
 
 def should_prompt_update(local_ver, remote_ver):
     if local_ver is None or remote_ver is None:
@@ -345,12 +642,17 @@ def should_prompt_update(local_ver, remote_ver):
     l_letter, l_num = parse_version(local_ver)
     r_letter, r_num = parse_version(remote_ver)
 
-    if l_letter is None or r_letter is None:
+    if not l_num or not r_num:
         return False, "parse_error"
-    if l_letter != r_letter:
+
+    if l_letter is not None and r_letter is not None and l_letter != r_letter:
         return False, "letter_mismatch"
-    if r_num > l_num:
+
+    cmp_result = _compare_numeric_versions(l_num, r_num)
+    if cmp_result > 0:
         return True, "newer_available"
+    if cmp_result == 0 and str(remote_ver).strip() > str(local_ver).strip():
+        return True, "newer_available_lexical"
 
     return False, "up_to_date"
 
@@ -369,7 +671,7 @@ def should_prompt_beta_warning(local_ver):
 
 def prompt_install_pywebview():
     try:
-        root = tk.Tk()
+        root = tkinter.Tk()
         try: root.iconbitmap(ICO_PATH)
         except: pass
         root.attributes('-topmost', True)
@@ -389,7 +691,7 @@ def prompt_install_pywebview():
     
 def prompt_install_cryptography():
     try:
-        root = tk.Tk()
+        root = tkinter.Tk()
         try: root.iconbitmap(ICO_PATH)
         except: pass
         root.attributes('-topmost', True)
@@ -409,7 +711,7 @@ def prompt_install_cryptography():
 
 def prompt_install_pypresence():
     try:
-        root = tk.Tk()
+        root = tkinter.Tk()
         try: root.iconbitmap(ICO_PATH)
         except: pass
         root.attributes('-topmost', True)
@@ -429,7 +731,7 @@ def prompt_install_pypresence():
 
 def prompt_new_user():
     try:
-        root = tk.Tk()
+        root = tkinter.Tk()
         try: root.iconbitmap(ICO_PATH)
         except: pass
         root.attributes('-topmost', True)
@@ -448,18 +750,20 @@ def prompt_new_user():
 
 def prompt_user_update(local, remote):
     try:
-        root = tk.Tk()
+        root = tkinter.Tk()
         try: root.iconbitmap(ICO_PATH)
         except: pass
         root.attributes('-topmost', True)
         root.withdraw()
         root.lift()
         msg = (
-            "Your launcher is out-dated! Please press \"OK\" to open up the GitHub link for the latest version "
-            "or press \"Cancel\" to continue using this version of the launcher.\n\n"
+            "Histolauncher is out-dated!\n\n"
+            "Would you like to automatically download the latest version now? "
+            "Be aware that this will delete everything inside the launcher directory "
+            "and will reinstall everything freshly from the Histolauncher GitHub repository.\n\n"
             f"(your version: {local}, latest version: {remote})"
         )
-        result = messagebox.askokcancel("Launcher update available", msg)
+        result = messagebox.askyesno("Launcher update available", msg)
         root.destroy()
         return bool(result)
     except Exception:
@@ -467,16 +771,16 @@ def prompt_user_update(local, remote):
 
 def prompt_beta_warning(local):
     try:
-        root = tk.Tk()
+        root = tkinter.Tk()
         try: root.iconbitmap(ICO_PATH)
         except: pass
         root.attributes('-topmost', True)
         root.withdraw()
         root.lift()
         msg = (
-            "This is a beta version of Histolauncher, you may encounter many bugs during testing "
+            "This is a beta version of Histolauncher, you may encounter many bugs during usage "
             "so please keep that in mind. If you did encounter any problems or bugs, please report "
-            "it to us in the GitHub as soon as possible!\n\n"
+            "it to us in the GitHub/Discord as soon as possible!\n\n"
             f"(beta version: {local})"
         )
         messagebox.showwarning("Beta version warning", msg)
@@ -487,7 +791,8 @@ def prompt_beta_warning(local):
 
 def check_and_prompt():
     local = read_local_version(base_dir=PROJECT_ROOT)
-    remote = fetch_remote_version(timeout=REMOTE_TIMEOUT)
+    release_info, release_reason = select_latest_release_for_local(local, timeout=REMOTE_TIMEOUT)
+    remote = (release_info or {}).get("tag_name")
 
     print(colorize_log("[launcher] should_prompt_new_user[prompt]: " + str(not DATA_FILE_EXISTS)))
     if not DATA_FILE_EXISTS:
@@ -508,14 +813,53 @@ def check_and_prompt():
     promptu, reasonu = should_prompt_update(local, remote)
     print(colorize_log(f"[launcher] should_prompt_update[prompt]: {promptu}"))
     print(colorize_log(f"[launcher] should_prompt_update[reason]: {reasonu}"))
-    if not promptb and promptu:
+    if not release_info:
+        print(colorize_log(f"[launcher] No release candidate found for updater: {release_reason}"))
+    if promptu and release_info:
         print(colorize_log("[launcher] PROMPTING USER UPDATE..."))
         open_update = prompt_user_update(local, remote)
         print(colorize_log(f"[launcher] prompt_user_update[user_accepted]: {open_update}"))
         if open_update:
-            try: webbrowser.open(GITHUB_RELEASES_URL, new=2)
-            except Exception: pass
-            return False
+            update_result = perform_self_update(release_info, local)
+            if update_result.get("success"):
+                try:
+                    root = tkinter.Tk()
+                    try: root.iconbitmap(ICO_PATH)
+                    except: pass
+                    root.attributes('-topmost', True)
+                    root.withdraw()
+                    root.lift()
+                    messagebox.showinfo(
+                        "Update installed",
+                        "Histolauncher has been updated and will now restart.",
+                    )
+                    root.destroy()
+                except Exception:
+                    pass
+                
+                try:
+                    launcher_script = os.path.join(PROJECT_ROOT, "launcher.py")
+                    subprocess.Popen([sys.executable, launcher_script])
+                except Exception as e:
+                    print(colorize_log(f"[launcher] Failed to relaunch launcher: {e}"))
+                
+                return False
+
+            print(colorize_log(f"[launcher] Self-update failed: {update_result.get('error')}"))
+            try:
+                root = tkinter.Tk()
+                try: root.iconbitmap(ICO_PATH)
+                except: pass
+                root.attributes('-topmost', True)
+                root.withdraw()
+                root.lift()
+                messagebox.showerror(
+                    "Update failed",
+                    "The update failed and Histolauncher attempted to restore from backup. Check logs for details.",
+                )
+                root.destroy()
+            except Exception:
+                pass
     
     return True
 
@@ -552,7 +896,7 @@ def open_with_webview(webview, port, title="Histolauncher", width=900, height=52
         return False
 
 def control_panel_fallback_window(port):
-    root = tk.Tk()
+    root = tkinter.Tk()
     try: root.iconbitmap(ICO_PATH)
     except: pass
     root.title("Histolauncher")
@@ -565,7 +909,7 @@ def control_panel_fallback_window(port):
     root.geometry("520x240")
     root.resizable(False, False)
 
-    title = tk.Label(
+    title = tkinter.Label(
         root,
         text="Histolauncher - Control Panel for Browser-users",
         font=("Segoe UI", 12, "bold"),
@@ -574,7 +918,7 @@ def control_panel_fallback_window(port):
     )
     title.pack(pady=20)
 
-    desc = tk.Label(
+    desc = tkinter.Label(
         root,
         text="This is the control panel for browser-users.\n\nClick 'Open Launcher' to open the launcher's web link onto your default browser.\nClick 'Close Launcher' to close the web server and exit Histolauncher.",
         font=("Segoe UI", 9),
@@ -596,7 +940,7 @@ def main():
 
     set_launcher_version(read_local_version(base_dir=PROJECT_ROOT))
     start_discord_rpc()
-    set_launcher_presence("Starting launcher", "Checking prerequisites")
+    set_launcher_presence("Starting launcher")
 
     try:
         from core.settings import get_base_dir
@@ -618,84 +962,84 @@ def main():
         import webview as wv
         _HAS_WEBVIEW = True
     except Exception as e:
-        print(colorize_log(f"[launcher] pywebview failed to load: {e}"))
+        print(colorize_log(f"[installation] pywebview failed to load: {e}"))
         _HAS_WEBVIEW = False
         if prompt_install_pywebview():
-            print(colorize_log("[launcher] User agreed to install pywebview."))
+            print(colorize_log("[installation] User agreed to install pywebview."))
             success = install("pywebview")
             if success:
                 try:
-                    print(colorize_log("[launcher] Refreshing python packages..."))
+                    print(colorize_log("[installation] Refreshing python packages..."))
                     import site
                     site.main()
                     user_site = site.getusersitepackages()
                     if user_site not in sys.path: sys.path.append(user_site)
                     import webview as wv
                     _HAS_WEBVIEW = True
-                    print(colorize_log("[launcher] pywebview installed and imported successfully."))
+                    print(colorize_log("[installation] pywebview installed and imported successfully."))
                 except Exception as import_err:
-                    print(colorize_log(f"[launcher] pywebview installed but failed to import: {import_err}"))
-                    print(colorize_log("[launcher] Falling back to browser mode."))
-            else: print(colorize_log("[launcher] pywebview installation failed. Falling back to browser mode."))
-        else: print(colorize_log("[launcher] User declined pywebview installation. Falling back to browser mode."))
+                    print(colorize_log(f"[installation] pywebview installed but failed to import: {import_err}"))
+                    print(colorize_log("[installation] Falling back to browser mode."))
+            else: print(colorize_log("[installation] pywebview installation failed. Falling back to browser mode."))
+        else: print(colorize_log("[installation] User declined pywebview installation. Falling back to browser mode."))
 
     try:
         import cryptography
     except Exception as e:
-        print(colorize_log(f"[launcher] cryptography failed to load: {e}"))
+        print(colorize_log(f"[installation] cryptography failed to load: {e}"))
         if prompt_install_cryptography():
-            print(colorize_log("[launcher] User agreed to install cryptography."))
+            print(colorize_log("[installation] User agreed to install cryptography."))
             success = install("cryptography")
             if success:
                 try:
-                    print(colorize_log("[launcher] Refreshing python packages..."))
+                    print(colorize_log("[installation] Refreshing python packages..."))
                     import site
                     site.main()
                     user_site = site.getusersitepackages()
                     if user_site not in sys.path: sys.path.append(user_site)
                     import cryptography
-                    print("cryptography installed and imported successfully.")
+                    print(colorize_log("[installation] cryptography installed and imported successfully."))
                 except Exception as import_err:
-                    print("cryptography installed but failed to import:", import_err)
-                    print("Custom skins will NOT load in 1.20.2 and above.")
-            else: print("cryptography installation failed. Custom skins will NOT load in 1.20.2 and above.")
-        else: print("User declined cryptography installation. Custom skins will NOT load in 1.20.2 and above.")
+                    print(colorize_log(f"[installation] cryptography installed but failed to import: {import_err}"))
+                    print(colorize_log("[installation] Custom skins will NOT load in 1.20.2 and above."))
+            else: print(colorize_log("[installation] cryptography installation failed. Custom skins will NOT load in 1.20.2 and above."))
+        else: print(colorize_log("[installation] User declined cryptography installation. Custom skins will NOT load in 1.20.2 and above."))
 
     try:
         import pypresence
     except Exception as e:
-        print(colorize_log(f"[launcher] pypresence failed to load: {e}"))
+        print(colorize_log(f"[installation] pypresence failed to load: {e}"))
         if prompt_install_pypresence():
-            print(colorize_log("[launcher] User agreed to install pypresence."))
+            print(colorize_log("[installation] User agreed to install pypresence."))
             success = install("pypresence")
             if success:
                 try:
-                    print(colorize_log("[launcher] Refreshing python packages..."))
+                    print(colorize_log("[installation] Refreshing python packages..."))
                     import site
                     site.main()
                     user_site = site.getusersitepackages()
                     if user_site not in sys.path: sys.path.append(user_site)
                     import pypresence
-                    print(colorize_log("[launcher] pypresence installed and imported successfully."))
+                    print(colorize_log("[installation] pypresence installed and imported successfully."))
                 except Exception as import_err:
-                    print(colorize_log(f"[launcher] pypresence installed but failed to import: {import_err}"))
-                    print(colorize_log("[launcher] Discord Rich Presence will be disabled."))
-            else: print(colorize_log("[launcher] pypresence installation failed. Discord Rich Presence will be disabled."))
-        else: print(colorize_log("[launcher] User declined pypresence installation. Discord Rich Presence will be disabled."))
+                    print(colorize_log(f"[installation] pypresence installed but failed to import: {import_err}"))
+                    print(colorize_log("[installation] Discord Rich Presence will be disabled."))
+            else: print(colorize_log("[installation] pypresence installation failed. Discord Rich Presence will be disabled."))
+        else: print(colorize_log("[installation] User declined pypresence installation. Discord Rich Presence will be disabled."))
 
     print(dim_line("------------------------------------------------"))
 
     try:
-        print("Checking information and prompting...")
+        print(colorize_log("Checking information and prompting..."))
         proceed = check_and_prompt()
         if proceed:
-            print("Finished prompting! Initializing launcher...")
+            print(colorize_log("Finished prompting! Initializing launcher..."))
     except Exception as e:
-        print("Something went wrong while checking and prompting:",e)
+        print(colorize_log(f"Something went wrong while checking and prompting: {e}"))
         proceed = True
 
     if not proceed:
-        print("Exiting launcher...")
+        print(colorize_log("[launcher] Exiting launcher..."))
         stop_discord_rpc()
         return
 
@@ -703,11 +1047,7 @@ def main():
 
     port = random.randint(10000, 20000)
 
-    try:
-        from server import yggdrasil
-        yggdrasil.ensure_signature_keys_ready()
-    except Exception as e:
-        print(f"Warning: could not pre-generate signature keys: {e}")
+
 
     try: save_global_settings({"ygg_port": str(port)})
     except Exception: pass
@@ -718,12 +1058,12 @@ def main():
     url = f"http://127.0.0.1:{port}/"
 
     if not wait_for_server(url, timeout=5.0):
-        print("Server did not respond within timeout; something has failed! Exiting launcher...")
+        print(colorize_log("[launcher] Server did not respond within timeout; something has failed! Exiting launcher..."))
         stop_discord_rpc()
         return
 
     print(dim_line("------------------------------------------------"))
-    set_launcher_presence("Browsing launcher", "Idle in Histolauncher")
+    set_launcher_presence("Browsing launcher")
 
 
     if not _HAS_WEBVIEW or not open_with_webview(wv, port):

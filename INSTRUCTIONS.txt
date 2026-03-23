@@ -2,7 +2,7 @@ Thank you for installing Histolauncher! (Beta build)
 
 —————————————————————————————————————————————————————————————————————————————
 
-[NOTE]: This version (b1.3.1) is best tested on Windows and there seems to
+[NOTE]: This version (b1.3.2) is best tested on Windows and there seems to
         be no future plans on adding Linux & Mac support soon.
         
         Although, there is hope! Soon, I might have the perfect time to add
@@ -27,10 +27,16 @@ How to get a custom skin:
 - Enter your Histolauncher account credentials and press 'Log in'
 - Successfully log-in, you should see your profile icon and name on the top
   left, the username you signed-up with will be your Minecraft username.
-- Skins will successfully load in 1.13 - 26.1+!
+- Skins will successfully load in all Minecraft versions!
 
-NOTICE: Custom skins will only load in 1.13 - 1.20.1 if you do not install
-        the additional python package component: cryptography
+NOTICE: Custom skins will only load from oldest to 1.20.1 if you do not
+        install the additional python package component: `cryptography`
+
+IMPORTANT: If you want to get skins working on Multiplayer servers with
+           Minecraft versions 1.20.2 and above, you need to use a Fabric
+           Mod developed ONLY by us.
+
+           Modrinth project page: https://modrinth.com/mod/histoskins
 
 —————————————————————————————————————————————————————————————————————————————
 

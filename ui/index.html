@@ -122,12 +122,6 @@
             <img id="versions-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete versions profile"/>
           </button>
 
-          <label for="versions-category-select">Category:</label>
-          <select id="versions-category-select"></select>
-
-          <label for="versions-search">Search:</label>
-          <input id="versions-search" type="search" placeholder="Search...">
-
           <div class="view-toggle">
             <button id="view-grid-btn" class="view-toggle-btn" title="Grid View">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -153,6 +147,20 @@
             <button id="import-versions-btn" class="icon-btn">
               <img style="width:48px;height:48px;" src="assets/images/import_version.png"/>
             </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="versions-filter-menu" class="info-box versions-filter-menu">
+        <div class="versions-filter-grid">
+          <div class="versions-filter-item">
+            <label for="versions-category-select">Category:</label>
+            <select id="versions-category-select"></select>
+          </div>
+
+          <div class="versions-filter-item">
+            <label for="versions-search">Search:</label>
+            <input id="versions-search" type="search" placeholder="Search...">
           </div>
         </div>
       </div>
@@ -208,6 +216,7 @@
           </div>
           <div class="section-dropdown-body">
             <div id="available-versions" class="versions-list"></div>
+            <div id="versions-pagination" class="mods-pagination"></div>
           </div>
         </section>
       </div>
@@ -227,11 +236,6 @@
           <button id="mods-profile-delete-btn" class="icon-button profile-delete-btn" title="Delete active mods profile">
             <img id="mods-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete mods profile"/>
           </button>
-
-          <label for="mods-search">Search:</label>
-          <input id="mods-search" type="search" placeholder="Search...">
-
-          <button id="mods-clear-filters-btn" type="button">Clear</button>
 
           <div class="view-toggle">
             <button id="mods-view-grid-btn" class="view-toggle-btn active" title="Grid View">
@@ -269,6 +273,11 @@
 
       <div id="mods-filter-menu" class="info-box mods-filter-menu">
         <div class="mods-filter-grid">
+          <div class="mods-filter-item mods-filter-item-search">
+            <label for="mods-search">Search:</label>
+            <input id="mods-search" type="search" placeholder="Search...">
+          </div>
+
           <div class="mods-filter-item">
             <label for="mods-provider-select">Provider:</label>
             <select id="mods-provider-select">
@@ -360,7 +369,20 @@
 
     <!-- SETTINGS PAGE -->
     <div id="page-settings" class="page hidden">
-      <h2 class="section-title"><img width="24px" height="24px" src="assets/images/settings.gif"/> Settings</h2>
+      <div class="versions-header">
+        <h2 class="section-title"><img width="24px" height="24px" src="assets/images/settings.gif"/> Settings</h2>
+        <div class="versions-filter settings-top-filter">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Profiles keep separate launcher settings and account sessions.\n\nDefault is created automatically. Use the [+ Add new profile] to create and switch between profiles."/>
+          <label for="settings-profile-select">Profile:</label>
+          <select id="settings-profile-select" style="min-width: 250px;"></select>
+          <button id="settings-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" title="Rename active profile">
+            <img id="settings-profile-edit-icon" src="assets/images/unfilled_pencil.png" alt="rename profile"/>
+          </button>
+          <button id="settings-profile-delete-btn" class="icon-button profile-delete-btn" title="Delete active profile">
+            <img id="settings-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete profile"/>
+          </button>
+        </div>
+      </div>
 
       <br>
       <h3 class="settings-dropdown-title">Account <span class="dropdown-indicator">⏷</span></h3>
@@ -381,17 +403,6 @@
           </select>
           <button id="connect-account-btn" class="primary" style="margin-left:12px; display:none;">Connect Account</button>
           <button id="disconnect-account-btn" class="danger" style="margin-left:8px; display:none;">Disconnect</button>
-        </div>
-        <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Profiles keep separate launcher settings and account sessions.\n\nDefault is created automatically. Use the [+ Add new profile] to create and switch between profiles."/>
-          <label>Profile:</label>
-          <select id="settings-profile-select" style="min-width: 250px;"></select>
-          <button id="settings-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" title="Rename active profile" style="margin-left:8px;">
-            <img id="settings-profile-edit-icon" src="assets/images/unfilled_pencil.png" alt="rename profile"/>
-          </button>
-          <button id="settings-profile-delete-btn" class="icon-button profile-delete-btn" title="Delete active profile" style="margin-left:8px;">
-            <img id="settings-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete profile"/>
-          </button>
         </div>
       </div>
 
@@ -432,7 +443,7 @@
         <br>
 
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Choose which Java runtime to use for Minecraft launches.\n\nAuto uses the default Java from PATH."/>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Choose which Java runtime to use for Minecraft launches.\n\nAuto inspects the version's client.jar, tries the matching installed Java first, then climbs through detected Java versions until one stays running.\n\nDefault (Java PATH) always uses the Java command available on your system PATH."/>
           <label>Java Runtime:</label>
           <select id="settings-java-runtime" style="min-width: 420px;"></select>
         </div>
@@ -450,6 +461,11 @@
           <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Uses aggressive parallel downloads (may cause issues, not recommended unless needed)"/>
           <label>Fast Download (Experimental):</label>
           <input type="checkbox" id="settings-fast-download"/>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Show additional community-provided versions from Omniarchive in the Versions list."/>
+          <label>Show third-party versions:</label>
+          <input type="checkbox" id="settings-show-third-party-versions"/>
         </div>
       </div>
 

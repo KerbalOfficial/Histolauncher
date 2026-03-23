@@ -12,32 +12,27 @@ import json
 import hashlib
 import shutil
 import tempfile
+import urllib.error
 import urllib.request
 import shlex
 
-from datetime import datetime
-from uuid import uuid3, NAMESPACE_DNS
+from datetime           import datetime
+from uuid               import uuid3, NAMESPACE_DNS
 
-from core.settings import load_global_settings, get_base_dir, get_versions_profile_dir
-from core.logger import colorize_log
-from server.yggdrasil import _get_username_and_uuid
+from core.java_runtime   import (
+                                JAVA_RUNTIME_MODE_AUTO,
+                                JAVA_RUNTIME_MODE_PATH,
+                                detect_java_runtimes,
+                                get_path_java_executable,
+                            )
+from core.settings      import load_global_settings, get_base_dir, get_versions_profile_dir
+from core.logger        import colorize_log
+from server.yggdrasil   import _get_username_and_uuid
+
+
 
 # ========== MOD MANAGEMENT ==========
 def _copy_mods_for_launch(game_dir, mod_loader):
-    """Copy mods from storage to game mods folder before launch.
-    
-    Scans ~/.histolauncher/mods/{loader}/{slug}/ directories. For each mod:
-    - Reads mod_meta.json for disabled flag and active_version
-    - Gets the active version's version_meta.json to check mod_loader matches
-    - Copies .jar files from the active version directory
-    
-    Args:
-        game_dir: The game data directory
-        mod_loader: The mod loader type (fabric/forge)
-        
-    Returns:
-        List of file paths that were copied (for cleanup later)
-    """
     if not game_dir or not mod_loader:
         return []
     
@@ -474,9 +469,27 @@ def _is_minecraft_window_visible(process_pid):
 
 _active_processes = {}
 _process_lock = threading.Lock()
+_last_launch_errors = {}
+_last_launch_error_lock = threading.Lock()
 
 
-def _create_client_log_file(version_identifier):
+def _set_last_launch_error(version_identifier, message):
+    key = str(version_identifier or "").strip()
+    if not key:
+        return
+    with _last_launch_error_lock:
+        _last_launch_errors[key] = str(message or "").strip()
+
+
+def consume_last_launch_error(version_identifier):
+    key = str(version_identifier or "").strip()
+    if not key:
+        return ""
+    with _last_launch_error_lock:
+        return _last_launch_errors.pop(key, "")
+
+
+def _create_version_log_file(version_identifier):
     try:
         base_dir = get_base_dir()
         
@@ -485,7 +498,7 @@ def _create_client_log_file(version_identifier):
         else:
             version_name = version_identifier
         
-        logs_dir = os.path.join(base_dir, "logs", "clients", version_name)
+        logs_dir = os.path.join(base_dir, "logs", "versions", version_name)
         os.makedirs(logs_dir, exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -613,12 +626,12 @@ def _process_monitor_thread(process_id, process_obj):
     _finalize_process_exit(process_id, exit_code)
 
 
-def _register_process(process_id, process_obj, version_identifier, log_file_path=None, copied_mods=None):
+def _register_process(process_id, process_obj, version_identifier, log_file_path=None, copied_mods=None, start_time=None):
     with _process_lock:
         _active_processes[process_id] = {
             "pid": process_obj.pid,
             "version": version_identifier,
-            "start_time": time.time(),
+            "start_time": float(start_time if start_time is not None else time.time()),
             "process": process_obj,
             "log_path": log_file_path,
             "copied_mods": copied_mods or [],
@@ -743,6 +756,197 @@ def _get_game_window_visible(process_id):
         }
 
 
+def _attach_copied_mods_to_process(process_id, copied_mods):
+    with _process_lock:
+        proc_info = _active_processes.get(process_id)
+        if not proc_info:
+            return
+        proc_info["copied_mods"] = list(copied_mods or [])
+
+
+def _class_file_major_to_java_major(class_major: int) -> int:
+    try:
+        major = int(class_major or 0)
+    except Exception:
+        return 0
+    if major < 45:
+        return 0
+    return major - 44
+
+
+def _detect_client_jar_java_major(version_dir: str) -> int:
+    client_jar = os.path.join(version_dir, "client.jar")
+    if not os.path.isfile(client_jar):
+        return 0
+
+    highest_class_major = 0
+    try:
+        with zipfile.ZipFile(client_jar, "r") as jar:
+            for info in jar.infolist():
+                if info.is_dir() or not str(info.filename or "").endswith(".class"):
+                    continue
+                try:
+                    with jar.open(info, "r") as class_fp:
+                        header = class_fp.read(8)
+                    if len(header) < 8 or header[:4] != b"\xca\xfe\xba\xbe":
+                        continue
+                    class_major = int.from_bytes(header[6:8], "big")
+                    if class_major > highest_class_major:
+                        highest_class_major = class_major
+                except Exception:
+                    continue
+    except Exception as e:
+        print(colorize_log(f"[launcher] Warning: Could not inspect client.jar Java target: {e}"))
+        return 0
+
+    return _class_file_major_to_java_major(highest_class_major)
+
+
+def _resolve_java_launch_candidates(selected_java_setting: str, version_dir: str):
+    raw = str(selected_java_setting or "").strip()
+    target_java_major = _detect_client_jar_java_major(version_dir)
+    path_java = get_path_java_executable()
+
+    detected = detect_java_runtimes(force_refresh=False)
+    runtimes_by_path = {}
+    ordered_runtimes = []
+    for rt in sorted(
+        detected,
+        key=lambda item: (int(item.get("major") or 0), str(item.get("path") or "").lower()),
+    ):
+        path = str(rt.get("path") or "").strip()
+        if not path:
+            continue
+        norm = os.path.normcase(os.path.normpath(path))
+        if norm in runtimes_by_path:
+            continue
+        entry = {
+            "path": path,
+            "label": str(rt.get("label") or "Java"),
+            "major": int(rt.get("major") or 0),
+            "version": str(rt.get("version") or "unknown"),
+        }
+        runtimes_by_path[norm] = entry
+        ordered_runtimes.append(entry)
+
+    if raw == JAVA_RUNTIME_MODE_AUTO:
+        if target_java_major > 0:
+            exact = [rt for rt in ordered_runtimes if rt.get("major") == target_java_major]
+            if exact:
+                return exact + [rt for rt in ordered_runtimes if rt.get("major", 0) > target_java_major], target_java_major
+        if ordered_runtimes:
+            return list(ordered_runtimes), target_java_major
+        return [{
+            "path": path_java,
+            "label": "Default (Java PATH)",
+            "major": 0,
+            "version": "unknown",
+        }], target_java_major
+
+    if raw == "" or raw == JAVA_RUNTIME_MODE_PATH:
+        return [{
+            "path": path_java,
+            "label": "Default (Java PATH)",
+            "major": 0,
+            "version": "unknown",
+        }], target_java_major
+
+    explicit_norm = os.path.normcase(os.path.normpath(raw))
+    if explicit_norm in runtimes_by_path:
+        return [runtimes_by_path[explicit_norm]], target_java_major
+
+    if os.path.isfile(raw):
+        return [{
+            "path": raw,
+            "label": "Custom Java",
+            "major": 0,
+            "version": "unknown",
+        }], target_java_major
+
+    print(colorize_log(f"[launcher] Warning: configured Java runtime not found, falling back to PATH: {raw}"))
+    return [{
+        "path": path_java,
+        "label": "Default (Java PATH)",
+        "major": 0,
+        "version": "unknown",
+    }], target_java_major
+
+
+def _wait_for_launch_stability(process_obj, timeout_seconds: float = 8.0):
+    deadline = time.time() + max(1.0, float(timeout_seconds or 0))
+    while time.time() < deadline:
+        exit_code = process_obj.poll()
+        if exit_code is not None:
+            return False, exit_code
+
+        try:
+            if _is_minecraft_window_visible(process_obj.pid):
+                return True, None
+        except Exception:
+            pass
+
+        time.sleep(0.5)
+
+    exit_code = process_obj.poll()
+    if exit_code is not None:
+        return False, exit_code
+    return True, None
+
+
+def _spawn_version_process(cmd, launch_cwd, version_identifier):
+    log_file_path = None
+    log_file = None
+    version_name = version_identifier.split("/", 1)[1] if "/" in version_identifier else version_identifier
+
+    print("Launching version:", version_identifier)
+    print("Working dir:", launch_cwd)
+    print("Command:", " ".join(cmd))
+
+    try:
+        log_file_path, log_file = _create_version_log_file(version_identifier)
+
+        if log_file:
+            process = subprocess.Popen(
+                cmd,
+                cwd=launch_cwd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                bufsize=1
+            )
+        else:
+            process = subprocess.Popen(cmd, cwd=launch_cwd)
+
+        if log_file and process.stdout:
+            reader_thread = threading.Thread(
+                target=_output_reader_thread,
+                args=(process, log_file, version_name),
+                daemon=True
+            )
+            reader_thread.start()
+            print(colorize_log(f"[launcher] Output reader thread started"))
+
+        return {
+            "ok": True,
+            "process": process,
+            "log_path": log_file_path,
+            "start_time": time.time(),
+        }
+    except Exception as e:
+        try:
+            if log_file:
+                log_file.close()
+        except Exception:
+            pass
+        return {
+            "ok": False,
+            "error": str(e),
+            "log_path": log_file_path,
+        }
+
+
 def _extract_mc_version_string(version_identifier):
     if "/" in version_identifier:
         _, base = version_identifier.split("/", 1)
@@ -750,6 +954,39 @@ def _extract_mc_version_string(version_identifier):
         base = version_identifier
     # Remove loader suffix if present (e.g. "1.16.5-fabric" -> "1.16.5")
     return base.split("-", 1)[0]
+
+
+def _resolve_version_dir(version_identifier):
+    clients_dir = get_versions_profile_dir()
+    if "/" in version_identifier:
+        parts = version_identifier.replace("\\", "/").split("/", 1)
+        category, folder = parts[0], parts[1]
+
+        for cat in os.listdir(clients_dir):
+            if cat.lower() == category.lower():
+                candidate = os.path.join(clients_dir, cat, folder)
+                if os.path.isdir(candidate):
+                    return candidate
+        return os.path.join(clients_dir, category, folder)
+
+    for cat in os.listdir(clients_dir):
+        candidate = os.path.join(clients_dir, cat, version_identifier)
+        if os.path.isdir(candidate):
+            return candidate
+    return None
+
+
+def _resolve_game_dir(global_settings, version_dir):
+    storage_mode = str((global_settings or {}).get("storage_directory", "global") or "global").lower()
+    if storage_mode == "version":
+        return os.path.join(version_dir, "data")
+
+    system = platform.system().lower()
+    if "windows" in system:
+        user_profile = os.environ.get("APPDATA")
+        if user_profile:
+            return os.path.join(user_profile, ".minecraft")
+    return os.path.expanduser(os.path.join("~", ".minecraft"))
 
 
 
@@ -771,6 +1008,37 @@ def _join_classpath(base_dir, entries):
     return sep.join(abs_entries)
 
 
+def _jar_has_class(jar_path: str, class_name: str) -> bool:
+    if not jar_path or not os.path.isfile(jar_path) or not class_name:
+        return False
+    class_path = class_name.replace('.', '/') + '.class'
+    try:
+        with zipfile.ZipFile(jar_path, 'r') as zf:
+            return class_path in zf.namelist()
+    except Exception:
+        return False
+
+
+def _classpath_has_class(version_dir: str, classpath_entries: list, class_name: str) -> bool:
+    for entry in classpath_entries or []:
+        rel = str(entry or "").strip()
+        if not rel:
+            continue
+        abs_path = os.path.normpath(os.path.join(version_dir, rel))
+
+        if os.path.isfile(abs_path) and abs_path.lower().endswith('.jar'):
+            if _jar_has_class(abs_path, class_name):
+                return True
+            continue
+
+        if os.path.isdir(abs_path):
+            class_rel = class_name.replace('.', os.sep) + '.class'
+            if os.path.isfile(os.path.join(abs_path, class_rel)):
+                return True
+
+    return False
+
+
 def _load_data_ini(version_dir):
     data_ini = os.path.join(version_dir, "data.ini")
     if not os.path.exists(data_ini):
@@ -787,11 +1055,68 @@ def _load_data_ini(version_dir):
     return meta
 
 
+def _resolve_runtime_main_class(
+    version_identifier: str,
+    version_dir: str,
+    classpath_entries: list,
+    configured_main: str,
+) -> str:
+    main_class = (configured_main or "").strip() or "net.minecraft.client.Minecraft"
+    client_jar = os.path.join(version_dir, "client.jar")
+
+    if _jar_has_class(client_jar, main_class) or _classpath_has_class(version_dir, classpath_entries, main_class):
+        return main_class
+
+    # Do not auto-rewrite LaunchWrapper mains to applet/classic classes.
+    # If LaunchWrapper is missing, keep the configured main and let error logs
+    # show the missing dependency clearly.
+    if main_class.startswith("net.minecraft.launchwrapper"):
+        print(colorize_log(
+            f"[launcher] main_class '{main_class}' not found on classpath; keeping configured class (missing LaunchWrapper dependency)"
+        ))
+        return main_class
+
+    # Fallback for legacy jars where manifest metadata lacks mainClass.
+    legacy_hint = _is_legacy_pre16_runtime(version_identifier)
+    candidates = []
+
+    if legacy_hint:
+        candidates.extend([
+            "net.minecraft.client.MinecraftApplet",
+            "com.mojang.minecraft.MinecraftApplet",
+            "net.minecraft.client.Minecraft",
+            "com.mojang.minecraft.Minecraft",
+        ])
+    else:
+        candidates.extend([
+            "net.minecraft.client.main.Main",
+            "net.minecraft.client.Minecraft",
+            "net.minecraft.client.MinecraftApplet",
+            "com.mojang.minecraft.Minecraft",
+            "com.mojang.minecraft.MinecraftApplet",
+        ])
+
+    for candidate in candidates:
+        if _jar_has_class(client_jar, candidate):
+            print(colorize_log(
+                f"[launcher] main_class '{main_class}' not found in client.jar; using '{candidate}'"
+            ))
+            return candidate
+
+    return main_class
+
+
 def _parse_mc_version(version_identifier):
     if "/" in version_identifier:
         _, base = version_identifier.split("/", 1)
     else:
         base = version_identifier
+    # Snapshots (e.g. 24w14a, 21w14a) are modern versions and should enable authlib handling.
+    # Accept snapshots whether they appear alone, prefixed, or embedded (e.g. "snapshot-21w14a").
+    b = base.lower()
+    m = re.search(r"\d+w\d+[a-z]", b)
+    if m:
+        return 99, 0
     base = base.split("-", 1)[0]
     parts = base.split(".")
     try:
@@ -802,18 +1127,28 @@ def _parse_mc_version(version_identifier):
         return None, None
 
 
-def _is_authlib_injector_needed(version_identifier):
+def _is_legacy_pre16_runtime(version_identifier: str) -> bool:
+    """Return True for runtimes that rely on pre-1.6 asset/proxy behavior."""
+    raw = (version_identifier or "").replace("\\", "/")
+    base = raw.split("/", 1)[1] if "/" in raw else raw
+    b = base.strip().lower()
+
+    # Old naming families (beta/alpha/classic/infdev/indev/rd).
+    if re.match(r'^(?:b1|a1|c0|inf-|in-|rd-)', b):
+        return True
+
     major, minor = _parse_mc_version(version_identifier)
     if major is None:
         return False
     if major > 1:
-        return True
-    # Authlib-based profile/session skin handling is used by 1.7+.
-    # Enabling this for legacy modern versions keeps custom skins working
-    # for 1.12.2 and below while avoiding very old classic-era clients.
-    if major == 1 and minor >= 7:
-        return True
-    return False
+        return False
+    return minor is not None and minor < 6
+
+
+def _is_legacy_http_proxy_needed(version_identifier):
+    """Very old versions fetch skins/resources over plain HTTP URLs.
+    Route those requests through the local server so legacy URL bridges apply."""
+    return _is_legacy_pre16_runtime(version_identifier)
 
 
 def username_to_uuid(username: str) -> str:
@@ -2344,16 +2679,15 @@ def _prepare_legacy_forge_runtime_files(version_dir: str, game_dir: str, loader_
             print(colorize_log(f"[launcher] Warning: Could not place legacy deobfuscation data: {e}"))
 
 
-def _prepare_legacy_assets_directory(version_identifier: str, game_dir: str, meta: dict) -> str:
-    if not game_dir:
+def _prepare_legacy_assets_directory(version_identifier: str, version_dir: str, game_dir: str, meta: dict) -> str:
+    if not version_dir:
         return ""
 
     asset_index_name = (meta.get("asset_index") or "").strip()
     if not asset_index_name:
         return ""
 
-    major, minor = _parse_mc_version(version_identifier)
-    if major != 1 or minor is None or minor >= 6:
+    if not _is_legacy_pre16_runtime(version_identifier):
         return ""
 
     base_dir = get_base_dir()
@@ -2374,8 +2708,34 @@ def _prepare_legacy_assets_directory(version_identifier: str, game_dir: str, met
         print(colorize_log(f"[launcher] Warning: Legacy asset index {asset_index_name} has no objects"))
         return ""
 
-    staged_assets_dir = os.path.join(game_dir, "resources")
+    staged_assets_dir = os.path.join(version_dir, "resources")
     os.makedirs(staged_assets_dir, exist_ok=True)
+
+    legacy_resources_root = os.path.join(get_base_dir(), "legacy_resources")
+    if os.path.exists(legacy_resources_root) and os.path.islink(legacy_resources_root):
+        try:
+            os.unlink(legacy_resources_root)
+        except Exception:
+            pass
+
+    def _set_legacy_resources_link(source_dir):
+        try:
+            if os.path.exists(legacy_resources_root) and not os.path.islink(legacy_resources_root):
+                if os.path.isdir(legacy_resources_root):
+                    shutil.rmtree(legacy_resources_root)
+                else:
+                    os.remove(legacy_resources_root)
+
+            os.symlink(source_dir, legacy_resources_root, target_is_directory=True)
+            print(colorize_log(
+                f"[launcher] Linked legacy resources root to {source_dir}"
+            ))
+            return True
+        except Exception as e:
+            print(colorize_log(f"[launcher] Warning: Could not symlink legacy resources: {e}"))
+            return False
+
+    _set_legacy_resources_link(staged_assets_dir)
 
     copied_count = 0
     linked_count = 0
@@ -2427,6 +2787,7 @@ def _prepare_legacy_assets_directory(version_identifier: str, game_dir: str, met
         f"[launcher] Prepared legacy assets in {staged_assets_dir} "
         f"(linked {linked_count}, copied {copied_count}, missing {missing_count})"
     ))
+
     return staged_assets_dir
 
 
@@ -2480,8 +2841,6 @@ def _normalize_legacy_language_code(lang_code: str) -> str:
     if not value:
         return "en_US"
 
-    # Legacy Minecraft expects locale-like codes (e.g. en_US), while
-    # newer options.txt commonly stores lowercase variants (e.g. en_us).
     value = value.replace("-", "_")
     parts = value.split("_")
     if len(parts) >= 2 and parts[0] and parts[1]:
@@ -2490,8 +2849,7 @@ def _normalize_legacy_language_code(lang_code: str) -> str:
 
 
 def _prepare_legacy_options_file(version_identifier: str, game_dir: str) -> None:
-    major, minor = _parse_mc_version(version_identifier)
-    if major != 1 or minor is None or minor >= 6:
+    if not _is_legacy_pre16_runtime(version_identifier):
         return
 
     if not game_dir:
@@ -2557,7 +2915,6 @@ def _prepare_legacy_forge_merged_client_jar(version_dir: str, loader_version: st
     if not forge_jar or not os.path.exists(client_jar):
         return ""
 
-    # Discover FML jar (separate artifact in pre-1.6 Forge)
     fml_jar = None
     modloader_jar = ""
     forge_loader_path = os.path.join(version_dir, "loaders", "forge", actual_loader_version)
@@ -2619,10 +2976,6 @@ def _prepare_legacy_forge_merged_client_jar(version_dir: str, loader_version: st
     fml_count = 0
     modloader_count = 0
     try:
-        # Priority: Forge first (its obfuscated classes carry both FML + Forge
-        # patches, e.g. the isDefaultTexture field on Item), then FML (adds
-        # cpw/mods/fml framework classes Forge doesn't ship), then ModLoader
-        # runtime classes for pre-FML Forge, then client.
         forge_count = _copy_jar_entries(forge_jar, skip_existing=False)
         if fml_jar and os.path.exists(fml_jar):
             fml_count = _copy_jar_entries(fml_jar, skip_existing=True)
@@ -2636,11 +2989,6 @@ def _prepare_legacy_forge_merged_client_jar(version_dir: str, loader_version: st
             f"forge entries {forge_count}, client fallback entries {client_count})"
         ))
 
-        # Patch CoreFMLLibraries.class to fix dead fmllibs checksums.
-        # The FML-specific asm-all-4.0.jar (hash 9830...) is no longer hosted anywhere;
-        # Maven Central's standard asm-all-4.0.jar has a different hash (2518...).
-        # Binary-replace the 40-char SHA1 hex string in the class constant pool
-        # so FML accepts the Maven Central version we pre-stage.
         _patch_fml_library_hashes(merged_path)
 
     except Exception as e:
@@ -2655,18 +3003,12 @@ def _prepare_legacy_forge_merged_client_jar(version_dir: str, loader_version: st
     return os.path.relpath(merged_path, version_dir).replace("\\", "/")
 
 
-# Mapping of FML library hashes that are no longer downloadable from the original
-# files.minecraftforge.net/fmllibs/ URL to their Maven Central equivalents.
 _FML_HASH_FIXUPS = {
-    # asm-all-4.0.jar: FML-specific build hash → standard Maven Central hash
     b"98308890597acb64047f7e896638e0d98753ae82": b"2518725354c7a6a491a323249b9e86846b00df09",
 }
 
 
 def _patch_fml_library_hashes(merged_jar_path: str) -> None:
-    """Binary-patch CoreFMLLibraries.class inside the merged jar to replace
-    dead FML library SHA1 hashes with their Maven Central equivalents.
-    Both old and new are 40-char hex, so the class file structure is preserved."""
     target_entry = "cpw/mods/fml/relauncher/CoreFMLLibraries.class"
     try:
         with zipfile.ZipFile(merged_jar_path, "r") as zin:
@@ -2683,7 +3025,6 @@ def _patch_fml_library_hashes(merged_jar_path: str) -> None:
         if not patched:
             return
 
-        # Rewrite the merged jar with the patched class
         tmp_path = merged_jar_path + ".patch_tmp"
         with zipfile.ZipFile(merged_jar_path, "r") as zin, \
              zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as zout:
@@ -2701,7 +3042,6 @@ def _patch_fml_library_hashes(merged_jar_path: str) -> None:
         print(colorize_log(f"[launcher] Warning: Could not patch FML library hashes: {e}"))
 
 
-# FML companion libraries required by pre-1.6 Forge, mapped to Maven Central coords.
 _FML_LIBRARIES = [
     {
         "name": "argo-2.25.jar",
@@ -2727,9 +3067,6 @@ _FML_LIBRARIES = [
 
 
 def _stage_legacy_fml_libraries(game_dir: str) -> None:
-    """Pre-download FML companion libraries into {game_dir}/lib/ so FML's
-    RelaunchLibraryManager finds them already present and skips the dead
-    files.minecraftforge.net download."""
     lib_dir = os.path.join(game_dir, "lib")
     os.makedirs(lib_dir, exist_ok=True)
 
@@ -2765,36 +3102,29 @@ def _stage_legacy_fml_libraries(game_dir: str) -> None:
             print(colorize_log(f"[launcher] Warning: Could not download {lib['name']}: {e}"))
 
 
-def launch_version(version_identifier, username_override=None, loader=None, loader_version=None):
+def _launch_version_once(
+    version_identifier,
+    username_override=None,
+    loader=None,
+    loader_version=None,
+    java_runtime_override=None,
+    copied_mods_override=None,
+    track_copied_mods=True,
+):
     base_dir = get_base_dir()
-    clients_dir = get_versions_profile_dir()
-    if "/" in version_identifier:
-        parts = version_identifier.replace("\\", "/").split("/", 1)
-        category, folder = parts[0], parts[1]
-        
-        version_dir = None
-        for cat in os.listdir(clients_dir):
-            if cat.lower() == category.lower():
-                candidate = os.path.join(clients_dir, cat, folder)
-                if os.path.isdir(candidate):
-                    version_dir = candidate
-                    break
-        
-        if not version_dir:
-            version_dir = os.path.join(clients_dir, category, folder)
-    else:
-        version_dir = None
-        for cat in os.listdir(clients_dir):
-            p = os.path.join(clients_dir, cat, version_identifier)
-            if os.path.isdir(p):
-                version_dir = p
-                break
-        if not version_dir:
-            print("ERROR: Version directory not found for", version_identifier)
-            return False
+    version_dir = _resolve_version_dir(version_identifier)
+    if not version_dir:
+        print("ERROR: Version directory not found for", version_identifier)
+        _set_last_launch_error(version_identifier, f"Version directory not found for {version_identifier}")
+        return False
     meta = _load_data_ini(version_dir)
-    main_class = meta.get("main_class") or "net.minecraft.client.Minecraft"
     classpath_entries = [p.strip() for p in (meta.get("classpath") or "client.jar").split(",") if p.strip()]
+    main_class = _resolve_runtime_main_class(
+        version_identifier,
+        version_dir,
+        classpath_entries,
+        meta.get("main_class") or "net.minecraft.client.Minecraft",
+    )
     
     if loader:
         loader_jars = _get_loader_jars(version_dir, loader, loader_version)
@@ -2887,7 +3217,6 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             forge_core_abs = _find_forge_core_jar(version_dir, actual_loader_version) if actual_loader_version else ""
             forge_core_rel = os.path.relpath(forge_core_abs, version_dir).replace("\\", "/") if forge_core_abs else ""
             if merged_jar_rel:
-                # Also identify FML jar to remove (it's merged into the combined jar)
                 fml_jar_rel = ""
                 if actual_loader_version:
                     forge_loader_path = os.path.join(version_dir, "loaders", "forge", actual_loader_version)
@@ -2908,7 +3237,6 @@ def launch_version(version_identifier, username_override=None, loader=None, load
                             updated_entries.append(merged_jar_rel)
                             inserted_merged = True
                         continue
-                    # Drop standalone FML jar — its contents are now in the merged jar
                     if fml_jar_rel and entry_norm == fml_jar_rel:
                         continue
                     updated_entries.append(entry)
@@ -2925,28 +3253,23 @@ def launch_version(version_identifier, username_override=None, loader=None, load
     classpath = _join_classpath(version_dir, classpath_entries)
     global_settings = load_global_settings()
     username = username_override or global_settings.get("username", "Player")
-    min_ram = global_settings.get("min_ram", "64M")
-    max_ram = global_settings.get("max_ram", "2048M")
-    selected_java_path = (global_settings.get("java_path") or "").strip()
-    java_executable = selected_java_path if (selected_java_path and os.path.isfile(selected_java_path)) else "java"
-    global_extra_jvm_args_raw = (global_settings.get("extra_jvm_args") or "").strip()
-    storage_mode = global_settings.get("storage_directory", "global").lower()
-    if storage_mode == "version":
-        game_dir = os.path.join(version_dir, "data")
+    min_ram = global_settings.get("min_ram", "2048M")
+    max_ram = global_settings.get("max_ram", "4096M")
+    selected_java_setting = (global_settings.get("java_path") or "").strip()
+    if java_runtime_override:
+        java_executable = str(java_runtime_override).strip()
+    elif selected_java_setting and selected_java_setting not in (JAVA_RUNTIME_MODE_AUTO, JAVA_RUNTIME_MODE_PATH) and os.path.isfile(selected_java_setting):
+        java_executable = selected_java_setting
     else:
-        system = platform.system().lower()
-        if "windows" in system:
-            user_profile = os.environ.get("APPDATA")
-            game_dir = os.path.join(user_profile, ".minecraft")
-        else:
-            game_dir = os.path.expanduser(os.path.join("~", ".minecraft"))
-    assets_root_override = _prepare_legacy_assets_directory(version_identifier, game_dir, meta)
+        java_executable = get_path_java_executable()
+    global_extra_jvm_args_raw = (global_settings.get("extra_jvm_args") or "").strip()
+    game_dir = _resolve_game_dir(global_settings, version_dir)
+    assets_root_override = _prepare_legacy_assets_directory(version_identifier, version_dir, game_dir, meta)
     if assets_root_override:
         _prepare_legacy_client_resources(version_dir, assets_root_override)
 
     _prepare_legacy_options_file(version_identifier, game_dir)
 
-    # Pre-stage FML companion libraries for pre-1.6 Forge
     if loader and loader.lower() == "forge":
         major_pre, minor_pre = _parse_mc_version(version_identifier)
         if major_pre == 1 and minor_pre is not None and minor_pre < 6 and _legacy_forge_has_fml(version_dir, loader_version):
@@ -2962,6 +3285,15 @@ def launch_version(version_identifier, username_override=None, loader=None, load
         if parsed_extra_args:
             cmd.extend(parsed_extra_args)
             print(colorize_log(f"[launcher] Added {len(parsed_extra_args)} user-configured JVM argument(s)"))
+
+    try:
+        if _is_legacy_pre16_runtime(version_identifier):
+            legacy_flag = "-Djava.util.Arrays.useLegacyMergeSort=true"
+            if not any(str(a).strip().startswith("-Djava.util.Arrays.useLegacyMergeSort") for a in cmd):
+                cmd.append(legacy_flag)
+                print(colorize_log(f"[launcher] Added JVM arg for legacy sorting: {legacy_flag}"))
+    except Exception:
+        pass
     
     if loader and loader.lower() == "forge":
         mc_version_str = version_identifier.split("/")[-1].split("-")[0]
@@ -2997,7 +3329,7 @@ def launch_version(version_identifier, username_override=None, loader=None, load
         forge_fml_metadata = {}
         
         if is_modlauncher:
-            print(colorize_log(f"[launcher] Detected ModLauncher-based Forge (1.13+), will add FML properties as command-line arguments"))
+            print(colorize_log(f"[launcher] Detected ModLauncher-based Forge, will add FML properties as command-line arguments"))
             
             forge_fml_metadata = _get_forge_fml_metadata(version_dir, loader_version)
             
@@ -3013,23 +3345,33 @@ def launch_version(version_identifier, username_override=None, loader=None, load
                 forge_fml_metadata["forge_group"] = "net.minecraftforge"
         
         elif is_launchwrapper:
-            print(colorize_log(f"[launcher] Detected LaunchWrapper-based Forge (1.12.2 and earlier), skipping FML properties"))
+            print(colorize_log(f"[launcher] Detected LaunchWrapper-based Forge, skipping FML properties"))
     
-    if _is_authlib_injector_needed(version_identifier):
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        authlib_path = os.path.join(project_root, "assets", "authlib-injector.jar")
-        if os.path.exists(authlib_path):
-            port_str = os.environ.get("HISTOLAUNCHER_PORT")
-            if port_str:
-                try:
-                    ygg_port = int(port_str)
-                except ValueError:
-                    ygg_port = 0
-            else:
-                ygg_port = 0
-            if ygg_port > 0:
-                ygg_url = f"http://127.0.0.1:{ygg_port}/authserver"
-                cmd.append(f"-javaagent:{authlib_path}={ygg_url}")
+    ygg_port = 0
+    port_str = os.environ.get("HISTOLAUNCHER_PORT")
+    if port_str:
+        try:
+            ygg_port = int(port_str)
+        except ValueError:
+            ygg_port = 0
+
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    authlib_path = os.path.join(project_root, "assets", "authlib-injector.jar")
+    if os.path.exists(authlib_path):
+        if ygg_port > 0:
+            ygg_url = f"http://127.0.0.1:{ygg_port}/authserver"
+            cmd.append(f"-javaagent:{authlib_path}={ygg_url}")
+
+    if ygg_port > 0 and _is_legacy_http_proxy_needed(version_identifier):
+        cmd.extend([
+            "-Dhttp.proxyHost=127.0.0.1",
+            f"-Dhttp.proxyPort={ygg_port}",
+            "-Dhttps.proxyHost=127.0.0.1",
+            f"-Dhttps.proxyPort={ygg_port}",
+            "-Dhttp.nonProxyHosts=localhost|127.*",
+            "-Dhttps.nonProxyHosts=localhost|127.*",
+        ])
+        print(colorize_log(f"[launcher] Enabled legacy HTTP proxy bridge via 127.0.0.1:{ygg_port}"))
     native_folder = meta.get("native_subfolder") or _native_subfolder_for_platform()
     native_path = os.path.join(version_dir, native_folder)
     if os.path.isdir(native_path):
@@ -3057,6 +3399,7 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             print(colorize_log(f"[launcher] Created Fabric remapping classpath file ({len(classpath_entries)} entries)"))
         except Exception as e:
             print(colorize_log(f"[launcher] ERROR creating Fabric remapping classpath file: {e}"))
+            _set_last_launch_error(version_identifier, f"Could not prepare Fabric runtime remap classpath: {e}")
             return False
         
         cmd.append("-Dfabric.gameMappingNamespace=official")
@@ -3266,6 +3609,27 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             assets_root_override=assets_root_override,
         )
         expanded_game_args = expanded.split()
+    
+    if not expanded_game_args and main_class == "net.minecraft.launchwrapper.Launch" and _is_legacy_pre16_runtime(version_identifier):
+        legacy_assets_dir = assets_root_override or os.path.join(game_dir, "resources")
+        expanded_game_args = [
+            username,
+            "0",
+            "--assetsDir",
+            legacy_assets_dir,
+            "--tweakClass",
+            "net.minecraft.launchwrapper.AlphaVanillaTweaker",
+            "--gameDir",
+            game_dir,
+        ]
+        print(colorize_log("[launcher] Applied runtime fallback legacy LaunchWrapper args"))
+
+    if expanded_game_args:
+        if main_class == "net.minecraft.launchwrapper.Launch" and _is_legacy_pre16_runtime(version_identifier):
+            tweak = _extract_tweak_class_from_arg_list(expanded_game_args)
+            if not tweak:
+                expanded_game_args.extend(["--tweakClass", "net.minecraft.launchwrapper.AlphaVanillaTweaker"])
+                print(colorize_log("[launcher] Added missing legacy --tweakClass AlphaVanillaTweaker"))
         cmd.extend(expanded_game_args)
     else:
         cmd.append(username)
@@ -3291,11 +3655,13 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             
             if not os.path.isdir(forge_loader_dir):
                 print(colorize_log(f"[launcher] ERROR: Forge loader directory not found: {forge_loader_dir}"))
+                _set_last_launch_error(version_identifier, f"Forge loader directory not found: {forge_loader_dir}")
                 return False
             
             jar_files = [f for f in os.listdir(forge_loader_dir) if f.endswith(".jar")]
             if not jar_files:
                 print(colorize_log(f"[launcher] ERROR: No JAR files found in Forge directory"))
+                _set_last_launch_error(version_identifier, "No JAR files were found in the Forge loader directory.")
                 return False
 
             if _legacy_forge_requires_modloader(version_dir, actual_loader_version) and not _has_modloader_runtime(version_dir):
@@ -3309,6 +3675,10 @@ def launch_version(version_identifier, username_override=None, loader=None, load
                     "[launcher] Add a matching ModLoader jar (containing BaseMod.class and ModLoader.class) "
                     "to the version root, e.g. clients/<category>/<version>/modloader-<version>.jar, then relaunch Forge."
                 ))
+                _set_last_launch_error(
+                    version_identifier,
+                    "This pre-FML Forge build requires ModLoader runtime classes, but no compatible ModLoader runtime was found.",
+                )
                 return False
             
             print(colorize_log(f"[launcher] [OK] Forge loader directory valid ({len(jar_files)} JARs)"))
@@ -3452,18 +3822,35 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             return False
         
         print(colorize_log(f"[launcher] [OK] Fabric configuration validated ({len(classpath_lines)} JARs"))
+
+    def _is_textures_server_reachable(timeout_seconds: float = 2.0) -> bool:
+        probe_url = "https://textures.histolauncher.workers.dev/"
+        try:
+            req = urllib.request.Request(
+                probe_url,
+                headers={"User-Agent": "Histolauncher/1.0"},
+            )
+            with urllib.request.urlopen(req, timeout=timeout_seconds):
+                return True
+        except urllib.error.HTTPError as e:
+            return 400 <= int(getattr(e, "code", 0)) < 500
+        except Exception:
+            return False
     
     skins_cache_dir = os.path.join(base_dir, "assets", "skins")
     if os.path.isdir(skins_cache_dir):
-        try:
-            shutil.rmtree(skins_cache_dir)
-            print(colorize_log("[launcher] Cleared skin texture cache"))
-        except Exception as e:
-            print(colorize_log(f"[launcher] Warning: could not clear skin cache: {e}"))
+        if _is_textures_server_reachable():
+            try:
+                shutil.rmtree(skins_cache_dir)
+                print(colorize_log("[launcher] Cleared skin texture cache"))
+            except Exception as e:
+                print(colorize_log(f"[launcher] Warning: could not clear skin cache: {e}"))
+        else:
+            print(colorize_log("[launcher] Texture server unreachable; preserving local skin cache"))
 
     # Copy mods for the appropriate loader before launch
-    copied_mods = []
-    if loader and game_dir:
+    copied_mods = list(copied_mods_override or [])
+    if copied_mods_override is None and loader and game_dir:
         copied_mods = _copy_mods_for_launch(game_dir, loader)
 
     print("Launching version:", version_identifier)
@@ -3474,7 +3861,7 @@ def launch_version(version_identifier, username_override=None, loader=None, load
     print("Working dir:", launch_cwd)
     print("Command:", " ".join(cmd))
     try:
-        log_file_path, log_file = _create_client_log_file(version_identifier)
+        log_file_path, log_file = _create_version_log_file(version_identifier)
         
         if log_file:
             process = subprocess.Popen(
@@ -3505,10 +3892,116 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             f"{time.time()}{process.pid}".encode()
         ).hexdigest()[:16]
         
-        _register_process(process_id, process, version_identifier, log_file_path, copied_mods)
+        tracked_copied_mods = copied_mods if track_copied_mods else []
+        _register_process(process_id, process, version_identifier, log_file_path, tracked_copied_mods)
         
         print(colorize_log(f"[launcher] Process launched with ID: {process_id}"))
         return process_id
     except Exception as e:
         print("ERROR launching:", e)
         return None
+
+
+def launch_version(version_identifier, username_override=None, loader=None, loader_version=None):
+    version_dir = _resolve_version_dir(version_identifier)
+    if not version_dir:
+        _set_last_launch_error(version_identifier, f"Version directory not found for {version_identifier}")
+        return False
+
+    global_settings = load_global_settings() or {}
+    selected_java_setting = (global_settings.get("java_path") or "").strip()
+    selected_mode = selected_java_setting or JAVA_RUNTIME_MODE_PATH
+
+    candidates, target_java_major = _resolve_java_launch_candidates(selected_mode, version_dir)
+    if not candidates:
+        _set_last_launch_error(version_identifier, "No Java runtime candidates were found for launch.")
+        return False
+
+    game_dir = _resolve_game_dir(global_settings, version_dir)
+    copied_mods = []
+    if loader and game_dir:
+        copied_mods = _copy_mods_for_launch(game_dir, loader)
+
+    auto_mode = selected_mode == JAVA_RUNTIME_MODE_AUTO
+    tried_labels = []
+    last_error = ""
+
+    for candidate in candidates:
+        java_path = str(candidate.get("path") or "").strip() or get_path_java_executable()
+        java_label = str(candidate.get("label") or os.path.basename(java_path) or "Java")
+        tried_labels.append(java_label)
+
+        print(colorize_log(f"[launcher] Trying Java runtime: {java_label} -> {java_path}"))
+
+        process_id = _launch_version_once(
+            version_identifier,
+            username_override=username_override,
+            loader=loader,
+            loader_version=loader_version,
+            java_runtime_override=java_path,
+            copied_mods_override=copied_mods,
+            track_copied_mods=not auto_mode,
+        )
+
+        if not process_id:
+            last_error = consume_last_launch_error(version_identifier) or ""
+            if last_error:
+                if copied_mods:
+                    _cleanup_copied_mods(copied_mods)
+                _set_last_launch_error(version_identifier, last_error)
+                return False
+            if not auto_mode:
+                if copied_mods:
+                    _cleanup_copied_mods(copied_mods)
+                return False
+            continue
+
+        if not auto_mode:
+            return process_id
+
+        with _process_lock:
+            proc_info = _active_processes.get(process_id)
+            process_obj = proc_info.get("process") if proc_info else None
+
+        if not process_obj:
+            continue
+
+        launch_stable, exit_code = _wait_for_launch_stability(process_obj)
+        if launch_stable:
+            _attach_copied_mods_to_process(process_id, copied_mods)
+            print(colorize_log(f"[launcher] Auto Java selection succeeded with {java_label}"))
+            return process_id
+
+        status_info = _get_process_status(process_id) or {}
+        if status_info.get("log_path"):
+            print(colorize_log(
+                f"[launcher] Auto Java attempt failed with exit code {exit_code}; "
+                f"log: {status_info.get('log_path')}"
+            ))
+        else:
+            print(colorize_log(f"[launcher] Auto Java attempt failed with exit code {exit_code}"))
+
+    if copied_mods:
+        _cleanup_copied_mods(copied_mods)
+
+    version_name = version_identifier.split("/", 1)[1] if "/" in version_identifier else version_identifier
+    if auto_mode:
+        tried_text = ", ".join(tried_labels) if tried_labels else "no detected Java runtimes"
+        if target_java_major > 0:
+            last_error = (
+                f"Auto Java selection could not launch {version_name}.\n"
+                f"client.jar appears to target Java {target_java_major}, but no compatible detected runtime launched successfully.\n"
+                f"Tried: {tried_text}"
+            )
+        else:
+            last_error = (
+                f"Auto Java selection could not launch {version_name}.\n"
+                f"No detected Java runtime stayed alive long enough to complete startup.\n"
+                f"Tried: {tried_text}"
+            )
+        _set_last_launch_error(version_identifier, last_error)
+        return False
+
+    if last_error:
+        _set_last_launch_error(version_identifier, last_error)
+    return False

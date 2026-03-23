@@ -6,8 +6,9 @@ import time
 from core.logger import colorize_log
 
 DISCORD_CLIENT_ID = "1479933973114257500"
-RPC_RETRY_INTERVAL_SECONDS = 10
-RPC_UPDATE_INTERVAL_SECONDS = 15
+RPC_RETRY_INTERVAL_SECONDS = 3
+RPC_UPDATE_INTERVAL_SECONDS = 5
+RPC_MAX_CONNECT_ATTEMPTS = 5
 
 try:
     from pypresence import Presence
@@ -23,15 +24,12 @@ _rpc_thread = None
 _rpc_connected = False
 _stop_event = threading.Event()
 _state_lock = threading.Lock()
-_desired_presence = {
-    "state": "Browsing launcher",
-    "details": "",
-    "start": _start_time,
-}
 _launcher_version = None
 _last_connect_error = None
 _last_connect_error_at = 0.0
 _logged_successful_update = False
+_rpc_connect_attempts = 0
+_rpc_disabled = False
 
 
 def _sanitize_text(value, fallback):
@@ -58,12 +56,7 @@ def _format_loader_name(loader_type, loader_version=None):
     if not lt:
         return None
 
-    if lt == "forge":
-        base = "Forge"
-    elif lt == "fabric":
-        base = "Fabric"
-    else:
-        base = lt.capitalize()
+    base = lt.capitalize()
 
     version = str(loader_version or "").strip()
     if version:
@@ -78,13 +71,15 @@ def _format_launcher_version():
     return f"{version}"[:128]
 
 
-def _combine_presence_parts(*parts):
-    items = []
-    for part in parts:
-        text = str(part or "").strip()
-        if text:
-            items.append(text)
-    return " | ".join(items)[:128]
+_desired_presence = {
+    "state": "Browsing launcher",
+    "details": _format_launcher_version(),
+    "start": _start_time,
+}
+
+
+# `_combine_presence_parts` was removed — state strings are now composed
+# explicitly to avoid joining launcher version or username into `state`.
 
 
 def _build_payload():
@@ -94,7 +89,7 @@ def _build_payload():
     return {
         "name": "Histolauncher",
         "state": _sanitize_text(snapshot.get("state"), "Browsing launcher"),
-        "details": _sanitize_text(snapshot.get("details"), "Idle in Histolauncher"),
+        "details": _sanitize_text(snapshot.get("details"), _format_launcher_version()),
         "start": int(snapshot.get("start") or _start_time),
     }
 
@@ -133,7 +128,10 @@ def _log_connect_failure(exc):
 
 
 def _connect_rpc():
-    global _rpc, _rpc_connected, _last_connect_error, _logged_successful_update
+    global _rpc, _rpc_connected, _last_connect_error, _logged_successful_update, _rpc_connect_attempts, _rpc_disabled
+
+    if _rpc_disabled:
+        return False
 
     if Presence is None:
         if _PYPRESENCE_IMPORT_ERROR is not None:
@@ -147,11 +145,26 @@ def _connect_rpc():
         _rpc_connected = True
         _last_connect_error = None
         _logged_successful_update = False
+        _rpc_connect_attempts = 0
         print(colorize_log("[discord_rpc] Connected to Discord client"))
         return True
     except Exception as exc:
         _close_rpc(clear=False)
         _log_connect_failure(exc)
+
+        try:
+            _rpc_connect_attempts += 1
+        except Exception:
+            _rpc_connect_attempts = 1
+
+        if _rpc_connect_attempts >= RPC_MAX_CONNECT_ATTEMPTS:
+            _rpc_disabled = True
+            print(colorize_log(f"[discord_rpc] Disabled after {RPC_MAX_CONNECT_ATTEMPTS} failed connect attempts; will stop retrying."))
+            try:
+                _stop_event.set()
+            except Exception:
+                pass
+
         return False
 
 
@@ -214,17 +227,17 @@ def set_launcher_version(version):
     _launcher_version = value or None
 
 
-def update_discord_presence(state="Browsing launcher", details="Idle in Histolauncher", start=None):
+def update_discord_presence(state="Browsing launcher", details="", start=None):
     with _state_lock:
         _desired_presence["state"] = _sanitize_text(state, "Browsing launcher")
-        _desired_presence["details"] = _sanitize_text(details, "Idle in Histolauncher")
+        _desired_presence["details"] = _sanitize_text(details, _format_launcher_version())
         _desired_presence["start"] = int(start or time.time())
 
 
-def set_launcher_presence(state="Browsing launcher", details="Idle in Histolauncher"):
+def set_launcher_presence(state="Browsing launcher"):
     update_discord_presence(
-        state=_combine_presence_parts(state, _format_launcher_version()),
-        details=details,
+        state=state,
+        details=_format_launcher_version(),
         start=time.time(),
     )
 
@@ -239,11 +252,6 @@ def set_install_presence(
     version_name = _format_version_name(version_identifier)
     loader_name = _format_loader_name(loader_type, loader_version)
 
-    if loader_name:
-        details = f"Installing {loader_name} for {version_name}"[:128]
-    else:
-        details = f"Downloading {version_name}"[:128]
-
     pct = None
     try:
         if progress_percent is not None:
@@ -251,36 +259,33 @@ def set_install_presence(
     except Exception:
         pct = None
 
-    if pct is None:
-        state = _combine_presence_parts("Installing", _format_launcher_version())
+    if loader_name:
+        install_info = f"Installing {version_name} ({loader_name})"
     else:
-        state = _combine_presence_parts(f"Installing {pct}%", _format_launcher_version())
+        install_info = f"Downloading {version_name}"
+
+    if pct is None:
+        state = install_info
+    else:
+        state = f"{install_info} {pct}%"
 
     update_discord_presence(
         state=state,
-        details=details,
+        details=_format_launcher_version(),
         start=start_time or time.time(),
     )
 
 
-def set_game_presence(version_identifier, username=None, start_time=None, phase="Playing", loader_type=None, loader_version=None):
+def set_game_presence(version_identifier, start_time=None, phase="Playing", loader_type=None, loader_version=None):
     version_name = _format_version_name(version_identifier)
     phase_text = "Launching" if phase == "Launching" else "Playing"
     loader_name = _format_loader_name(loader_type, loader_version)
 
-    if loader_name:
-        details = f"{phase_text} {version_name} ({loader_name})"[:128]
-    else:
-        details = f"{phase_text} {version_name}"[:128]
-
-    state = _combine_presence_parts(
-        f"As {username}" if username else None,
-        _format_launcher_version(),
-    )
+    state = f"{phase_text} {version_name}" + (" ({loader_name})" if loader_name else "")
 
     update_discord_presence(
         state=state,
-        details=details,
+        details=_format_launcher_version(),
         start=start_time or time.time(),
     )
 

@@ -532,19 +532,38 @@ input[type="checkbox"]:checked::before {
   padding: 4px 8px;
 }
 
-.versions-filter input {
-  padding: 4px 8px;
-  background:#3c3f41;
-  border:1px solid #1f2937;
-  color:#e5e7eb;
+.versions-filter-menu {
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+.versions-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.versions-filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.versions-filter-item label {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.versions-filter-item select,
+.versions-filter-item input {
+  background: #3c3f41;
+  border: 1px solid #1f2937;
+  color: #e5e7eb;
+  padding: 6px 8px;
 }
 
 .mods-topbar-filter {
   gap: 8px;
-}
-
-#mods-search {
-  min-width: 240px;
 }
 
 .mods-filter-menu {
@@ -574,6 +593,27 @@ input[type="checkbox"]:checked::before {
   border: 1px solid #1f2937;
   color: #e5e7eb;
   padding: 6px 8px;
+}
+
+.mods-filter-item input {
+  background: #3c3f41;
+  border: 1px solid #1f2937;
+  color: #e5e7eb;
+  padding: 6px 8px;
+}
+
+.mods-filter-item-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mods-filter-item-search {
+  grid-column: 1 / -1;
+}
+
+.mods-filter-item-search input {
+  width: 100%;
 }
 
 /* MOD CARDS - smaller grid size */
@@ -743,6 +783,18 @@ input[type="checkbox"]:checked::before {
   padding: 0 4px;
   color: #666;
   font-size: 12px;
+}
+
+.mods-page-ellipsis-btn {
+  background: #2a2a2a;
+  border: 2px solid #444;
+  color: #ccc;
+  cursor: pointer;
+}
+
+.mods-page-ellipsis-btn:hover {
+  background: #3a3a3a;
+  color: #fff;
 }
 
 /* MOD DETAIL MODAL */

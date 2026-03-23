@@ -12,9 +12,9 @@ import urllib.parse
 import urllib.error
 import logging
 
-from typing import List, Dict, Any, Optional
+from typing         import List, Dict, Any, Optional
 
-from core.settings import get_mods_profile_dir, _apply_url_proxy
+from core.settings  import get_mods_profile_dir, _apply_url_proxy
 
 logger = logging.getLogger(__name__)
 
@@ -476,8 +476,21 @@ def export_modpack(name: str, version: str, description: str,
     mod_entries = []
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        written_paths = set()
+
+        def _write_if_exists(src_path: str, arc_path: str) -> bool:
+            if not os.path.isfile(src_path):
+                return False
+            normalized_arc = str(arc_path or "").replace("\\", "/").lstrip("/")
+            if not normalized_arc or normalized_arc in written_paths:
+                return False
+            zf.write(src_path, normalized_arc)
+            written_paths.add(normalized_arc)
+            return True
+
         if image_data:
             zf.writestr("display.png", image_data)
+            written_paths.add("display.png")
 
         for m in mods:
             slug = m.get("mod_slug", "")
@@ -492,24 +505,18 @@ def export_modpack(name: str, version: str, description: str,
 
             disabled_in_pack = bool(m.get("disabled", False))
 
-            for fn in os.listdir(ver_dir):
+            for fn in sorted(os.listdir(ver_dir)):
                 src = os.path.join(ver_dir, fn)
                 if not os.path.isfile(src):
                     continue
                 arc_path = f"mods/{slug}/{ver_label}/{fn}"
-                zf.write(src, arc_path)
-
-            ver_meta_src = os.path.join(ver_dir, "version_meta.json")
-            if os.path.isfile(ver_meta_src):
-                zf.write(ver_meta_src, f"mods/{slug}/{ver_label}/version_meta.json")
+                _write_if_exists(src, arc_path)
 
             meta_src = os.path.join(mod_dir, "mod_meta.json")
-            if os.path.isfile(meta_src):
-                zf.write(meta_src, f"mods/{slug}/mod_meta.json")
+            _write_if_exists(meta_src, f"mods/{slug}/mod_meta.json")
 
             mod_icon_src = os.path.join(mod_dir, "display.png")
-            if os.path.isfile(mod_icon_src):
-                zf.write(mod_icon_src, f"mods/{slug}/display.png")
+            _write_if_exists(mod_icon_src, f"mods/{slug}/display.png")
 
             meta_file = os.path.join(mod_dir, "mod_meta.json")
             mod_name = slug

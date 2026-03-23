@@ -6,6 +6,8 @@ import logging
 import os
 import re
 import shutil
+import threading
+import time
 
 from typing import Any, Dict, List, Optional
 
@@ -27,23 +29,24 @@ DEFAULTS = {
         "storage_directory": "global",
     },
     "launcher": {
-        "java_path": "",
+        "java_path": "auto",
         "url_proxy": "",
         "low_data_mode": "0",
         "fast_download": "0",
+        "show_third_party_versions": "0",
         "ygg_port": "25565",
-        "versions_view": "grid",  # or "list"
-        "mods_view": "list",  # or "grid"
+        "versions_view": "grid",
+        "mods_view": "list",
     },
 }
 
-# Deprecated settings to ignore when loading from old files
 DEPRECATED_KEYS = {"signature_hash"}
 
 _MAX_PROFILE_NAME_LEN = 32
 _MAX_PROFILE_ID_LEN = 48
 _PROFILE_ADD_SENTINEL = "__add_new_profile__"
 _PROFILE_SCOPES = {"settings", "versions", "mods"}
+_META_WRITE_LOCK = threading.Lock()
 
 
 def get_base_dir() -> str:
@@ -112,10 +115,31 @@ def _load_profiles_meta() -> Dict[str, Any]:
 
 def _save_profiles_meta(meta: Dict[str, Any]) -> None:
     meta_path = _get_profiles_meta_path()
-    tmp_path = meta_path + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(meta, f, indent=2)
-    os.replace(tmp_path, meta_path)
+    os.makedirs(os.path.dirname(meta_path), exist_ok=True)
+
+    with _META_WRITE_LOCK:
+        last_error = None
+        for attempt in range(6):
+            tmp_path = f"{meta_path}.{os.getpid()}.{threading.get_ident()}.tmp"
+            try:
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(meta, f, indent=2)
+                os.replace(tmp_path, meta_path)
+                return
+            except PermissionError as e:
+                last_error = e
+                # Windows file replacement can temporarily fail when files are scanned/locked.
+                time.sleep(0.04 * (attempt + 1))
+            finally:
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                except Exception:
+                    pass
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Failed to save profiles metadata")
 
 
 def _profile_settings_file(profile_id: str) -> str:
@@ -171,10 +195,30 @@ def _load_scope_meta(scope: str) -> Dict[str, Any]:
 
 def _save_scope_meta(scope: str, meta: Dict[str, Any]) -> None:
     meta_path = _get_scope_meta_path(scope)
-    tmp_path = meta_path + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
-        json.dump(meta, f, indent=2)
-    os.replace(tmp_path, meta_path)
+    os.makedirs(os.path.dirname(meta_path), exist_ok=True)
+
+    with _META_WRITE_LOCK:
+        last_error = None
+        for attempt in range(6):
+            tmp_path = f"{meta_path}.{os.getpid()}.{threading.get_ident()}.tmp"
+            try:
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    json.dump(meta, f, indent=2)
+                os.replace(tmp_path, meta_path)
+                return
+            except PermissionError as e:
+                last_error = e
+                time.sleep(0.04 * (attempt + 1))
+            finally:
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                except Exception:
+                    pass
+
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Failed to save scope metadata")
 
 
 def _ensure_scope_profile_dirs(scope: str, profile_id: str) -> None:
@@ -235,10 +279,13 @@ def _ensure_scope_initialized(scope: str) -> None:
         return
 
     _get_scope_base_dir(scope_norm)
+    meta_path = _get_scope_meta_path(scope_norm)
+    meta_changed = not os.path.exists(meta_path)
     meta = _load_scope_meta(scope_norm)
 
     if not any(str(p.get("id", "")) == "default" for p in meta.get("profiles", [])):
         meta.setdefault("profiles", []).insert(0, {"id": "default", "name": "Default"})
+        meta_changed = True
 
     _migrate_scope_from_legacy(scope_norm)
 
@@ -246,6 +293,7 @@ def _ensure_scope_initialized(scope: str) -> None:
     active = str(meta.get("active") or "default")
     if active not in profile_ids:
         meta["active"] = "default"
+        meta_changed = True
 
     for p in meta.get("profiles", []):
         pid = str(p.get("id", "")).strip()
@@ -253,16 +301,20 @@ def _ensure_scope_initialized(scope: str) -> None:
             continue
         _ensure_scope_profile_dirs(scope_norm, pid)
 
-    _save_scope_meta(scope_norm, meta)
+    if meta_changed:
+        _save_scope_meta(scope_norm, meta)
 
 
 def _ensure_profile_system_initialized() -> None:
     _get_profiles_settings_dir()
+    meta_path = _get_profiles_meta_path()
+    meta_changed = not os.path.exists(meta_path)
     meta = _load_profiles_meta()
 
     # Ensure required default profile entry exists.
     if not any(str(p.get("id", "")) == "default" for p in meta.get("profiles", [])):
         meta.setdefault("profiles", []).insert(0, {"id": "default", "name": "Default"})
+        meta_changed = True
 
     # Migrate legacy single-profile files.
     legacy_settings = os.path.join(get_base_dir(), "settings.ini")
@@ -296,6 +348,7 @@ def _ensure_profile_system_initialized() -> None:
     active = str(meta.get("active") or "default")
     if active not in profile_ids:
         meta["active"] = "default"
+        meta_changed = True
 
     # Ensure each profile has a settings file.
     for p in meta.get("profiles", []):
@@ -306,7 +359,8 @@ def _ensure_profile_system_initialized() -> None:
         if not os.path.isfile(pfile):
             _write_default_settings_file(pfile)
 
-    _save_profiles_meta(meta)
+    if meta_changed:
+        _save_profiles_meta(meta)
 
 
 def get_active_profile_id() -> str:
@@ -484,6 +538,12 @@ def get_token_path(profile_id: Optional[str] = None) -> str:
     _ensure_profile_system_initialized()
     pid = _safe_profile_id(profile_id or get_active_profile_id())
     return _profile_token_file(pid)
+
+
+def get_account_cache_path(profile_id: Optional[str] = None) -> str:
+    _ensure_profile_system_initialized()
+    pid = _safe_profile_id(profile_id or get_active_profile_id())
+    return os.path.join(_get_profiles_settings_dir(), f"{pid}.account.cache.json")
 
 
 def list_scope_profiles(scope: str) -> List[Dict[str, str]]:
@@ -772,13 +832,73 @@ def load_account_token(profile_id: Optional[str] = None) -> Optional[str]:
         return None
 
 
+def save_cached_account_identity(account: Dict[str, Any], profile_id: Optional[str] = None) -> None:
+    """Persist last verified account identity for offline fallback."""
+    if not isinstance(account, dict):
+        return
+
+    username = str(account.get("username") or "").strip()
+    uuid_value = str(account.get("uuid") or "").strip()
+    if not username or not uuid_value:
+        return
+
+    path = get_account_cache_path(profile_id)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    payload = {
+        "username": username,
+        "uuid": uuid_value,
+        "updated_at": int(time.time()),
+    }
+
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(payload, f)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            if os.path.exists(tmp):
+                os.remove(tmp)
+        except Exception:
+            pass
+
+
+def load_cached_account_identity(profile_id: Optional[str] = None) -> Optional[Dict[str, str]]:
+    """Load cached account identity for offline fallback."""
+    path = get_account_cache_path(profile_id)
+    if not os.path.exists(path):
+        return None
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+        if not isinstance(payload, dict):
+            return None
+        username = str(payload.get("username") or "").strip()
+        uuid_value = str(payload.get("uuid") or "").strip()
+        if not username or not uuid_value:
+            return None
+        return {"username": username, "uuid": uuid_value}
+    except Exception:
+        return None
+
+
+def clear_cached_account_identity(profile_id: Optional[str] = None) -> None:
+    path = get_account_cache_path(profile_id)
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception:
+        pass
+
+
 def clear_account_token(profile_id: Optional[str] = None) -> None:
-    """Remove account token file with proper error handling."""
     path = get_token_path(profile_id)
     try:
         if os.path.exists(path):
             os.remove(path)
             logger.debug(f"Account token cleared: {path}")
+        clear_cached_account_identity(profile_id)
     except IOError as e:
         logger.error(f"Failed to clear account token: {e}")
     except Exception as e:
@@ -798,7 +918,6 @@ def set_account_type(value: str, profile_id: Optional[str] = None) -> None:
 
 
 def save_global_settings(settings_dict: Dict[str, Any], profile_id: Optional[str] = None) -> None:
-    """Save settings to organized INI sections for clarity and maintainability."""
     path = get_settings_path(profile_id)
     current = load_global_settings(profile_id)
     current.update(settings_dict)
@@ -855,7 +974,6 @@ def load_version_data(version_dir: str) -> Optional[Dict[str, str]]:
 
 
 def _get_url_proxy_prefix() -> str:
-    """Get the configured URL proxy prefix from settings."""
     try:
         cfg = load_global_settings()
         return (cfg.get("url_proxy") or "").strip()
@@ -864,7 +982,6 @@ def _get_url_proxy_prefix() -> str:
 
 
 def _apply_url_proxy(url: str) -> str:
-    """Apply URL proxy prefix if configured, otherwise return URL unchanged."""
     prefix = _get_url_proxy_prefix()
     if not prefix:
         return url

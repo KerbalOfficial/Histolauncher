@@ -3,6 +3,8 @@ Histolauncher is a lightweight, community-driven launcher built to grow and help
 
 It provides a clean, modern interface for browsing and launching a massive library of Minecraft clients, all officially from Mojang!
 
+If you need legacy Minecraft clients, you can have that too! Thanks to Omniarchive, you can now play legacy clients!
+
 The goal is simple: make it easy for anyone to play any Minecraft version offline without having to risk searching for 100% clean launcher. Everything is organized, searchable, and ready to download & launch with just a few clicks.
 
 Histolauncher is a passion project - built for easy access to Minecraft clients offline whenever.

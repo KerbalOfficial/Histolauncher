@@ -38,6 +38,7 @@ TAG_COLORS = {
     'version_manager': Colors.CYAN,
     'downloader': Colors.MAGENTA,
     'modloaders': Colors.BLUE,
+    'mods': Colors.GREEN,
     'progress': Colors.BRIGHT_MAGENTA,
 }
 

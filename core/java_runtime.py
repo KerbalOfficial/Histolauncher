@@ -15,6 +15,9 @@ _CACHE_AT = 0.0
 _CACHE_RUNTIMES: List[Dict[str, object]] = []
 _CACHE_TTL_SECONDS = 30.0
 
+JAVA_RUNTIME_MODE_AUTO = "auto"
+JAVA_RUNTIME_MODE_PATH = "__java_path_default__"
+
 
 def _java_executable_name() -> str:
     return "java.exe" if platform.system().lower().startswith("win") else "java"
@@ -74,6 +77,21 @@ def _probe_java_runtime(java_path: str) -> Optional[Dict[str, object]]:
         "version": version,
         "major": major,
     }
+
+
+def probe_java_runtime(java_path: str) -> Optional[Dict[str, object]]:
+    return _probe_java_runtime(java_path)
+
+
+def get_path_java_executable() -> str:
+    path_java = shutil.which("java")
+    if path_java and os.path.isfile(path_java):
+        return path_java
+    return "java"
+
+
+def get_path_java_runtime() -> Optional[Dict[str, object]]:
+    return _probe_java_runtime(get_path_java_executable())
 
 
 def _iter_windows_common_java_paths() -> List[str]:
