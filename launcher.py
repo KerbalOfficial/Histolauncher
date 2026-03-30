@@ -27,6 +27,20 @@ ICO_PATH = os.path.join(PROJECT_ROOT, "ui", "favicon.ico")
 
 DATA_FILE_EXISTS = os.path.exists(os.path.join(os.path.expanduser("~"), ".histolauncher"))
 
+
+def _reconfigure_standard_streams():
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None:
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+_reconfigure_standard_streams()
+
 def set_console_visible(visible: bool):
     try:
         if sys.platform.startswith("win"):
@@ -125,9 +139,18 @@ class TeeOutput:
     
     def write(self, message):
         clean_message = self._strip_ansi_codes(message)
-        self.file_obj.write(clean_message)
-        self.file_obj.flush()
-        self.original_stream.write(message)
+        try:
+            self.file_obj.write(clean_message)
+            self.file_obj.flush()
+        except UnicodeEncodeError:
+            self.file_obj.write(clean_message.encode("utf-8", errors="replace").decode("utf-8"))
+            self.file_obj.flush()
+
+        try:
+            self.original_stream.write(message)
+        except UnicodeEncodeError:
+            safe_message = message.encode("utf-8", errors="replace").decode("utf-8")
+            self.original_stream.write(safe_message)
         self.original_stream.flush()
     
     def flush(self):
@@ -150,7 +173,7 @@ def setup_launcher_logging():
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_file = os.path.join(logs_dir, f"{timestamp}.log")
         
-        log_handle = open(log_file, "w", buffering=1)
+        log_handle = open(log_file, "w", buffering=1, encoding="utf-8", errors="replace")
         
         timestamp_display = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_handle.write(f"{'='*60}\n")
@@ -888,7 +911,7 @@ def open_with_webview(webview, port, title="Histolauncher", width=900, height=52
         webview.create_window(title, url, width=width, height=height)
         print(colorize_log(f"[launcher] Opened launcher in pywebview window: {url}"))
         print(dim_line("------------------------------------------------"))
-        webview.start()
+        webview.start(user_agent="Histolauncher/1.0")
         return True
     except Exception as e:
         print(colorize_log(f"[launcher] pywebview failed to open window: {e}"))
@@ -1055,6 +1078,11 @@ def main():
     os.environ["HISTOLAUNCHER_PORT"] = str(port)
     server_thread = threading.Thread(target=start_server, args=(port,), daemon=True)
     server_thread.start()
+    try:
+        from server import yggdrasil as _ygg
+        threading.Thread(target=_ygg.cache_textures, kwargs={"probe_remote": True}, daemon=True).start()
+    except Exception:
+        pass
     url = f"http://127.0.0.1:{port}/"
 
     if not wait_for_server(url, timeout=5.0):

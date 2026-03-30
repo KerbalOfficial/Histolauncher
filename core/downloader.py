@@ -2184,6 +2184,11 @@ def _install_fabric_loader(
         if not libraries:
             print(colorize_log(f"[fabric] ERROR: Failed to get any libraries for Fabric {loader_version}"))
             return {"ok": False, "error": "No libraries to download"}
+
+        uses_intermediary = any(
+            lib_name.startswith("net.fabricmc:intermediary:")
+            for lib_name, _ in libraries
+        )
         
         print(f"[fabric] Will download {len(libraries)} libraries")
         for lib_name, maven_base in libraries:
@@ -2283,14 +2288,15 @@ def _install_fabric_loader(
         _update_progress(version_key, "extracting_loader", 100, f"Fabric loader installed ({jars_downloaded} JARs)")
         print(colorize_log(f"[fabric] Successfully downloaded {jars_downloaded} libraries"))
         
-        # Try to download Yarn mappings for better mod compatibility
-        # This is optional - Fabric will work without them but some mods may have issues
         version_dir = os.path.dirname(loaders_dir)
-        yarn_jar = _download_yarn_mappings(version_dir, mc_version, version_key)
-        if yarn_jar:
-            print(colorize_log(f"[fabric] Yarn mappings available for enhanced mod compatibility"))
+        if uses_intermediary:
+            yarn_jar = _download_yarn_mappings(version_dir, mc_version, version_key)
+            if yarn_jar:
+                print(colorize_log(f"[fabric] Yarn mappings available for enhanced mod compatibility"))
+            else:
+                print(colorize_log(f"[fabric] Yarn mappings not available (optional), Fabric will still work with basic mods"))
         else:
-            print(colorize_log(f"[fabric] Yarn mappings not available (optional), Fabric will still work with basic mods"))
+            print(colorize_log(f"[fabric] Intermediary mappings not required for {mc_version}; skipping Yarn download"))
         
         result = {"ok": True, "loader_version": loader_version}
         

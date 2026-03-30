@@ -2,8 +2,8 @@ Thank you for installing Histolauncher! (Beta build)
 
 —————————————————————————————————————————————————————————————————————————————
 
-[NOTE]: This version (b1.3.2) is best tested on Windows and there seems to
-        be no future plans on adding Linux & Mac support soon.
+[NOTE]: This version (b1.3.2_01) is best tested on Windows and there seems
+        to be no future plans on adding Linux & Mac support soon.
         
         Although, there is hope! Soon, I might have the perfect time to add
         support for both, stay tuned!

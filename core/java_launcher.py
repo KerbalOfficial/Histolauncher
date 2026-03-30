@@ -19,17 +19,19 @@ import shlex
 from datetime           import datetime
 from uuid               import uuid3, NAMESPACE_DNS
 
-from core.java_runtime   import (
-                                JAVA_RUNTIME_MODE_AUTO,
-                                JAVA_RUNTIME_MODE_PATH,
-                                detect_java_runtimes,
-                                get_path_java_executable,
-                            )
+from core.java_runtime  import (
+                            JAVA_RUNTIME_MODE_AUTO,
+                            JAVA_RUNTIME_MODE_PATH,
+                            detect_java_runtimes,
+                            get_path_java_executable,
+                        )
 from core.settings      import load_global_settings, get_base_dir, get_versions_profile_dir
 from core.logger        import colorize_log
 from server.yggdrasil   import _get_username_and_uuid
 
+# ========= VARIABLES & CONSTANTS ==========
 
+TEXTURES_API_URL = "https://textures.histolauncher.org"
 
 # ========== MOD MANAGEMENT ==========
 def _copy_mods_for_launch(game_dir, mod_loader):
@@ -1067,9 +1069,6 @@ def _resolve_runtime_main_class(
     if _jar_has_class(client_jar, main_class) or _classpath_has_class(version_dir, classpath_entries, main_class):
         return main_class
 
-    # Do not auto-rewrite LaunchWrapper mains to applet/classic classes.
-    # If LaunchWrapper is missing, keep the configured main and let error logs
-    # show the missing dependency clearly.
     if main_class.startswith("net.minecraft.launchwrapper"):
         print(colorize_log(
             f"[launcher] main_class '{main_class}' not found on classpath; keeping configured class (missing LaunchWrapper dependency)"
@@ -1111,8 +1110,6 @@ def _parse_mc_version(version_identifier):
         _, base = version_identifier.split("/", 1)
     else:
         base = version_identifier
-    # Snapshots (e.g. 24w14a, 21w14a) are modern versions and should enable authlib handling.
-    # Accept snapshots whether they appear alone, prefixed, or embedded (e.g. "snapshot-21w14a").
     b = base.lower()
     m = re.search(r"\d+w\d+[a-z]", b)
     if m:
@@ -1133,7 +1130,6 @@ def _is_legacy_pre16_runtime(version_identifier: str) -> bool:
     base = raw.split("/", 1)[1] if "/" in raw else raw
     b = base.strip().lower()
 
-    # Old naming families (beta/alpha/classic/infdev/indev/rd).
     if re.match(r'^(?:b1|a1|c0|inf-|in-|rd-)', b):
         return True
 
@@ -1171,7 +1167,6 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir, gl
     user_properties = "{}"
     game_dir = game_dir or ""
     
-    # Extract just the MC version from version_identifier (e.g., "Release/1.21.11" -> "1.21.11")
     mc_version = version_identifier.split("/")[-1] if "/" in version_identifier else version_identifier
     
     replacements = {
@@ -1184,23 +1179,19 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir, gl
         "${game_directory}": game_dir,
         "${gameDir}": game_dir,
         "${assets_root}": assets_root,
-        "${game_assets}": assets_root,  # Legacy name for assets_root (pre-1.6)
+        "${game_assets}": assets_root,
         "${assets_index_name}": asset_index_name,
         "${version_type}": version_type,
         "${resolution_width}": "854",
         "${resolution_height}": "480",
-        # Legacy authentication tokens (very old versions)
-        "${auth_session}": "0",  # Legacy session token (pre-1.6)
-        "${auth_player_type}": "legacy",  # Alternative name for user_type
+        "${auth_session}": "0",
+        "${auth_player_type}": "legacy",
     }
     
-    # Log asset_index for debugging old version issues
     if not asset_index_name:
         print(colorize_log(f"[launcher] DEBUG: asset_index not in metadata for {version_identifier}"))
     print(colorize_log(f"[launcher] DEBUG: Expanding placeholders - assets_root={assets_root}, asset_index={asset_index_name}"))
     
-    # First pass: filter out launcher-specific arguments before placeholder expansion
-    # These are arguments from Minecraft Launcher that shouldn't be passed to the game
     args_before_expand = args_str.split()
     launcher_only_args = set()
     filtered_before_expand = []
@@ -1210,9 +1201,7 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir, gl
         if skip_next:
             skip_next = False
             continue
-        # Launcher-specific arguments that should never reach the game
         if arg in ("--clientId", "--xuid") or arg.startswith("--quickPlay"):
-            # Skip this arg and its value (if it has one)
             if "=" not in arg and i + 1 < len(args_before_expand) and not args_before_expand[i + 1].startswith("--"):
                 skip_next = True
             continue
@@ -1220,54 +1209,43 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir, gl
     
     args_str_filtered = " ".join(filtered_before_expand)
     
-    # Now do placeholder expansion on the pre-filtered args
     out = args_str_filtered
     for k, v in replacements.items():
         if k in out:
             out = out.replace(k, v)
     args = out.split()
     
-    # Debug: Log if any problematic placeholders remain
     unresolved = [arg for arg in args if "${" in arg and "}" in arg]
     if unresolved:
         print(colorize_log(f"[launcher] DEBUG: Unresolved placeholders found: {unresolved}"))
     
-    # Second pass: filter out remaining problematic arguments and handle special cases
     filtered = []
     skip_next = False
     for i, arg in enumerate(args):
         if skip_next:
             skip_next = False
             continue
-        # Skip arguments with unresolved placeholders (e.g., ${clientid}, ${auth_xuid})
         if "${" in arg and "}" in arg:
             print(colorize_log(f"[launcher] DEBUG: Filtering out unresolved placeholder: {arg}"))
             continue
         if arg.startswith("--gameDir"):
-            # Skip --gameDir and its value (next arg if --gameDir doesn't have =)
-            if "=" not in arg:  # If not in form --gameDir=path
-                skip_next = True  # Skip the next argument (the path)
+            if "=" not in arg:
+                skip_next = True
             continue
         if arg.startswith("--demo") or arg.startswith("--width") or arg.startswith("--height"):
             continue
         filtered.append(arg)
     
-    # Preserve legacy positional arguments (e.g. username/session in very old versions)
-    # before processing flag/value pairs.
     final = []
     i = 0
     while i < len(filtered) and not filtered[i].startswith("--"):
         final.append(filtered[i])
         i += 1
 
-    # Final pass: remove orphaned bare values (like "854 480" from resolution placeholders)
-    # while preserving required arguments for flags that need them.
     while i < len(filtered):
         arg = filtered[i]
         
-        # If this is a flag, keep it
         if arg.startswith("--"):
-            # Check if this flag requires an argument
             needs_arg = arg in {
                 '--username', '--version', '--gameDir', '--gameDirectory',
                 '--assetsDir', '--assetIndex', '--uuid', '--accessToken',
@@ -1278,21 +1256,17 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir, gl
                 '--userType', '--versionType', '--userProperties', '--tweakClass'
             }
             
-            # For flags that use = notation (like --gameDir=/path), they already have their value
             has_value_inline = "=" in arg
             
             final.append(arg)
             i += 1
             
-            # If flag needs argument and doesn't have it inline, grab the next value if available
             if needs_arg and not has_value_inline and i < len(filtered) and not filtered[i].startswith("--"):
                 final.append(filtered[i])
                 i += 1
         else:
-            # This is a bare value - only keep it if it immediately followed a flag
             if final and final[-1].startswith("--") and "=" not in final[-1]:
                 final.append(arg)
-            # Otherwise skip orphaned values
             i += 1
     
     return " ".join(final)
@@ -1580,6 +1554,32 @@ def _get_loader_version(version_dir: str, loader_type: str) -> str:
         return ""
     versions.sort(key=_parse_version)
     return versions[-1]
+
+
+def _fabric_uses_intermediary_namespace(mc_version: str) -> bool:
+    version = (mc_version or "").strip().lower()
+    if not version:
+        return True
+
+    snapshot_match = re.search(r"(\d{2})w\d+[a-z]", version)
+    if snapshot_match:
+        try:
+            return int(snapshot_match.group(1)) < 26
+        except ValueError:
+            return True
+
+    version = version.split("-", 1)[0]
+    if version.startswith("1."):
+        return True
+
+    release_match = re.match(r"^(\d+)(?:\.(\d+))?$", version)
+    if release_match:
+        try:
+            return int(release_match.group(1)) < 26
+        except ValueError:
+            return True
+
+    return True
 
 
 def _get_mods_dir(version_dir: str) -> str:
@@ -3372,6 +3372,7 @@ def _launch_version_once(
             "-Dhttps.nonProxyHosts=localhost|127.*",
         ])
         print(colorize_log(f"[launcher] Enabled legacy HTTP proxy bridge via 127.0.0.1:{ygg_port}"))
+    
     native_folder = meta.get("native_subfolder") or _native_subfolder_for_platform()
     native_path = os.path.join(version_dir, native_folder)
     if os.path.isdir(native_path):
@@ -3381,47 +3382,51 @@ def _launch_version_once(
         from core.downloader import _download_yarn_mappings
         
         mc_version = _extract_mc_version_string(version_identifier)
-        
-        yarn_mappings = _download_yarn_mappings(version_dir, mc_version, "launch")
-        if not yarn_mappings:
-            print(colorize_log(f"[launcher] WARNING: Yarn mappings not available for Fabric"))
-            print(colorize_log(f"[launcher] Some mods may not work properly without Yarn mappings"))
-        classpath_file = os.path.join(version_dir, ".fabric_remap_classpath.txt")
-        classpath_entries = []
-        try:
-            with open(classpath_file, 'w') as f:
-                for entry in classpath.split(";"):
-                    entry = entry.strip()
-                    if entry:
-                        abs_path = os.path.abspath(entry)
-                        f.write(abs_path + "\n")
-                        classpath_entries.append(abs_path)
-            print(colorize_log(f"[launcher] Created Fabric remapping classpath file ({len(classpath_entries)} entries)"))
-        except Exception as e:
-            print(colorize_log(f"[launcher] ERROR creating Fabric remapping classpath file: {e}"))
-            _set_last_launch_error(version_identifier, f"Could not prepare Fabric runtime remap classpath: {e}")
-            return False
-        
-        cmd.append("-Dfabric.gameMappingNamespace=official")
-        cmd.append("-Dfabric.runtimeMappingNamespace=intermediary")
-        cmd.append("-Dfabric.defaultModDistributionNamespace=intermediary")
-        
-        if yarn_mappings:
-            cmd.append(f"-Dfabric.mappingPath={yarn_mappings}")
-        
-        cmd.append(f"-Dfabric.remapClasspathFile={classpath_file}")
-        
-        cmd.append(f"-Dfabric.gameJarPath={os.path.join(version_dir, 'client.jar')}")
-        
-        cmd.append("-Dfabric.development=false")
-        
-        print("[launcher] Fabric 0.18.4 runtime remapping configured:")
-        if yarn_mappings:
-            print(f"  [OK] Yarn mappings: {os.path.basename(yarn_mappings)}")
+        uses_intermediary = _fabric_uses_intermediary_namespace(mc_version)
+
+        if uses_intermediary:
+            yarn_mappings = _download_yarn_mappings(version_dir, mc_version, "launch")
+            if not yarn_mappings:
+                print(colorize_log(f"[launcher] WARNING: Yarn mappings not available for Fabric"))
+                print(colorize_log(f"[launcher] Some mods may not work properly without Yarn mappings"))
+            classpath_file = os.path.join(version_dir, ".fabric_remap_classpath.txt")
+            classpath_entries = []
+            try:
+                with open(classpath_file, 'w') as f:
+                    for entry in classpath.split(";"):
+                        entry = entry.strip()
+                        if entry:
+                            abs_path = os.path.abspath(entry)
+                            f.write(abs_path + "\n")
+                            classpath_entries.append(abs_path)
+                print(colorize_log(f"[launcher] Created Fabric remapping classpath file ({len(classpath_entries)} entries)"))
+            except Exception as e:
+                print(colorize_log(f"[launcher] ERROR creating Fabric remapping classpath file: {e}"))
+                _set_last_launch_error(version_identifier, f"Could not prepare Fabric runtime remap classpath: {e}")
+                return False
+            
+            cmd.append("-Dfabric.gameMappingNamespace=official")
+            cmd.append("-Dfabric.runtimeMappingNamespace=intermediary")
+            cmd.append("-Dfabric.defaultModDistributionNamespace=intermediary")
+            
+            if yarn_mappings:
+                cmd.append(f"-Dfabric.mappingPath={yarn_mappings}")
+            
+            cmd.append(f"-Dfabric.remapClasspathFile={classpath_file}")
+            cmd.append(f"-Dfabric.gameJarPath={os.path.join(version_dir, 'client.jar')}")
+            
+            print("[launcher] Fabric runtime remapping configured:")
+            if yarn_mappings:
+                print(f"  [OK] Yarn mappings: {os.path.basename(yarn_mappings)}")
+            else:
+                print(f"  [NO] Yarn mappings: Not available (mods may warn or fail)")
+            print(f"  [OK] Remapping classpath: {len(classpath_entries)} JARs")
+            print(f"  [OK] Namespace: official -> intermediary")
         else:
-            print(f"  [NO] Yarn mappings: Not available (mods may warn or fail)")
-        print(f"  [OK] Remapping classpath: {len(classpath_entries)} JARs")
-        print(f"  [OK] Namespace: official -> intermediary")
+            print("[launcher] Fabric intermediary mappings not detected; using official runtime namespace")
+            print(f"  [OK] Namespace: official")
+
+        cmd.append("-Dfabric.development=false")
     
     if loader and loader.lower() == "forge":
         print("[launcher] Configuring Forge environment...")
@@ -3824,10 +3829,9 @@ def _launch_version_once(
         print(colorize_log(f"[launcher] [OK] Fabric configuration validated ({len(classpath_lines)} JARs"))
 
     def _is_textures_server_reachable(timeout_seconds: float = 2.0) -> bool:
-        probe_url = "https://textures.histolauncher.workers.dev/"
         try:
             req = urllib.request.Request(
-                probe_url,
+                TEXTURES_API_URL,
                 headers={"User-Agent": "Histolauncher/1.0"},
             )
             with urllib.request.urlopen(req, timeout=timeout_seconds):
@@ -3907,6 +3911,13 @@ def launch_version(version_identifier, username_override=None, loader=None, load
     if not version_dir:
         _set_last_launch_error(version_identifier, f"Version directory not found for {version_identifier}")
         return False
+
+    try:
+        from server import yggdrasil as _ygg
+        try: _uname, _uhex = _get_username_and_uuid()
+        except Exception: _uname, _uhex = "", ""
+        threading.Thread(target=_ygg.cache_textures, args=(_uhex, _uname), kwargs={"probe_remote": True}, daemon=True).start()
+    except Exception: pass
 
     global_settings = load_global_settings() or {}
     selected_java_setting = (global_settings.get("java_path") or "").strip()

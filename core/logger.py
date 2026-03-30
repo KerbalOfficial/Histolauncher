@@ -2,8 +2,10 @@
 
 import logging
 import os
+import sys
 
 from datetime import datetime
+
 
 class Colors:
     RED = '\033[31m'
@@ -43,27 +45,53 @@ TAG_COLORS = {
 }
 
 
+class SafeStreamHandler(logging.StreamHandler):
+    def emit(self, record):
+        try:
+            super().emit(record)
+        except UnicodeEncodeError:
+            try:
+                msg = self.format(record)
+                safe_msg = msg.encode("utf-8", errors="replace").decode("utf-8")
+                self.stream.write(safe_msg + self.terminator)
+                self.flush()
+            except Exception:
+                self.handleError(record)
+
+
+def _safe_print(message):
+    try:
+        print(message)
+    except UnicodeEncodeError:
+        stream = getattr(sys, "stdout", None)
+        if stream is None:
+            return
+        safe_message = str(message).encode("utf-8", errors="replace").decode("utf-8")
+        stream.write(safe_message + "\n")
+        stream.flush()
+
+
 def _setup_logging():
     logger = logging.getLogger('histolauncher')
-    
+
     if logger.handlers:
         return logger
-    
+
     logger.setLevel(logging.DEBUG)
-    
-    console_handler = logging.StreamHandler()
+
+    console_handler = SafeStreamHandler()
     console_handler.setLevel(logging.INFO)
     console_formatter = logging.Formatter(
         '[%(name)s] %(levelname)s: %(message)s'
     )
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
-    
+
     try:
         from core.settings import get_base_dir
         logs_dir = os.path.join(get_base_dir(), 'logs')
         os.makedirs(logs_dir, exist_ok=True)
-        
+
         log_file = os.path.join(logs_dir, f'histolauncher_{datetime.now().strftime("%Y-%m-%d")}.log')
         file_handler = logging.FileHandler(log_file, encoding='utf-8')
         file_handler.setLevel(logging.DEBUG)
@@ -73,12 +101,15 @@ def _setup_logging():
         )
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
-    except Exception: pass
-    
+    except Exception:
+        pass
+
     return logger
 
 
 _logger = None
+
+
 def get_logger():
     global _logger
     if _logger is None:
@@ -95,27 +126,27 @@ def colorize_log(message):
         end_bracket = message.index(']')
         tag = message[1:end_bracket]
         color = get_tag_color(tag)
-        
-        colored_message = f"{color}[{tag}]{Colors.RESET} {message[end_bracket+1:].lstrip()}"
+
+        colored_message = f"{color}[{tag}]{Colors.RESET} {message[end_bracket + 1:].lstrip()}"
         return colored_message
-    
+
     return message
 
 
 def log_success(message):
-    print(f"{Colors.BRIGHT_GREEN}✓ {message}{Colors.RESET}")
+    _safe_print(f"{Colors.BRIGHT_GREEN}[OK] {message}{Colors.RESET}")
 
 
 def log_error(message):
-    print(f"{Colors.BRIGHT_RED}✗ {message}{Colors.RESET}")
+    _safe_print(f"{Colors.BRIGHT_RED}[ERR] {message}{Colors.RESET}")
 
 
 def log_warning(message):
-    print(f"{Colors.BRIGHT_YELLOW}⚠ {message}{Colors.RESET}")
+    _safe_print(f"{Colors.BRIGHT_YELLOW}[WARN] {message}{Colors.RESET}")
 
 
 def log_info(message):
-    print(f"{Colors.BRIGHT_CYAN}ℹ {message}{Colors.RESET}")
+    _safe_print(f"{Colors.BRIGHT_CYAN}[INFO] {message}{Colors.RESET}")
 
 
 def dim_line(message):
@@ -124,14 +155,14 @@ def dim_line(message):
 
 def is_unimportant_line(line):
     line = line.strip()
-    
+
     if all(c in '-=' for c in line) and len(line) > 3:
         return True
-    
+
     if ' - - [' in line and '/' in line:
         return True
-    
+
     if not line:
         return True
-    
+
     return False

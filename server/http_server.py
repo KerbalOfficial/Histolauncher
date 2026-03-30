@@ -9,24 +9,24 @@ import mimetypes
 import urllib.request
 import urllib.error
 import platform
-
-from http.server import SimpleHTTPRequestHandler, HTTPServer
-from urllib.parse import urlparse, unquote, quote
 import socketserver
 
-from .api_handler import (
-    handle_api_request,
-    read_local_version,
-    MAX_PAYLOAD_SIZE,
-    MAX_VERSIONS_IMPORT_PAYLOAD,
-    MAX_MODS_IMPORT_PAYLOAD,
-    MAX_MODPACKS_IMPORT_PAYLOAD,
-)
-from . import yggdrasil
-from core.version_manager import get_clients_dir
-from core.settings import get_base_dir
-from core import mod_manager
-from core.logger import colorize_log, dim_line
+from http.server            import SimpleHTTPRequestHandler, HTTPServer
+from urllib.parse           import urlparse, unquote, quote
+
+from .api_handler           import (
+                                handle_api_request,
+                                read_local_version,
+                                MAX_PAYLOAD_SIZE,
+                                MAX_VERSIONS_IMPORT_PAYLOAD,
+                                MAX_MODS_IMPORT_PAYLOAD,
+                                MAX_MODPACKS_IMPORT_PAYLOAD,
+                            )
+from .                      import yggdrasil
+from core.version_manager   import get_clients_dir
+from core.settings          import get_base_dir, _apply_url_proxy
+from core                   import mod_manager
+from core.logger            import colorize_log, dim_line
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -34,10 +34,7 @@ UI_DIR = os.path.join(BASE_DIR, "ui")
 
 
 def parse_multipart_form(body_bytes, content_type_header):
-    """Parse multipart/form-data without using the cgi module."""
     try:
-        # Extract boundary from Content-Type header
-        # e.g., "multipart/form-data; boundary=----WebKitFormBoundary..."
         boundary_match = content_type_header.split("boundary=")
         if len(boundary_match) < 2:
             return None
@@ -45,14 +42,12 @@ def parse_multipart_form(body_bytes, content_type_header):
         boundary = boundary_match[1].strip('"').encode('utf-8')
         form_data = {}
         
-        # Split body by boundary
         parts = body_bytes.split(b'--' + boundary)
         
-        for part in parts[1:-1]:  # Skip first (empty) and last (closing boundary)
+        for part in parts[1:-1]:
             if not part.strip():
                 continue
             
-            # Split headers from content
             header_end = part.find(b'\r\n\r\n')
             if header_end == -1:
                 header_end = part.find(b'\n\n')
@@ -64,33 +59,29 @@ def parse_multipart_form(body_bytes, content_type_header):
                 headers_section = part[:header_end]
                 content = part[header_end + 4:]
             
-            # Remove trailing \r\n or \n from content
             if content.endswith(b'\r\n'):
                 content = content[:-2]
             elif content.endswith(b'\n'):
                 content = content[:-1]
             
-            # Parse headers to get field name
             headers_text = headers_section.decode('utf-8', errors='ignore')
             field_name = None
             is_file = False
             
             for header_line in headers_text.split('\n'):
                 if 'Content-Disposition' in header_line:
-                    # Extract field name
                     if 'name=' in header_line:
                         start = header_line.find('name="') + 6
                         end = header_line.find('"', start)
                         if start > 5 and end > start:
                             field_name = header_line[start:end]
                     
-                    # Check if it's a file upload
                     if 'filename=' in header_line:
                         is_file = True
             
             if field_name:
                 if is_file:
-                    form_data[field_name] = content  # Binary data for files
+                    form_data[field_name] = content
                 else:
                     form_data[field_name] = content.decode('utf-8', errors='ignore')
         
@@ -117,16 +108,42 @@ class RequestHandler(SimpleHTTPRequestHandler):
         message = self.log_date_time_string() + " - " + format % args
         print(dim_line(message))
 
+    def _client_requires_signature(self) -> bool:
+        try:
+            ua = str(self.headers.get('User-Agent') or '').strip()
+            if not ua:
+                return False
+
+            m = re.search(r'Minecraft(?:/| )?([0-9]+(?:\.[0-9]+){0,2})', ua, flags=re.IGNORECASE)
+            ver = m.group(1) if m else None
+            if not ver:
+                m2 = re.search(r'([0-9]+(?:\.[0-9]+){0,2})', ua)
+                ver = m2.group(1) if m2 else None
+
+            if not ver:
+                if re.search(r'\d+w\d+[a-z]?', ua, flags=re.IGNORECASE):
+                    return True
+                return False
+
+            parts = [int(x) for x in ver.split('.')]
+            while len(parts) < 3:
+                parts.append(0)
+
+            return tuple(parts) >= (1, 20, 2)
+        except Exception:
+            return False
+
     def end_headers(self):
-        """Override to add security headers to all responses."""
-        # Add security headers to every response
-        self.send_header("X-Frame-Options", "DENY")
+        parsed = urlparse(getattr(self, "path", "") or "")
+        if parsed.path == "/account-settings-frame":
+            self.send_header("X-Frame-Options", "SAMEORIGIN")
+        else:
+            self.send_header("X-Frame-Options", "DENY")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-XSS-Protection", "1; mode=block")
         super().end_headers()
 
     def _check_content_length(self, max_size: int = MAX_PAYLOAD_SIZE) -> bool:
-        """Validate Content-Length header against maximum payload size."""
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             if content_length > max_size:
@@ -140,6 +157,56 @@ class RequestHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if path == "/account-settings-frame":
+            response = handle_api_request("/api/account/settings-iframe", None)
+            if response and response.get("ok") and response.get("html"):
+                payload = str(response.get("html") or "").encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+
+            error_message = (response or {}).get("error") or "Failed to load account settings"
+            error_html = (
+                "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
+                "<title>Account Settings Error</title></head>"
+                "<body style=\"margin:0;background:#111;color:#e5e7eb;font-family:sans-serif;display:flex;"
+                "align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:24px;box-sizing:border-box;\">"
+                f"<div><h2 style=\"margin-top:0;\">Account Settings Unavailable</h2><p>{error_message}</p></div>"
+                "</body></html>"
+            ).encode("utf-8", errors="replace")
+            self.send_response(502)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(error_html)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(error_html)
+            return
+
+        if path.startswith("/histolauncher-proxy/accounts/"):
+            upstream_path = path[len("/histolauncher-proxy/accounts"):] or "/"
+            if parsed.query:
+                upstream_path += f"?{parsed.query}"
+            self._proxy_histolauncher_remote_request(
+                "https://accounts.histolauncher.org",
+                upstream_path,
+                include_auth_cookie=True,
+            )
+            return
+
+        if path.startswith("/histolauncher-proxy/textures/"):
+            upstream_path = path[len("/histolauncher-proxy/textures"):] or "/"
+            if parsed.query:
+                upstream_path += f"?{parsed.query}"
+            self._proxy_histolauncher_remote_request(
+                "https://textures.histolauncher.org",
+                upstream_path,
+            )
+            return
 
         if parsed.scheme in ("http", "https") and parsed.netloc:
             target = parsed.netloc + (parsed.path or "/")
@@ -207,7 +274,8 @@ class RequestHandler(SimpleHTTPRequestHandler):
             or path.startswith("/authserver/authserver/sessionserver/session/minecraft/profile/")
             or path.startswith("/sessionserver/session/minecraft/profile/")
         ):
-            status, resp = yggdrasil.handle_session_get(self.path, self.server.server_port)
+            req_sig = self._client_requires_signature()
+            status, resp = yggdrasil.handle_session_get(self.path, self.server.server_port, require_signature=req_sig)
             self._send_json(resp, status=status)
             return
 
@@ -216,7 +284,8 @@ class RequestHandler(SimpleHTTPRequestHandler):
             or path.startswith("/authserver/sessionserver/session/minecraft/hasJoined")
             or path.startswith("/sessionserver/session/minecraft/hasJoined")
         ):
-            status, resp = yggdrasil.handle_has_joined_get(self.path, self.server.server_port)
+            req_sig = self._client_requires_signature()
+            status, resp = yggdrasil.handle_has_joined_get(self.path, self.server.server_port, require_signature=req_sig)
             if status == 204:
                 self.send_response(204)
                 self.send_header("Content-Length", "0")
@@ -252,7 +321,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
                     self.send_error(404, "Texture not found")
                     return
 
-                self._handle_texture_proxy(f"/textures/skin/{quote(requested_name)}")
+                self._handle_texture_proxy(f"/texture/skin/{quote(requested_name)}")
                 return
             except Exception:
                 self.send_error(404, "Texture not found")
@@ -266,13 +335,13 @@ class RequestHandler(SimpleHTTPRequestHandler):
                     self.send_error(404, "Cape not found")
                     return
 
-                self._handle_texture_proxy(f"/textures/cape/{quote(requested_name)}")
+                self._handle_texture_proxy(f"/texture/cape/{quote(requested_name)}")
                 return
             except Exception:
                 self.send_error(404, "Cape not found")
                 return
 
-        if path.startswith("/textures/"):
+        if path.startswith("/texture/"):
             self._handle_texture_proxy(path)
             return
 
@@ -298,12 +367,34 @@ class RequestHandler(SimpleHTTPRequestHandler):
         if self.path == "/":
             self.path = "/index.html"
 
-        # Fallback to default static file handling (UI)
         return super().do_GET()
+    
+    def do_HEAD(self):
+        try: self.do_GET()
+        except Exception: pass
 
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if path.startswith("/histolauncher-proxy/accounts/"):
+            if not self._check_content_length(max_size=MAX_PAYLOAD_SIZE):
+                return
+
+            length = int(self.headers.get("Content-Length", 0))
+            body_bytes = self.rfile.read(length)
+            upstream_path = path[len("/histolauncher-proxy/accounts"):] or "/"
+            if parsed.query:
+                upstream_path += f"?{parsed.query}"
+            self._proxy_histolauncher_remote_request(
+                "https://accounts.histolauncher.org",
+                upstream_path,
+                method="POST",
+                body_bytes=body_bytes,
+                content_type=self.headers.get("Content-Type", ""),
+                include_auth_cookie=True,
+            )
+            return
 
         max_payload_size = MAX_PAYLOAD_SIZE
         if path.startswith("/api/versions/import"):
@@ -563,13 +654,138 @@ class RequestHandler(SimpleHTTPRequestHandler):
         return worlds_dir
 
     def _send_json(self, obj, status: int = 200):
-
         encoded = json.dumps(obj).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(encoded)))
         self.end_headers()
         self.wfile.write(encoded)
+
+    def _get_histolauncher_auth_cookie_header(self) -> str:
+        try:
+            from .auth import load_histolauncher_cookie_header
+            return load_histolauncher_cookie_header()
+        except Exception:
+            return ""
+
+    def _rewrite_histolauncher_texture_metadata_payload(self, payload: bytes) -> bytes:
+        try:
+            data = json.loads((payload or b"").decode("utf-8", errors="replace"))
+        except Exception:
+            return payload
+
+        if not isinstance(data, dict):
+            return payload
+
+        def rewrite_texture_url(raw_url: str) -> str:
+            parsed = urlparse(str(raw_url or "").strip())
+            host = str(parsed.netloc or "").strip().lower()
+            if host != "textures.histolauncher.org":
+                return raw_url
+
+            proxied = f"/histolauncher-proxy/textures{parsed.path or '/'}"
+            if parsed.query:
+                proxied += f"?{parsed.query}"
+            return proxied
+
+        for key in ("skin", "cape"):
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                data[key] = rewrite_texture_url(value)
+
+        return json.dumps(data).encode("utf-8")
+
+    def _proxy_histolauncher_remote_request(
+        self,
+        base_url: str,
+        upstream_path: str,
+        *,
+        method: str = "GET",
+        body_bytes: bytes | None = None,
+        content_type: str = "",
+        include_auth_cookie: bool = False,
+    ) -> bool:
+        safe_path = "/" + str(upstream_path or "").lstrip("/")
+        target_url = base_url.rstrip("/") + safe_path
+        candidate_urls = []
+
+        proxied = _apply_url_proxy(target_url)
+        if proxied:
+            candidate_urls.append(proxied)
+        if target_url not in candidate_urls:
+            candidate_urls.append(target_url)
+
+        for idx, url in enumerate(candidate_urls):
+            try:
+                headers = {"User-Agent": "Histolauncher/1.0"}
+                if content_type:
+                    headers["Content-Type"] = content_type
+
+                if include_auth_cookie:
+                    cookie_header = self._get_histolauncher_auth_cookie_header()
+                    if cookie_header:
+                        headers["Cookie"] = cookie_header
+
+                req = urllib.request.Request(
+                    url,
+                    data=body_bytes,
+                    headers=headers,
+                    method=method,
+                )
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    payload = resp.read()
+                    status = getattr(resp, "status", None) or resp.getcode()
+                    response_headers = resp.headers
+
+                if (
+                    base_url.rstrip("/").endswith("textures.histolauncher.org")
+                    and safe_path.split("?", 1)[0].startswith("/model/")
+                ):
+                    payload = self._rewrite_histolauncher_texture_metadata_payload(payload)
+
+                self.send_response(status)
+                for header_name in ("Content-Type", "Cache-Control", "ETag", "Last-Modified", "Content-Disposition"):
+                    header_value = response_headers.get(header_name)
+                    if header_value:
+                        self.send_header(header_name, header_value)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                if method.upper() != "HEAD":
+                    self.wfile.write(payload)
+                return True
+            except urllib.error.HTTPError as e:
+                should_retry = idx == 0 and len(candidate_urls) > 1 and e.code >= 500
+                if should_retry:
+                    continue
+
+                try:
+                    payload = e.read()
+                except Exception:
+                    payload = b""
+
+                self.send_response(e.code)
+                response_headers = getattr(e, "headers", None)
+                if response_headers:
+                    for header_name in ("Content-Type", "Cache-Control", "ETag", "Last-Modified", "Content-Disposition"):
+                        header_value = response_headers.get(header_name)
+                        if header_value:
+                            self.send_header(header_name, header_value)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                if method.upper() != "HEAD" and payload:
+                    self.wfile.write(payload)
+                return True
+            except Exception as e:
+                if idx < len(candidate_urls) - 1:
+                    continue
+                print(colorize_log(f"[http_server] remote Histolauncher proxy failed: {target_url} - {e}"))
+                try:
+                    self.send_error(502, "Bad Gateway")
+                except Exception:
+                    pass
+                return True
+
+        return False
 
     def _handle_allowlisted_remote_proxy(self, scheme: str, target: str) -> bool:
         target_clean = str(target or "").lstrip('/')
@@ -593,7 +809,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
             'skins.minecraft.net',
             'textures.minecraft.net',
             'resources.download.minecraft.net',
-            'textures.histolauncher.workers.dev',
+            'textures.histolauncher.org',
         }
         if domain not in allowed_hosts:
             return False
@@ -609,6 +825,28 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
                 self.wfile.write(payload)
+                try:
+                    p = urlparse(url)
+                    if 'image/' in str(ctype).lower():
+                        ident = os.path.splitext(os.path.basename(p.path))[0]
+                        tex_type = None
+                        if re.search(r'(?i)minecraftskins|/skin/', p.path):
+                            tex_type = 'skin'
+                        elif re.search(r'(?i)minecraftcloaks|/cloak|/cape/', p.path):
+                            tex_type = 'cape'
+
+                        if tex_type and ident:
+                            try:
+                                cache_dir = os.path.join(get_base_dir(), 'skins')
+                                os.makedirs(cache_dir, exist_ok=True)
+                                cache_name = os.path.join(cache_dir, f"{ident}+{tex_type}.png")
+                                with open(cache_name, 'wb') as wf:
+                                    wf.write(payload)
+                                print(colorize_log(f"[http_server] cached proxied {tex_type}: {cache_name}"))
+                            except Exception as e:
+                                print(colorize_log(f"[http_server] failed to cache proxied texture: {e}"))
+                except Exception:
+                    pass
                 print(colorize_log(f"[http_server] proxied external resource: {url}"))
                 return True
         except urllib.error.HTTPError as e:
@@ -760,7 +998,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
             if not requested_name:
                 self.send_error(404, "Texture not found")
                 return True
-            self._handle_texture_proxy(f"/textures/skin/{quote(requested_name, safe='')}")
+            self._handle_texture_proxy(f"/texture/skin/{quote(requested_name, safe='')}")
             print(colorize_log(f"[http_server] bridged legacy skin URL to texture proxy: {requested_name}"))
             return True
 
@@ -770,7 +1008,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
             if not requested_name:
                 self.send_error(404, "Texture not found")
                 return True
-            self._handle_texture_proxy(f"/textures/skin/{quote(requested_name, safe='')}")
+            self._handle_texture_proxy(f"/texture/skin/{quote(requested_name, safe='')}")
             print(colorize_log(f"[http_server] bridged minecraft.net skin URL to texture proxy: {requested_name}"))
             return True
 
@@ -780,7 +1018,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
             if not requested_name:
                 self.send_error(404, "Cape not found")
                 return True
-            self._handle_texture_proxy(f"/textures/cape/{quote(requested_name, safe='')}")
+            self._handle_texture_proxy(f"/texture/cape/{quote(requested_name, safe='')}")
             print(colorize_log(f"[http_server] bridged legacy cloak URL to texture proxy: {requested_name}"))
             return True
 
@@ -792,7 +1030,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 if not requested_name:
                     self.send_error(404, "Cape not found")
                     return True
-                self._handle_texture_proxy(f"/textures/cape/{quote(requested_name, safe='')}")
+                self._handle_texture_proxy(f"/texture/cape/{quote(requested_name, safe='')}")
                 print(colorize_log(f"[http_server] bridged old cloak endpoint to texture proxy: {requested_name}"))
                 return True
 
@@ -937,16 +1175,34 @@ class RequestHandler(SimpleHTTPRequestHandler):
             dashed = _ensure_dashed_uuid(texture_id)
             local_path = None
 
+            cache_age = 31536000
+
             if texture_type == "skin":
                 skin_path_candidates = [
-                    os.path.join(skins_dir, f"{dashed}.png"),
-                    os.path.join(skins_dir, f"{texture_id}.png"),
+                    os.path.join(skins_dir, f"{dashed}+skin.png"),
+                    os.path.join(skins_dir, f"{texture_id}+skin.png"),
                 ]
 
                 if username_fallback:
-                    skin_path_candidates.append(os.path.join(skins_dir, f"{username_fallback}.png"))
+                    skin_path_candidates.extend([
+                        os.path.join(skins_dir, f"{username_fallback}+skin.png"),
+                    ])
 
                 for candidate in skin_path_candidates:
+                    if os.path.exists(candidate) and os.path.isfile(candidate):
+                        local_path = candidate
+                        texture_id = os.path.splitext(os.path.basename(candidate))[0]
+                        break
+
+            if texture_type == "cape" and not local_path:
+                cape_path_candidates = [
+                    os.path.join(skins_dir, f"{dashed}+cape.png"),
+                    os.path.join(skins_dir, f"{texture_id}+cape.png"),
+                ]
+                if username_fallback:
+                    cape_path_candidates.append(os.path.join(skins_dir, f"{username_fallback}+cape.png"))
+
+                for candidate in cape_path_candidates:
                     if os.path.exists(candidate) and os.path.isfile(candidate):
                         local_path = candidate
                         texture_id = os.path.splitext(os.path.basename(candidate))[0]
@@ -956,11 +1212,11 @@ class RequestHandler(SimpleHTTPRequestHandler):
                 try:
                     with open(local_path, 'rb') as f:
                         texture_data = f.read()
-                    
+
                     self.send_response(200)
                     self.send_header("Content-Type", "image/png")
                     self.send_header("Content-Length", str(len(texture_data)))
-                    self.send_header("Cache-Control", "public, max-age=3600")
+                    self.send_header("Cache-Control", f"public, max-age={cache_age}")
                     self.end_headers()
                     self.wfile.write(texture_data)
                     print(colorize_log(f"[http_server] served local {texture_type}: {texture_id}"))
@@ -968,6 +1224,34 @@ class RequestHandler(SimpleHTTPRequestHandler):
                     print(colorize_log(f"[http_server] error reading {texture_type} file: {e}"))
                     self.send_error(500, f"Error reading {texture_type}")
             else:
+                if not yggdrasil._histolauncher_account_enabled():
+                    if texture_type != "skin":
+                        try:
+                            self.send_error(404, "Cape not found")
+                        except Exception:
+                            pass
+                        return
+                    try:
+                        placeholder = os.path.join(BASE_DIR, 'ui', 'assets', 'images', 'version_placeholder.png')
+                        if os.path.exists(placeholder):
+                            with open(placeholder, 'rb') as f:
+                                payload = f.read()
+                            self.send_response(200)
+                            self.send_header("Content-Type", "image/png")
+                            self.send_header("Content-Length", str(len(payload)))
+                            self.send_header("Cache-Control", f"public, max-age={cache_age}")
+                            self.end_headers()
+                            self.wfile.write(payload)
+                            print(colorize_log("[http_server] served placeholder skin with Histolauncher account disabled"))
+                            return
+                    except Exception:
+                        pass
+                    try:
+                        self.send_error(404, "Texture not found")
+                    except Exception:
+                        pass
+                    return
+
                 remote_identifiers = []
                 if dashed:
                     remote_identifiers.append(dashed)
@@ -986,26 +1270,57 @@ class RequestHandler(SimpleHTTPRequestHandler):
                     remote_urls.append(metadata_remote_url)
 
                 for rid in remote_identifiers:
-                    fallback_remote_url = f"https://textures.histolauncher.workers.dev/{texture_type}/{quote(str(rid), safe='')}"
+                    fallback_remote_url = f"https://textures.histolauncher.org/{texture_type}/{quote(str(rid), safe='')}"
                     if fallback_remote_url not in remote_urls:
                         remote_urls.append(fallback_remote_url)
 
                 for remote_url in remote_urls:
                     try:
+                        probe_url = _apply_url_proxy(remote_url)
                         req = urllib.request.Request(
-                            remote_url,
+                            probe_url,
                             headers={"User-Agent": "Histolauncher/1.0"},
                         )
                         with urllib.request.urlopen(req, timeout=6) as resp:
                             payload = resp.read()
+                            resp_ctype = resp.headers.get('Content-Type', '')
+
+                        try:
+                            if 'image/' in (resp_ctype or '').lower():
+                                os.makedirs(skins_dir, exist_ok=True)
+                                save_ids = []
+                                for rid in remote_identifiers:
+                                    if rid and rid not in save_ids:
+                                        save_ids.append(rid)
+                                try:
+                                    parsed_id = urlparse(remote_url)
+                                    id_from_url = os.path.splitext(os.path.basename(parsed_id.path))[0]
+                                    if id_from_url and id_from_url not in save_ids:
+                                        save_ids.append(unquote(id_from_url))
+                                except Exception:
+                                    pass
+
+                                for sid in save_ids:
+                                    if not sid:
+                                        continue
+                                    try:
+                                        suffix = 'skin' if texture_type == 'skin' else 'cape'
+                                        fname = os.path.join(skins_dir, f"{sid}+{suffix}.png")
+                                        with open(fname, 'wb') as wf:
+                                            wf.write(payload)
+                                        print(colorize_log(f"[http_server] cached remote {texture_type} -> {fname}"))
+                                    except Exception as e:
+                                        print(colorize_log(f"[http_server] failed to cache {texture_type} -> {sid}: {e}"))
+                        except Exception:
+                            pass
 
                         self.send_response(200)
                         self.send_header("Content-Type", "image/png")
                         self.send_header("Content-Length", str(len(payload)))
-                        self.send_header("Cache-Control", "public, max-age=3600")
+                        self.send_header("Cache-Control", f"public, max-age={cache_age}")
                         self.end_headers()
                         self.wfile.write(payload)
-                        print(colorize_log(f"[http_server] proxied remote {texture_type}: {remote_url}"))
+                        print(colorize_log(f"[http_server] proxied remote {texture_type}: {remote_url} via {probe_url}"))
                         return
                     except urllib.error.HTTPError as e:
                         last_http_error = e
@@ -1039,7 +1354,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
                         self.send_response(200)
                         self.send_header("Content-Type", "image/png")
                         self.send_header("Content-Length", str(len(payload)))
-                        self.send_header("Cache-Control", "public, max-age=3600")
+                        self.send_header("Cache-Control", f"public, max-age={cache_age}")
                         self.end_headers()
                         self.wfile.write(payload)
                         print(colorize_log("[http_server] served placeholder skin as final fallback"))
@@ -1066,7 +1381,7 @@ class RequestHandler(SimpleHTTPRequestHandler):
             },
             "skinDomains": [
                 "127.0.0.1",
-                "textures.histolauncher.workers.dev"
+                "textures.histolauncher.org"
             ],
             "signaturePublickey": public_key,
             "links": {

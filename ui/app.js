@@ -37,6 +37,7 @@
   let versionsAvailablePage = 1;
   let selectedVersionCategories = [];
   const AVAILABLE_PAGE_SIZE = 30;
+  let settingsPreviewRequestId = 0;
 
   // ---------------- DOM helpers ----------------
 
@@ -248,12 +249,15 @@
       const opt = document.createElement('option');
       opt.value = profile.id;
       opt.textContent = profile.name || profile.id;
+      if (profile.id === stateRef.activeProfile) opt.style.fontWeight = 'bold';
       select.appendChild(opt);
     });
 
     const addOpt = document.createElement('option');
     addOpt.value = ADD_PROFILE_OPTION;
     addOpt.textContent = '+ Add new profile';
+    addOpt.style.fontStyle = 'italic';
+    addOpt.style.color = 'rgba(255, 255, 255, 0.5)';
     select.appendChild(addOpt);
 
     select.value = stateRef.activeProfile;
@@ -503,12 +507,15 @@
       const opt = document.createElement('option');
       opt.value = profile.id;
       opt.textContent = profile.name || profile.id;
+      if (profile.id === profilesState.activeProfile) opt.style.fontWeight = 'bold';
       select.appendChild(opt);
     });
 
     const addOpt = document.createElement('option');
     addOpt.value = ADD_PROFILE_OPTION;
     addOpt.textContent = '+ Add new profile';
+    addOpt.style.fontStyle = 'italic';
+    addOpt.style.color = 'rgba(255, 255, 255, 0.5)';
     select.appendChild(addOpt);
 
     select.value = profilesState.activeProfile;
@@ -732,6 +739,314 @@
   };
 
   // ---------------- Settings / Home info ----------------
+
+  const renderPlayerBodyPreview = (img, scale = 4, model = 'classic') => {
+    if (!img) return null;
+
+    try {
+      const textureScale = img.width / 64;
+      const baseHeight = Math.round(img.height / textureScale);
+      
+      const cW = 16 * scale;
+      const cH = 32 * scale;
+      const canvas = document.createElement('canvas');
+      canvas.width = cW;
+      canvas.height = cH;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+
+      function drawPart(sx, sy, sw, sh, dx, dy, dw, dh) {
+        ctx.drawImage(img, sx * textureScale, sy * textureScale, sw * textureScale, sh * textureScale, dx, dy, dw, dh);
+      }
+
+      const headX = 4 * scale;
+      const headY = 0;
+      const bodyX = 4 * scale;
+      const bodyY = 8 * scale;
+      const isSlim = model === 'slim' && (img.width === img.height);
+      const armWidth = isSlim ? 3 : 4;
+      const leftArmX = 12 * scale;
+      const rightArmX = isSlim ? 1 * scale : 0 * scale;
+      const armY = 8 * scale;
+      const leftLegX = 8 * scale;
+      const rightLegX = 4 * scale;
+      const legY = 20 * scale;
+
+      drawPart(8, 8, 8, 8, headX, headY, 8 * scale, 8 * scale);
+      drawPart(20, 20, 8, 12, bodyX, bodyY, 8 * scale, 12 * scale);
+      drawPart(44, 20, armWidth, 12, rightArmX, armY, armWidth * scale, 12 * scale);
+      drawPart(4, 20, 4, 12, rightLegX, legY, 4 * scale, 12 * scale);
+
+      if (baseHeight <= 32) {
+        drawPart(44, 20, armWidth, 12, leftArmX, armY, armWidth * scale, 12 * scale);
+        drawPart(4, 20, 4, 12, leftLegX, legY, 4 * scale, 12 * scale);
+      } else {
+        drawPart(36, 52, armWidth, 12, leftArmX, armY, armWidth * scale, 12 * scale);
+        drawPart(20, 52, 4, 12, leftLegX, legY, 4 * scale, 12 * scale);
+      }
+
+      drawPart(40, 8, 8, 8, headX, headY, 8 * scale, 8 * scale);
+
+      if (baseHeight >= 64) {
+        drawPart(20, 36, 8, 12, bodyX, bodyY, 8 * scale, 12 * scale);
+        drawPart(44, 36, armWidth, 12, rightArmX, armY, armWidth * scale, 12 * scale);
+        drawPart(52, 52, armWidth, 12, leftArmX, armY, armWidth * scale, 12 * scale);
+        drawPart(4, 36, 4, 12, rightLegX, legY, 4 * scale, 12 * scale);
+        drawPart(4, 52, 4, 12, leftLegX, legY, 4 * scale, 12 * scale);
+      }
+
+      return canvas.toDataURL('image/png');
+    } catch (err) {
+      console.warn('Error rendering player body preview:', err);
+      return null;
+    }
+  }
+
+  const renderPlayerHeadPreview = (img) => {
+    if (!img) return null;
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      
+      const textureScale = img.width / 64;
+      const headX = 8 * textureScale;
+      const headY = 8 * textureScale;
+      const headSize = 8 * textureScale;
+      const overlayX = 40 * textureScale;
+      const overlayY = 8 * textureScale;
+      
+      ctx.drawImage(img, headX, headY, headSize, headSize, 0, 0, 64, 64);
+      ctx.drawImage(img, overlayX, overlayY, headSize, headSize, 0, 0, 64, 64);
+
+      return canvas.toDataURL('image/png');
+    } catch (err) {
+      console.warn('Error rendering player head preview:', err);
+      return null;
+    }
+  }
+
+  const renderPlayerCapePreview = (img) => {
+    if (!img) return null;
+
+    try{
+      const textureScale = img.width / 64;
+      const scale = 8;
+      const canvas = document.createElement('canvas');
+      canvas.width = 10 * scale;
+      canvas.height = 16 * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+
+      ctx.drawImage(
+        img,
+        1 * textureScale,
+        1 * textureScale,
+        10 * textureScale,
+        16 * textureScale,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      return canvas.toDataURL('image/png');
+    } catch (err) {
+      console.warn('Error rendering player cape preview:', err);
+      return null;
+    }
+  }
+
+  const updateSettingsPlayerPreview = () => {
+    const bodyPreviewImg = getEl('settings-player-body-preview');
+    const capePreviewImg = getEl('settings-player-cape-preview');
+    const previewRow = getEl('settings-player-preview-row');
+    if (!bodyPreviewImg || !capePreviewImg || !previewRow) return;
+
+    const requestId = ++settingsPreviewRequestId;
+
+    const hidePreviewImage = (img) => {
+      if (!img) return;
+      img.style.display = 'none';
+      img.removeAttribute('src');
+    };
+
+    const showPreviewImage = (img, src) => {
+      if (!img || !src) return;
+      img.style.display = '';
+      img.src = src;
+    };
+
+    const syncPreviewRowVisibility = () => {
+      const hasBody = bodyPreviewImg.style.display !== 'none';
+      const hasCape = capePreviewImg.style.display !== 'none';
+      previewRow.style.display = (hasBody || hasCape) ? 'flex' : 'none';
+    };
+
+    const isValidSkinTexture = (img) => {
+      if (!img) return false;
+      const w = Number(img.naturalWidth || img.width || 0);
+      const h = Number(img.naturalHeight || img.height || 0);
+      if (w < 64 || h < 32 || (w % 64) !== 0) return false;
+      const isLegacy = w === (h * 2) && (h % 32) === 0;
+      const isModern = w === h && (h % 64) === 0;
+      return isLegacy || isModern;
+    };
+
+    const isValidCapeTexture = (img) => {
+      if (!img) return false;
+      const w = Number(img.naturalWidth || img.width || 0);
+      const h = Number(img.naturalHeight || img.height || 0);
+      if (w < 64 || h < 32) return false;
+      return w === (h * 2) && (w % 64) === 0;
+    };
+
+    const acctType = settingsState.account_type || 'Local';
+    const idOrName = settingsState.uuid || settingsState.username;
+    hidePreviewImage(bodyPreviewImg);
+    hidePreviewImage(capePreviewImg);
+    previewRow.style.display = 'none';
+
+    if (acctType === 'Histolauncher' && idOrName) {
+      try {
+        const skinImg = new Image();
+        skinImg.crossOrigin = 'anonymous';
+        skinImg.onload = () => {
+          if (requestId !== settingsPreviewRequestId) return;
+          try {
+            if (!isValidSkinTexture(skinImg)) {
+              hidePreviewImage(bodyPreviewImg);
+              syncPreviewRowVisibility();
+              return;
+            }
+            const dataUrl = renderPlayerBodyPreview(skinImg, 4, 'classic');
+            if (dataUrl) {
+              showPreviewImage(bodyPreviewImg, dataUrl);
+            } else {
+              hidePreviewImage(bodyPreviewImg);
+            }
+          } catch (err) {
+            console.warn('Failed rendering body preview:', err);
+            hidePreviewImage(bodyPreviewImg);
+          }
+          syncPreviewRowVisibility();
+        };
+        skinImg.onerror = () => {
+          if (requestId !== settingsPreviewRequestId) return;
+          hidePreviewImage(bodyPreviewImg);
+          syncPreviewRowVisibility();
+        };
+        skinImg.src = `/texture/skin/${encodeURIComponent(idOrName)}`;
+      } catch (err) {
+        console.warn('Error loading skin for preview:', err);
+        hidePreviewImage(bodyPreviewImg);
+        syncPreviewRowVisibility();
+      }
+
+      try {
+        const capeImg = new Image();
+        capeImg.crossOrigin = 'anonymous';
+        capeImg.onload = () => {
+          if (requestId !== settingsPreviewRequestId) return;
+          try {
+            if (!isValidCapeTexture(capeImg)) {
+              hidePreviewImage(capePreviewImg);
+              syncPreviewRowVisibility();
+              return;
+            }
+            const dataUrl = renderPlayerCapePreview(capeImg);
+            if (dataUrl) {
+              showPreviewImage(capePreviewImg, dataUrl);
+            } else {
+              hidePreviewImage(capePreviewImg);
+            }
+          } catch (err) {
+            console.warn('Failed rendering cape preview:', err);
+            hidePreviewImage(capePreviewImg);
+          }
+          syncPreviewRowVisibility();
+        };
+        capeImg.onerror = () => {
+          if (requestId !== settingsPreviewRequestId) return;
+          hidePreviewImage(capePreviewImg);
+          syncPreviewRowVisibility();
+        };
+        capeImg.src = `/texture/cape/${encodeURIComponent(idOrName)}`;
+      } catch (err) {
+        console.warn('Error loading cape for preview:', err);
+        hidePreviewImage(capePreviewImg);
+        syncPreviewRowVisibility();
+      }
+    } else {
+      hidePreviewImage(bodyPreviewImg);
+      hidePreviewImage(capePreviewImg);
+      previewRow.style.display = 'none';
+    }
+  }
+
+  const updateSettingsAccountSettingsButtonVisibility = () => {
+    const accountSettingsRow = getEl('settings-account-settings-row');
+    if (!accountSettingsRow) return;
+
+    toggleClass(accountSettingsRow, 'hidden', settingsState.account_type !== 'Histolauncher');
+  };
+
+  const showHistolauncherAccountSettingsModal = () => {
+    const frameWrap = document.createElement('div');
+    frameWrap.style.width = '84vw';
+    frameWrap.style.maxWidth = '960px';
+    frameWrap.style.height = '72vh';
+    frameWrap.style.maxHeight = '720px';
+    frameWrap.style.border = '4px solid #333';
+    frameWrap.style.background = '#111';
+    frameWrap.style.overflow = 'hidden';
+    frameWrap.style.boxSizing = 'border-box';
+
+    const loadingState = document.createElement('div');
+    loadingState.style.height = '100%';
+    loadingState.style.display = 'flex';
+    loadingState.style.alignItems = 'center';
+    loadingState.style.justifyContent = 'center';
+    loadingState.style.padding = '20px';
+    loadingState.style.textAlign = 'center';
+    loadingState.textContent = 'Loading account settings...';
+    frameWrap.appendChild(loadingState);
+
+    showMessageBox({
+      title: 'Account Settings',
+      customContent: frameWrap,
+      description: 'Manage your Histolauncher account inside the launcher.',
+      buttons: [
+        {
+          label: 'Close',
+          classList: ['primary'],
+        },
+      ],
+    });
+
+    const iframe = document.createElement('iframe');
+    iframe.title = 'Histolauncher Account Settings';
+    iframe.loading = 'lazy';
+    iframe.referrerPolicy = 'strict-origin-when-cross-origin';
+    iframe.sandbox = 'allow-scripts allow-same-origin allow-forms';
+    iframe.style.width = '100%';
+    iframe.style.height = '100%';
+    iframe.style.border = '0';
+    iframe.style.display = 'block';
+    iframe.style.background = '#111';
+    iframe.style.visibility = 'hidden';
+
+    iframe.addEventListener('load', () => {
+      if (loadingState.parentNode) loadingState.remove();
+      iframe.style.visibility = 'visible';
+    });
+
+    frameWrap.appendChild(iframe);
+    iframe.src = '/account-settings-frame?disable-topbar=1&disable-global-message=1';
+  };
 
   const normalizeFavoriteVersions = (favRaw) => {
     if (Array.isArray(favRaw)) {
@@ -979,8 +1294,22 @@
     if (topbarProfilePic) {
       if (showHistolauncherAvatar) {
         topbarProfilePic.style.display = 'block';
-        const textureUrl = `https://textures.histolauncher.workers.dev/head/${settingsState.uuid}`;
-        topbarProfilePic.src = textureUrl;
+        try {
+          const skinImg = new Image();
+          skinImg.onload = () => {
+            const headDataUrl = renderPlayerHeadPreview(skinImg);
+
+            if (headDataUrl) topbarProfilePic.src = headDataUrl;
+            else topbarProfilePic.src = '/assets/images/unknown.png';
+          };
+          skinImg.onerror = () => {
+            topbarProfilePic.src = '/assets/images/unknown.png';
+          };
+          skinImg.src = `/texture/skin/${encodeURIComponent(settingsState.uuid)}`;
+        } catch (err) {
+          console.warn('Error loading skin for profile picture:', err);
+          topbarProfilePic.src = '/assets/images/unknown.png';
+        }
         imageAttachErrorPlaceholder(topbarProfilePic, '/assets/images/unknown.png');
       } else {
         topbarProfilePic.style.display = 'none';
@@ -1081,7 +1410,8 @@
     if (accountSelect) accountSelect.value = acctType;
     if (connectBtn) connectBtn.style.display = 'none';
     if (disconnectBtn) disconnectBtn.style.display = 'none';
-
+    updateSettingsAccountSettingsButtonVisibility();
+    updateSettingsPlayerPreview();
     updateHomeInfo();
     updateSettingsValidationUI();
     applyVersionsViewMode();
@@ -3728,9 +4058,9 @@
         if (crashRes.ok && crashRes.error_analysis) {
           const analysis = crashRes.error_analysis;
           if (analysis.has_error && analysis.message) {
-            crashDetails += `<br><b style="color:#ff6b6b;">${analysis.message}</b><br>`;
+            crashDetails += `<br><br><b style="color:#ff6b6b;">${analysis.message}</b><br>`;
             if (analysis.details) {
-              crashDetails += analysis.details;
+              crashDetails += `<i>${analysis.details}</i>`;
             }
             if (analysis.suggestion) {
               crashDetails += `<br><br><b>Suggestion:</b> ${analysis.suggestion}`;
@@ -4049,9 +4379,19 @@
     const accountSelect = getEl('settings-account-type');
     const connectBtn = getEl('connect-account-btn');
     const disconnectBtn = getEl('disconnect-account-btn');
+    const accountSettingsBtn = getEl('settings-account-settings-btn');
     const usernameRow = getEl('username-row');
 
     if (connectBtn) connectBtn.style.display = 'none';
+    updateSettingsAccountSettingsButtonVisibility();
+
+    if (accountSettingsBtn) {
+      accountSettingsBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (settingsState.account_type !== 'Histolauncher') return;
+        showHistolauncherAccountSettingsModal();
+      });
+    }
 
     if (accountSelect) {
       accountSelect.addEventListener('change', async (e) => {
@@ -4074,6 +4414,8 @@
             if (usernameInput) usernameInput.disabled = true;
             settingsState.account_type = 'Histolauncher';
             autoSaveSetting('account_type', 'Histolauncher');
+            updateSettingsAccountSettingsButtonVisibility();
+            updateSettingsPlayerPreview();
             return;
           }
 

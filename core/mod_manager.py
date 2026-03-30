@@ -18,8 +18,10 @@ from core.settings  import get_mods_profile_dir, _apply_url_proxy
 
 logger = logging.getLogger(__name__)
 
-CURSEFORGE_API_BASE = "https://mods.histolauncher.workers.dev/curseforge"
-MODRINTH_API_BASE = "https://mods.histolauncher.workers.dev/modrinth"
+API_BASE = "https://mods.histolauncher.org"
+
+CURSEFORGE_API_BASE = f"{API_BASE}/curseforge"
+MODRINTH_API_BASE = f"{API_BASE}/modrinth"
 
 CURSEFORGE_MINECRAFT_GAME_ID = 432
 

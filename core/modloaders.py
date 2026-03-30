@@ -357,8 +357,42 @@ def fetch_fabric_loader_dependencies(loader_version: str, mc_version: str) -> Op
         return None
 
 
+def fetch_fabric_loader_profile_libraries(loader_version: str, mc_version: str) -> Optional[List[Tuple[str, str]]]:
+    try:
+        mc_version_encoded = urllib.parse.quote(mc_version, safe='')
+        loader_version_encoded = urllib.parse.quote(loader_version, safe='')
+        profile_url = _apply_url_proxy(
+            f"{FABRIC_META_API}/versions/loader/{mc_version_encoded}/{loader_version_encoded}/profile/json"
+        )
+        profile_data = _http_get_json(profile_url)
+
+        dependencies = []
+        for lib_entry in profile_data.get("libraries", []):
+            lib_name = lib_entry.get("name", "")
+            lib_url = lib_entry.get("url", "https://maven.fabricmc.net")
+            if lib_name:
+                dependencies.append((lib_name, lib_url))
+
+        if dependencies:
+            print(colorize_log(
+                f"[modloaders] Extracted {len(dependencies)} official Fabric libraries from profile {mc_version}/{loader_version}"
+            ))
+            return dependencies
+
+        print(colorize_log(f"[modloaders] Fabric profile {mc_version}/{loader_version} had no libraries"))
+        return None
+
+    except Exception as e:
+        print(colorize_log(f"[modloaders] Failed to fetch Fabric profile libraries for {mc_version}/{loader_version}: {e}"))
+        return None
+
+
 def get_fabric_loader_libraries(loader_version: str, mc_version: str) -> List[Tuple[str, str]]:
     print(colorize_log(f"[modloaders] Fetching official Fabric libraries for {loader_version}..."))
+    profile_deps = fetch_fabric_loader_profile_libraries(loader_version, mc_version)
+    if profile_deps:
+        return profile_deps
+
     extracted_deps = fetch_fabric_loader_dependencies(loader_version, mc_version)
     if extracted_deps:
         return extracted_deps

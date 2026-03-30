@@ -8,6 +8,7 @@ import json
 import re
 import urllib.request
 import urllib.parse
+import urllib.error
 
 from typing                 import Any, Dict
 
@@ -394,6 +395,7 @@ def handle_api_request(path: str, data: Any):
     EXACT_NO_PARAMS = {
         "/api/account/status": api_account_status,
         "/api/account/current": api_account_current,
+        "/api/account/settings-iframe": api_account_settings_iframe,
         "/api/account/launcher-message": api_account_launcher_message,
         "/api/account/disconnect": api_account_disconnect,
         "/api/profiles": api_profiles,
@@ -1250,6 +1252,15 @@ def _analyze_crash_log(log_content: str) -> dict:
             "details": "The game ran out of allocated RAM.",
             "suggestion": "Try increasing the maximum RAM allocation in the launcher settings."
         }
+
+    if "Could not reserve enough space for object heap" in log_content:
+        return {
+            "has_error": True,
+            "error_type": "HeapAllocationFailure",
+            "message": "Heap Allocation Failure",
+            "details": "The Java Virtual Machine could not reserve enough memory for the heap.",
+            "suggestion": "Try reducing the maximum RAM allocation in the launcher settings or closing other applications to free up memory."
+        }
     
     if "ModNotFoundException" in log_content or "net.minecraftforge.fml.ModLoadingException" in log_content:
         return {
@@ -1429,10 +1440,7 @@ def api_settings(data):
         except Exception:
             pass
 
-    # Debug logging
     if current.get("account_type") == "Histolauncher":
-        # Note: username/uuid are NOT stored in settings for security.
-        # They're retrieved on-demand from session token via get_verified_account()
         username = data.get('username') or current.get('username') or '(from session token)'
         uuid = data.get('uuid') or current.get('uuid') or '(from session token)'
         print(colorize_log(f"[api_settings] Histolauncher account configured: username={username}, uuid={uuid}"))
@@ -1520,6 +1528,16 @@ def api_account_verify_session(data):
 
 def api_account_current():
     try:
+        settings = load_global_settings() or {}
+        if str(settings.get("account_type") or "Local").strip().lower() != "histolauncher":
+            return {
+                "ok": False,
+                "error": "Histolauncher account not enabled",
+                "authenticated": False,
+                "unauthorized": False,
+                "local_account": True,
+            }
+
         from .auth import get_verified_account
         
         success, user_data, error = get_verified_account()
@@ -1548,6 +1566,260 @@ def api_account_current():
             "authenticated": False,
             "network_error": True
         }
+
+
+def _get_histolauncher_settings_proxy_config_script() -> str:
+    return """<script>
+const IS_DEV = false;
+const LOCAL_PROXY_ORIGIN = window.location.origin;
+const ACCOUNTS_BASE = `${LOCAL_PROXY_ORIGIN}/histolauncher-proxy/accounts`;
+const TEXTURE_BASE = `${LOCAL_PROXY_ORIGIN}/histolauncher-proxy/textures`;
+
+const CONFIG = {
+  API: {
+    BASE: `${ACCOUNTS_BASE}/api`,
+    LOGIN: `${ACCOUNTS_BASE}/api/login`,
+    SIGNUP: `${ACCOUNTS_BASE}/api/signup`,
+    ADMIN_ME: `${ACCOUNTS_BASE}/api/admin/me`,
+    ADMIN_PANEL_CONTENT: `${ACCOUNTS_BASE}/api/admin/panel-content`,
+    ADMIN_PANEL_SCRIPT: `${ACCOUNTS_BASE}/api/admin/panel-script`,
+    ADMIN_GLOBAL_MESSAGE: `${ACCOUNTS_BASE}/api/admin/global-message`,
+    GLOBAL_MESSAGE: `${ACCOUNTS_BASE}/api/global-message`,
+    UPLOAD_SKIN: `${ACCOUNTS_BASE}/api/settings/uploadSkin`,
+    CAPE_OPTIONS: `${ACCOUNTS_BASE}/api/settings/capes`,
+    TEXTURES_BASE: `${TEXTURE_BASE}`
+  },
+  GITHUB: {
+    OWNER: 'KerbalOfficial',
+    REPO: 'Histolauncher'
+  },
+  STORAGE_KEYS: {
+    UUID: 'uuid',
+    USERNAME: 'username'
+  }
+};
+
+function getGitHubReleasesUrl(owner = CONFIG.GITHUB.OWNER, repo = CONFIG.GITHUB.REPO) {
+  return `https://api.github.com/repos/${owner}/${repo}/releases`;
+}
+</script>"""
+
+
+def _get_histolauncher_iframe_navigation_guard_script() -> str:
+    return """<script>
+(function () {
+  const logBlocked = (reason, target) => {
+    try {
+      console.warn('[Histolauncher iframe] Blocked navigation:', reason, target || '');
+    } catch (_) {}
+  };
+
+  try {
+    window.open = function (targetUrl) {
+      logBlocked('window.open', targetUrl);
+      return null;
+    };
+  } catch (_) {}
+
+  try {
+    if (window.history) {
+      window.history.pushState = function () {
+        logBlocked('history.pushState', '');
+      };
+      window.history.replaceState = function () {
+        logBlocked('history.replaceState', '');
+      };
+    }
+  } catch (_) {}
+
+  document.addEventListener('click', function (event) {
+    const link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+    if (!link) return;
+
+    const href = link.getAttribute('href') || '';
+    if (!href || href.startsWith('#')) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    logBlocked('link-click', href);
+  }, true);
+
+  document.addEventListener('submit', function (event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const action = event.target && event.target.getAttribute ? (event.target.getAttribute('action') || '') : '';
+    logBlocked('form-submit', action);
+  }, true);
+})();
+</script>"""
+
+
+def _fetch_histolauncher_text(url: str, *, include_auth_cookie: bool = False, timeout_seconds: float = 15.0) -> str:
+    from .auth import load_histolauncher_cookie_header
+
+    candidate_urls = []
+    proxied = _apply_url_proxy(url)
+    if proxied:
+        candidate_urls.append(proxied)
+    if url not in candidate_urls:
+        candidate_urls.append(url)
+
+    last_error = "Failed to load remote resource"
+    for candidate in candidate_urls:
+        try:
+            headers = {"User-Agent": "Histolauncher/1.0"}
+            if include_auth_cookie:
+                cookie_header = load_histolauncher_cookie_header()
+                if cookie_header:
+                    headers["Cookie"] = cookie_header
+
+            req = urllib.request.Request(candidate, headers=headers, method="GET")
+            with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
+                return resp.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as e:
+            try:
+                detail = e.read().decode("utf-8", errors="replace").strip()
+            except Exception:
+                detail = ""
+            last_error = detail or f"Remote request failed ({e.code})"
+        except Exception as e:
+            last_error = str(e)
+
+    raise RuntimeError(last_error)
+
+
+def _patch_histolauncher_loader_script(script_path: str, script_body: str) -> str:
+    patched = str(script_body or "")
+
+    if script_path.endswith("/loaders/topbar.js"):
+        patched = re.sub(
+            r"const topbarDisabled = .*?;",
+            "const topbarDisabled = true;",
+            patched,
+            count=1,
+        )
+        patched = re.sub(
+            r"const globalMessageDisabled = .*?;",
+            "const globalMessageDisabled = true;",
+            patched,
+            count=1,
+        )
+
+    # Prevent the embedded settings page from navigating away from the iframe.
+    patched = re.sub(
+        r"(?:window\.)?location\.href\s*=\s*(['\"]).*?\1\s*;",
+        "console.warn('[Histolauncher iframe] Blocked redirect via location.href');",
+        patched,
+        flags=re.IGNORECASE,
+    )
+    patched = re.sub(
+        r"(?:window\.)?location\.(?:assign|replace)\s*\([^)]*\)\s*;",
+        "console.warn('[Histolauncher iframe] Blocked redirect via location method');",
+        patched,
+        flags=re.IGNORECASE,
+    )
+
+    if script_path.endswith("/loaders/settings.js"):
+        patched = patched.replace(
+            'document.body.innerHTML = "<main><p>Please <a href=\'/login\'>log in</a> first</p></main>";',
+            'document.body.innerHTML = "<main><p>Please log in first.</p></main>";'
+        )
+
+    return patched.replace("</script>", "<\\/script>")
+
+
+def _inline_histolauncher_loader_script(html: str, script_path: str, script_body: str) -> str:
+    inline_script = f"<script>\n{script_body}\n</script>"
+    pattern = rf"<script[^>]+src=[\"']{re.escape(script_path)}[\"'][^>]*></script>"
+    return re.sub(pattern, lambda _: inline_script, html, count=1, flags=re.IGNORECASE)
+
+
+def _transform_histolauncher_settings_html(raw_html: str) -> str:
+    html = str(raw_html or "")
+    config_script = _get_histolauncher_settings_proxy_config_script()
+    navigation_guard_script = _get_histolauncher_iframe_navigation_guard_script()
+
+    config_pattern = r"<script[^>]+src=[\"']/loaders/config\.js[\"'][^>]*>\s*</script>"
+    html = re.sub(config_pattern, "", html, flags=re.IGNORECASE)
+    html = html.replace("</head>", f"{config_script}\n</head>", 1)
+
+    if "Blocked navigation" not in html:
+        html = html.replace("</head>", f"{navigation_guard_script}\n</head>", 1)
+
+    if "<base " not in html.lower():
+        html = re.sub(
+            r"<head([^>]*)>",
+            '<head\\1>\n<base href="https://histolauncher.org/">',
+            html,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+
+    html = re.sub(
+        r"<script[^>]*>[^<]*__CF\\$cv\\$params.*?</script>",
+        "",
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    html = re.sub(
+        r"<script[^>]+src=[\"'][^\"']*cdn-cgi/challenge-platform[^\"']*[\"'][^>]*></script>",
+        "",
+        html,
+        flags=re.IGNORECASE,
+    )
+    html = re.sub(
+        r"<script[^>]+src=[\"'][^\"']*static\\.cloudflareinsights\\.com[^\"']*[\"'][^>]*></script>",
+        "",
+        html,
+        flags=re.IGNORECASE,
+    )
+
+    for script_path in ("/loaders/auth.js", "/loaders/topbar.js", "/loaders/settings.js"):
+        remote_script = _fetch_histolauncher_text(
+            f"https://histolauncher.org{script_path}",
+            include_auth_cookie=False,
+            timeout_seconds=15.0,
+        )
+        html = _inline_histolauncher_loader_script(
+            html,
+            script_path,
+            _patch_histolauncher_loader_script(script_path, remote_script),
+        )
+
+    return html
+
+
+def api_account_settings_iframe():
+    from .auth import load_histolauncher_cookie_header
+
+    cookie_header = load_histolauncher_cookie_header()
+    if not cookie_header:
+        return {"ok": False, "error": "Not authenticated"}
+
+    base_url = "https://histolauncher.org/settings?disable-topbar=1&disable-global-message=1"
+    candidate_urls = []
+    proxied = _apply_url_proxy(base_url)
+    if proxied:
+        candidate_urls.append(proxied)
+    if base_url not in candidate_urls:
+        candidate_urls.append(base_url)
+
+    last_error = "Failed to load account settings"
+    for url in candidate_urls:
+        try:
+            payload = _fetch_histolauncher_text(
+                url,
+                include_auth_cookie=True,
+                timeout_seconds=15.0,
+            )
+            return {
+                "ok": True,
+                "html": _transform_histolauncher_settings_html(payload),
+            }
+        except Exception as e:
+            last_error = str(e)
+
+    return {"ok": False, "error": last_error}
 
 
 def api_account_launcher_message():
