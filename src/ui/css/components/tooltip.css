@@ -1,0 +1,29 @@
+/* TOOLTIP */
+.tooltip {
+  position: fixed;
+  background: var(--color-tooltip-bg);
+  color: var(--color-text-inverse);
+  font-size: 12px;
+  padding: 8px 10px;
+  max-width: 50%;
+  pointer-events: none;
+  z-index: 10000;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.4;
+}
+
+.tooltip-label {
+  font-weight: bold;
+  color: var(--color-text-inverse);
+}
+
+.tooltip-value {
+  font-style: italic;
+  color: var(--color-text-primary);
+}
+
+.tooltip-parens {
+  font-size: 0.85em;
+  opacity: 0.7;
+}

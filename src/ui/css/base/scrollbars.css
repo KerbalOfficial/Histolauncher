@@ -1,0 +1,23 @@
+*::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--color-surface-panel);
+  border: 2px solid var(--color-border-strong);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border-soft);
+  border: 2px solid var(--color-border-default);
+  background-clip: padding-box !important;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--color-surface-panel);
+}

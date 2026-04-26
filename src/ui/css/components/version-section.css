@@ -1,0 +1,165 @@
+/* VERSION SECTIONS */
+.versions-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 8px;
+}
+
+#versions-section-warning {
+  color: var(--color-error);
+  padding: 10px;
+}
+
+.versions-section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+.versions-section-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+}
+
+.section-dropdown-trigger {
+  cursor: pointer;
+}
+
+.versions-section-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.section-bulk-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.versions-section-header h3 {
+  font-size: 18px;
+  margin: 0;
+}
+
+.versions-section-subtitle {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.section-dropdown-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.section-dropdown-toggle:hover,
+.settings-dropdown-title:hover {
+  color: var(--color-text-inverse);
+}
+
+.section-dropdown-indicator,
+.dropdown-indicator {
+  display: inline-block;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.section-dropdown-body {
+  margin-top: 6px;
+}
+
+@media (max-width: 720px) {
+  .versions-section-header-top {
+    flex-wrap: wrap;
+  }
+
+  .world-detail-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .world-detail-image {
+    width: 100%;
+    max-width: 220px;
+  }
+
+  .world-nbt-editor {
+    min-width: 0;
+  }
+
+  .world-nbt-field {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .world-nbt-editor-shell {
+    min-width: 0;
+  }
+
+  .world-nbt-tabs {
+    gap: 6px;
+  }
+
+  .world-nbt-tab {
+    flex: 1 1 120px;
+    text-align: center;
+  }
+
+  .world-nbt-hint {
+    grid-column: auto;
+  }
+
+  .world-nbt-input-with-picker {
+    grid-template-columns: 1fr;
+  }
+
+  .world-nbt-picker-button {
+    width: 100%;
+  }
+
+  .world-nbt-picker-popover {
+    position: static;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .world-nbt-picker-row {
+    grid-template-columns: 1fr;
+  }
+
+  .world-nbt-picker-row.world-nbt-picker-row-full {
+    grid-template-columns: 1fr;
+  }
+
+  .world-nbt-picker-row-label {
+    text-align: left;
+  }
+
+  .world-nbt-inventory-header {
+    display: none;
+  }
+
+  .world-nbt-inventory-row {
+    grid-template-columns: 1fr;
+  }
+
+  .world-nbt-json-textarea {
+    width: 100%;
+    min-height: 340px;
+  }
+}

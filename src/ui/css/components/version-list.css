@@ -1,0 +1,288 @@
+/* VERSION LISTS */
+.versions-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.versions-list:not(.list-view) .version-card {
+  width: 100%;
+  min-width: 0;
+}
+
+.versions-list:not(.list-view) {
+  --versions-grid-min: 260px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--versions-grid-min)), 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+#installed-modpacks-list.versions-list:not(.list-view),
+#installed-mods-list.versions-list:not(.list-view),
+#available-mods-list.versions-list:not(.list-view),
+#installed-worlds-list.versions-list:not(.list-view),
+#available-worlds-list.versions-list:not(.list-view),
+.installed-mods-group-body.versions-list:not(.list-view) {
+  --versions-grid-min: 420px;
+}
+
+.versions-list:not(.list-view) > .installed-mods-group {
+  grid-column: 1 / -1;
+}
+
+/* LIST VIEW */
+.versions-list.list-view {
+  flex-direction: column;
+  flex-wrap: nowrap;
+}
+
+.versions-list.list-view .version-card {
+  --list-image-width: 120px;
+  width: 100%;
+  min-height: 86px;
+  height: 86px;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.versions-list.list-view .version-image {
+  width: var(--list-image-width);
+  height: 100%;
+  flex-shrink: 0;
+  overflow: hidden;
+  display: block;
+}
+
+.versions-list.list-view .version-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8px 10px;
+}
+
+.versions-list.list-view .version-header-row {
+  align-items: center;
+}
+
+.versions-list.list-view .version-actions-icons {
+  align-self: center;
+}
+
+.versions-list.list-view .version-actions {
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  flex: 0 0 auto;
+}
+
+.versions-list.list-view .version-actions:empty {
+  display: none;
+}
+
+.versions-list.list-view .version-actions button {
+  width: auto;
+  min-width: 74px;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.1;
+}
+
+.versions-list.list-view .version-card.section-installing .version-actions button {
+  flex: 0 0 auto;
+}
+
+.versions-list.list-view .version-card.section-installed .version-info {
+  position: relative;
+  padding-right: 96px;
+}
+
+.versions-list.list-view .version-card.world-card.section-installed .version-info {
+  padding-right: 156px;
+}
+
+.versions-list.list-view .version-card.section-installed .version-header-row {
+  display: block;
+}
+
+.versions-list.list-view .version-card.section-installed .version-actions-icons {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.versions-list.list-view .version-progress {
+  position: absolute;
+  bottom: -1px;
+  left: var(--list-image-width);
+  right: 0;
+  height: 6px;
+}
+
+.versions-list.list-view .version-progress-text {
+  position: absolute;
+  left: calc(var(--list-image-width) + 10px);
+  right: 10px;
+  bottom: 2px;
+  padding: 0;
+  margin-top: 0;
+  font-size: 11px;
+  color: var(--color-text-soft-alt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.versions-list.list-view .version-badge-row {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  justify-content: center;
+}
+
+.versions-list.list-view .version-badge {
+  width: 100%;
+  justify-content: flex-start;
+}
+
+/* VIEW TOGGLE */
+.view-toggle {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.view-toggle-btn {
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--color-text-softer);
+}
+
+.view-toggle-btn:hover {
+  background: var(--color-border-strong);
+  color: var(--color-text-inverse);
+}
+
+.view-toggle-btn.active {
+  background: var(--color-surface-interactive);
+  border-color: var(--color-border-subtle);
+  color: var(--color-text-inverse);
+}
+
+.view-toggle-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.versions-action-buttons {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  position: relative;
+}
+
+.versions-action-buttons button {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+#versions-bulk-toggle-btn,
+#versions-bulk-delete-btn,
+#mods-bulk-toggle-btn,
+#mods-bulk-delete-btn,
+#mods-bulk-move-btn {
+  min-height: 34px;
+}
+
+#versions-bulk-delete-btn:disabled,
+#mods-bulk-delete-btn:disabled,
+#mods-bulk-move-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.versions-action-buttons button.icon-btn {
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.versions-action-buttons button.icon-btn img {
+  width: 22px;
+  height: 22px;
+}
+
+.versions-action-buttons button.icon-btn img.action-icon {
+  width: 48px;
+  height: 48px;
+}
+
+.versions-action-buttons button img {
+  width: 16px;
+  height: 16px;
+}
+
+.versions-action-buttons .actions-overflow-trigger {
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0 !important;
+}
+
+.versions-action-buttons .actions-overflow-trigger img {
+  width: 24px !important;
+  height: 24px !important;
+}
+
+.actions-overflow-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 70;
+  min-width: 0;
+  width: max-content;
+  max-width: 172px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px;
+  background: var(--color-border-strong);
+  border: 2px solid var(--color-surface-card-hover);
+}
+
+.actions-overflow-menu button {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 !important;
+  font-size: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.actions-overflow-menu button img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  display: block;
+}

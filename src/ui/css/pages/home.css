@@ -1,0 +1,85 @@
+/* HOME INFO BOX */
+.info-box {
+  background: var(--color-overlay-soft);
+  border: 4px solid var(--color-border-strong);
+  color: var(--color-text-primary);
+  padding: 18px;
+}
+
+.info-box div {
+  margin-bottom: 6px;
+}
+
+#home-info {
+  max-width: 720px;
+  margin: 40px auto 20px auto;
+}
+
+#home-info .tooltip-value {
+  overflow-wrap: anywhere;
+}
+
+/* HOME PAGE - version panel */
+#home-version-panel {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+#home-version-image {
+  width: 150px;
+  height: auto;
+  border: 4px solid var(--color-border-strong);
+  background: var(--color-surface-black);
+  flex-shrink: 0;
+  display: block;
+}
+
+#home-version-details {
+  flex: 1;
+  min-width: 0;
+}
+
+#home-account-panel {
+  border-top: 2px solid var(--color-border-strong);
+  padding-top: 10px;
+  margin-top: 4px;
+}
+
+.home-launch-container {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.big-launch-btn {
+  padding: 14px 40px;
+  font-size: 18px;
+  background: var(--color-launch);
+  border: 4px solid var(--color-launch-border);
+  color: var(--color-text-inverse);
+  cursor: pointer;
+}
+
+.big-launch-btn:hover {
+  background: var(--color-launch-hover);
+}
+
+.big-launch-btn:disabled {
+  background: var(--color-border-soft);
+  border-color: var(--color-border-strong);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.big-launch-btn:disabled:hover {
+  background: var(--color-border-soft);
+}
+
+.status {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}

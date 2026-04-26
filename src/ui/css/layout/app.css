@@ -1,0 +1,61 @@
+/* MAIN APP */
+#app {
+  padding: 16px;
+  margin-left: 200px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: -16px -16px 12px -16px;
+  min-height: 60px;
+  background: var(--color-surface-panel);
+  border-bottom: 4px solid var(--color-border-strong);
+  padding: 8px 16px;
+}
+
+#refresh-btn {
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0 !important;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#refresh-btn img,
+.icon-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+#topbar-profile {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-surface-panel);
+  border: none;
+  padding: 4px 8px;
+}
+
+#topbar-profile-pic {
+  border: 2px solid var(--color-border-quiet);
+}
+
+#topbar-username {
+  color: var(--color-text-primary);
+  font-size: 14px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 700;
+}

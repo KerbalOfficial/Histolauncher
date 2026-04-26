@@ -1,0 +1,566 @@
+/* MOD CARDS */
+.version-card.mod-card {
+  --mod-grid-thumb-size: 128px;
+  --mod-grid-gap: 12px;
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  background: var(--color-surface-card-strong);
+  border-color: var(--color-border-subtle);
+}
+
+.version-card.mod-card:hover {
+  background: var(--color-mod-card-hover-bg);
+  border-color: var(--color-mod-card-hover-border);
+}
+
+.versions-list:not(.list-view) .version-card.mod-card {
+  display: grid;
+  grid-template-columns: var(--mod-grid-thumb-size) minmax(0, 1fr);
+  grid-auto-rows: min-content;
+  column-gap: var(--mod-grid-gap);
+  row-gap: 8px;
+  align-content: start;
+}
+
+.mod-card.mod-card-installed.mod-card-loader-fabric,
+.mod-card.mod-card-installed.mod-card-loader-babric {
+  background: var(--color-loader-fabric-card-bg);
+  border-color: var(--color-loader-fabric-card-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-fabric:hover,
+.mod-card.mod-card-installed.mod-card-loader-babric:hover {
+  background: var(--color-loader-fabric-card-hover);
+  border-color: var(--color-loader-fabric-card-hover-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-forge {
+  background: var(--color-loader-forge-card-bg);
+  border-color: var(--color-loader-forge-card-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-forge:hover {
+  background: var(--color-loader-forge-card-hover);
+  border-color: var(--color-loader-forge-card-hover-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-modloader {
+  background: var(--color-loader-modloader-card-bg);
+  border-color: var(--color-loader-modloader-card-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-modloader:hover {
+  background: var(--color-loader-modloader-card-hover);
+  border-color: var(--color-loader-modloader-card-hover-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-neoforge {
+  background: var(--color-loader-neoforge-card-bg);
+  border-color: var(--color-loader-neoforge-card-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-neoforge:hover {
+  background: var(--color-loader-neoforge-card-hover);
+  border-color: var(--color-loader-neoforge-card-hover-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-quilt {
+  background: var(--color-loader-quilt-card-bg);
+  border-color: var(--color-loader-quilt-card-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-quilt:hover {
+  background: var(--color-loader-quilt-card-hover);
+  border-color: var(--color-loader-quilt-card-hover-border);
+}
+
+/* MOD IMAGE */
+.version-card.mod-card .mod-card-image {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  aspect-ratio: 1 / 1;
+  width: var(--mod-grid-thumb-size);
+  height: var(--mod-grid-thumb-size);
+  object-fit: contain;
+  display: block;
+  background: transparent;
+  align-self: start;
+}
+
+.version-card.world-card .mod-card-image {
+  object-fit: cover;
+  background: var(--color-surface-code);
+}
+
+.versions-list:not(.list-view) .version-card.mod-card .mod-card-info {
+  display: contents;
+}
+
+.versions-list:not(.list-view) .version-card.mod-card .version-header-row {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+}
+
+.versions-list:not(.list-view) .version-card.mod-card.section-installed .version-header-row {
+  padding-right: 34px;
+}
+
+.versions-list:not(.list-view) .version-card.mod-card .version-display {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.05;
+  margin: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  line-clamp: 2;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.versions-list:not(.list-view) .version-card.mod-card .mod-card-description {
+  grid-column: 2;
+  grid-row: 2;
+  margin-top: 2px;
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--color-text-soft);
+  display: -webkit-box;
+  line-clamp: 4;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.versions-list:not(.list-view) .version-card.mod-entry-card .mod-card-control-row {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  margin-left: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.versions-list:not(.list-view) .version-card.mod-card .version-badge-row {
+  grid-column: 1 / -1;
+  padding: 0;
+  max-height: none;
+}
+
+.versions-list:not(.list-view) .version-card.mod-card .version-actions {
+  grid-column: 1 / -1;
+  padding: 0;
+}
+
+.versions-list:not(.list-view) .version-card.mod-card .mod-install-progress,
+.versions-list:not(.list-view) .version-card.mod-card .world-install-progress {
+  grid-column: 1 / -1;
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+}
+
+.versions-list:not(.list-view) .version-card.mod-card .mod-install-progress-text,
+.versions-list:not(.list-view) .version-card.mod-card .world-install-progress-text {
+  grid-column: 1 / -1;
+  box-sizing: border-box;
+  width: calc(100% + 16px);
+  margin: 0 -8px -8px -8px;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.versions-list:not(.list-view) .version-card.mod-card .mod-card-delete-icon {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  padding: 0;
+}
+
+/* List-view mod cards need stronger selectors than generic version-card list rules. */
+.versions-list.list-view .version-card.mod-card {
+  display: grid;
+  grid-template-columns: var(--list-image-width) minmax(0, 1fr) minmax(28px, auto) minmax(118px, max-content) auto;
+  grid-auto-rows: minmax(100px, auto);
+  column-gap: 10px;
+  align-items: center;
+  padding: 0;
+  height: auto !important;
+  min-height: 100px;
+  max-height: none;
+  overflow: hidden;
+}
+
+.versions-list.list-view .version-card.mod-card .mod-card-image {
+  grid-column: 1;
+  grid-row: 1;
+  width: var(--list-image-width);
+  height: var(--list-image-width);
+  aspect-ratio: 1 / 1;
+  object-fit: contain;
+  border: none;
+  background: transparent;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.versions-list.list-view .version-card.mod-card .mod-card-info {
+  grid-column: 2;
+  grid-row: 1;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.versions-list.list-view .version-card.mod-card.section-installed .mod-card-info {
+  position: static;
+  padding-right: 10px;
+}
+
+.versions-list.list-view .version-card.mod-card.section-installed .version-header-row {
+  display: flex;
+}
+
+.versions-list.list-view .version-card.mod-card .mod-card-delete-icon {
+  grid-column: 3;
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+  min-width: 28px;
+  padding: 0;
+}
+
+.versions-list.list-view .version-card.mod-card .version-badge-row {
+  grid-column: 4;
+  grid-row: 1;
+  align-self: center;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 118px;
+  max-height: none;
+  padding: 0;
+  overflow: visible;
+}
+
+.versions-list.list-view .version-card.mod-card .version-badge {
+  width: max-content;
+  min-width: 88px;
+  max-width: 172px;
+  min-height: 20px;
+  box-sizing: border-box;
+  justify-content: center;
+  overflow: hidden;
+  padding: 3px 6px;
+  line-height: 1.15;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.versions-list.list-view .version-card.mod-card .version-actions {
+  grid-column: 5;
+  grid-row: 1;
+  align-self: center;
+  justify-self: end;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 8px 10px 8px 0;
+}
+
+.versions-list.list-view .version-card.mod-card .version-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  line-height: 1.1;
+  white-space: normal;
+}
+
+.versions-list.list-view .version-card.mod-card .quick-install-wrap {
+  justify-content: center;
+}
+
+.versions-list.list-view .version-card.mod-card .mod-install-progress,
+.versions-list.list-view .version-card.mod-card .world-install-progress {
+  position: absolute;
+  left: var(--list-image-width);
+  right: 0;
+  bottom: -1px;
+  width: auto;
+  margin: 0;
+  grid-column: auto;
+}
+
+.versions-list.list-view .version-card.mod-card .mod-install-progress-text,
+.versions-list.list-view .version-card.mod-card .world-install-progress-text {
+  position: absolute;
+  left: calc(var(--list-image-width) + 10px);
+  right: 10px;
+  bottom: 8px;
+  width: auto;
+  margin: 0;
+  padding: 0;
+  font-size: 11px;
+  color: var(--color-text-soft-alt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  grid-column: auto;
+}
+
+.versions-list.list-view .version-card.mod-entry-card .mod-card-control-row {
+  margin-top: 2px;
+}
+
+.mods-empty-state {
+  width: 100%;
+  padding: 8px 0;
+  color: var(--color-text-faint);
+  font-size: 13px;
+  text-align: center;
+  white-space: normal;
+}
+
+.versions-list:not(.list-view) > .mods-empty-state {
+  grid-column: 1 / -1;
+}
+
+.mods-empty-state-error {
+  color: var(--color-error-soft);
+  white-space: pre-wrap;
+}
+
+.inline-loading-state {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  color: var(--color-text-faint);
+}
+
+.inline-loading-state-centered {
+  justify-content: center;
+  text-align: center;
+}
+
+.inline-loading-state-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.versions-list:not(.list-view) > .inline-loading-state {
+  grid-column: 1 / -1;
+}
+
+/* Delete icon placed before badges */
+.mod-card-delete-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+}
+
+/* Loader group header inside installed mods list */
+.installed-mods-loader-header {
+  width: 100%;
+  padding: 6px 10px 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-dim);
+  border-bottom: 1px solid var(--color-border-muted);
+  margin-bottom: 2px;
+}
+
+.installed-mods-group {
+  width: 100%;
+}
+
+.installed-mods-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+}
+
+.installed-mods-group-toggle:hover {
+  background: var(--color-overlay-subtle);
+}
+
+.installed-mods-group-title {
+  flex: 1;
+}
+
+.installed-mods-group-count {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.installed-mods-group-indicator {
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+.installed-mods-group-body {
+  width: 100%;
+}
+
+/* DISABLED MOD CARD */
+.mod-card-disabled {
+  opacity: 0.5;
+  filter: grayscale(100%);
+}
+
+.mod-card-disabled:hover {
+  opacity: 0.68;
+  filter: grayscale(85%);
+}
+
+/* Mod card description + control rows */
+.version-card.mod-card .mod-card-description {
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.version-card.mod-entry-card .mod-card-control-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  min-width: 0;
+}
+
+.versions-list:not(.list-view) .version-card.mod-entry-card .mod-version-row {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 2px solid var(--color-divider-light);
+}
+
+.version-card.mod-entry-card .mod-version-label,
+.version-card.mod-entry-card .mod-overwrite-label,
+.version-card.mod-entry-card .mod-source-label {
+  font-size: 10px;
+  color: var(--color-text-faint);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.versions-list:not(.list-view) .version-card.mod-entry-card .mod-version-label,
+.versions-list:not(.list-view) .version-card.mod-entry-card .mod-overwrite-label,
+.versions-list:not(.list-view) .version-card.mod-entry-card .mod-source-label {
+  min-width: 110px;
+  font-size: 12px;
+  color: var(--color-text-soft);
+}
+
+.version-card.mod-entry-card .mod-card-select {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.version-card.mod-entry-card .mod-card-checkbox {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  font-size: 1.1em;
+  border-width: 3px;
+  margin: 0;
+  padding: 0 !important;
+}
+
+@media (max-width: 980px) {
+  #installed-modpacks-list.versions-list:not(.list-view),
+  #installed-mods-list.versions-list:not(.list-view),
+  #available-mods-list.versions-list:not(.list-view),
+  #installed-worlds-list.versions-list:not(.list-view),
+  #available-worlds-list.versions-list:not(.list-view),
+  .installed-mods-group-body.versions-list:not(.list-view) {
+    --versions-grid-min: 360px;
+  }
+
+  .versions-list:not(.list-view) .version-card.mod-card {
+    --mod-grid-thumb-size: 110px;
+  }
+
+  .versions-list:not(.list-view) .version-card.mod-entry-card .mod-version-label,
+  .versions-list:not(.list-view) .version-card.mod-entry-card .mod-overwrite-label,
+  .versions-list:not(.list-view) .version-card.mod-entry-card .mod-source-label {
+    min-width: 96px;
+  }
+}
+
+@media (max-width: 600px) {
+  #installed-modpacks-list.versions-list:not(.list-view),
+  #installed-mods-list.versions-list:not(.list-view),
+  #available-mods-list.versions-list:not(.list-view),
+  #installed-worlds-list.versions-list:not(.list-view),
+  #available-worlds-list.versions-list:not(.list-view),
+  .installed-mods-group-body.versions-list:not(.list-view) {
+    --versions-grid-min: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .versions-list:not(.list-view) .version-card.mod-card {
+    --mod-grid-gap: 0px;
+    grid-template-columns: 1fr;
+  }
+
+  .versions-list:not(.list-view) .version-card.mod-card .mod-card-image {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+    height: 180px;
+  }
+
+  .versions-list:not(.list-view) .version-card.mod-card .version-header-row,
+  .versions-list:not(.list-view) .version-card.mod-card .mod-card-description {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  .versions-list:not(.list-view) .version-card.mod-card.section-installed .version-header-row {
+    padding-right: 0;
+  }
+
+  .versions-list:not(.list-view) .version-card.mod-entry-card .mod-card-control-row {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .versions-list:not(.list-view) .version-card.mod-entry-card .mod-version-label,
+  .versions-list:not(.list-view) .version-card.mod-entry-card .mod-overwrite-label,
+  .versions-list:not(.list-view) .version-card.mod-entry-card .mod-source-label {
+    min-width: 86px;
+  }
+}
+
+/* MODS / VERSIONS LOADING INDICATOR */
+.mods-loading,
+.versions-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px 0;
+  color: var(--color-text-faint);
+  font-size: 13px;
+}

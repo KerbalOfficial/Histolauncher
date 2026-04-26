@@ -1,0 +1,18 @@
+/* RUNNING STEVE */
+
+@keyframes running_steve {
+  from {right:0%;left:100%}
+  to {right:100%;left:0%;}
+}
+
+.running_steve {
+  position: fixed;
+  bottom: 10px;
+  zoom: 50%;
+  z-index: -1;
+  animation-name: running_steve;
+  animation-duration: 5s;
+  animation-delay: 300s;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}

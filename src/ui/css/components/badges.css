@@ -1,0 +1,72 @@
+/* BADGES */
+.version-badge-row {
+  display: flex;
+  gap: 6px;
+  padding: 0 10px 6px 10px;
+  flex-wrap: wrap;
+  overflow: hidden;
+  max-height: 52px;
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.version-badge.installed {
+  background: var(--color-badge-installed-bg);
+  border: 2px solid var(--color-badge-installed-border);
+  color: var(--color-badge-installed-text);
+}
+
+.version-badge.imported {
+  background: var(--color-badge-imported-bg);
+  border: 2px solid var(--color-badge-imported-border);
+  color: var(--color-badge-imported-text);
+}
+
+.version-badge.modpack {
+  background: var(--color-badge-modpack-bg);
+  border: 2px solid var(--color-badge-modpack-border);
+  color: var(--color-badge-modpack-text);
+}
+
+.version-badge.available {
+  background: var(--color-badge-available-bg);
+  border: 2px solid var(--color-badge-available-border);
+  color: var(--color-badge-available-text);
+}
+
+.version-badge.official {
+  background: var(--color-badge-official-bg);
+  border: 2px solid var(--color-badge-official-border);
+  color: var(--color-badge-official-text);
+}
+
+.version-badge.nonofficial {
+  background: var(--color-badge-nonofficial-bg);
+  border: 2px solid var(--color-badge-nonofficial-border);
+  color: var(--color-badge-nonofficial-text);
+}
+
+.version-badge.paused {
+  background: var(--color-badge-paused-bg);
+  border: 2px solid var(--color-badge-paused-border);
+  color: var(--color-badge-paused-text);
+}
+
+.version-badge.lite {
+  background: var(--color-badge-lite-bg);
+  border: 2px solid var(--color-badge-lite-border);
+  color: var(--color-badge-lite-text);
+}
+
+.version-badge.size {
+  background: var(--color-badge-size-bg);
+  border: 2px solid var(--color-badge-size-border);
+  color: var(--color-text-primary);
+}

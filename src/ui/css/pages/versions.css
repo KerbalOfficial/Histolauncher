@@ -1,0 +1,123 @@
+/* VERSIONS PAGE */
+.versions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  min-width: 0;
+}
+
+.section-title-text {
+  font-size: 22px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.section-title img {
+  flex: 0 0 auto;
+  display: block;
+}
+
+@media (max-width: 800px) {
+  .section-title-text {
+    display: none;
+  }
+}
+
+@media (max-width: 600px) {
+  .section-title {
+    display: none;
+  }
+}
+
+.versions-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.versions-filter select {
+  background: var(--color-surface-input);
+  border: 1px solid var(--color-border-input);
+  color: var(--color-text-primary);
+  padding: 4px 8px;
+}
+
+.versions-filter-menu,
+.mods-filter-menu {
+  margin-bottom: 14px;
+  padding: 12px;
+}
+
+.versions-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.versions-filter-item,
+.mods-filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.versions-filter-item label,
+.mods-filter-item label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.versions-filter-item select,
+.versions-filter-item input,
+.mods-filter-item select,
+.mods-filter-item input {
+  background: var(--color-surface-input);
+  border: 1px solid var(--color-border-input);
+  color: var(--color-text-primary);
+  padding: 6px 8px;
+}
+
+.mods-topbar-filter {
+  gap: 8px;
+}
+
+.mods-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.mods-filter-item-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  grid-column: 1 / -1;
+}
+
+.mods-filter-item-search input {
+  width: 100%;
+}
+
+.worlds-custom-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 36px;
+  flex-wrap: wrap;
+}
+
+.worlds-custom-controls span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  word-break: break-word;
+}

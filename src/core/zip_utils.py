@@ -1,14 +1,27 @@
+from __future__ import annotations
+
 import os
 import re
 import shutil
 import zipfile
+from collections.abc import Callable
 
-from typing import Callable, Optional, Tuple, Union
+from core.constants import ZIP_MAX_ENTRIES, ZIP_MAX_FILE_BYTES, ZIP_MAX_TOTAL_BYTES
+
+__all__ = [
+    "ZipSecurityError",
+    "safe_extract_zip",
+    "MAX_ZIP_ENTRIES",
+    "MAX_ZIP_SINGLE_FILE_SIZE",
+    "MAX_ZIP_TOTAL_UNCOMPRESSED",
+]
 
 
-MAX_ZIP_ENTRIES = 20_000
-MAX_ZIP_SINGLE_FILE_SIZE = 512 * 1024 * 1024
-MAX_ZIP_TOTAL_UNCOMPRESSED = 4 * 1024 * 1024 * 1024
+MAX_ZIP_ENTRIES = ZIP_MAX_ENTRIES
+MAX_ZIP_SINGLE_FILE_SIZE = ZIP_MAX_FILE_BYTES
+MAX_ZIP_TOTAL_UNCOMPRESSED = ZIP_MAX_TOTAL_BYTES
+
+_DRIVE_LETTER_RE = re.compile(r"^[a-zA-Z]:")
 
 
 class ZipSecurityError(RuntimeError):
@@ -28,10 +41,10 @@ def _normalize_member_name(name: str) -> str:
         raise ZipSecurityError(f"Absolute ZIP entry path is not allowed: {name}")
     if "\x00" in raw:
         raise ZipSecurityError(f"NUL byte in ZIP entry name: {name}")
-    if re.match(r"^[a-zA-Z]:", raw):
+    if _DRIVE_LETTER_RE.match(raw):
         raise ZipSecurityError(f"Drive-letter ZIP entry path is not allowed: {name}")
 
-    parts = []
+    parts: list[str] = []
     for part in raw.split("/"):
         piece = part.strip()
         if not piece or piece == ".":
@@ -54,6 +67,7 @@ def _resolve_safe_target(root_dir: str, relative_name: str) -> str:
 
 def _validate_archive_limits(
     zf: zipfile.ZipFile,
+    *,
     max_entries: int,
     max_single_file_size: int,
     max_total_uncompressed: int,
@@ -67,7 +81,6 @@ def _validate_archive_limits(
         _normalize_member_name(info.filename)
         if _is_symlink_entry(info):
             raise ZipSecurityError(f"ZIP symlink entries are not allowed: {info.filename}")
-
         if info.is_dir():
             continue
 
@@ -76,31 +89,37 @@ def _validate_archive_limits(
             raise ZipSecurityError(f"ZIP entry has invalid size: {info.filename}")
         if file_size > max_single_file_size:
             raise ZipSecurityError(
-                f"ZIP entry exceeds max file size ({file_size} > {max_single_file_size}): {info.filename}"
+                f"ZIP entry exceeds max file size "
+                f"({file_size} > {max_single_file_size}): {info.filename}"
             )
 
         total_uncompressed += file_size
         if total_uncompressed > max_total_uncompressed:
             raise ZipSecurityError(
-                f"ZIP exceeds max uncompressed size ({total_uncompressed} > {max_total_uncompressed})"
+                f"ZIP exceeds max uncompressed size "
+                f"({total_uncompressed} > {max_total_uncompressed})"
             )
 
 
+MemberFilter = Callable[[str, zipfile.ZipInfo], bool]
+NameTransform = Callable[[str, zipfile.ZipInfo], str | None]
+ProgressCallback = Callable[[int, int, str, zipfile.ZipInfo], None]
+
+
 def safe_extract_zip(
-    zip_input: Union[str, zipfile.ZipFile],
+    zip_input: str | zipfile.ZipFile,
     destination_dir: str,
     *,
-    max_entries: int = MAX_ZIP_ENTRIES,
-    max_single_file_size: int = MAX_ZIP_SINGLE_FILE_SIZE,
-    max_total_uncompressed: int = MAX_ZIP_TOTAL_UNCOMPRESSED,
-    member_filter: Optional[Callable[[str, zipfile.ZipInfo], bool]] = None,
-    name_transform: Optional[Callable[[str, zipfile.ZipInfo], Optional[str]]] = None,
-    progress_cb: Optional[Callable[[int, int, str, zipfile.ZipInfo], None]] = None,
+    max_entries: int = ZIP_MAX_ENTRIES,
+    max_single_file_size: int = ZIP_MAX_FILE_BYTES,
+    max_total_uncompressed: int = ZIP_MAX_TOTAL_BYTES,
+    member_filter: MemberFilter | None = None,
+    name_transform: NameTransform | None = None,
+    progress_cb: ProgressCallback | None = None,
 ) -> int:
     os.makedirs(destination_dir, exist_ok=True)
 
     close_after = False
-    zf: zipfile.ZipFile
     if isinstance(zip_input, zipfile.ZipFile):
         zf = zip_input
     else:
@@ -115,8 +134,8 @@ def safe_extract_zip(
             max_total_uncompressed=max_total_uncompressed,
         )
 
-        selected: list[Tuple[zipfile.ZipInfo, str]] = []
-        seen_targets = set()
+        selected: list[tuple[zipfile.ZipInfo, str]] = []
+        seen_targets: set[str] = set()
 
         for info in zf.infolist():
             normalized = _normalize_member_name(info.filename)

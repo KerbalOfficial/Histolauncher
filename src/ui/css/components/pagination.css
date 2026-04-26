@@ -1,0 +1,40 @@
+/* PAGINATION */
+.mods-pagination {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  padding: 16px 0 8px 0;
+  flex-wrap: wrap;
+}
+
+.mods-page-btn,
+.mods-page-btn {
+  min-width: 32px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.mods-page-btn:hover:not(:disabled),
+.mods-page-ellipsis-btn:hover {
+  background: var(--color-control-hover-bg);
+  color: var(--color-text-inverse);
+}
+
+.mods-page-btn.active {
+  background: var(--color-surface-interactive);
+  border-color: var(--color-border-light);
+  color: var(--color-text-inverse);
+}
+
+.mods-page-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.mods-page-ellipsis {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  color: var(--color-border-subtle);
+  font-size: 12px;
+}
