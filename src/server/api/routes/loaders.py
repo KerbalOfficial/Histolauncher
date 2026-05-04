@@ -269,6 +269,7 @@ def api_install_loader(data: Any):
                             f"{loader_name} {loader_version} for {category} {folder} "
                             "has installed successfully!"
                         ),
+                        icon_kind="installed",
                     )
                 except Exception as e:
                     print(colorize_log(f"[api] Could not send notification: {e}"))

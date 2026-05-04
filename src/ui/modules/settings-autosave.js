@@ -10,6 +10,9 @@ import {
 import { api } from './api.js';
 import { showMessageBox } from './modal.js';
 import { showJavaInstallChooser } from './java-installer.js';
+import { APPEARANCE_SETTING_KEYS, applyAppearanceSettings } from './appearance.js';
+import { setLauncherLanguage, t } from './i18n.js';
+import { escapeInfoHtml } from './string-utils.js';
 import {
   getCustomStorageDirectoryPath,
   isTruthySetting,
@@ -42,6 +45,7 @@ import {
   updateSettingsAccountSettingsButtonVisibility,
   updateSettingsPlayerPreview,
 } from './home.js';
+import { showMicrosoftSkinEditorModal } from './skin-editor.js';
 
 let javaRuntimeRefreshListenerBound = false;
 
@@ -68,17 +72,216 @@ export function setSettingsAutosaveDeps(deps) {
 }
 
 
+const normalizeAccountType = (value) => {
+  if (value === 'Histolauncher') return 'Histolauncher';
+  if (value === 'Microsoft') return 'Microsoft';
+  return 'Local';
+};
+
+const isOnlineAccountType = (value) => normalizeAccountType(value) !== 'Local';
+
+const settingsProfilePayload = (patch = {}) => ({
+  ...patch,
+  _profile_id: state.profilesState.activeProfile || 'default',
+});
+
+const accountTypeLabel = (value) => {
+  const normalized = normalizeAccountType(value);
+  if (normalized === 'Histolauncher') return t('settings.account.typeHistolauncher');
+  if (normalized === 'Microsoft') return t('settings.account.typeMicrosoft');
+  return t('settings.account.typeLocal');
+};
+
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const copyTextToClipboard = async (text) => {
+  const value = String(text || '');
+  if (!value) return false;
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch (err) {
+      console.warn('Navigator clipboard write failed:', err);
+    }
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', 'readonly');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  textarea.style.top = '-9999px';
+  document.body.appendChild(textarea);
+  textarea.select();
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch (err) {
+    console.warn('Fallback clipboard copy failed:', err);
+  } finally {
+    textarea.remove();
+  }
+  return copied;
+};
+
+const buildMicrosoftLoginContent = (deviceCode) => {
+  const wrap = document.createElement('div');
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.gap = '10px';
+
+  const instruction = document.createElement('div');
+  instruction.textContent = t('settings.account.microsoft.useCodeInstruction');
+  wrap.appendChild(instruction);
+
+  const code = document.createElement('div');
+  code.textContent = String(deviceCode.user_code || '').trim();
+  code.style.fontSize = '24px';
+  code.style.fontWeight = '700';
+  code.style.letterSpacing = '0';
+  code.style.padding = '10px 12px';
+  code.style.border = '1px solid var(--color-border-soft)';
+  code.style.background = 'var(--color-surface-code-block)';
+  code.style.textAlign = 'center';
+  code.style.userSelect = 'all';
+  wrap.appendChild(code);
+
+  const uri = document.createElement('div');
+  uri.textContent = String(deviceCode.verification_uri || 'https://www.microsoft.com/link');
+  uri.style.fontSize = '12px';
+  uri.style.color = 'var(--color-text-muted)';
+  uri.style.overflowWrap = 'anywhere';
+  wrap.appendChild(uri);
+
+  const status = document.createElement('div');
+  status.id = 'microsoft-login-status';
+  status.textContent = t('settings.account.microsoft.waitingApproval');
+  status.style.fontSize = '12px';
+  status.style.color = 'var(--color-text-muted)';
+  wrap.appendChild(status);
+
+  return wrap;
+};
+
+const setMicrosoftLoginStatus = (message) => {
+  const status = getEl('microsoft-login-status');
+  if (status) status.textContent = message;
+};
+
+const connectMicrosoftAccount = async ({ accountSelect, usernameInput, usernameRow, previousType }) => {
+  let cancelled = false;
+  const restorePreviousAccountType = () => {
+    const restored = normalizeAccountType(previousType);
+    if (accountSelect) accountSelect.value = restored;
+    state.settingsState.account_type = restored;
+    updateHomeInfo();
+  };
+
+  try {
+    const deviceCode = await api('/api/account/microsoft/device-code', 'POST', {});
+    if (!deviceCode || !deviceCode.ok || !deviceCode.device_code) {
+      restorePreviousAccountType();
+      showMessageBox({
+        title: t('settings.account.microsoft.loginTitle'),
+        message: (deviceCode && deviceCode.error) || t('settings.account.microsoft.failedStart'),
+        buttons: [{ label: t('common.ok') }],
+      });
+      return;
+    }
+
+    const openUrl = deviceCode.verification_uri_complete || deviceCode.verification_uri || 'https://www.microsoft.com/link';
+    const controls = showMessageBox({
+      title: t('settings.account.microsoft.loginTitle'),
+      customContent: buildMicrosoftLoginContent(deviceCode),
+      buttons: [
+        {
+          label: t('settings.account.microsoft.openMicrosoft'),
+          classList: ['primary'],
+          closeOnClick: false,
+          onClick: () => {
+            window.open(openUrl, '_blank');
+          },
+        },
+        {
+          label: t('common.cancel'),
+          onClick: () => {
+            cancelled = true;
+            restorePreviousAccountType();
+          },
+        },
+      ],
+    });
+
+    let interval = Math.max(2, Number(deviceCode.interval || 5));
+    while (!cancelled) {
+      await delay(interval * 1000);
+      if (cancelled) return;
+
+      const poll = await api('/api/account/microsoft/poll', 'POST', {
+        device_code: deviceCode.device_code,
+        interval,
+      });
+
+      if (poll && poll.ok && poll.authenticated) {
+        if (controls && controls.close) controls.close();
+        state.settingsState.account_type = 'Microsoft';
+        state.settingsState.username = poll.username || state.settingsState.username;
+        state.settingsState.uuid = poll.uuid || state.settingsState.uuid;
+        state.localUsernameModified = false;
+        if (usernameRow) usernameRow.style.display = 'none';
+        if (usernameInput) usernameInput.disabled = true;
+        await _deps.init();
+        return;
+      }
+
+      if (poll && poll.pending) {
+        interval = Math.max(2, Number(poll.interval || interval));
+        setMicrosoftLoginStatus(t('settings.account.microsoft.waitingApproval'));
+        continue;
+      }
+
+      cancelled = true;
+      restorePreviousAccountType();
+      const errorMsg = (poll && poll.error) || t('settings.account.microsoft.failedLogin');
+      showMessageBox({ title: t('settings.account.microsoft.loginTitle'), message: errorMsg, buttons: [{ label: t('common.ok') }] });
+      return;
+    }
+  } catch (e) {
+    cancelled = true;
+    restorePreviousAccountType();
+    showMessageBox({
+      title: t('settings.account.microsoft.loginTitle'),
+      message: t('settings.account.connectionFailed', { error: e.message || e }),
+      buttons: [{ label: t('common.ok') }],
+    });
+  }
+};
+
+
 export const autoSaveSetting = (key, value) => {
   state.settingsState[key] = value;
   const refreshWorldsAfterSave = key === 'storage_directory' || key === 'custom_storage_directory';
+  if (APPEARANCE_SETTING_KEYS.has(key)) {
+    applyAppearanceSettings(state.settingsState);
+  }
+  if (key === 'launcher_language') {
+    setLauncherLanguage(value).catch((err) => {
+      console.warn('Failed to apply launcher language:', err);
+    });
+  }
+  if (key === 'player_preview_mode') {
+    updateSettingsPlayerPreview();
+  }
   if (key === 'storage_directory' || key === 'custom_storage_directory') {
     syncStorageDirectoryUI();
   }
   updateHomeInfo();
-  if (key === 'username' && state.settingsState.account_type === 'Histolauncher') {
+  if (key === 'username' && isOnlineAccountType(state.settingsState.account_type)) {
     return Promise.resolve();
   }
-  const savePromise = api('/api/settings', 'POST', { [key]: value });
+  const savePromise = api('/api/settings', 'POST', settingsProfilePayload({ [key]: value }));
   if (refreshWorldsAfterSave) {
     savePromise.finally(() => {
       refreshWorldsStorageContext();
@@ -115,7 +318,7 @@ export const initSettingsInputs = () => {
     const val = checked ? "1" : "0";
     state.settingsState[key] = val;
     updateHomeInfo();
-    await api('/api/settings', 'POST', { [key]: val });
+    await api('/api/settings', 'POST', settingsProfilePayload({ [key]: val }));
     await _deps.init();
   };
 
@@ -172,6 +375,84 @@ export const initSettingsInputs = () => {
     maxRamInput.addEventListener('input', ramInputHandler('max_ram'));
   }
 
+  const resolutionInputHandler = (key) => (e) => {
+    let value = String(e.target.value || '').replace(/[^0-9]/g, '');
+    if (value) {
+      value = String(Math.max(1, Math.min(Number(value), 99999)));
+    }
+    e.target.value = value;
+    autoSaveSetting(key, value || (key === 'game_resolution_width' ? '854' : '480'));
+  };
+
+  const resolutionWidthInput = getEl('settings-resolution-width');
+  if (resolutionWidthInput) {
+    resolutionWidthInput.addEventListener('input', resolutionInputHandler('game_resolution_width'));
+  }
+
+  const resolutionHeightInput = getEl('settings-resolution-height');
+  if (resolutionHeightInput) {
+    resolutionHeightInput.addEventListener('input', resolutionInputHandler('game_resolution_height'));
+  }
+
+  const gameFullscreenInput = getEl('settings-game-fullscreen');
+  if (gameFullscreenInput) {
+    gameFullscreenInput.addEventListener('change', (e) => {
+      autoSaveSetting('game_fullscreen', e.target.checked ? '1' : '0');
+    });
+  }
+
+  const demoModeInput = getEl('settings-demo-mode');
+  if (demoModeInput) {
+    demoModeInput.addEventListener('change', (e) => {
+      autoSaveSetting('game_demo_mode', e.target.checked ? '1' : '0');
+    });
+  }
+
+  const launcherThemeSelect = getEl('settings-launcher-theme');
+  if (launcherThemeSelect) {
+    launcherThemeSelect.addEventListener('change', (e) => {
+      autoSaveSetting('launcher_theme', e.target.value || 'dark');
+    });
+  }
+
+  const launcherUiSizeSelect = getEl('settings-launcher-ui-size');
+  if (launcherUiSizeSelect) {
+    launcherUiSizeSelect.addEventListener('change', (e) => {
+      const uiSize = ['small', 'normal', 'large', 'extra-large'].includes(e.target.value)
+        ? e.target.value
+        : 'normal';
+      autoSaveSetting('launcher_ui_size', uiSize);
+    });
+  }
+
+  const launcherLanguageSelect = getEl('settings-launcher-language');
+  if (launcherLanguageSelect) {
+    launcherLanguageSelect.addEventListener('change', (e) => {
+      autoSaveSetting('launcher_language', e.target.value || 'en');
+    });
+  }
+
+  const layoutDensitySelect = getEl('settings-layout-density');
+  if (layoutDensitySelect) {
+    layoutDensitySelect.addEventListener('change', (e) => {
+      autoSaveSetting('layout_density', e.target.value === 'compact' ? 'compact' : 'comfortable');
+    });
+  }
+
+  const compactSidebarInput = getEl('settings-compact-sidebar');
+  if (compactSidebarInput) {
+    compactSidebarInput.addEventListener('change', (e) => {
+      autoSaveSetting('compact_sidebar', e.target.checked ? '1' : '0');
+    });
+  }
+
+  const playerPreview3dInput = getEl('settings-player-preview-3d');
+  if (playerPreview3dInput) {
+    playerPreview3dInput.addEventListener('change', (e) => {
+      autoSaveSetting('player_preview_mode', e.target.checked ? '3d' : '2d');
+    });
+  }
+
   const storageSelect = getEl('settings-storage-dir');
   if (storageSelect) {
     storageSelect.addEventListener('change', async (e) => {
@@ -196,11 +477,11 @@ export const initSettingsInputs = () => {
 
         if (!res || res.ok !== true) {
           const errorMessage = (res && (res.error || res.message)) ||
-            'Failed to select a custom storage directory.';
+            t('settings.client.failedSelectCustomStorageDirectory');
           showMessageBox({
-            title: 'Folder Selection Error',
+            title: t('settings.client.folderSelectionErrorTitle'),
             message: errorMessage,
-            buttons: [{ label: 'OK' }],
+            buttons: [{ label: t('common.ok') }],
           });
           await refreshCustomStorageDirectoryValidation();
           return;
@@ -216,9 +497,9 @@ export const initSettingsInputs = () => {
         updateSettingsValidationUI();
       } catch (err) {
         showMessageBox({
-          title: 'Folder Selection Error',
-          message: `Failed to select a custom storage directory.<br><br>${err.message || err}`,
-          buttons: [{ label: 'OK' }],
+          title: t('settings.client.folderSelectionErrorTitle'),
+          message: t('settings.client.failedSelectCustomStorageDirectoryWithError', { error: err.message || err }),
+          buttons: [{ label: t('common.ok') }],
         });
         await refreshCustomStorageDirectoryValidation();
       } finally {
@@ -337,18 +618,52 @@ export const initSettingsInputs = () => {
   if (accountSettingsBtn) {
     accountSettingsBtn.addEventListener('click', (e) => {
       e.preventDefault();
-      if (state.settingsState.account_type !== 'Histolauncher') return;
-      showHistolauncherAccountSettingsModal();
+      const accountType = normalizeAccountType(state.settingsState.account_type);
+      if (accountType === 'Histolauncher') {
+        showHistolauncherAccountSettingsModal();
+        return;
+      }
+      if (accountType === 'Microsoft') {
+        showMicrosoftSkinEditorModal();
+      }
     });
   }
 
   if (accountSelect) {
     accountSelect.addEventListener('change', async (e) => {
-      const val = e.target.value === 'Histolauncher' ? 'Histolauncher' : 'Local';
-      const isConnected = state.settingsState.account_type === 'Histolauncher' && !!state.settingsState.uuid;
+      const previousType = normalizeAccountType(state.settingsState.account_type);
+      const val = normalizeAccountType(e.target.value);
+      e.target.value = val;
+      const restorePreviousType = () => {
+        const restored = normalizeAccountType(previousType);
+        if (accountSelect) accountSelect.value = restored;
+        state.settingsState.account_type = restored;
+        updateHomeInfo();
+      };
+      const isConnected = previousType === 'Histolauncher' && !!state.settingsState.uuid;
 
-      if (state.settingsState.account_type === 'Histolauncher' && val === 'Local') {
+      if (previousType === 'Histolauncher' && val === 'Local') {
         state.histolauncherUsername = state.settingsState.username;
+      }
+
+      if (val === 'Microsoft') {
+        if (previousType === 'Microsoft' && !!state.settingsState.uuid) {
+          if (usernameRow) usernameRow.style.display = 'none';
+          if (usernameInput) usernameInput.disabled = true;
+          state.settingsState.account_type = 'Microsoft';
+          updateSettingsAccountSettingsButtonVisibility();
+          updateSettingsPlayerPreview();
+          updateHomeInfo();
+          return;
+        }
+
+        await connectMicrosoftAccount({
+          accountSelect,
+          usernameInput,
+          usernameRow,
+          previousType,
+        });
+        return;
       }
 
       if (val === 'Histolauncher') {
@@ -368,26 +683,25 @@ export const initSettingsInputs = () => {
           return;
         }
 
-        const signupLink = '<span style="color:#9ca3af;font-size:12px;margin-left:6px">Don\'t have an account? <a id="msgbox-signup-link" href="#">Sign up here</a></span>';
+        const signupLink = `<span style="color:var(--color-text-muted);font-size:12px;margin-left:6px">${t('settings.account.histolauncher.noAccount')} <a id="msgbox-signup-link" href="#">${t('settings.account.histolauncher.signUpHere')}</a></span>`;
         showMessageBox({
-          title: 'Login',
-          message: `Enter your Histolauncher account credentials below.<br>` + signupLink,
+          title: t('settings.account.histolauncher.loginTitle'),
+          message: t('settings.account.histolauncher.loginMessage', { signupLink }),
           inputs: [
-            { name: 'username', type: 'text', placeholder: 'Username' },
-            { name: 'password', type: 'password', placeholder: 'Password' },
+            { name: 'username', type: 'text', placeholder: t('settings.account.histolauncher.usernamePlaceholder') },
+            { name: 'password', type: 'password', placeholder: t('settings.account.histolauncher.passwordPlaceholder') },
           ],
           buttons: [
             {
-              label: 'Login',
+              label: t('settings.account.histolauncher.loginButton'),
               classList: ['primary'],
               onClick: async (vals) => {
                 try {
                   const username = (vals.username || '').trim();
                   const password = (vals.password || '').trim();
                   if (!username || !password) {
-                    showMessageBox({ title: 'Error', message: 'Username and password are required.', buttons: [{ label: 'OK' }] });
-                    if (accountSelect) accountSelect.value = 'Local';
-                    autoSaveSetting('account_type', 'Local');
+                    showMessageBox({ title: t('common.error'), message: t('settings.account.histolauncher.requiredCredentials'), buttons: [{ label: t('common.ok') }] });
+                    restorePreviousType();
                     return;
                   }
 
@@ -403,25 +717,22 @@ export const initSettingsInputs = () => {
                     state.localUsernameModified = false;
                     await _deps.init();
                   } else {
-                    const errorMsg = (loginRes && loginRes.error) || 'Failed to authenticate';
+                    const errorMsg = (loginRes && loginRes.error) || t('settings.account.histolauncher.failedAuthenticate');
                     console.error('[Login] Error:', errorMsg);
-                    showMessageBox({ title: 'Error', message: errorMsg, buttons: [{ label: 'OK' }] });
-                    if (accountSelect) accountSelect.value = 'Local';
-                    autoSaveSetting('account_type', 'Local');
+                    showMessageBox({ title: t('common.error'), message: escapeInfoHtml(errorMsg), buttons: [{ label: t('common.ok') }] });
+                    restorePreviousType();
                   }
                 } catch (e) {
                   console.error('[Login] Exception:', e);
-                  showMessageBox({ title: 'Error', message: `Connection failed: ${e.message}`, buttons: [{ label: 'OK' }] });
-                  if (accountSelect) accountSelect.value = 'Local';
-                  autoSaveSetting('account_type', 'Local');
+                  showMessageBox({ title: t('common.error'), message: t('settings.account.connectionFailed', { error: escapeInfoHtml(e.message || t('common.unknownError')) }), buttons: [{ label: t('common.ok') }] });
+                  restorePreviousType();
                 }
               },
             },
             {
-              label: 'Cancel',
+              label: t('common.cancel'),
               onClick: () => {
-                if (accountSelect) accountSelect.value = 'Local';
-                autoSaveSetting('account_type', 'Local');
+                restorePreviousType();
               }
             }
           ],
@@ -436,17 +747,19 @@ export const initSettingsInputs = () => {
       }
 
       if (val === 'Local') {
-        if (state.settingsState.account_type === 'Histolauncher') {
-          // Confirm disconnection
+        if (isOnlineAccountType(previousType)) {
+          const label = accountTypeLabel(previousType);
           showMessageBox({
-            title: 'Disconnect Account',
-            message: 'Are you sure you want to disconnect your Histolauncher account? You will need to log in again to use it.',
+            title: t('settings.account.disconnectTitle'),
+            message: t('settings.account.disconnectConfirm', { account: label }),
             buttons: [
               {
-                label: 'Disconnect',
+                label: t('settings.account.disconnectButton'),
                 classList: ['danger'],
                 onClick: async () => {
-                  state.histolauncherUsername = state.settingsState.username;
+                  if (previousType === 'Histolauncher') {
+                    state.histolauncherUsername = state.settingsState.username;
+                  }
                   state.settingsState.account_type = 'Local';
                   state.settingsState.uuid = '';
                   if (usernameInput) {
@@ -454,17 +767,14 @@ export const initSettingsInputs = () => {
                     usernameInput.value = state.settingsState.username || '';
                   }
                   if (disconnectBtn) disconnectBtn.style.display = 'none';
-                  await api('/api/settings', 'POST', {
-                    account_type: 'Local',
-                    uuid: ''
-                  });
+                  await api('/api/account/disconnect', 'POST', {});
                   await _deps.init();
                 }
               },
               {
-                label: 'Cancel',
+                label: t('common.cancel'),
                 onClick: () => {
-                  if (accountSelect) accountSelect.value = 'Histolauncher';
+                  if (accountSelect) accountSelect.value = previousType;
                 }
               }
             ]
@@ -508,23 +818,98 @@ export const initSettingsInputs = () => {
     clearLogsButton.addEventListener('click', async () => {
       const result = await api('/api/clear-logs', 'POST');
       if (result.ok) {
+        const deleted = Number(result.deleted || 0);
+        const skipped = Number(result.skipped || 0);
         showMessageBox({
-          title: 'Logs Cleared',
-          message: result.message || 'Logs have been cleared successfully.',
+          title: t('settings.logs.clearedTitle'),
+          message: skipped > 0
+            ? t('settings.logs.clearedWithSkipped', { deleted, skipped })
+            : t('settings.logs.clearedMessage', { deleted }),
           buttons: [{
-            label: 'OK',
+            label: t('common.ok'),
             onClick: () => {}
           }]
         });
       } else {
         showMessageBox({
-          title: 'Error',
-          message: `Failed to clear logs: ${result.error || 'Unknown error'}`,
+          title: t('common.error'),
+          message: t('settings.logs.clearFailed', { error: result.error || t('common.unknownError') }),
           buttons: [{
-            label: 'OK',
+            label: t('common.ok'),
             onClick: () => {}
           }]
         });
+      }
+    });
+  }
+
+  const copyDiagnosticsButton = getEl('copy-diagnostics-btn');
+  if (copyDiagnosticsButton) {
+    copyDiagnosticsButton.addEventListener('click', async () => {
+      copyDiagnosticsButton.disabled = true;
+      try {
+        const result = await api('/api/diagnostics/report', 'POST', { include_text: true });
+        if (!result || !result.ok) {
+          throw new Error((result && result.error) || t('common.unknownError'));
+        }
+        const copied = await copyTextToClipboard(result.report_text || '');
+        showMessageBox({
+          title: copied ? t('settings.diagnostics.copiedTitle') : t('settings.diagnostics.copyFailedTitle'),
+          message: copied
+            ? t('settings.diagnostics.copiedMessage')
+            : t('settings.diagnostics.copyFailedMessage'),
+          buttons: [{
+            label: t('common.ok'),
+            onClick: () => {}
+          }]
+        });
+      } catch (err) {
+        showMessageBox({
+          title: t('settings.diagnostics.failedTitle'),
+          message: t('settings.diagnostics.failedMessage', { error: err.message || err }),
+          buttons: [{
+            label: t('common.ok'),
+            onClick: () => {}
+          }]
+        });
+      } finally {
+        copyDiagnosticsButton.disabled = false;
+      }
+    });
+  }
+
+  const saveDiagnosticsButton = getEl('save-diagnostics-btn');
+  if (saveDiagnosticsButton) {
+    saveDiagnosticsButton.addEventListener('click', async () => {
+      saveDiagnosticsButton.disabled = true;
+      try {
+        const result = await api('/api/diagnostics/report', 'POST', {
+          include_text: false,
+          save_to_disk: true,
+        });
+        if (!result || !result.ok) {
+          throw new Error((result && result.error) || t('common.unknownError'));
+        }
+        if (result.cancelled) return;
+        showMessageBox({
+          title: t('settings.diagnostics.savedTitle'),
+          message: t('settings.diagnostics.savedMessage', { path: result.display_path || result.saved_path || '' }),
+          buttons: [{
+            label: t('common.ok'),
+            onClick: () => {}
+          }]
+        });
+      } catch (err) {
+        showMessageBox({
+          title: t('settings.diagnostics.failedTitle'),
+          message: t('settings.diagnostics.failedMessage', { error: err.message || err }),
+          buttons: [{
+            label: t('common.ok'),
+            onClick: () => {}
+          }]
+        });
+      } finally {
+        saveDiagnosticsButton.disabled = false;
       }
     });
   }
@@ -536,17 +921,24 @@ export const initSettingsInputs = () => {
     });
   }
 
-  const fastDownloadInput = getEl('settings-fast-download');
-  if (fastDownloadInput) {
-    fastDownloadInput.addEventListener('change', async (e) => {
-      await saveCheckboxSettingAndReinit('fast_download', e.target.checked);
-    });
-  }
-
   const showThirdPartyInput = getEl('settings-show-third-party-versions');
   if (showThirdPartyInput) {
     showThirdPartyInput.addEventListener('change', async (e) => {
       await saveCheckboxSettingAndReinit('show_third_party_versions', e.target.checked);
+    });
+  }
+
+  const discordRpcInput = getEl('settings-discord-rpc');
+  if (discordRpcInput) {
+    discordRpcInput.addEventListener('change', (e) => {
+      autoSaveSetting('discord_rpc_enabled', e.target.checked ? '1' : '0');
+    });
+  }
+
+  const desktopNotificationsInput = getEl('settings-desktop-notifications');
+  if (desktopNotificationsInput) {
+    desktopNotificationsInput.addEventListener('change', (e) => {
+      autoSaveSetting('desktop_notifications_enabled', e.target.checked ? '1' : '0');
     });
   }
 

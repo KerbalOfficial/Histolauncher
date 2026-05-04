@@ -1,5 +1,5 @@
 body {
-  background: var(--color-app-bg) url("/assets/images/background.png") repeat;
+  background: var(--color-app-bg);
   color: var(--color-text-primary);
 }
 
@@ -48,9 +48,6 @@ textarea {
   border: 1px solid var(--color-border-input);
 }
 
-/* Force a consistent dark dropdown across platforms.
-   Without this, Linux WebKit keeps native GTK styling on <select>, which
-   renders as a white box ignoring our background-color. */
 select {
   appearance: none;
   -webkit-appearance: none;
@@ -62,6 +59,12 @@ select {
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
   padding-right: 24px;
+}
+
+:root[dir="rtl"] select {
+  background-position: 14px 50%, 9px 50%;
+  padding-left: 24px;
+  padding-right: 8px;
 }
 
 select option {

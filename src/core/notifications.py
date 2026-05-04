@@ -11,36 +11,47 @@ from core.subprocess_utils import no_window_kwargs
 __all__ = ["send_desktop_notification"]
 
 
+_NOTIFICATION_ICON_NAMES = {
+    "default": "histolauncher_256x256",
+    "success": "notification_success",
+    "installed": "notification_installed",
+    "failed": "notification_failed",
+    "notice": "notification_notice",
+}
+
+
 def _project_root() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
-def _png_icon_path() -> str:
+def _icon_asset_dir() -> str:
     return os.path.join(
         _project_root(),
         "ui",
         "assets",
         "images",
-        "histolauncher_256x256.png",
     )
 
 
-def _ico_icon_path() -> str:
-    return os.path.join(
-        _project_root(),
-        "ui",
-        "assets",
-        "images",
-        "histolauncher_256x256.ico",
+def _normalize_icon_kind(icon_kind: str) -> str:
+    kind = str(icon_kind or "default").strip().lower()
+    return kind if kind in _NOTIFICATION_ICON_NAMES else "default"
+
+
+def _notification_icon_path(icon_kind: str = "default") -> str:
+    kind = _normalize_icon_kind(icon_kind)
+    extension = ".ico" if sys.platform.startswith("win") else ".png"
+    image_dir = _icon_asset_dir()
+
+    preferred = os.path.join(image_dir, f"{_NOTIFICATION_ICON_NAMES[kind]}{extension}")
+    if os.path.isfile(preferred):
+        return preferred
+
+    fallback = os.path.join(
+        image_dir,
+        f"{_NOTIFICATION_ICON_NAMES['default']}{extension}",
     )
-
-
-def _notification_icon_path() -> str:
-    if sys.platform.startswith("win"):
-        icon_path = _ico_icon_path()
-    else:
-        icon_path = _png_icon_path()
-    return icon_path if os.path.isfile(icon_path) else ""
+    return fallback if os.path.isfile(fallback) else ""
 
 
 def _has_linux_notification_session() -> bool:
@@ -60,11 +71,11 @@ def _notify_linux_with_notify_send(
     title: str,
     message: str,
     app_name: str,
+    icon_path: str,
 ) -> None:
     summary = title or app_name
     body = message or ""
     command = ["notify-send", "--app-name", app_name]
-    icon_path = _notification_icon_path()
     if icon_path:
         command.extend(["--icon", icon_path])
     command.extend([summary, body])
@@ -87,6 +98,7 @@ def _notify_linux_with_gdbus(
     title: str,
     message: str,
     app_name: str,
+    icon_path: str,
 ) -> None:
     command = [
         "gdbus",
@@ -100,7 +112,7 @@ def _notify_linux_with_gdbus(
         "org.freedesktop.Notifications.Notify",
         app_name,
         "0",
-        _notification_icon_path(),
+        icon_path,
         title or app_name,
         message or "",
         "[]",
@@ -126,6 +138,7 @@ def _notify_linux(
     title: str,
     message: str,
     app_name: str,
+    icon_path: str,
 ) -> None:
     if not _has_linux_notification_session():
         raise RuntimeError("no graphical Linux notification session detected")
@@ -138,6 +151,7 @@ def _notify_linux(
                 title=title,
                 message=message,
                 app_name=app_name,
+                icon_path=icon_path,
             )
             return
         except Exception as exc:  # noqa: BLE001
@@ -149,6 +163,7 @@ def _notify_linux(
                 title=title,
                 message=message,
                 app_name=app_name,
+                icon_path=icon_path,
             )
             return
         except Exception as exc:  # noqa: BLE001
@@ -166,6 +181,7 @@ def _notify_with_plyer(
     title: str,
     message: str,
     app_name: str,
+    icon_path: str,
 ) -> None:
     from plyer import notification
 
@@ -174,7 +190,6 @@ def _notify_with_plyer(
         "message": message,
         "app_name": app_name,
     }
-    icon_path = _notification_icon_path()
     if icon_path:
         kwargs["app_icon"] = icon_path
     notification.notify(**kwargs)
@@ -185,6 +200,7 @@ def _notify_windows(
     title: str,
     message: str,
     app_name: str,
+    icon_path: str,
 ) -> None:
     from core._win_notify import show_windows_notification
 
@@ -192,7 +208,7 @@ def _notify_windows(
         title=title,
         message=message,
         app_name=app_name,
-        icon_path=_notification_icon_path(),
+        icon_path=icon_path,
     )
 
 
@@ -201,14 +217,46 @@ def send_desktop_notification(
     title: str,
     message: str,
     app_name: str = "Histolauncher",
+    icon_kind: str = "default",
 ) -> None:
+    try:
+        from core.settings import load_global_settings
+
+        settings = load_global_settings() or {}
+        if str(settings.get("desktop_notifications_enabled", "1")).strip().lower() in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }:
+            return
+    except Exception:
+        pass
+
+    icon_path = _notification_icon_path(icon_kind)
+
     if sys.platform.startswith("linux"):
-        _notify_linux(title=title, message=message, app_name=app_name)
+        _notify_linux(
+            title=title,
+            message=message,
+            app_name=app_name,
+            icon_path=icon_path,
+        )
         return
     if sys.platform.startswith("win"):
         try:
-            _notify_windows(title=title, message=message, app_name=app_name)
+            _notify_windows(
+                title=title,
+                message=message,
+                app_name=app_name,
+                icon_path=icon_path,
+            )
             return
         except Exception:
             pass
-    _notify_with_plyer(title=title, message=message, app_name=app_name)
+    _notify_with_plyer(
+        title=title,
+        message=message,
+        app_name=app_name,
+        icon_path=icon_path,
+    )

@@ -8,7 +8,17 @@ from server.api.routes.account import (
     api_account_current,
     api_account_disconnect,
     api_account_launcher_message,
+    api_account_microsoft_cape_disable,
+    api_account_microsoft_cape_select,
     api_account_login,
+    api_account_microsoft_device_code,
+    api_account_microsoft_poll,
+    api_account_microsoft_skin_delete,
+    api_account_microsoft_skin_favorite,
+    api_account_microsoft_skin_save,
+    api_account_microsoft_skin_select,
+    api_account_microsoft_skin_upload,
+    api_account_microsoft_textures,
     api_account_refresh_assets,
     api_account_settings_iframe,
     api_account_status,
@@ -18,6 +28,7 @@ from server.api.routes.corrupted import (
     api_corrupted_versions,
     api_delete_corrupted_versions,
 )
+from server.api.routes.diagnostics import api_diagnostics_report
 from server.api.routes.initial import api_initial
 from server.api.routes.installer import (
     api_cancel,
@@ -144,6 +155,8 @@ def handle_api_request(path: str, data: Any):
         "/api/account/settings-iframe": api_account_settings_iframe,
         "/api/account/launcher-message": api_account_launcher_message,
         "/api/account/disconnect": api_account_disconnect,
+        "/api/account/microsoft/device-code": api_account_microsoft_device_code,
+        "/api/account/microsoft/textures": api_account_microsoft_textures,
         "/api/profiles": api_profiles,
         "/api/profiles/versions": api_profiles_versions,
         "/api/profiles/mods": api_profiles_mods,
@@ -163,6 +176,14 @@ def handle_api_request(path: str, data: Any):
 
     EXACT_WITH_DATA = {
         "/api/account/login": api_account_login,
+        "/api/account/microsoft/poll": api_account_microsoft_poll,
+        "/api/account/microsoft/skin/save": api_account_microsoft_skin_save,
+        "/api/account/microsoft/skin/delete": api_account_microsoft_skin_delete,
+        "/api/account/microsoft/skin/favorite": api_account_microsoft_skin_favorite,
+        "/api/account/microsoft/skin/upload": api_account_microsoft_skin_upload,
+        "/api/account/microsoft/skin/select": api_account_microsoft_skin_select,
+        "/api/account/microsoft/cape/select": api_account_microsoft_cape_select,
+        "/api/account/microsoft/cape/disable": api_account_microsoft_cape_disable,
         "/api/account/verify-session": api_account_verify_session,
         "/api/account/refresh-assets": api_account_refresh_assets,
         "/api/profiles/create": api_profiles_create,
@@ -229,6 +250,7 @@ def handle_api_request(path: str, data: Any):
         "/api/modpacks/toggle-mod": api_modpacks_toggle_mod,
         "/api/modpacks/set-mod-overwrite": api_modpacks_set_mod_overwrite,
         "/api/modpacks/delete": api_modpacks_delete,
+        "/api/diagnostics/report": api_diagnostics_report,
         "/api/operations/cancel": api_operations_cancel,
     }
 

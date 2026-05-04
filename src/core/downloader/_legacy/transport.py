@@ -16,19 +16,6 @@ from core.logger import colorize_log
 from core.settings import _apply_url_proxy, load_global_settings
 
 
-# ---------------------------------------------------------------------------
-# Settings flags
-# ---------------------------------------------------------------------------
-
-
-def _is_fast_download_enabled() -> bool:
-    try:
-        settings = load_global_settings()
-        return str(settings.get("fast_download", "0")).lower() in ("1", "true", "yes", "enabled")
-    except Exception:
-        return False
-
-
 def _is_insecure_fallback_allowed() -> bool:
     try:
         settings = load_global_settings()
@@ -361,9 +348,6 @@ def _download_parallel(
     if not download_tasks:
         return
 
-    if _is_fast_download_enabled():
-        max_workers = min(30, max(max_workers, 20))
-
     print(colorize_log(
         f"[download] Starting parallel download of {len(download_tasks)} "
         f"files with {max_workers} workers"
@@ -416,7 +400,6 @@ __all__ = [
     "_download_parallel",
     "_download_with_retry",
     "_get_file_lock",
-    "_is_fast_download_enabled",
     "_is_insecure_fallback_allowed",
     "_iter_url_candidates",
     "_safe_remove_file",

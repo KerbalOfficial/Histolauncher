@@ -1,7 +1,7 @@
 authlib-injector
 ================
 
-This directory bundles `authlib-injector.jar`, an unmodified third-party
+This directory bundles `authlib-injector.jar`, a third-party
 binary used by Histolauncher to redirect Minecraft's authentication and
 texture endpoints to the local skin/cape proxy.
 
@@ -11,8 +11,17 @@ Homepage:   https://github.com/yushijinhun/authlib-injector
 License:    GNU General Public License, version 3 (GPL-3.0)
 License:    https://www.gnu.org/licenses/gpl-3.0.html
 
-The jar shipped in this directory is an unmodified upstream release.
-Source code for authlib-injector is available at the homepage above.
+The jar shipped in this directory is an upstream release with a small
+Histolauncher patch applied for cape texture URL redirection. The patch source
+and rebuild notes are included under:
+
+	tools/authlib-injector-histolauncher-patch/
+
+The folder is not included in the releases of Histolauncher because it is
+outside of the `src/` folder.
+
+Source code for the upstream authlib-injector project is available at the
+homepage above.
 
 Histolauncher itself is also distributed under GPL-3.0 (see the top-level
 LICENSE file), which is compatible with redistributing authlib-injector.

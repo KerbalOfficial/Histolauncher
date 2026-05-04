@@ -42,6 +42,7 @@ TAG_COLORS: Final[dict[str, str]] = {
     "modloaders": Colors.BLUE,
     "mods": Colors.GREEN,
     "progress": Colors.BRIGHT_MAGENTA,
+    "microsoft_auth": Colors.RED,
 }
 
 

@@ -6,6 +6,8 @@ import subprocess
 import sys
 from typing import Optional
 
+from core.subprocess_utils import no_window_kwargs
+
 
 __all__ = [
     "get_venv_dir",
@@ -161,10 +163,10 @@ def ensure_venv(log=print) -> bool:
 
     os.makedirs(os.path.dirname(venv_dir), exist_ok=True)
 
-    cmd = [
-        sys.executable, "-m", "venv",
-        venv_dir,
-    ]
+    cmd = [sys.executable, "-m", "venv"]
+    if sys.platform.startswith("win"):
+        cmd.append("--without-pip")
+    cmd.append(venv_dir)
     log(f"[venv] Creating launcher venv: {' '.join(cmd)}")
     try:
         proc = subprocess.run(
@@ -172,6 +174,7 @@ def ensure_venv(log=print) -> bool:
             capture_output=True,
             text=True,
             timeout=180,
+            **no_window_kwargs(),
         )
     except Exception as e:
         log(f"[venv] Failed to launch venv creation: {e}")
@@ -192,7 +195,13 @@ def ensure_venv(log=print) -> bool:
         if sys.platform.startswith("linux") and missing_venv:
             try:
                 if _try_install_linux_venv_support(log=log):
-                    proc_retry = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+                    proc_retry = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=180,
+                        **no_window_kwargs(),
+                    )
                     if proc_retry.returncode == 0:
                         log("[venv] venv creation succeeded after installing venv support")
                         return venv_exists()

@@ -5,6 +5,7 @@ import { api, createOperationId, requestOperationCancel } from './api.js';
 import { $$, getEl, bindKeyboardActivation } from './dom-utils.js';
 import { showMessageBox, showLoadingOverlay, hideLoadingOverlay } from './modal.js';
 import { unicodeList } from './config.js';
+import { t } from './i18n.js';
 import {
   setVersionsBulkMode,
   updateVersionsBulkActionsUI,
@@ -127,7 +128,11 @@ export const initCollapsibleSections = () => {
 export const handleExportVersions = async () => {
   // Check if a version is selected
   if (!state.selectedVersion) {
-    showMessageBox({ title: 'Export Error', message: 'Please select a version to export first!', buttons: [{ label: 'OK' }] });
+    showMessageBox({
+      title: t('versions.export.errorTitle'),
+      message: t('versions.export.selectVersionFirst'),
+      buttons: [{ label: t('common.ok') }],
+    });
     return;
   }
 
@@ -136,7 +141,11 @@ export const handleExportVersions = async () => {
     const [category, folder] = state.selectedVersion.split('/');
 
     if (!category || !folder) {
-      showMessageBox({ title: 'Export Error', message: 'Invalid version selection', buttons: [{ label: 'OK' }] });
+      showMessageBox({
+        title: t('versions.export.errorTitle'),
+        message: t('versions.export.invalidSelection'),
+        buttons: [{ label: t('common.ok') }],
+      });
       return;
     }
 
@@ -152,50 +161,50 @@ export const handleExportVersions = async () => {
       const optionsHTML = `
         <div class="export-version-modal">
           <div class="export-version-target">
-            Exporting <b>${category}/${folder}</b>
+            ${t('versions.export.exportingTarget', { target: `<b>${category}/${folder}</b>` })}
           </div>
 
           <div class="export-version-options">
-            <div class="export-version-options-title">Include Options</div>
+            <div class="export-version-options-title">${t('versions.export.includeOptions')}</div>
 
             <label class="export-version-option-row">
               <input type="checkbox" id="export-loaders" checked>
-              <span>Include installed Mod Loaders</span>
+              <span>${t('versions.export.includeLoaders')}</span>
             </label>
 
             <label class="export-version-option-row">
               <input type="checkbox" id="export-assets" checked>
-              <span>Include assets</span>
+              <span>${t('versions.export.includeAssets')}</span>
             </label>
 
             <label class="export-version-option-row">
               <input type="checkbox" id="export-config">
-              <span>Local version configuration & saves</span>
+              <span>${t('versions.export.includeConfig')}</span>
             </label>
           </div>
 
           <div class="export-version-compression-wrap">
-            <label for="export-compression" class="export-version-options-title">Compression Level</label>
+            <label for="export-compression" class="export-version-options-title">${t('versions.export.compressionLevel')}</label>
 
             <select id="export-compression" class="export-version-compression-select">
-              <option value="quick">Fast</option>
-              <option value="standard" selected>Regular</option>
-              <option value="full">Maximum</option>
+              <option value="quick">${t('versions.export.compression.fast')}</option>
+              <option value="standard" selected>${t('versions.export.compression.regular')}</option>
+              <option value="full">${t('versions.export.compression.maximum')}</option>
             </select>
 
             <div id="compression-hint" class="export-version-hint">
-              Balanced speed and file size
+              ${t('versions.export.compressionHint.standard')}
             </div>
           </div>
         </div>
       `;
 
       showMessageBox({
-        title: 'Export Version',
+        title: t('versions.export.title'),
         message: optionsHTML,
         buttons: [
           {
-            label: 'Export',
+            label: t('common.export'),
             classList: ['primary'],
             onClick: async () => {
               exportOptions.include_loaders = document.getElementById('export-loaders').checked;
@@ -206,7 +215,7 @@ export const handleExportVersions = async () => {
             }
           },
           {
-            label: 'Cancel',
+            label: t('common.cancel'),
             onClick: () => resolve(false)
           }
         ]
@@ -218,9 +227,9 @@ export const handleExportVersions = async () => {
         if (compressionSelect && hint) {
           compressionSelect.addEventListener('change', (e) => {
             const hints = {
-              quick: 'Faster but larger file size',
-              standard: 'Balanced speed and file size',
-              full: 'Smaller file but slower compression'
+              quick: t('versions.export.compressionHint.quick'),
+              standard: t('versions.export.compressionHint.standard'),
+              full: t('versions.export.compressionHint.full')
             };
             hint.textContent = hints[e.target.value] || '';
           });
@@ -232,17 +241,17 @@ export const handleExportVersions = async () => {
       const operationId = createOperationId('version_export');
       let cancelRequested = false;
 
-      showLoadingOverlay('Exporting version...', {
+      showLoadingOverlay(t('versions.export.exporting'), {
         buttons: [
           {
-            label: 'Cancel',
+            label: t('common.cancel'),
             classList: ['danger'],
             closeOnClick: false,
             onClick: async (_values, controls) => {
               if (cancelRequested) return;
               cancelRequested = true;
               controls.update({
-                message: 'Cancelling export... If a save dialog opened, close it to finish cancelling.',
+                message: t('versions.export.cancelling'),
                 buttons: [],
               });
               await requestOperationCancel(operationId);
@@ -262,21 +271,25 @@ export const handleExportVersions = async () => {
 
       if (!result.ok) {
         if (result.cancelled || String(result.error || '').toLowerCase().includes('cancelled')) {
-          showMessageBox({ title: 'Export Cancelled', message: 'You cancelled the export', buttons: [{ label: 'OK' }] });
+          showMessageBox({ title: t('versions.export.cancelledTitle'), message: t('versions.export.cancelledMessage'), buttons: [{ label: t('common.ok') }] });
         } else {
-          showMessageBox({ title: 'Export Error', message: result.error || 'Failed to export version', buttons: [{ label: 'OK' }] });
+          showMessageBox({ title: t('versions.export.errorTitle'), message: result.error || t('versions.export.failed'), buttons: [{ label: t('common.ok') }] });
         }
         return;
       }
 
       const fileSize = (result.size_bytes / 1024 / 1024).toFixed(2);
-      showMessageBox({ title: 'Export Successful!', message: `File saved to:<br><b>${result.filepath}</b><br><br>File size<br><b>${fileSize} MB</b>`, buttons: [{ label: 'OK' }] });
+      showMessageBox({
+        title: t('versions.export.successTitle'),
+        message: t('versions.export.successMessage', { filepath: result.filepath, size: fileSize }),
+        buttons: [{ label: t('common.ok') }],
+      });
       await _deps.init();
     });
   } catch (e) {
     hideLoadingOverlay();
     console.error('Export error:', e);
-    showMessageBox({ title: 'Export Error', message: 'An error occurred during export:<br><br>' + e.message, buttons: [{ label: 'OK' }] });
+    showMessageBox({ title: t('versions.export.errorTitle'), message: t('versions.export.unexpectedError', { error: e.message }), buttons: [{ label: t('common.ok') }] });
   }
 };
 

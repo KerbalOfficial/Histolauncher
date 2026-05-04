@@ -316,7 +316,25 @@ class DiscordRpcManager:
 _manager = DiscordRpcManager()
 
 
+def _is_discord_rpc_enabled() -> bool:
+    try:
+        from core.settings import load_global_settings
+
+        settings = load_global_settings() or {}
+        return str(settings.get("discord_rpc_enabled", "1")).strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+    except Exception:
+        return True
+
+
 def start_discord_rpc() -> None:
+    if not _is_discord_rpc_enabled():
+        _manager.stop()
+        return
     _manager.start()
 
 
@@ -333,10 +351,16 @@ def update_discord_presence(
     details: str = "",
     start: float | None = None,
 ) -> None:
+    if not _is_discord_rpc_enabled():
+        _manager.stop()
+        return
     _manager.update_presence(state=state, details=details, start=start)
 
 
 def set_launcher_presence(state: str = "Browsing launcher") -> None:
+    if not _is_discord_rpc_enabled():
+        _manager.stop()
+        return
     _manager.set_launcher_presence(state=state)
 
 
@@ -347,6 +371,9 @@ def set_install_presence(
     loader_type: str | None = None,
     loader_version: str | None = None,
 ) -> None:
+    if not _is_discord_rpc_enabled():
+        _manager.stop()
+        return
     _manager.set_install_presence(
         version_identifier,
         progress_percent=progress_percent,
@@ -363,6 +390,9 @@ def set_game_presence(
     loader_type: str | None = None,
     loader_version: str | None = None,
 ) -> None:
+    if not _is_discord_rpc_enabled():
+        _manager.stop()
+        return
     _manager.set_game_presence(
         version_identifier,
         start_time=start_time,

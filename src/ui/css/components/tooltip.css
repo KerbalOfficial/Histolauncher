@@ -2,7 +2,7 @@
 .tooltip {
   position: fixed;
   background: var(--color-tooltip-bg);
-  color: var(--color-text-inverse);
+  color: var(--color-tooltip-text, #ffffff);
   font-size: 12px;
   padding: 8px 10px;
   max-width: 50%;
@@ -15,12 +15,17 @@
 
 .tooltip-label {
   font-weight: bold;
-  color: var(--color-text-inverse);
+  color: var(--color-text-primary);
 }
 
 .tooltip-value {
   font-style: italic;
   color: var(--color-text-primary);
+}
+
+.tooltip .tooltip-label,
+.tooltip .tooltip-value {
+  color: var(--color-tooltip-text, #ffffff);
 }
 
 .tooltip-parens {

@@ -115,6 +115,7 @@ export const getCardActionControls = (card) => {
     '.icon-button',
     '.version-actions button',
     '.quick-install-wrap button',
+    '.skin-editor-card-actions button',
   ].join(',');
 
   const controls = Array.from(card.querySelectorAll(selector));

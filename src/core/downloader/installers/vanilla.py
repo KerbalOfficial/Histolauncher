@@ -617,6 +617,7 @@ def _stage_finalize(ctx: StageContext) -> None:
         send_desktop_notification(
             title=f"[{version_id}] Installation complete!",
             message=f"Minecraft {version_id} has installed successfully!",
+            icon_kind="installed",
         )
     except Exception as exc:  # noqa: BLE001
         print(colorize_log(f"[install] Could not send notification: {exc}"))

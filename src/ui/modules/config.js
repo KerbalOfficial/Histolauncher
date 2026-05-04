@@ -26,48 +26,48 @@ export const LOADER_UI_CONFIG = {
     name: 'Fabric',
     buttonClass: 'fabric',
     accent: '#bebb88',
-    description: 'Lightweight & fast',
-    subtitle: 'Mostly used for game optimization',
+    descriptionKey: 'loaders.fabric.description',
+    subtitleKey: 'loaders.fabric.subtitle',
     image: 'assets/images/modloader-fabric-versioncard.png',
   },
   babric: {
     name: 'Babric',
     buttonClass: 'babric',
     accent: '#bebb88',
-    description: 'Minecraft Beta Fabric fork',
-    subtitle: 'A fork of Fabric to support Beta 1.7.3',
+    descriptionKey: 'loaders.babric.description',
+    subtitleKey: 'loaders.babric.subtitle',
     image: 'assets/images/modloader-babric-versioncard.png',
   },
   forge: {
     name: 'Forge',
     buttonClass: 'forge',
     accent: '#646ec9',
-    description: 'Full-modifications & popular',
-    subtitle: 'Mostly used for game modifications',
+    descriptionKey: 'loaders.forge.description',
+    subtitleKey: 'loaders.forge.subtitle',
     image: 'assets/images/modloader-forge-versioncard.png',
   },
   modloader: {
     name: 'ModLoader',
     buttonClass: 'modloader',
     accent: '#cccccc',
-    description: 'Legacy jar-mod runtime',
-    subtitle: 'Mostly used for modding old versions of Minecraft',
+    descriptionKey: 'loaders.modloader.description',
+    subtitleKey: 'loaders.modloader.subtitle',
     image: 'assets/images/modloader-modloader-versioncard.png',
   },
   neoforge: {
     name: 'NeoForge',
     buttonClass: 'neoforge',
     accent: '#b64300',
-    description: 'Modern & expansive',
-    subtitle: 'A fork of Forge',
+    descriptionKey: 'loaders.neoforge.description',
+    subtitleKey: 'loaders.neoforge.subtitle',
     image: 'assets/images/modloader-neoforge-versioncard.png',
   },
   quilt: {
     name: 'Quilt',
     buttonClass: 'quilt',
     accent: '#8f66db',
-    description: 'Flexible & modern',
-    subtitle: 'Mostly used for lightweight modern modding',
+    descriptionKey: 'loaders.quilt.description',
+    subtitleKey: 'loaders.quilt.subtitle',
     image: 'assets/images/modloader-quilt-versioncard.png',
   },
 };
@@ -76,8 +76,8 @@ export const getLoaderUi = (loaderType) => LOADER_UI_CONFIG[loaderType] || {
   name: loaderType ? loaderType.charAt(0).toUpperCase() + loaderType.slice(1) : 'Loader',
   buttonClass: 'default',
   accent: '#888',
-  description: 'Custom loader',
-  subtitle: 'No description available',
+  descriptionKey: 'loaders.fallback.description',
+  subtitleKey: 'loaders.fallback.subtitle',
   image: 'assets/images/version_placeholder.png',
 };
 
@@ -109,6 +109,7 @@ export const normalizeAddonCompatibilityToken = (value) => {
 export const getShaderTypeUi = (shaderType) => {
   const key = normalizeAddonCompatibilityToken(shaderType);
   return SHADER_TYPE_CONFIG[key] || {
-    name: key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Shader Type',
+    name: key ? key.charAt(0).toUpperCase() + key.slice(1) : '',
+    nameKey: key ? '' : 'mods.compatibility.shaderType',
   };
 };

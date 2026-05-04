@@ -7,6 +7,13 @@ import {
   INSTALL_POLL_MS_BACKOFF_BASE,
   INSTALL_POLL_MS_BACKOFF_MAX,
 } from './config.js';
+import { t } from './i18n.js';
+
+const getDownloadButtonLabel = ({ forceRedownload = false, isLowDataMode = false, fullDownload = false } = {}) => {
+  if (forceRedownload) return t('common.redownload');
+  if (fullDownload) return t('versions.actions.fullDownload');
+  return isLowDataMode ? t('versions.actions.quickDownload') : t('common.download');
+};
 
 const _deps = {};
 for (const k of ['debug', 'init', 'loadAvailableVersions', 'refreshInitialData', 'renderAllVersionSections']) {
@@ -113,7 +120,7 @@ export const cancelInstallForVersionKey = async (versionKeyEncoded) => {
           ...x,
           installing: false,
           _installKey: null,
-          _progressText: 'Cancelled',
+          _progressText: t('versions.install.cancelled'),
           _progressOverall: 0,
         };
       }
@@ -168,16 +175,16 @@ export const handleInstallClick = async (v, card, installBtn, fullDownloadMode, 
   const forceRedownload = !!(options && options.forceRedownload);
 
   if (!folder || !folder.trim()) {
-      installBtn.textContent = 'Error';
+      installBtn.textContent = t('common.error');
       setTimeout(() => {
           const isLowDataMode = state.settingsState.low_data_mode === "1";
-            installBtn.textContent = forceRedownload ? 'Redownload' : (isLowDataMode ? 'Quick Download' : 'Full Download');
+        installBtn.textContent = getDownloadButtonLabel({ forceRedownload, isLowDataMode, fullDownload: true });
       }, 1500);
       return;
   }
 
   installBtn.disabled = true;
-  installBtn.textContent = 'Starting...';
+    installBtn.textContent = t('versions.install.starting');
   card.classList.add('installing');
 
   const rawVersionKey = await startInstallForFolder(
@@ -189,7 +196,7 @@ export const handleInstallClick = async (v, card, installBtn, fullDownloadMode, 
   if (!rawVersionKey) {
     card.classList.remove('installing');
     installBtn.disabled = false;
-    installBtn.textContent = forceRedownload ? 'Redownload' : 'Download';
+    installBtn.textContent = getDownloadButtonLabel({ forceRedownload });
     return;
   }
 
@@ -201,7 +208,7 @@ export const handleInstallClick = async (v, card, installBtn, fullDownloadMode, 
     _installKey: encodedKey,
     installing: true,
     full_install: fullDownloadMode,
-    _progressText: 'Starting...',
+    _progressText: t('versions.install.starting'),
     _progressOverall: 0,
   };
 
@@ -215,7 +222,7 @@ export const handleInstallClick = async (v, card, installBtn, fullDownloadMode, 
     _installKey: encodedKey,
     full_install: fullDownloadMode,
     image_url: x.image_url || v.image_url,
-    _progressText: 'Starting...',
+    _progressText: t('versions.install.starting'),
     _progressOverall: 0,
   });
 
@@ -305,11 +312,11 @@ export const updateCardProgressUI = (vMeta, pct, text, options = {}) => {
   const pauseBtn = card.querySelector('.pause-resume-btn');
   if (pauseBtn) {
     if (paused) {
-      pauseBtn.textContent = 'Resume';
+      pauseBtn.textContent = t('common.resume');
       pauseBtn.classList.remove('mild');
       pauseBtn.classList.add('primary');
     } else {
-      pauseBtn.textContent = 'Pause';
+      pauseBtn.textContent = t('common.pause');
       pauseBtn.classList.remove('primary');
       pauseBtn.classList.add('mild');
     }
@@ -397,12 +404,12 @@ export const startPollingForInstall = (versionKeyEncoded, vMeta) => {
 
           updateCardProgressUI(currentVMeta, stablePct, text, {
             paused: false,
-            statusLabel: 'Installing',
+            statusLabel: t('versions.status.installing'),
             keepInstalling: true,
           });
 
         } else if (status === 'installed') {
-          text = 'Installed';
+          text = t('versions.status.installed');
           keepPolling = false;
           updateVersionInListByKey(versionKeyEncoded, (x) => ({
             ...x,
@@ -410,10 +417,10 @@ export const startPollingForInstall = (versionKeyEncoded, vMeta) => {
             installing: false,
             _installKey: null,
             _progressOverall: 100,
-            _progressText: 'Installed',
+            _progressText: t('versions.status.installed'),
           }));
         } else if (status === 'failed') {
-          text = 'Failed: ' + (s.message || '');
+          text = t('versions.install.failedWithMessage', { message: s.message || t('common.unknownError') });
           keepPolling = false;
 
           updateVersionInListByKey(versionKeyEncoded, (x) => ({
@@ -424,7 +431,7 @@ export const startPollingForInstall = (versionKeyEncoded, vMeta) => {
             _progressText: text,
           }));
         } else if (status === 'cancelled') {
-          text = 'Cancelled';
+          text = t('versions.install.cancelled');
           keepPolling = false;
 
           updateVersionInListByKey(versionKeyEncoded, (x) => ({
@@ -435,18 +442,18 @@ export const startPollingForInstall = (versionKeyEncoded, vMeta) => {
             _progressText: text,
           }));
         } else if (status === 'paused') {
-          text = 'Paused';
+          text = t('versions.install.paused');
 
           updateVersionInListByKey(versionKeyEncoded, (x) => ({
             ...x,
             paused: true,
-            _progressText: 'Paused',
+            _progressText: t('versions.install.paused'),
             _progressOverall: pct,
           }));
 
-          updateCardProgressUI(currentVMeta, pct, 'Paused', {
+          updateCardProgressUI(currentVMeta, pct, t('versions.install.paused'), {
             paused: true,
-            statusLabel: 'PAUSED',
+            statusLabel: t('versions.status.paused').toUpperCase(),
             pausedColor: '#facc15',
             keepInstalling: true,
           });

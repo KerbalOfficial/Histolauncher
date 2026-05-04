@@ -70,7 +70,7 @@
 
 .section-dropdown-toggle:hover,
 .settings-dropdown-title:hover {
-  color: var(--color-text-inverse);
+  color: var(--color-text-title-strong);
 }
 
 .section-dropdown-indicator,

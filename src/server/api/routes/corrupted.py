@@ -9,6 +9,7 @@ from core.version_manager import get_clients_dir, scan_categories
 from server.api._helpers import _is_path_within
 from server.api._state import STATE
 from server.api._validation import _validate_category_string, _validate_version_string
+from server.api.routes.versions import invalidate_available_versions_cache
 
 
 __all__ = ["api_corrupted_versions", "api_delete_corrupted_versions"]
@@ -117,6 +118,7 @@ def api_delete_corrupted_versions(data):
 
         try:
             scan_categories(force_refresh=True)
+            invalidate_available_versions_cache()
         except Exception:
             pass
 

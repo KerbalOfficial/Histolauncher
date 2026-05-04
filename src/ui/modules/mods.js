@@ -31,6 +31,7 @@ import { refreshActionOverflowMenus } from './action-overflow.js';
 import { renderCommonPagination } from './pagination.js';
 import { formatBytes } from './string-utils.js';
 import { createEmptyState, createInlineLoadingState } from './ui-states.js';
+import { t } from './i18n.js';
 
 const _deps = {};
 for (const k of ['autoSaveSetting', 'isTruthySetting', 'renderScopeProfilesSelect', 'showCreateScopeProfileModal', 'showDeleteScopeProfileModal', 'showRenameScopeProfileModal', 'switchScopeProfile', 'updateScopeProfileDeleteButtonState', 'updateScopeProfileEditButtonState']) {
@@ -83,13 +84,20 @@ let modsState = {
   },
 };
 
+let modsLanguageListenerBound = false;
+
 const ADDON_TYPE_CONFIG = {
   mods: {
     label: 'Mods',
+    labelKey: 'mods.addonTypes.mods.label',
     singular: 'mod',
+    singularKey: 'mods.addonTypes.mods.singular',
     singularTitle: 'Mod',
+    singularTitleKey: 'mods.addonTypes.mods.singularTitle',
     plural: 'mods',
+    pluralKey: 'mods.addonTypes.mods.plural',
     pluralTitle: 'Mods',
+    pluralTitleKey: 'mods.addonTypes.mods.pluralTitle',
     defaultIcon: 'assets/images/java_icon.png',
     importAccept: '.jar,.zip',
     supportsLoader: true,
@@ -97,16 +105,25 @@ const ADDON_TYPE_CONFIG = {
     supportsMove: true,
     supportsModpacks: false,
     importTitle: 'Import Mod',
+    importTitleKey: 'mods.addonTypes.mods.importTitle',
     importDescription: 'Select the mod loader for',
+    importDescriptionKey: 'mods.addonTypes.mods.importDescription',
     emptyInstalled: 'No mods installed',
+    emptyInstalledKey: 'mods.addonTypes.mods.emptyInstalled',
     emptyAvailable: 'No mods found',
+    emptyAvailableKey: 'mods.addonTypes.mods.emptyAvailable',
   },
   modpacks: {
     label: 'Modpacks',
+    labelKey: 'mods.addonTypes.modpacks.label',
     singular: 'modpack',
+    singularKey: 'mods.addonTypes.modpacks.singular',
     singularTitle: 'Modpack',
+    singularTitleKey: 'mods.addonTypes.modpacks.singularTitle',
     plural: 'modpacks',
+    pluralKey: 'mods.addonTypes.modpacks.plural',
     pluralTitle: 'Modpacks',
+    pluralTitleKey: 'mods.addonTypes.modpacks.pluralTitle',
     defaultIcon: 'assets/images/java_icon.png',
     importAccept: '.hlmp,.mrpack,.zip',
     supportsLoader: true,
@@ -114,15 +131,23 @@ const ADDON_TYPE_CONFIG = {
     supportsMove: false,
     supportsModpacks: true,
     importTitle: 'Import Modpack',
+    importTitleKey: 'mods.addonTypes.modpacks.importTitle',
     emptyInstalled: 'No modpacks installed',
+    emptyInstalledKey: 'mods.addonTypes.modpacks.emptyInstalled',
     emptyAvailable: 'No modpacks found',
+    emptyAvailableKey: 'mods.addonTypes.modpacks.emptyAvailable',
   },
   resourcepacks: {
     label: 'Resource Packs',
+    labelKey: 'mods.addonTypes.resourcepacks.label',
     singular: 'resource pack',
+    singularKey: 'mods.addonTypes.resourcepacks.singular',
     singularTitle: 'Resource Pack',
+    singularTitleKey: 'mods.addonTypes.resourcepacks.singularTitle',
     plural: 'resource packs',
+    pluralKey: 'mods.addonTypes.resourcepacks.plural',
     pluralTitle: 'Resource Packs',
+    pluralTitleKey: 'mods.addonTypes.resourcepacks.pluralTitle',
     defaultIcon: 'assets/images/placeholder_pack.png',
     importAccept: '.zip',
     supportsLoader: false,
@@ -130,15 +155,23 @@ const ADDON_TYPE_CONFIG = {
     supportsMove: false,
     supportsModpacks: false,
     importTitle: 'Import Resource Pack',
+    importTitleKey: 'mods.addonTypes.resourcepacks.importTitle',
     emptyInstalled: 'No resource packs installed',
+    emptyInstalledKey: 'mods.addonTypes.resourcepacks.emptyInstalled',
     emptyAvailable: 'No resource packs found',
+    emptyAvailableKey: 'mods.addonTypes.resourcepacks.emptyAvailable',
   },
   shaderpacks: {
     label: 'Shader Packs',
+    labelKey: 'mods.addonTypes.shaderpacks.label',
     singular: 'shader pack',
+    singularKey: 'mods.addonTypes.shaderpacks.singular',
     singularTitle: 'Shader Pack',
+    singularTitleKey: 'mods.addonTypes.shaderpacks.singularTitle',
     plural: 'shader packs',
+    pluralKey: 'mods.addonTypes.shaderpacks.plural',
     pluralTitle: 'Shader Packs',
+    pluralTitleKey: 'mods.addonTypes.shaderpacks.pluralTitle',
     defaultIcon: 'assets/images/placeholder_pack.png',
     importAccept: '.zip',
     supportsLoader: false,
@@ -146,8 +179,11 @@ const ADDON_TYPE_CONFIG = {
     supportsMove: false,
     supportsModpacks: false,
     importTitle: 'Import Shader Pack',
+    importTitleKey: 'mods.addonTypes.shaderpacks.importTitle',
     emptyInstalled: 'No shader packs installed',
+    emptyInstalledKey: 'mods.addonTypes.shaderpacks.emptyInstalled',
     emptyAvailable: 'No shader packs found',
+    emptyAvailableKey: 'mods.addonTypes.shaderpacks.emptyAvailable',
   },
 };
 
@@ -156,15 +192,43 @@ const getAddonConfig = (addonType = modsState.addonType) => {
   return ADDON_TYPE_CONFIG[key] || ADDON_TYPE_CONFIG.mods;
 };
 
+const textOrFallback = (key, replacements = {}, fallback = '') => {
+  const value = t(key, replacements);
+  return value && value !== key ? value : fallback;
+};
+
+const getAddonConfigText = (field, addonType = modsState.addonType, replacements = {}) => {
+  const config = getAddonConfig(addonType);
+  const fallback = config[field] || '';
+  const key = config[`${field}Key`];
+  return key ? textOrFallback(key, replacements, fallback) : fallback;
+};
+
+const getProviderDisplayName = () => modsState.provider === 'modrinth'
+  ? t('mods.providerModrinth')
+  : t('mods.providerCurseforge');
+
+const appendOption = (select, value, label) => {
+  const option = document.createElement('option');
+  option.value = value;
+  option.textContent = label;
+  select.appendChild(option);
+  return option;
+};
+
 const isModsAddonType = (addonType = modsState.addonType) => String(addonType || 'mods').toLowerCase() === 'mods';
 const isModpacksAddonType = (addonType = modsState.addonType) => String(addonType || 'mods').toLowerCase() === 'modpacks';
 const isShaderpacksAddonType = (addonType = modsState.addonType) => String(addonType || 'mods').toLowerCase() === 'shaderpacks';
+const getShaderTypeLabel = (shaderType) => {
+  const shaderTypeUi = getShaderTypeUi(shaderType);
+  return shaderTypeUi.nameKey ? t(shaderTypeUi.nameKey) : shaderTypeUi.name;
+};
 const getAddonCompatibilityFilterConfig = (addonType = modsState.addonType) => {
   const normalizedType = String(addonType || 'mods').toLowerCase();
   if (normalizedType === 'mods' || normalizedType === 'modpacks') {
     return {
-      label: 'Mod Loader',
-      detailAllLabel: 'All Loaders',
+      label: t('mods.compatibility.modLoader'),
+      detailAllLabel: t('mods.compatibility.allLoaders'),
       options: LOADER_UI_ORDER.map((loaderType) => ({
         value: loaderType,
         label: getLoaderUi(loaderType).name,
@@ -173,11 +237,11 @@ const getAddonCompatibilityFilterConfig = (addonType = modsState.addonType) => {
   }
   if (normalizedType === 'shaderpacks') {
     return {
-      label: 'Shader Type',
-      detailAllLabel: 'All Shader Types',
+      label: t('mods.compatibility.shaderType'),
+      detailAllLabel: t('mods.compatibility.allShaderTypes'),
       options: SHADER_TYPE_ORDER.map((shaderType) => ({
         value: shaderType,
-        label: getShaderTypeUi(shaderType).name,
+        label: getShaderTypeLabel(shaderType),
       })),
     };
   }
@@ -252,7 +316,7 @@ const getCompatibilityLabel = (addonType, value) => {
     return getLoaderUi(normalizedValue).name;
   }
   if (normalizedType === 'shaderpacks') {
-    return getShaderTypeUi(normalizedValue).name;
+    return getShaderTypeLabel(normalizedValue);
   }
   return normalizedValue.charAt(0).toUpperCase() + normalizedValue.slice(1);
 };
@@ -269,7 +333,7 @@ const refreshModsCompatibilityOptions = () => {
   const filterConfig = getAddonCompatibilityFilterConfig();
 
   if (loaderFilterItem) loaderFilterItem.classList.toggle('hidden', !filterConfig);
-  if (loaderLabel) loaderLabel.textContent = `${filterConfig ? filterConfig.label : 'Mod Loader'}:`;
+  if (loaderLabel) loaderLabel.textContent = `${filterConfig ? filterConfig.label : t('mods.compatibility.modLoader')}:`;
   if (!loaderSelect) return;
 
   const previousValue = normalizeAddonCompatibilityValue(
@@ -278,10 +342,7 @@ const refreshModsCompatibilityOptions = () => {
   );
   loaderSelect.innerHTML = '';
 
-  const allOpt = document.createElement('option');
-  allOpt.value = '';
-  allOpt.textContent = 'All';
-  loaderSelect.appendChild(allOpt);
+  appendOption(loaderSelect, '', t('common.all'));
 
   if (filterConfig) {
     filterConfig.options.forEach((optionData) => {
@@ -343,19 +404,19 @@ const updateModsBulkActionsUI = () => {
   const count = state.modsBulkState.selected.size;
 
   if (toggleBtn) {
-    toggleBtn.textContent = state.modsBulkState.enabled ? 'Cancel Bulk' : 'Bulk Select';
+    toggleBtn.textContent = state.modsBulkState.enabled ? t('common.cancelBulk') : t('common.bulkSelect');
     toggleBtn.className = state.modsBulkState.enabled ? 'primary' : 'mild';
   }
 
   if (deleteBtn) {
     deleteBtn.classList.toggle('hidden', !state.modsBulkState.enabled);
-    deleteBtn.textContent = `Delete Selected (${count})`;
+    deleteBtn.textContent = t('mods.deleteSelectedCount', { count });
     deleteBtn.disabled = count === 0;
   }
 
   if (moveBtn) {
     moveBtn.classList.toggle('hidden', !state.modsBulkState.enabled || !config.supportsMove);
-    moveBtn.textContent = `Move Selected (${count})`;
+    moveBtn.textContent = t('mods.moveSelectedCount', { count });
     moveBtn.disabled = count === 0;
   }
 
@@ -391,9 +452,9 @@ const bulkDeleteSelectedMods = async ({ skipConfirm = false } = {}) => {
   const keys = Array.from(state.modsBulkState.selected);
   if (!keys.length) {
     showMessageBox({
-      title: `Bulk Delete ${config.pluralTitle}`,
-      message: `No installed ${config.plural} selected.`,
-      buttons: [{ label: 'OK' }],
+      title: t('mods.bulkDelete.title', { addon: config.pluralTitle }),
+      message: t('mods.bulkDelete.noSelected', { addon: config.plural }),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
@@ -401,17 +462,17 @@ const bulkDeleteSelectedMods = async ({ skipConfirm = false } = {}) => {
   const runDelete = async () => {
     let cancelRequested = false;
     let processed = 0;
-    showLoadingOverlay(`Deleting selected ${config.plural}... (0/${keys.length})`, {
+    showLoadingOverlay(t('mods.bulkDelete.deletingProgress', { addon: config.plural, current: 0, total: keys.length }), {
       buttons: [
         {
-          label: 'Cancel',
+          label: t('common.cancel'),
           classList: ['danger'],
           closeOnClick: false,
           onClick: (_values, controls) => {
             if (cancelRequested) return;
             cancelRequested = true;
             controls.update({
-              message: `Cancelling bulk ${config.singular} delete after the current item finishes...`,
+              message: t('mods.bulkDelete.cancelling', { addon: config.singular }),
               buttons: [],
             });
           },
@@ -425,9 +486,9 @@ const bulkDeleteSelectedMods = async ({ skipConfirm = false } = {}) => {
       if (cancelRequested) break;
       const parsed = parseModBulkKey(key);
       if (!parsed || !parsed.mod_slug || (parsed.addon_type === 'mods' && !parsed.mod_loader)) {
-        failures.push(`${key} (invalid key)`);
+        failures.push(`${key} (${t('mods.bulkDelete.invalidKey')})`);
         processed += 1;
-        setLoadingOverlayText(`Deleting selected ${config.plural}... (${processed}/${keys.length})`);
+        setLoadingOverlayText(t('mods.bulkDelete.deletingProgress', { addon: config.plural, current: processed, total: keys.length }));
         continue;
       }
 
@@ -444,14 +505,14 @@ const bulkDeleteSelectedMods = async ({ skipConfirm = false } = {}) => {
           deleted += 1;
         } else {
           const failurePrefix = parsed.mod_loader ? `${parsed.mod_loader}/${parsed.mod_slug}` : parsed.mod_slug;
-          failures.push(`${failurePrefix}: ${(res && res.error) || 'unknown error'}`);
+          failures.push(`${failurePrefix}: ${(res && res.error) || t('common.unknownError')}`);
         }
       } catch (err) {
         const failurePrefix = parsed.mod_loader ? `${parsed.mod_loader}/${parsed.mod_slug}` : parsed.mod_slug;
-        failures.push(`${failurePrefix}: ${(err && err.message) || 'request failed'}`);
+        failures.push(`${failurePrefix}: ${(err && err.message) || t('versions.bulkDelete.requestFailed')}`);
       }
       processed += 1;
-      setLoadingOverlayText(`Deleting selected ${config.plural}... (${processed}/${keys.length})`);
+      setLoadingOverlayText(t('mods.bulkDelete.deletingProgress', { addon: config.plural, current: processed, total: keys.length }));
     }
 
     hideLoadingOverlay();
@@ -460,28 +521,28 @@ const bulkDeleteSelectedMods = async ({ skipConfirm = false } = {}) => {
 
     if (cancelRequested) {
       showMessageBox({
-        title: 'Bulk Delete Cancelled',
-        message: `Deleted ${deleted} ${config.singular}${deleted !== 1 ? 's' : ''} before cancellation.${failures.length ? `<br><br>Failures: ${failures.length}` : ''}`,
-        buttons: [{ label: 'OK' }],
+        title: t('mods.bulkDelete.cancelledTitle'),
+        message: t(failures.length ? 'mods.bulkDelete.cancelledWithFailures' : 'mods.bulkDelete.cancelledMessage', { count: deleted, addon: config.singular, failures: failures.length }),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
 
     if (!failures.length) {
       showMessageBox({
-        title: 'Bulk Delete Complete',
-        message: `Deleted ${deleted} ${config.singular}${deleted !== 1 ? 's' : ''}.`,
-        buttons: [{ label: 'OK' }],
+        title: t('mods.bulkDelete.completeTitle'),
+        message: t('mods.bulkDelete.completeMessage', { count: deleted, addon: config.singular }),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
 
     const preview = failures.slice(0, 8).join('<br>');
-    const more = failures.length > 8 ? `<br>...and ${failures.length - 8} more.` : '';
+    const more = failures.length > 8 ? `<br>${t('versions.bulkDelete.andMore', { count: failures.length - 8 })}` : '';
     showMessageBox({
-      title: 'Bulk Delete Finished With Errors',
-      message: `Deleted ${deleted} ${config.singular}${deleted !== 1 ? 's' : ''}.<br><br>Failures:<br>${preview}${more}`,
-      buttons: [{ label: 'OK' }],
+      title: t('mods.bulkDelete.finishedWithErrorsTitle'),
+      message: t('mods.bulkDelete.finishedWithErrorsMessage', { count: deleted, addon: config.singular, failures: `${preview}${more}` }),
+      buttons: [{ label: t('common.ok') }],
     });
   };
 
@@ -491,22 +552,22 @@ const bulkDeleteSelectedMods = async ({ skipConfirm = false } = {}) => {
   }
 
   showMessageBox({
-    title: `Bulk Delete ${config.pluralTitle}`,
-    message: `Delete ${keys.length} selected ${config.singular}${keys.length !== 1 ? 's' : ''}?<br><i>This cannot be undone!</i>`,
+    title: t('mods.bulkDelete.title', { addon: config.pluralTitle }),
+    message: t('mods.bulkDelete.confirmMessage', { count: keys.length, addon: config.singular }),
     buttons: [
       {
-        label: 'Delete',
+        label: t('common.delete'),
         classList: ['danger'],
         onClick: runDelete,
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
 
 const clampInstallPercent = (value) => Math.max(0, Math.min(100, Number(value) || 0));
 
-const formatInstallProgressText = (progress, fallback = 'Installing') => {
+const formatInstallProgressText = (progress, fallback = t('mods.install.installing')) => {
   const pct = Math.round(clampInstallPercent(progress && progress.overall_percent));
   const message = String((progress && progress.message) || '').trim();
   const bytesDone = Number((progress && progress.bytes_done) || 0);
@@ -533,7 +594,7 @@ const ensureInstallProgressElements = (card) => {
 
   const progressText = document.createElement('div');
   progressText.className = 'version-progress-text mod-install-progress-text';
-  progressText.textContent = 'Starting...';
+  progressText.textContent = t('mods.install.starting');
 
   card.appendChild(progressBar);
   card.appendChild(progressText);
@@ -553,7 +614,7 @@ const updateInlineInstallProgress = ({ card, button }, pct, text, buttonText = '
   }
 };
 
-const startInlineInstallProgress = ({ installKey, button, card, activeLabel = 'Installing', doneLabel = 'Installed', idleLabel = 'Install' }) => {
+const startInlineInstallProgress = ({ installKey, button, card, activeLabel = t('mods.install.installing'), doneLabel = t('mods.install.installed'), idleLabel = t('common.install') }) => {
   if (!installKey) {
     return {
       complete: () => {},
@@ -565,7 +626,7 @@ const startInlineInstallProgress = ({ installKey, button, card, activeLabel = 'I
   let eventSource = null;
   let closed = false;
   const target = { card, button };
-  updateInlineInstallProgress(target, 0, 'Starting...', `${activeLabel}...`);
+  updateInlineInstallProgress(target, 0, t('mods.install.starting'), t('mods.install.activeEllipsis', { label: activeLabel }));
 
   const close = () => {
     if (closed) return;
@@ -578,7 +639,7 @@ const startInlineInstallProgress = ({ installKey, button, card, activeLabel = 'I
     close();
   };
 
-  const fail = (message = 'Install failed') => {
+  const fail = (message = t('mods.install.failed')) => {
     updateInlineInstallProgress(target, 0, message, idleLabel);
     if (button) button.disabled = false;
     close();
@@ -603,7 +664,7 @@ const startInlineInstallProgress = ({ installKey, button, card, activeLabel = 'I
         return;
       }
       if (status === 'failed' || status === 'cancelled') {
-        fail(progress.message || (status === 'cancelled' ? 'Install cancelled' : 'Install failed'));
+        fail(progress.message || (status === 'cancelled' ? t('mods.install.cancelled') : t('mods.install.failed')));
         return;
       }
 
@@ -611,7 +672,7 @@ const startInlineInstallProgress = ({ installKey, button, card, activeLabel = 'I
       updateInlineInstallProgress(target, pct, text, `${activeLabel} ${Math.round(pct)}%`);
     };
   } catch (_err) {
-    updateInlineInstallProgress(target, 0, 'Starting...', `${activeLabel}...`);
+    updateInlineInstallProgress(target, 0, t('mods.install.starting'), t('mods.install.activeEllipsis', { label: activeLabel }));
   }
 
   return { complete, fail, close };
@@ -774,7 +835,8 @@ const refreshModsCategoryOptions = () => {
   if (!categorySelect) return;
 
   if (!getAddonConfig().supportsCategory) {
-    categorySelect.innerHTML = '<option value="">All</option>';
+    categorySelect.innerHTML = '';
+    appendOption(categorySelect, '', t('common.all'));
     categorySelect.value = '';
     modsState.category = '';
     return;
@@ -790,10 +852,7 @@ const refreshModsCategoryOptions = () => {
   const sortedCategories = Array.from(set).sort((a, b) => a.localeCompare(b));
 
   categorySelect.innerHTML = '';
-  const allOpt = document.createElement('option');
-  allOpt.value = '';
-  allOpt.textContent = 'All';
-  categorySelect.appendChild(allOpt);
+  appendOption(categorySelect, '', t('common.all'));
 
   sortedCategories.forEach((cat) => {
     const opt = document.createElement('option');
@@ -813,10 +872,10 @@ const refreshModsCategoryOptions = () => {
 const updateModsTypeUI = () => {
   const config = getAddonConfig();
   const titleEl = document.querySelector('#page-mods .section-title-text');
-  if (titleEl) titleEl.textContent = 'Addons';
+  if (titleEl) titleEl.textContent = t('nav.addons');
 
   const sidebarLabel = document.querySelector('.sidebar-item[data-page="mods"] span');
-  if (sidebarLabel) sidebarLabel.textContent = 'Addons';
+  if (sidebarLabel) sidebarLabel.textContent = t('nav.addons');
 
   const typeSelect = getEl('mods-type-select');
   if (typeSelect) typeSelect.value = modsState.addonType || 'mods';
@@ -843,31 +902,34 @@ const updateModsTypeUI = () => {
   const importBtn = getEl('import-mod-btn');
   if (importBtn) {
     importBtn.classList.toggle('hidden', isModpacksAddonType());
-    importBtn.title = config.importTitle;
-    importBtn.setAttribute('aria-label', config.importTitle);
+    const importTitle = getAddonConfigText('importTitle');
+    importBtn.title = importTitle;
+    importBtn.setAttribute('aria-label', importTitle);
   }
 
   const importOverflowBtn = getEl('mods-overflow-import-mod-btn');
   if (importOverflowBtn) {
     importOverflowBtn.classList.toggle('hidden', isModpacksAddonType());
-    importOverflowBtn.title = config.importTitle;
-    importOverflowBtn.setAttribute('aria-label', config.importTitle);
+    const importTitle = getAddonConfigText('importTitle');
+    importOverflowBtn.title = importTitle;
+    importOverflowBtn.setAttribute('aria-label', importTitle);
   }
 
   const overflowTrigger = getEl('mods-actions-overflow-btn');
   if (overflowTrigger) {
-    overflowTrigger.title = `More ${config.singular} actions`;
-    overflowTrigger.setAttribute('aria-label', `More ${config.singular} actions`);
+    const title = t('mods.moreActionsForType', { addon: getAddonConfigText('singular') });
+    overflowTrigger.title = title;
+    overflowTrigger.setAttribute('aria-label', title);
   }
 
   const overflowMenu = getEl('mods-actions-overflow-menu');
-  if (overflowMenu) overflowMenu.setAttribute('aria-label', `${config.singularTitle} actions`);
+  if (overflowMenu) overflowMenu.setAttribute('aria-label', t('mods.actionsForType', { addon: getAddonConfigText('singularTitle') }));
 
   const importInput = getEl('import-mod-file-input');
   if (importInput) importInput.accept = config.importAccept;
 
   const refreshBtn = getEl('mods-refresh-btn');
-  if (refreshBtn) refreshBtn.title = `Refresh ${config.singular} list`;
+  if (refreshBtn) refreshBtn.title = t('mods.refreshTypeListTooltip', { addon: getAddonConfigText('singular') });
 
   updateModsProviderDisplay();
   refreshActionOverflowMenus();
@@ -942,6 +1004,17 @@ const initModsViewToggle = () => {
 };
 
 export const initModsPage = () => {
+  if (!modsLanguageListenerBound) {
+    modsLanguageListenerBound = true;
+    window.addEventListener('histolauncher:language-changed', () => {
+      updateModsTypeUI();
+      refreshModsCategoryOptions();
+      updateModsBulkActionsUI();
+      renderInstalledMods();
+      renderAvailableMods();
+    });
+  }
+
   const modsTypeSelect = getEl('mods-type-select');
   if (modsTypeSelect) {
     modsTypeSelect.value = modsState.addonType || 'mods';
@@ -1154,12 +1227,15 @@ export const initModsPage = () => {
 const updateModsProviderDisplay = () => {
   const display = getEl('mods-provider-display');
   if (display) {
-    display.textContent = modsState.provider === 'modrinth' ? 'Modrinth' : 'CurseForge';
+    display.textContent = getProviderDisplayName();
   }
 
   const subtitle = getEl('mods-available-subtitle');
   if (subtitle) {
-    subtitle.innerHTML = `${getAddonConfig().label} from <span id="mods-provider-display">${modsState.provider === 'modrinth' ? 'Modrinth' : 'CurseForge'}</span>`;
+    subtitle.textContent = t('mods.availableSubtitle', {
+      addonType: getAddonConfigText('label'),
+      provider: getProviderDisplayName(),
+    });
   }
 };
 
@@ -1168,7 +1244,8 @@ const populateModsVersionDropdown = () => {
   if (!select) return;
 
   const previousValue = modsState.gameVersion || select.value || '';
-  select.innerHTML = '<option value="">All</option>';
+  select.innerHTML = '';
+  appendOption(select, '', t('common.all'));
 
   api('/api/addons/version-options', 'POST', {
     addon_type: modsState.addonType,
@@ -1323,7 +1400,9 @@ const searchMods = async () => {
       if (modsLoading) modsLoading.classList.add('hidden');
       modsState.availableModsRaw = [];
       modsState.availableMods = [];
-      modsState.lastError = (res && res.error) ? `Search failed: ${res.error}` : 'Search failed due to an unknown error.';
+      modsState.lastError = (res && res.error)
+        ? t('mods.search.failedWithError', { error: res.error })
+        : t('mods.search.failedUnknown');
       if (warn) {
         warn.textContent = modsState.lastError;
         warn.classList.remove('hidden');
@@ -1339,7 +1418,7 @@ const searchMods = async () => {
     if (modsLoading) modsLoading.classList.add('hidden');
     modsState.availableModsRaw = [];
     modsState.availableMods = [];
-    modsState.lastError = 'Search failed due to a network error.';
+    modsState.lastError = t('mods.search.failedNetwork');
     const warn = getEl('mods-section-warning');
     if (warn) {
       warn.textContent = modsState.lastError;
@@ -1352,8 +1431,8 @@ const searchMods = async () => {
 };
 
 const getInstalledGroupLabel = (groupKey) => {
-  if (groupKey === 'modpacks') return 'Modpacks';
-  if (groupKey === 'other') return 'Other';
+  if (groupKey === 'modpacks') return getAddonConfigText('label', 'modpacks');
+  if (groupKey === 'other') return t('mods.groups.other');
   if (LOADER_UI_CONFIG[groupKey]) return LOADER_UI_CONFIG[groupKey].name;
   const label = String(groupKey || 'Other');
   return label.charAt(0).toUpperCase() + label.slice(1);
@@ -1436,9 +1515,20 @@ const renderInstalledMods = () => {
   const packCount = modsState.installedModpacks.length;
   if (subtitle) {
     let text = isModpacksAddonType()
-      ? `Your installed modpacks (${packCount} installed)`
-      : `Your installed ${config.plural} (${installedCount} installed, ${disabledCount} disabled)`;
-    if (!isModpacksAddonType() && config.supportsModpacks && packCount > 0) text += ` | ${packCount} modpack${packCount !== 1 ? 's' : ''}`;
+      ? t('mods.installedModpacksSubtitle', { count: packCount })
+      : t('mods.installedSubtitleCount', {
+        plural: getAddonConfigText('plural'),
+        installed: installedCount,
+        disabled: disabledCount,
+      });
+    if (!isModpacksAddonType() && config.supportsModpacks && packCount > 0) {
+      text += t('mods.installedSubtitleModpacksSuffix', {
+        count: packCount,
+        label: packCount === 1
+          ? getAddonConfigText('singular', 'modpacks')
+          : getAddonConfigText('plural', 'modpacks'),
+      });
+    }
     subtitle.textContent = text;
   }
 
@@ -1485,7 +1575,7 @@ const renderInstalledMods = () => {
   list.innerHTML = '';
 
   if (isModpacksAddonType()) {
-    if (packCount === 0) list.appendChild(createEmptyState(config.emptyInstalled));
+    if (packCount === 0) list.appendChild(createEmptyState(getAddonConfigText('emptyInstalled')));
     applyModsViewMode();
     return;
   }
@@ -1506,7 +1596,7 @@ const renderInstalledMods = () => {
   }
 
   if (filtered.length === 0) {
-    list.appendChild(createEmptyState(config.emptyInstalled));
+    list.appendChild(createEmptyState(getAddonConfigText('emptyInstalled')));
     applyModsViewMode();
     return;
   }
@@ -1571,7 +1661,7 @@ const renderAvailableMods = () => {
     if (modsState.lastError) {
       container.appendChild(createEmptyState(modsState.lastError, { isError: true }));
     } else {
-      container.appendChild(createEmptyState(config.emptyAvailable));
+      container.appendChild(createEmptyState(getAddonConfigText('emptyAvailable')));
     }
   } else {
     modsState.availableMods.forEach((mod) => {
@@ -1639,7 +1729,7 @@ const handleImportMod = (file) => {
   const content = document.createElement('div');
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
-  label.textContent = `Select the mod loader for "${fileName}":`;
+  label.textContent = t('mods.import.selectLoaderForFile', { file: fileName });
 
   const select = document.createElement('select');
   select.className = 'mod-version-select';
@@ -1735,7 +1825,7 @@ const createModCard = (mod, isInstalled) => {
 
     const versionLabel = document.createElement('span');
     versionLabel.className = 'mod-version-label';
-    versionLabel.textContent = 'Version:';
+    versionLabel.textContent = `${t('home.info.version')}:`;
 
     versionSelect = document.createElement('select');
     versionSelect.className = 'mod-version-select mod-card-select';
@@ -1780,7 +1870,7 @@ const createModCard = (mod, isInstalled) => {
 
     const overwriteLabel = document.createElement('span');
     overwriteLabel.className = 'mod-overwrite-label';
-    overwriteLabel.textContent = 'Overwrite classes:';
+    overwriteLabel.textContent = t('mods.exportModpack.overwriteClassesLabel');
 
     const overwriteCheckbox = document.createElement('input');
     overwriteCheckbox.type = 'checkbox';
@@ -1791,14 +1881,14 @@ const createModCard = (mod, isInstalled) => {
 
     const sourceLabel = document.createElement('span');
     sourceLabel.className = 'mod-source-label';
-    sourceLabel.textContent = 'Source folder:';
+    sourceLabel.textContent = t('mods.exportModpack.sourceFolderLabel');
 
     const sourceSelect = document.createElement('select');
     sourceSelect.className = 'mod-version-select mod-source-select mod-card-select';
     sourceSelect.style.cssText = 'font-size:10px';
 
     const setSourceOptions = (incomingOptions, preferredValue) => {
-      const options = [{ value: '', label: '/ (default)' }];
+      const options = [{ value: '', label: t('mods.exportModpack.defaultSource') }];
       const seen = new Set(['']);
 
       const list = Array.isArray(incomingOptions) ? incomingOptions : [];
@@ -1847,7 +1937,7 @@ const createModCard = (mod, isInstalled) => {
         });
 
         if (!res || !res.ok) {
-          throw new Error((res && res.error) || 'Failed to load source folders');
+          throw new Error((res && res.error) || t('mods.exportModpack.failedSourceFolders'));
         }
 
         setSourceOptions(res.subfolders, preferred);
@@ -1856,9 +1946,9 @@ const createModCard = (mod, isInstalled) => {
         console.error('Failed to load source folders:', err);
         setSourceOptions([], preferred);
         showMessageBox({
-          title: 'Source Folder Error',
-          message: (err && err.message) ? err.message : 'Failed to load source folders from this archive.',
-          buttons: [{ label: 'OK' }],
+          title: t('mods.exportModpack.sourceFolderError'),
+          message: (err && err.message) ? err.message : t('mods.exportModpack.failedSourceFoldersFromArchive'),
+          buttons: [{ label: t('common.ok') }],
         });
         return false;
       }
@@ -1900,7 +1990,7 @@ const createModCard = (mod, isInstalled) => {
         });
 
         if (!res || !res.ok) {
-          throw new Error((res && res.error) || 'Failed to update overwrite settings');
+          throw new Error((res && res.error) || t('mods.exportModpack.failedUpdateOverwrite'));
         }
 
         const currentMeta = getSelectedVersionMeta();
@@ -1918,9 +2008,9 @@ const createModCard = (mod, isInstalled) => {
         setSourceVisibility(previousState);
         sourceSelect.value = previousValue || '';
         showMessageBox({
-          title: 'Save Error',
-          message: (err && err.message) ? err.message : 'Failed to save overwrite settings.',
-          buttons: [{ label: 'OK' }],
+          title: t('mods.exportModpack.saveError'),
+          message: (err && err.message) ? err.message : t('mods.exportModpack.failedSaveOverwrite'),
+          buttons: [{ label: t('common.ok') }],
         });
       }
     });
@@ -1940,7 +2030,7 @@ const createModCard = (mod, isInstalled) => {
         });
 
         if (!res || !res.ok) {
-          throw new Error((res && res.error) || 'Failed to update source folder');
+          throw new Error((res && res.error) || t('mods.exportModpack.failedUpdateSourceFolder'));
         }
 
         const currentMeta = getSelectedVersionMeta();
@@ -1952,9 +2042,9 @@ const createModCard = (mod, isInstalled) => {
       } catch (err) {
         console.error('Failed to update source folder:', err);
         showMessageBox({
-          title: 'Save Error',
-          message: (err && err.message) ? err.message : 'Failed to save source folder setting.',
-          buttons: [{ label: 'OK' }],
+          title: t('mods.exportModpack.saveError'),
+          message: (err && err.message) ? err.message : t('mods.exportModpack.failedSaveSourceFolder'),
+          buttons: [{ label: t('common.ok') }],
         });
       }
     });
@@ -1976,13 +2066,13 @@ const createModCard = (mod, isInstalled) => {
     const stateBadge = document.createElement('span');
     if (mod.disabled) {
       stateBadge.className = 'version-badge paused';
-      stateBadge.textContent = 'DISABLED';
+      stateBadge.textContent = t('mods.status.disabled').toUpperCase();
     } else if (mod.is_imported) {
       stateBadge.className = 'version-badge imported';
-      stateBadge.textContent = 'IMPORTED';
+      stateBadge.textContent = t('mods.status.imported').toUpperCase();
     } else {
       stateBadge.className = 'version-badge installed';
-      stateBadge.textContent = 'INSTALLED';
+      stateBadge.textContent = t('mods.status.installed').toUpperCase();
     }
     badgeRow.appendChild(stateBadge);
   }
@@ -2014,7 +2104,6 @@ const createModCard = (mod, isInstalled) => {
     badgeRow.appendChild(catBadge);
   }
 
-  // Delete icon button (placed before badges in the card row)
   const deleteIconContainer = document.createElement('div');
   deleteIconContainer.className = 'mod-card-delete-icon';
   if (isInstalled) {
@@ -2026,7 +2115,7 @@ const createModCard = (mod, isInstalled) => {
         : `Delete ${config.singular} ${String(name.textContent || '').trim() || `this ${config.singular}`}`,
     });
     const delImg = document.createElement('img');
-    delImg.alt = 'delete';
+    delImg.alt = t('common.delete');
     delImg.src = 'assets/images/unfilled_delete.png';
     imageAttachErrorPlaceholder(delImg, 'assets/images/placeholder.png');
     delBtn.appendChild(delImg);
@@ -2049,7 +2138,7 @@ const createModCard = (mod, isInstalled) => {
   if (isInstalled) {
     const toggleBtn = document.createElement('button');
     toggleBtn.className = mod.disabled ? 'primary' : 'mild';
-    toggleBtn.textContent = mod.disabled ? 'Enable' : 'Disable';
+    toggleBtn.textContent = mod.disabled ? t('mods.actions.enable') : t('mods.actions.disable');
     toggleBtn.onclick = (e) => {
       e.stopPropagation();
       if (state.modsBulkState.enabled) {
@@ -2063,7 +2152,7 @@ const createModCard = (mod, isInstalled) => {
     if (config.supportsMove) {
       const moveBtn = document.createElement('button');
       moveBtn.className = 'important';
-      moveBtn.textContent = 'Move';
+      moveBtn.textContent = t('mods.move.button');
       moveBtn.onclick = (e) => {
         e.stopPropagation();
         if (state.modsBulkState.enabled) {
@@ -2083,11 +2172,11 @@ const createModCard = (mod, isInstalled) => {
 
     const quickInstallBtn = document.createElement('button');
     quickInstallBtn.className = 'primary';
-    quickInstallBtn.textContent = 'Install';
+    quickInstallBtn.textContent = t('common.install');
 
     const quickInstallVersion = document.createElement('div');
     quickInstallVersion.className = 'quick-install-version';
-    quickInstallVersion.textContent = 'Latest';
+    quickInstallVersion.textContent = t('mods.detail.latest');
 
     let resolvedQuickVersion = null;
 
@@ -2095,7 +2184,7 @@ const createModCard = (mod, isInstalled) => {
       e.stopPropagation();
       if (quickInstallBtn.disabled) return;
       quickInstallBtn.disabled = true;
-      quickInstallBtn.textContent = 'Fetching...';
+      quickInstallBtn.textContent = t('mods.detail.fetching');
       try {
         const versRes = await api('/api/mods/versions', 'POST', {
           addon_type: modsState.addonType,
@@ -2106,20 +2195,20 @@ const createModCard = (mod, isInstalled) => {
         });
         if (!versRes || !versRes.ok) {
           quickInstallBtn.disabled = false;
-          quickInstallBtn.textContent = 'Install';
-          quickInstallVersion.textContent = 'Lookup failed';
+          quickInstallBtn.textContent = t('common.install');
+          quickInstallVersion.textContent = t('mods.detail.lookupFailed');
           showMessageBox({
-            title: 'Version Lookup Failed',
-            message: (versRes && versRes.error) || 'Failed to fetch mod versions.',
-            buttons: [{ label: 'OK' }],
+            title: t('mods.detail.versionLookupFailedTitle'),
+            message: (versRes && versRes.error) || t('mods.detail.versionLookupFailedMessage'),
+            buttons: [{ label: t('common.ok') }],
           });
           return;
         }
         const allVers = (versRes && versRes.ok && Array.isArray(versRes.versions)) ? versRes.versions : [];
         if (allVers.length === 0) {
           quickInstallBtn.disabled = false;
-          quickInstallBtn.textContent = 'Install';
-          quickInstallVersion.textContent = 'No versions found';
+          quickInstallBtn.textContent = t('common.install');
+          quickInstallVersion.textContent = t('mods.detail.noVersionsFound');
           return;
         }
         // Apply same filter logic as detail modal
@@ -2138,19 +2227,19 @@ const createModCard = (mod, isInstalled) => {
           return idx;
         })();
         resolvedQuickVersion = filtered[recIdx];
-        const verLabel = resolvedQuickVersion.version_number || resolvedQuickVersion.display_name || 'Latest';
+        const verLabel = resolvedQuickVersion.version_number || resolvedQuickVersion.display_name || t('mods.detail.latest');
         quickInstallVersion.textContent = verLabel;
         const modLoader = addonTypeSupportsCompatibilityFilter()
           ? (selLoader
             || getPreferredCompatibilityValue({ compatibility_types: resolvedQuickVersion.loaders }, modsState.addonType)
             || (isModsAddonType() ? 'fabric' : ''))
           : '';
-        quickInstallBtn.textContent = 'Install';
+        quickInstallBtn.textContent = t('common.install');
         installMod(mod, resolvedQuickVersion, modLoader, quickInstallBtn);
       } catch (err) {
         console.error('Quick install failed to fetch versions:', err);
         quickInstallBtn.disabled = false;
-        quickInstallBtn.textContent = 'Install';
+        quickInstallBtn.textContent = t('common.install');
       }
     });
 
@@ -2407,13 +2496,13 @@ export const showModDetailModal = async (mod) => {
   const content = document.createElement('div');
   content.className = 'mod-detail-content';
 
-  const loadingEl = createInlineLoadingState(`Loading ${config.singular} details...`);
+  const loadingEl = createInlineLoadingState(t('mods.detail.loadingDetails', { addon: getAddonConfigText('singular', detailAddonType) }), { centered: true });
   content.appendChild(loadingEl);
 
   showMessageBox({
     title: modName,
     customContent: content,
-    buttons: [{ label: 'Close' }],
+    buttons: [{ label: t('common.close') }],
   });
 
   // Fetch detail + versions in parallel
@@ -2474,7 +2563,7 @@ export const showModDetailModal = async (mod) => {
 
     if (detailError) {
       const detailErrorEl = document.createElement('p');
-      detailErrorEl.style.cssText = 'color:#ffb36a;margin-top:8px;';
+      detailErrorEl.style.cssText = 'color:var(--color-warning);margin-top:8px;';
       detailErrorEl.textContent = detailError;
       content.appendChild(detailErrorEl);
     }
@@ -2489,7 +2578,7 @@ export const showModDetailModal = async (mod) => {
       galSection.className = 'mod-detail-gallery';
 
       const galTitle = document.createElement('h4');
-      galTitle.textContent = 'Screenshots';
+      galTitle.textContent = t('mods.detail.screenshots');
       galTitle.style.marginBottom = '8px';
       galSection.appendChild(galTitle);
 
@@ -2503,7 +2592,7 @@ export const showModDetailModal = async (mod) => {
         imgEl.src = imgUrl;
         imgEl.className = 'mod-detail-screenshot';
         imgEl.onerror = () => { imgEl.style.display = 'none'; };
-        imgEl.title = 'Click to enlarge';
+        imgEl.title = t('mods.detail.clickToEnlarge');
         imgEl.addEventListener('click', () => {
           let lightbox = document.getElementById('screenshot-lightbox');
           if (!lightbox) {
@@ -2532,9 +2621,9 @@ export const showModDetailModal = async (mod) => {
       statsRow.className = 'mod-detail-stats';
       const downloads = detailRes.downloads || mod.download_count || 0;
       const cats = Array.isArray(detailRes.categories) ? detailRes.categories : (mod.categories || []);
-      statsRow.innerHTML = `<span>Downloads: ${Number(downloads).toLocaleString()}</span>`;
+      statsRow.innerHTML = `<span>${t('mods.detail.downloads', { count: Number(downloads).toLocaleString() })}</span>`;
       if (cats.length > 0) {
-        statsRow.innerHTML += ` <span>Categories: ${cats.join(', ')}</span>`;
+        statsRow.innerHTML += ` <span>${t('mods.detail.categories', { categories: cats.join(', ') })}</span>`;
       }
       content.appendChild(statsRow);
     }
@@ -2545,14 +2634,14 @@ export const showModDetailModal = async (mod) => {
     if (versionsError) {
       const versionsErrorEl = document.createElement('p');
       versionsErrorEl.textContent = versionsError;
-      versionsErrorEl.style.color = '#ff4141';
+      versionsErrorEl.style.color = 'var(--color-error)';
       content.appendChild(versionsErrorEl);
     } else if (allVersions.length > 0) {
       const verSection = document.createElement('div');
       verSection.className = 'mod-detail-versions';
 
       const verTitle = document.createElement('h4');
-      verTitle.textContent = `Versions (${allVersions.length})`;
+      verTitle.textContent = t('mods.detail.versionsTitle', { count: allVersions.length });
       verTitle.style.marginBottom = '8px';
       verSection.appendChild(verTitle);
 
@@ -2585,7 +2674,7 @@ export const showModDetailModal = async (mod) => {
         (v.game_versions || []).forEach((g) => gvSet.add(g));
       });
       const gvFilter = document.createElement('select');
-      gvFilter.innerHTML = '<option value="">All MC Versions</option>';
+      gvFilter.innerHTML = `<option value="">${t('mods.detail.allMcVersions')}</option>`;
       Array.from(gvSet).sort((a, b) => b.localeCompare(a, undefined, { numeric: true })).forEach((g) => {
         const o = document.createElement('option');
         o.value = g;
@@ -2628,7 +2717,7 @@ export const showModDetailModal = async (mod) => {
         }
 
         if (filtered.length === 0) {
-          verList.innerHTML = '<p style="text-align:center;color:#999;padding:8px;">No versions match filters</p>';
+          verList.innerHTML = `<p style="text-align:center;color:var(--color-text-muted);padding:8px;">${t('mods.detail.noVersionsMatch')}</p>`;
           return;
         }
 
@@ -2672,10 +2761,10 @@ export const showModDetailModal = async (mod) => {
 
           if (isVersionInstalled) {
             installBtn.className = 'important';
-            installBtn.textContent = 'Reinstall';
+            installBtn.textContent = t('common.reinstall');
           } else {
             installBtn.className = 'primary';
-            installBtn.textContent = 'Install';
+            installBtn.textContent = t('common.install');
           }
           installBtn.style.fontSize = '11px';
           installBtn.style.padding = '3px 8px';
@@ -2695,7 +2784,7 @@ export const showModDetailModal = async (mod) => {
           if (isRecommended) {
             const starImg = document.createElement('img');
             starImg.src = 'assets/images/filled_favorite.png';
-            starImg.title = 'Recommended (latest release)';
+            starImg.title = t('mods.detail.recommendedLatest');
             starImg.style.cssText = 'width:14px;height:14px;object-fit:contain;flex-shrink:0;';
             row.appendChild(starImg);
           }
@@ -2712,34 +2801,34 @@ export const showModDetailModal = async (mod) => {
       content.appendChild(verSection);
     } else {
       const noVer = document.createElement('p');
-      noVer.textContent = `No versions available for this ${config.singular}.`;
-      noVer.style.color = '#999';
+      noVer.textContent = t('mods.detail.noVersionsAvailable', { addon: getAddonConfigText('singular', detailAddonType) });
+      noVer.style.color = 'var(--color-text-muted)';
       content.appendChild(noVer);
     }
   } catch (err) {
     console.error('Failed to load addon details:', err);
-    content.innerHTML = `<p style="color:#ff4141;">Failed to render ${config.singular} details.</p>`;
+    content.innerHTML = `<p style="color:var(--color-error);">${t('mods.detail.renderFailed', { addon: getAddonConfigText('singular', detailAddonType) })}</p>`;
   }
 };
 
 const installMod = async (mod, version, modLoader, installBtn, addonType = modsState.addonType) => {
   let progress = null;
+  const requestedAddonType = String(addonType || 'mods').toLowerCase();
+  const normalizedAddonType = ADDON_TYPE_CONFIG[requestedAddonType] ? requestedAddonType : 'mods';
+  const config = getAddonConfig(normalizedAddonType);
   try {
-    const requestedAddonType = String(addonType || 'mods').toLowerCase();
-    const normalizedAddonType = ADDON_TYPE_CONFIG[requestedAddonType] ? requestedAddonType : 'mods';
-    const config = getAddonConfig(normalizedAddonType);
-    const idleLabel = installBtn ? (installBtn.textContent || 'Install') : 'Install';
+    const idleLabel = installBtn ? (installBtn.textContent || t('common.install')) : t('common.install');
     const installKey = `addons/${normalizedAddonType}/${createOperationId('install')}`;
     if (installBtn) {
       installBtn.disabled = true;
-      installBtn.textContent = 'Installing...';
+      installBtn.textContent = t('mods.install.installingEllipsis');
     }
     progress = startInlineInstallProgress({
       installKey,
       button: installBtn,
       card: installBtn ? installBtn.closest('.mod-entry-card') : null,
-      activeLabel: 'Installing',
-      doneLabel: 'Installed',
+      activeLabel: t('mods.install.installing'),
+      doneLabel: t('mods.install.installed'),
       idleLabel,
     });
 
@@ -2765,12 +2854,12 @@ const installMod = async (mod, version, modLoader, installBtn, addonType = modsS
     });
 
     if (res && res.ok) {
-      if (progress) progress.complete(res.message || 'Installed');
+      if (progress) progress.complete(res.message || t('mods.install.installed'));
       if (installBtn) {
         installBtn.disabled = false;
-        installBtn.textContent = 'Installed';
+        installBtn.textContent = t('mods.install.installed');
         installBtn.className = '';
-        installBtn.style.color = '#4ade80';
+        installBtn.style.color = 'var(--color-success)';
         installBtn.style.fontWeight = 'bold';
         installBtn.style.border = 'none';
         installBtn.style.background = 'transparent';
@@ -2780,30 +2869,30 @@ const installMod = async (mod, version, modLoader, installBtn, addonType = modsS
         await loadInstalledMods();
       }
     } else {
-      if (progress) progress.fail((res && res.error) ? res.error : `Failed to install ${config.singular}.`);
+      if (progress) progress.fail((res && res.error) ? res.error : t('mods.install.failedForAddon', { addon: getAddonConfigText('singular', normalizedAddonType) }));
       if (installBtn) {
         installBtn.disabled = false;
         installBtn.textContent = idleLabel;
         installBtn.className = 'primary';
       }
       showMessageBox({
-        title: 'Install Failed',
-        message: (res && res.error) ? res.error : `Failed to install ${config.singular}.`,
-        buttons: [{ label: 'OK' }],
+        title: t('mods.install.failedTitle'),
+        message: (res && res.error) ? res.error : t('mods.install.failedForAddon', { addon: getAddonConfigText('singular', normalizedAddonType) }),
+        buttons: [{ label: t('common.ok') }],
       });
     }
   } catch (err) {
     console.error('Failed to install mod:', err);
-    if (progress) progress.fail('Unexpected install error');
+    if (progress) progress.fail(t('mods.install.unexpectedError'));
     if (installBtn) {
       installBtn.disabled = false;
-      installBtn.textContent = 'Install';
+      installBtn.textContent = t('common.install');
       installBtn.className = 'primary';
     }
     showMessageBox({
-      title: 'Install Failed',
-      message: `An unexpected error occurred while installing the ${config.singular}.`,
-      buttons: [{ label: 'OK' }],
+      title: t('mods.install.failedTitle'),
+      message: t('mods.install.unexpectedForAddon', { addon: getAddonConfigText('singular', normalizedAddonType) }),
+      buttons: [{ label: t('common.ok') }],
     });
   }
 };
@@ -2838,9 +2927,9 @@ const toggleModDisabled = async (mod) => {
         loadInstalledMods();
       } else {
         showMessageBox({
-          title: 'Error',
-          message: res.error || `Failed to toggle ${config.singular}.`,
-          buttons: [{ label: 'OK' }],
+          title: t('common.error'),
+          message: res.error || t('mods.actions.toggleFailed', { addon: getAddonConfigText('singular') }),
+          buttons: [{ label: t('common.ok') }],
         });
       }
     } catch (err) {
@@ -2866,9 +2955,9 @@ const deleteMod = (mod, options = {}) => {
         loadInstalledMods();
       } else {
         showMessageBox({
-          title: 'Error',
+          title: t('common.error'),
           message: res.error || `Failed to delete ${config.singular}.`,
-          buttons: [{ label: 'OK' }],
+          buttons: [{ label: t('common.ok') }],
         });
       }
     } catch (err) {
@@ -2895,14 +2984,14 @@ const deleteMod = (mod, options = {}) => {
 
     const allOpt = document.createElement('option');
     allOpt.value = '';
-    allOpt.textContent = 'Delete entire mod (all versions)';
+    allOpt.textContent = t('mods.delete.title', { addon: config.singularTitle });
     select.appendChild(allOpt);
 
     versions.forEach((v) => {
       const opt = document.createElement('option');
       opt.value = v.version_label;
       const loaderTag = formatCompatibilityTag(v, modsState.addonType);
-      opt.textContent = `Delete version: ${v.version_label}${loaderTag}`;
+      opt.textContent = t('mods.delete.versionOption', { version: v.version_label, loader: loaderTag });
       select.appendChild(opt);
     });
 
@@ -2910,24 +2999,24 @@ const deleteMod = (mod, options = {}) => {
     content.appendChild(select);
 
     showMessageBox({
-      title: `Delete ${config.singularTitle}`,
+      title: t('mods.delete.title', { addon: config.singularTitle }),
       customContent: content,
       buttons: [
         {
-          label: 'Delete',
+          label: t('common.delete'),
           classList: ['danger'],
           onClick: () => doDelete(select.value || null),
         },
-        { label: 'Cancel' },
+        { label: t('common.cancel') },
       ],
     });
   } else {
     showMessageBox({
-      title: `Delete ${config.singularTitle}`,
-      message: `Are you sure you want to delete <b>${mod.mod_name}</b>?<br><i>This cannot be undone!</i>`,
+      title: t('mods.delete.title', { addon: config.singularTitle }),
+      message: t('mods.delete.confirm', { addon: mod.mod_name }),
       buttons: [
-        { label: 'Delete', classList: ['danger'], onClick: () => doDelete(null) },
-        { label: 'Cancel' },
+        { label: t('common.delete'), classList: ['danger'], onClick: () => doDelete(null) },
+        { label: t('common.cancel') },
       ],
     });
   }
@@ -2938,9 +3027,9 @@ const moveMod = (mod) => {
   const sourceLoader = String(mod.mod_loader || '').toLowerCase();
   if (!LOADER_UI_CONFIG[sourceLoader]) {
     showMessageBox({
-      title: 'Move Mod',
-      message: 'This mod has an unknown loader category and cannot be moved automatically.',
-      buttons: [{ label: 'OK' }],
+      title: t('mods.move.title'),
+      message: t('mods.move.unknownLoader'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
@@ -2948,9 +3037,9 @@ const moveMod = (mod) => {
   const targets = LOADER_UI_ORDER.filter((loaderType) => loaderType !== sourceLoader);
   if (!targets.length) {
     showMessageBox({
-      title: 'Move Mod',
-      message: 'No target loader categories are available.',
-      buttons: [{ label: 'OK' }],
+      title: t('mods.move.title'),
+      message: t('mods.move.noTargets'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
@@ -2961,7 +3050,7 @@ const moveMod = (mod) => {
 
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
-  label.innerHTML = `Move <i>${mod.mod_name || mod.mod_slug || 'this mod'}</i> from <b>${sourceLoaderUi.name}</b> to...`;
+  label.innerHTML = t('mods.move.prompt', { addon: mod.mod_name || mod.mod_slug || t('mods.move.thisMod'), loader: sourceLoaderUi.name });
 
   const select = document.createElement('select');
   select.className = 'mod-version-select';
@@ -2977,11 +3066,11 @@ const moveMod = (mod) => {
   content.appendChild(select);
 
   showMessageBox({
-    title: 'Move Mod',
+    title: t('mods.move.title'),
     customContent: content,
     buttons: [
       {
-        label: 'Move',
+        label: t('mods.move.button'),
         classList: ['important'],
         onClick: async () => {
           try {
@@ -2995,28 +3084,28 @@ const moveMod = (mod) => {
             if (res && res.ok) {
               await loadInstalledMods();
               showMessageBox({
-                title: 'Move Complete',
-                message: res.message || 'Mod moved successfully.',
-                buttons: [{ label: 'OK' }],
+                title: t('mods.move.completeTitle'),
+                message: res.message || t('mods.move.success'),
+                buttons: [{ label: t('common.ok') }],
               });
             } else {
               showMessageBox({
-                title: 'Move Failed',
-                message: (res && res.error) || 'Failed to move mod.',
-                buttons: [{ label: 'OK' }],
+                title: t('mods.move.failedTitle'),
+                message: (res && res.error) || t('mods.move.failed'),
+                buttons: [{ label: t('common.ok') }],
               });
             }
           } catch (err) {
             console.error('Failed to move mod:', err);
             showMessageBox({
-              title: 'Move Failed',
-              message: 'An unexpected error occurred while moving the mod.',
-              buttons: [{ label: 'OK' }],
+              title: t('mods.move.failedTitle'),
+              message: t('mods.move.unexpectedError'),
+              buttons: [{ label: t('common.ok') }],
             });
           }
         },
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -3068,13 +3157,13 @@ const createModpackCard = (pack) => {
   const isImported = pack.is_imported !== false && String(pack.install_source || '').toLowerCase() !== 'installed';
   if (pack.disabled) {
     stateBadge.className = 'version-badge paused';
-    stateBadge.textContent = 'DISABLED';
+    stateBadge.textContent = t('mods.status.disabled').toUpperCase();
   } else if (isImported) {
     stateBadge.className = 'version-badge imported';
-    stateBadge.textContent = 'IMPORTED';
+    stateBadge.textContent = t('mods.status.imported').toUpperCase();
   } else {
     stateBadge.className = 'version-badge installed';
-    stateBadge.textContent = 'INSTALLED';
+    stateBadge.textContent = t('mods.status.installed').toUpperCase();
   }
   badgeRow.appendChild(stateBadge);
 
@@ -3096,7 +3185,7 @@ const createModpackCard = (pack) => {
       : `Delete modpack ${String(name.textContent || '').trim() || 'this modpack'}`,
   });
   const delImg = document.createElement('img');
-  delImg.alt = 'delete';
+  delImg.alt = t('common.delete');
   delImg.src = 'assets/images/unfilled_delete.png';
   imageAttachErrorPlaceholder(delImg, 'assets/images/placeholder.png');
   delBtn.appendChild(delImg);
@@ -3117,7 +3206,7 @@ const createModpackCard = (pack) => {
   actions.className = 'version-actions';
   const toggleBtn = document.createElement('button');
   toggleBtn.className = pack.disabled ? 'primary' : 'mild';
-  toggleBtn.textContent = pack.disabled ? 'Enable' : 'Disable';
+  toggleBtn.textContent = pack.disabled ? t('mods.actions.enable') : t('mods.actions.disable');
   toggleBtn.onclick = (e) => {
     e.stopPropagation();
     if (state.modsBulkState.enabled) {
@@ -3171,7 +3260,7 @@ const showModpackDetailModal = (pack) => {
   if (pack.description) {
     const descEl = document.createElement('p');
     descEl.textContent = pack.description;
-    descEl.style.color = '#ccc';
+    descEl.style.color = 'var(--color-text-soft-alt)';
     descEl.style.marginBottom = '12px';
     content.appendChild(descEl);
   }
@@ -3255,7 +3344,7 @@ const showModpackDetailModal = (pack) => {
         const parts = [];
         const versionLabel = String(m.version_label || '').trim();
         if (versionLabel) parts.push(versionLabel);
-        parts.push(m.is_imported === false ? 'Included in this modpack' : 'Imported');
+        parts.push(m.is_imported === false ? t('mods.status.includedInModpack') : t('mods.status.imported'));
         return parts.join(' | ');
       };
       metaEl.textContent = buildMetaText();
@@ -3268,7 +3357,7 @@ const showModpackDetailModal = (pack) => {
 
         const stateBadge = document.createElement('span');
         stateBadge.className = m.disabled ? 'version-badge paused' : 'version-badge imported';
-        stateBadge.textContent = m.disabled ? 'DISABLED' : 'IMPORTED';
+        stateBadge.textContent = m.disabled ? t('mods.status.disabled').toUpperCase() : t('mods.status.imported').toUpperCase();
         badgeRow.appendChild(stateBadge);
 
         const loaderBadge = document.createElement('span');
@@ -3291,27 +3380,27 @@ const showModpackDetailModal = (pack) => {
 
         const overwriteLabel = document.createElement('span');
         overwriteLabel.className = 'mod-overwrite-label';
-        overwriteLabel.textContent = 'Overwrite classes:';
+        overwriteLabel.textContent = t('mods.exportModpack.overwriteClassesLabel');
 
         overwriteCheckbox = document.createElement('input');
         overwriteCheckbox.type = 'checkbox';
         overwriteCheckbox.className = 'mod-overwrite-checkbox mod-card-checkbox';
         overwriteCheckbox.checked = !!m.overwrite_classes;
-        overwriteCheckbox.title = 'Toggle whether this mod overwrites the classpath when launching this modpack.';
+        overwriteCheckbox.title = t('mods.exportModpack.overwriteClassesTitle');
 
         sourceRow = document.createElement('div');
         sourceRow.className = 'mod-source-row mod-card-control-row';
 
         const sourceLabel = document.createElement('span');
         sourceLabel.className = 'mod-source-label';
-        sourceLabel.textContent = 'Source folder:';
+        sourceLabel.textContent = t('mods.exportModpack.sourceFolderLabel');
 
         sourceSelect = document.createElement('select');
         sourceSelect.className = 'mod-version-select mod-source-select mod-card-select';
         sourceSelect.disabled = !m.overwrite_classes;
 
         const setSourceOptions = (incomingOptions, preferredValue) => {
-          const options = [{ value: '', label: '/ (default)' }];
+          const options = [{ value: '', label: t('mods.exportModpack.defaultSource') }];
           const seen = new Set(['']);
 
           const list = Array.isArray(incomingOptions) ? incomingOptions : [];
@@ -3358,16 +3447,16 @@ const showModpackDetailModal = (pack) => {
               mod_loader: pack.mod_loader,
               version_label: m.version_label,
             });
-            if (!res || !res.ok) throw new Error((res && res.error) || 'Failed to load source folders');
+            if (!res || !res.ok) throw new Error((res && res.error) || t('mods.exportModpack.failedSourceFolders'));
             setSourceOptions(res.subfolders, m.source_subfolder);
             return true;
           } catch (err) {
             console.warn('Failed to load source folders:', err);
             sourceLoaded = false;
             showMessageBox({
-              title: 'Source Folder Error',
-              message: (err && err.message) ? err.message : 'Failed to load source folders from this archive.',
-              buttons: [{ label: 'OK' }],
+              title: t('mods.exportModpack.sourceFolderError'),
+              message: (err && err.message) ? err.message : t('mods.exportModpack.failedSourceFoldersFromArchive'),
+              buttons: [{ label: t('common.ok') }],
             });
             return false;
           }
@@ -3390,9 +3479,9 @@ const showModpackDetailModal = (pack) => {
             return true;
           }
           showMessageBox({
-            title: 'Error',
-            message: (res && res.error) || 'Failed to update overwrite setting.',
-            buttons: [{ label: 'OK' }],
+            title: t('common.error'),
+            message: (res && res.error) || t('mods.exportModpack.failedUpdateOverwrite'),
+            buttons: [{ label: t('common.ok') }],
           });
           return false;
         };
@@ -3456,7 +3545,7 @@ const showModpackDetailModal = (pack) => {
 
       const toggleModBtn = document.createElement('button');
       toggleModBtn.className = m.disabled ? 'primary' : 'mild';
-      toggleModBtn.textContent = m.disabled ? 'Enable' : 'Disable';
+      toggleModBtn.textContent = m.disabled ? t('mods.actions.enable') : t('mods.actions.disable');
       toggleModBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
         toggleModBtn.disabled = true;
@@ -3469,7 +3558,7 @@ const showModpackDetailModal = (pack) => {
         if (res && res.ok) {
           m.disabled = newDisabled;
           toggleModBtn.className = m.disabled ? 'primary' : 'mild';
-          toggleModBtn.textContent = m.disabled ? 'Enable' : 'Disable';
+          toggleModBtn.textContent = m.disabled ? t('mods.actions.enable') : t('mods.actions.disable');
           card.classList.toggle('mod-card-disabled', m.disabled);
           syncBadgeRow();
         }
@@ -3540,7 +3629,7 @@ const showModpackDetailModal = (pack) => {
 
         const stateBadge = document.createElement('span');
         stateBadge.className = entry.disabled ? 'version-badge paused' : 'version-badge imported';
-        stateBadge.textContent = entry.disabled ? 'DISABLED' : 'BUNDLED';
+        stateBadge.textContent = entry.disabled ? t('mods.status.disabled').toUpperCase() : t('mods.status.bundled').toUpperCase();
         badgeRow.appendChild(stateBadge);
 
         const typeBadge = document.createElement('span');
@@ -3556,7 +3645,7 @@ const showModpackDetailModal = (pack) => {
       if (addonSlug) {
         const toggleAddonBtn = document.createElement('button');
         toggleAddonBtn.className = entry.disabled ? 'primary' : 'mild';
-        toggleAddonBtn.textContent = entry.disabled ? 'Enable' : 'Disable';
+        toggleAddonBtn.textContent = entry.disabled ? t('mods.actions.enable') : t('mods.actions.disable');
         toggleAddonBtn.addEventListener('click', async (event) => {
           event.stopPropagation();
           toggleAddonBtn.disabled = true;
@@ -3571,22 +3660,22 @@ const showModpackDetailModal = (pack) => {
             if (res && res.ok) {
               entry.disabled = newDisabled;
               toggleAddonBtn.className = entry.disabled ? 'primary' : 'mild';
-              toggleAddonBtn.textContent = entry.disabled ? 'Enable' : 'Disable';
+              toggleAddonBtn.textContent = entry.disabled ? t('mods.actions.enable') : t('mods.actions.disable');
               card.classList.toggle('mod-card-disabled', entry.disabled);
               syncBadgeRow();
             } else {
               showMessageBox({
-                title: 'Error',
-                message: (res && res.error) || `Failed to toggle ${config.singular}.`,
-                buttons: [{ label: 'OK' }],
+                title: t('common.error'),
+                message: (res && res.error) || t('mods.actions.toggleFailed', { addon: getAddonConfigText('singular') }),
+                buttons: [{ label: t('common.ok') }],
               });
             }
           } catch (err) {
             console.error(`Failed to toggle modpack ${addonType} entry:`, err);
             showMessageBox({
-              title: 'Error',
-              message: `Failed to toggle ${config.singular}.`,
-              buttons: [{ label: 'OK' }],
+              title: t('common.error'),
+              message: t('mods.actions.toggleFailed', { addon: getAddonConfigText('singular') }),
+              buttons: [{ label: t('common.ok') }],
             });
           }
           toggleAddonBtn.disabled = false;
@@ -3660,9 +3749,9 @@ const toggleModpackDisabled = async (pack) => {
       loadInstalledMods();
     } else {
       showMessageBox({
-        title: 'Error',
-        message: res.error || 'Failed to toggle modpack.',
-        buttons: [{ label: 'OK' }],
+        title: t('common.error'),
+        message: res.error || t('mods.actions.toggleFailed', { addon: getAddonConfigText('singular') }),
+        buttons: [{ label: t('common.ok') }],
       });
     }
   } catch (err) {
@@ -3680,9 +3769,9 @@ const deleteModpack = (pack, options = {}) => {
         loadInstalledMods();
       } else {
         showMessageBox({
-          title: 'Error',
+          title: t('common.error'),
           message: res.error || 'Failed to delete modpack.',
-          buttons: [{ label: 'OK' }],
+          buttons: [{ label: t('common.ok') }],
         });
       }
     } catch (err) {
@@ -3696,15 +3785,15 @@ const deleteModpack = (pack, options = {}) => {
   }
 
   showMessageBox({
-    title: 'Delete Modpack',
-    message: `Are you sure you want to delete modpack <b>${pack.name || pack.slug}</b>?<br><i>This cannot be undone!</i>`,
+    title: t('mods.delete.title', { addon: t('mods.addonTypes.modpacks.singularTitle') }),
+    message: t('mods.delete.confirm', { addon: pack.name || pack.slug }),
     buttons: [
       {
-        label: 'Delete',
+        label: t('common.delete'),
         classList: ['danger'],
         onClick: runDelete,
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -3839,7 +3928,7 @@ const showExportModpackWizard = () => {
   const content = document.createElement('div');
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
-  label.textContent = 'Select the modpack format to export:';
+  label.textContent = t('mods.exportModpack.selectFormat');
 
   const formatSelect = document.createElement('select');
   formatSelect.className = 'mod-version-select';
@@ -3855,15 +3944,15 @@ const showExportModpackWizard = () => {
   content.appendChild(formatSelect);
 
   showMessageBox({
-    title: 'Export Modpack',
+    title: t('mods.exportModpack.title'),
     customContent: content,
     buttons: [
       {
-        label: 'Next',
+        label: t('common.next'),
         classList: ['primary'],
         onClick: () => showExportLoaderStep(formatSelect.value),
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -3872,7 +3961,7 @@ const showExportLoaderStep = (exportFormat = 'histolauncher') => {
   const step1Content = document.createElement('div');
   const step1Label = document.createElement('p');
   step1Label.style.marginBottom = '8px';
-  step1Label.textContent = 'Select the mod loader for this modpack:';
+  step1Label.textContent = t('mods.exportModpack.selectLoader');
 
   const loaderSelect = document.createElement('select');
   loaderSelect.className = 'mod-version-select';
@@ -3889,19 +3978,19 @@ const showExportLoaderStep = (exportFormat = 'histolauncher') => {
   step1Content.appendChild(loaderSelect);
 
   showMessageBox({
-    title: 'Export Modpack',
+    title: t('mods.exportModpack.title'),
     customContent: step1Content,
     buttons: [
       {
-        label: 'Back',
+        label: t('common.back'),
         onClick: () => showExportModpackWizard(),
       },
       {
-        label: 'Next',
+        label: t('common.next'),
         classList: ['primary'],
         onClick: () => showExportStep2(exportFormat, loaderSelect.value),
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -3924,9 +4013,9 @@ const showExportStep2 = async (exportFormat, modLoader) => {
 
   if (modsForLoader.length === 0) {
     showMessageBox({
-      title: 'Export Modpack',
-      message: `No ${modLoader} mods installed. Install some mods first.`,
-      buttons: [{ label: 'OK' }],
+      title: t('mods.exportModpack.title'),
+      message: t('mods.exportModpack.noLoaderMods', { loader: modLoader }),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
@@ -3934,20 +4023,20 @@ const showExportStep2 = async (exportFormat, modLoader) => {
   const step2Content = document.createElement('div');
   const step2Label = document.createElement('p');
   step2Label.style.marginBottom = '8px';
-  step2Label.textContent = `Select mods to include (${modsForLoader.length} ${modLoader} mods available):`;
+  step2Label.textContent = t('mods.exportModpack.selectMods', { count: modsForLoader.length, loader: modLoader });
   step2Content.appendChild(step2Label);
 
   const selectAll = document.createElement('label');
-  selectAll.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;cursor:pointer;font-size:12px;color:#9ca3af;';
+  selectAll.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;cursor:pointer;font-size:12px;color:var(--color-text-muted);';
   const selectAllCb = document.createElement('input');
   selectAllCb.type = 'checkbox';
   selectAll.appendChild(selectAllCb);
-  selectAll.appendChild(document.createTextNode('Select All'));
+  selectAll.appendChild(document.createTextNode(t('common.selectAll')));
   step2Content.appendChild(selectAll);
 
   const disableHint = document.createElement('p');
-  disableHint.style.cssText = 'font-size:11px;color:#9ca3af;margin:0 0 8px 0;';
-  disableHint.textContent = 'Optional: mark mods as disabled in the modpack so they are included but not active by default.';
+  disableHint.style.cssText = 'font-size:11px;color:var(--color-text-muted);margin:0 0 8px 0;';
+  disableHint.textContent = t('mods.exportModpack.disabledHint');
   step2Content.appendChild(disableHint);
 
   const allowAllModloaderOverwrite = _deps.isTruthySetting(state.settingsState.allow_override_classpath_all_modloaders);
@@ -3955,8 +4044,8 @@ const showExportStep2 = async (exportFormat, modLoader) => {
 
   if (canShowOverwriteControls) {
     const overwriteHint = document.createElement('p');
-    overwriteHint.style.cssText = 'font-size:11px;color:#9ca3af;margin:0 0 8px 0;';
-    overwriteHint.textContent = 'Optional: mark mods so the launcher overwrites the classpath with their classes when launching this modpack. Useful for legacy modpacks that need their classes prepended ahead of the vanilla jar.';
+    overwriteHint.style.cssText = 'font-size:11px;color:var(--color-text-muted);margin:0 0 8px 0;';
+    overwriteHint.textContent = t('mods.exportModpack.overwriteHint');
     step2Content.appendChild(overwriteHint);
   }
 
@@ -3974,12 +4063,12 @@ const showExportStep2 = async (exportFormat, modLoader) => {
     cb.checked = false;
 
     const disabledWrap = document.createElement('label');
-    disabledWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:#9ca3af;white-space:nowrap;';
+    disabledWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-muted);white-space:nowrap;';
     const disabledCb = document.createElement('input');
     disabledCb.type = 'checkbox';
     disabledCb.checked = false;
     const disabledTxt = document.createElement('span');
-    disabledTxt.textContent = 'Disabled';
+    disabledTxt.textContent = t('mods.exportModpack.disabled');
     disabledWrap.appendChild(disabledCb);
     disabledWrap.appendChild(disabledTxt);
 
@@ -3994,25 +4083,25 @@ const showExportStep2 = async (exportFormat, modLoader) => {
 
     if (canShowOverwriteControls) {
       overwriteWrap = document.createElement('label');
-      overwriteWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:#9ca3af;white-space:nowrap;';
+      overwriteWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-muted);white-space:nowrap;';
       overwriteCb = document.createElement('input');
       overwriteCb.type = 'checkbox';
       overwriteCb.checked = !!(sourceMeta && sourceMeta.overwrite_classes);
       const overwriteTxt = document.createElement('span');
-      overwriteTxt.textContent = 'Overwrite Classpath';
+      overwriteTxt.textContent = t('mods.exportModpack.overwriteClasspath');
       overwriteWrap.appendChild(overwriteCb);
       overwriteWrap.appendChild(overwriteTxt);
 
       sourceWrap = document.createElement('label');
-      sourceWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:#9ca3af;white-space:nowrap;';
+      sourceWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-muted);white-space:nowrap;';
       const sourceTxt = document.createElement('span');
-      sourceTxt.textContent = 'Source:';
+      sourceTxt.textContent = t('mods.exportModpack.sourceLabel');
       sourceSelect = document.createElement('select');
       sourceSelect.className = 'mod-version-select';
       sourceSelect.style.cssText = 'max-width:160px;font-size:11px;';
       const placeholder = document.createElement('option');
       placeholder.value = String((sourceMeta && sourceMeta.source_subfolder) || '');
-      placeholder.textContent = placeholder.value || '/ (default)';
+      placeholder.textContent = placeholder.value || t('mods.exportModpack.defaultSource');
       sourceSelect.appendChild(placeholder);
       sourceSelect.disabled = !overwriteCb.checked;
       sourceWrap.style.display = overwriteCb.checked ? '' : 'none';
@@ -4031,13 +4120,13 @@ const showExportStep2 = async (exportFormat, modLoader) => {
             mod_loader: mod.mod_loader,
             version_label: versionLabel,
           });
-          if (!res || !res.ok) throw new Error((res && res.error) || 'Failed to load source folders');
+          if (!res || !res.ok) throw new Error((res && res.error) || t('mods.exportModpack.failedSourceFolders'));
           const subfolders = Array.isArray(res.subfolders) ? res.subfolders : [];
           const seen = new Set();
           sourceSelect.innerHTML = '';
           const optDefault = document.createElement('option');
           optDefault.value = '';
-          optDefault.textContent = '/ (default)';
+          optDefault.textContent = t('mods.exportModpack.defaultSource');
           sourceSelect.appendChild(optDefault);
           seen.add('');
           subfolders.forEach((entry) => {
@@ -4069,7 +4158,7 @@ const showExportStep2 = async (exportFormat, modLoader) => {
     }
 
     const label = document.createElement('span');
-    label.style.cssText = 'flex:1;font-size:13px;color:#e5e7eb;';
+    label.style.cssText = 'flex:1;font-size:13px;color:var(--color-text-primary);';
     label.textContent = mod.mod_name || mod.mod_slug;
 
     const versionSel = document.createElement('select');
@@ -4094,7 +4183,7 @@ const showExportStep2 = async (exportFormat, modLoader) => {
           sourceSelect.innerHTML = '';
           const placeholder = document.createElement('option');
           placeholder.value = String((selectedVersion && selectedVersion.source_subfolder) || '');
-          placeholder.textContent = placeholder.value || '/ (default)';
+          placeholder.textContent = placeholder.value || t('mods.exportModpack.defaultSource');
           sourceSelect.appendChild(placeholder);
         }
       }
@@ -4132,15 +4221,15 @@ const showExportStep2 = async (exportFormat, modLoader) => {
   step2Content.appendChild(modListEl);
 
   showMessageBox({
-    title: 'Export Modpack',
+    title: t('mods.exportModpack.title'),
     customContent: step2Content,
     buttons: [
       {
-        label: 'Back',
+        label: t('common.back'),
         onClick: () => showExportLoaderStep(exportFormat),
       },
       {
-        label: 'Next',
+        label: t('common.next'),
         classList: ['primary'],
         onClick: () => {
           const selected = modEntries
@@ -4161,16 +4250,16 @@ const showExportStep2 = async (exportFormat, modLoader) => {
             });
           if (selected.length === 0) {
             showMessageBox({
-              title: 'Export Modpack',
-              message: 'Select at least one mod.',
-              buttons: [{ label: 'OK', onClick: () => showExportStep2(exportFormat, modLoader) }],
+              title: t('mods.exportModpack.title'),
+              message: t('mods.exportModpack.selectAtLeastOneMod'),
+              buttons: [{ label: t('common.ok'), onClick: () => showExportStep2(exportFormat, modLoader) }],
             });
             return;
           }
           showExportResourcePacksStep(exportFormat, modLoader, selected);
         },
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -4200,18 +4289,18 @@ const showExportAddonSelectionStep = async (
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
   label.textContent = installedAddons.length > 0
-    ? `Select optional ${config.plural} to bundle (${installedAddons.length} available):`
-    : `No ${config.plural} are installed. You can continue without bundling any.`;
+    ? t('mods.exportModpack.selectOptionalAddons', { plural: getAddonConfigText('plural', addonType), count: installedAddons.length })
+    : t('mods.exportModpack.noOptionalAddons', { plural: getAddonConfigText('plural', addonType) });
   stepContent.appendChild(label);
 
   const addonEntries = [];
   if (installedAddons.length > 0) {
     const selectAll = document.createElement('label');
-    selectAll.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;cursor:pointer;font-size:12px;color:#9ca3af;';
+    selectAll.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;cursor:pointer;font-size:12px;color:var(--color-text-muted);';
     const selectAllCb = document.createElement('input');
     selectAllCb.type = 'checkbox';
     selectAll.appendChild(selectAllCb);
-    selectAll.appendChild(document.createTextNode('Select All'));
+    selectAll.appendChild(document.createTextNode(t('common.selectAll')));
     stepContent.appendChild(selectAll);
 
     const addonListEl = document.createElement('div');
@@ -4226,7 +4315,7 @@ const showExportAddonSelectionStep = async (
       cb.checked = false;
 
       const labelEl = document.createElement('span');
-      labelEl.style.cssText = 'flex:1;font-size:13px;color:#e5e7eb;';
+      labelEl.style.cssText = 'flex:1;font-size:13px;color:var(--color-text-primary);';
       labelEl.textContent = addon.mod_name || addon.mod_slug || addon.name || 'Unknown';
 
       const versionSel = document.createElement('select');
@@ -4276,21 +4365,21 @@ const showExportAddonSelectionStep = async (
   };
 
   showMessageBox({
-    title: 'Export Modpack',
+    title: t('mods.exportModpack.title'),
     customContent: stepContent,
     buttons: [
       {
-        label: 'Back',
+        label: t('common.back'),
         onClick: () => (isResourceStep
           ? showExportStep2(exportFormat, modLoader)
           : showExportResourcePacksStep(exportFormat, modLoader, selectedMods)),
       },
       {
-        label: 'Next',
+        label: t('common.next'),
         classList: ['primary'],
         onClick: continueWithSelection,
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -4310,12 +4399,12 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
     const wrap = document.createElement('div');
     wrap.style.marginBottom = '10px';
     const lbl = document.createElement('label');
-    lbl.style.cssText = 'display:block;font-size:12px;color:#9ca3af;margin-bottom:4px;';
+    lbl.style.cssText = 'display:block;font-size:12px;color:var(--color-text-muted);margin-bottom:4px;';
     lbl.textContent = labelText;
     wrap.appendChild(lbl);
     if (inputType === 'textarea') {
       const ta = document.createElement('textarea');
-      ta.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;background:#3c3f41;border:1px solid #1f2937;color:#e5e7eb;resize:vertical;min-height:60px;';
+      ta.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;background:var(--color-surface-input);border:1px solid var(--color-border-input);color:var(--color-text-primary);resize:vertical;min-height:60px;';
       ta.maxLength = maxLen;
       ta.placeholder = placeholder || '';
       wrap.appendChild(ta);
@@ -4323,17 +4412,17 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
     }
     const inp = document.createElement('input');
     inp.type = 'text';
-    inp.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;background:#3c3f41;border:1px solid #1f2937;color:#e5e7eb;';
+    inp.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;background:var(--color-surface-input);border:1px solid var(--color-border-input);color:var(--color-text-primary);';
     inp.maxLength = maxLen;
     inp.placeholder = placeholder || '';
     wrap.appendChild(inp);
     return { wrap, input: inp };
   };
 
-  const nameField = makeField('Modpack Name (required, 1-64 chars)', 'text', 64, 'My Modpack');
-  const versionField = makeField('Version (required, 1-16 chars)', 'text', 16, '1.0.0');
-  const authorField = makeField('Author (optional, 64 chars max)', 'text', 64, 'Your name');
-  const descField = makeField('Description (optional)', 'textarea', 8192, 'A modpack description...');
+  const nameField = makeField(t('mods.exportModpack.fields.name'), 'text', 64, t('mods.exportModpack.placeholders.name'));
+  const versionField = makeField(t('mods.exportModpack.fields.version'), 'text', 16, '1.0.0');
+  const authorField = makeField(t('mods.exportModpack.fields.author'), 'text', 64, t('mods.exportModpack.placeholders.author'));
+  const descField = makeField(t('mods.exportModpack.fields.description'), 'textarea', 8192, t('mods.exportModpack.placeholders.description'));
 
   step3Content.appendChild(nameField.wrap);
   step3Content.appendChild(versionField.wrap);
@@ -4344,15 +4433,15 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
   const imgWrap = document.createElement('div');
   imgWrap.style.marginBottom = '10px';
   const imgLabel = document.createElement('label');
-  imgLabel.style.cssText = 'display:block;font-size:12px;color:#ccc;margin-bottom:4px;align:center;';
-  imgLabel.textContent = 'Modpack Icon (optional, square PNG recommended)';
+  imgLabel.style.cssText = 'display:block;font-size:12px;color:var(--color-text-soft-alt);margin-bottom:4px;align:center;';
+  imgLabel.textContent = t('mods.exportModpack.fields.icon');
   imgWrap.appendChild(imgLabel);
 
   const imgRow = document.createElement('div');
   imgRow.style.cssText = 'display:flex;align-items:center;gap:10px;';
 
   const imgPreview = document.createElement('img');
-  imgPreview.style.cssText = 'width:64px;height:64px;object-fit:cover;border:2px solid #111;display:none;';
+  imgPreview.style.cssText = 'width:64px;height:64px;object-fit:cover;border:2px solid var(--color-border-quiet);display:none;';
 
   const imgInput = document.createElement('input');
   imgInput.type = 'file';
@@ -4361,22 +4450,22 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
 
   const imgPickBtn = document.createElement('button');
   imgPickBtn.type = 'button';
-  imgPickBtn.textContent = 'Choose file';
+  imgPickBtn.textContent = t('common.chooseFile');
 
   const imgPickLabel = document.createElement('span');
   imgPickLabel.style.cssText =
-    'font-size:12px;color:#9ca3af;overflow-wrap:anywhere;font-style:italic;';
-  imgPickLabel.textContent = 'No file chosen';
+    'font-size:12px;color:var(--color-text-muted);overflow-wrap:anywhere;font-style:italic;';
+  imgPickLabel.textContent = t('common.noFileChosen');
 
   const renderImgPickLabel = () => {
     const file = imgInput.files && imgInput.files[0];
     if (file && file.name) {
       imgPickLabel.textContent = file.name;
-      imgPickLabel.style.color = '#cbd5e1';
+      imgPickLabel.style.color = 'var(--color-text-secondary-strong)';
       imgPickLabel.style.fontStyle = 'normal';
     } else {
-      imgPickLabel.textContent = 'No file chosen';
-      imgPickLabel.style.color = '#9ca3af';
+      imgPickLabel.textContent = t('common.noFileChosen');
+      imgPickLabel.style.color = 'var(--color-text-muted)';
       imgPickLabel.style.fontStyle = 'italic';
     }
   };
@@ -4404,21 +4493,28 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
   step3Content.appendChild(imgWrap);
 
   const summary = document.createElement('p');
-  summary.style.cssText = 'font-size:12px;color:#9ca3af;margin-top:8px;';
+  summary.style.cssText = 'font-size:12px;color:var(--color-text-muted);margin-top:8px;';
   const formatInfo = getModpackExportFormat(exportFormat);
-  summary.textContent = `${formatInfo.label} ${formatInfo.extension} | ${selectedMods.length} mod${selectedMods.length !== 1 ? 's' : ''} | ${selectedResourcepacks.length} resource pack${selectedResourcepacks.length !== 1 ? 's' : ''} | ${selectedShaderpacks.length} shader pack${selectedShaderpacks.length !== 1 ? 's' : ''} | ${modLoader}`;
+  summary.textContent = t('mods.exportModpack.summary', {
+    format: formatInfo.label,
+    extension: formatInfo.extension,
+    mods: selectedMods.length,
+    resourcepacks: selectedResourcepacks.length,
+    shaderpacks: selectedShaderpacks.length,
+    loader: modLoader,
+  });
   step3Content.appendChild(summary);
 
   showMessageBox({
-    title: 'Export Modpack',
+    title: t('mods.exportModpack.title'),
     customContent: step3Content,
     buttons: [
       {
-        label: 'Back',
+        label: t('common.back'),
         onClick: () => showExportShaderPacksStep(exportFormat, modLoader, selectedMods, selectedResourcepacks),
       },
       {
-        label: 'Export',
+        label: t('common.export'),
         classList: ['primary'],
         onClick: async () => {
           const packName = nameField.input.value.trim();
@@ -4427,23 +4523,23 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
           const packDesc = descField.input.value.trim();
 
           if (!packName || packName.length > 64) {
-            showMessageBox({ title: 'Error', message: 'Name must be 1-64 characters.', buttons: [{ label: 'OK', onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
+            showMessageBox({ title: t('common.error'), message: t('mods.exportModpack.validation.nameLength'), buttons: [{ label: t('common.ok'), onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
             return;
           }
           if (/[<>:"/\\|?*]/.test(packName)) {
-            showMessageBox({ title: 'Error', message: 'Name contains forbidden characters.', buttons: [{ label: 'OK', onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
+            showMessageBox({ title: t('common.error'), message: t('mods.exportModpack.validation.nameForbidden'), buttons: [{ label: t('common.ok'), onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
             return;
           }
           if (!packVersion || packVersion.length > 16) {
-            showMessageBox({ title: 'Error', message: 'Version must be 1-16 characters.', buttons: [{ label: 'OK', onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
+            showMessageBox({ title: t('common.error'), message: t('mods.exportModpack.validation.versionLength'), buttons: [{ label: t('common.ok'), onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
             return;
           }
           if (packAuthor.length > 64) {
-            showMessageBox({ title: 'Error', message: 'Author must be 64 characters or fewer.', buttons: [{ label: 'OK', onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
+            showMessageBox({ title: t('common.error'), message: t('mods.exportModpack.validation.authorLength'), buttons: [{ label: t('common.ok'), onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
             return;
           }
           if (/[<>:"/\\|?*]/.test(packAuthor)) {
-            showMessageBox({ title: 'Error', message: 'Author contains forbidden characters.', buttons: [{ label: 'OK', onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
+            showMessageBox({ title: t('common.error'), message: t('mods.exportModpack.validation.authorForbidden'), buttons: [{ label: t('common.ok'), onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
             return;
           }
 
@@ -4451,17 +4547,17 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
             const operationId = createOperationId('modpack_export');
             let cancelRequested = false;
 
-            showLoadingOverlay('Exporting modpack...', {
+            showLoadingOverlay(t('mods.exportModpack.exporting'), {
               buttons: [
                 {
-                  label: 'Cancel',
+                  label: t('common.cancel'),
                   classList: ['danger'],
                   closeOnClick: false,
                   onClick: async (_values, controls) => {
                     if (cancelRequested) return;
                     cancelRequested = true;
                     controls.update({
-                      message: 'Cancelling modpack export... If a save dialog opened, close it to finish cancelling.',
+                      message: t('mods.exportModpack.cancelling'),
                       buttons: [],
                     });
                     await requestOperationCancel(operationId);
@@ -4491,11 +4587,11 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
                 const fileSize = Number(res.size_bytes || 0);
                 const fileSizeMb = fileSize > 0 ? (fileSize / (1024 * 1024)).toFixed(2) : null;
                 showMessageBox({
-                  title: 'Export Successful',
+                  title: t('mods.exportModpack.successTitle'),
                   message: fileSizeMb
-                    ? `Modpack <b>${packName}</b> exported successfully.<br><br>Saved to:<br><b>${res.filepath}</b><br><br>File size: <b>${fileSizeMb} MB</b>`
-                    : `Modpack <b>${packName}</b> exported successfully.<br><br>Saved to:<br><b>${res.filepath}</b>`,
-                  buttons: [{ label: 'OK' }],
+                    ? t('mods.exportModpack.successSavedSize', { name: packName, filepath: res.filepath, size: fileSizeMb })
+                    : t('mods.exportModpack.successSaved', { name: packName, filepath: res.filepath }),
+                  buttons: [{ label: t('common.ok') }],
                 });
                 return;
               }
@@ -4523,9 +4619,9 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
                     if (saveErr && saveErr.name === 'AbortError') {
                       hideLoadingOverlay();
                       showMessageBox({
-                        title: 'Export Cancelled',
-                        message: 'You cancelled the export.',
-                        buttons: [{ label: 'OK' }],
+                        title: t('mods.exportModpack.cancelledTitle'),
+                        message: t('mods.exportModpack.cancelledMessage'),
+                        buttons: [{ label: t('common.ok') }],
                       });
                       return;
                     }
@@ -4547,9 +4643,9 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
                   } catch (downloadErr) {
                     hideLoadingOverlay();
                     showMessageBox({
-                      title: 'Export Error',
-                      message: `Failed to save exported file.<br><br>${(downloadErr && downloadErr.message) || 'Unknown save error'}`,
-                      buttons: [{ label: 'OK' }],
+                      title: t('mods.exportModpack.errorTitle'),
+                      message: t('mods.exportModpack.failedSave', { error: (downloadErr && downloadErr.message) || t('common.unknownError') }),
+                      buttons: [{ label: t('common.ok') }],
                     });
                     return;
                   }
@@ -4557,9 +4653,9 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
 
                 hideLoadingOverlay();
                 showMessageBox({
-                  title: 'Export Successful',
-                  message: `Modpack <b>${packName}</b> exported successfully.<br><br>Saved as:<br><b>${savedLabel}</b>`,
-                  buttons: [{ label: 'OK' }],
+                  title: t('mods.exportModpack.successTitle'),
+                  message: t('mods.exportModpack.successSavedAs', { name: packName, filepath: savedLabel }),
+                  buttons: [{ label: t('common.ok') }],
                 });
                 return;
               }
@@ -4568,29 +4664,29 @@ const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResource
             hideLoadingOverlay();
             if (res && (res.cancelled || String(res.error || '').toLowerCase().includes('cancelled'))) {
               showMessageBox({
-                title: 'Export Cancelled',
-                message: 'You cancelled the export.',
-                buttons: [{ label: 'OK' }],
+                title: t('mods.exportModpack.cancelledTitle'),
+                message: t('mods.exportModpack.cancelledMessage'),
+                buttons: [{ label: t('common.ok') }],
               });
             } else {
               showMessageBox({
-                title: 'Export Error',
-                message: (res && res.error) || 'Failed to export modpack.',
-                buttons: [{ label: 'OK' }],
+                title: t('mods.exportModpack.errorTitle'),
+                message: (res && res.error) || t('mods.exportModpack.failed'),
+                buttons: [{ label: t('common.ok') }],
               });
             }
           } catch (err) {
             hideLoadingOverlay();
             console.error('Failed to export modpack:', err);
             showMessageBox({
-              title: 'Export Error',
-              message: `Export failed:<br><br>${(err && err.message) || 'Network or server error while exporting modpack.'}`,
-              buttons: [{ label: 'OK' }],
+              title: t('mods.exportModpack.errorTitle'),
+              message: t('mods.exportModpack.failedWithError', { error: (err && err.message) || t('mods.exportModpack.networkError') }),
+              buttons: [{ label: t('common.ok') }],
             });
           }
         },
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };

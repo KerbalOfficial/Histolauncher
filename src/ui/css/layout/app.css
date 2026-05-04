@@ -1,15 +1,26 @@
 /* MAIN APP */
 #app {
-  padding: 16px;
-  margin-left: 200px;
+  padding: calc(var(--topbar-height, 56px) + var(--topbar-content-gap, 4px)) var(--density-page-padding, 16px) var(--density-page-padding, 16px);
+  margin-left: var(--sidebar-width, 200px);
+  margin-right: 0;
+}
+
+:root[dir="rtl"] #app {
+  margin-left: 0;
+  margin-right: var(--sidebar-width, 200px);
 }
 
 .topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
   display: flex;
   align-items: center;
   gap: 16px;
-  margin: -16px -16px 12px -16px;
-  min-height: 60px;
+  margin: 0;
+  min-height: var(--topbar-height, 56px);
   background: var(--color-surface-panel);
   border-bottom: 4px solid var(--color-border-strong);
   padding: 8px 16px;
@@ -17,6 +28,7 @@
 
 #refresh-btn {
   margin-left: auto;
+  margin-right: 0;
   width: 24px;
   height: 24px;
   min-width: 24px;
@@ -27,6 +39,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+:root[dir="rtl"] #refresh-btn {
+  margin-left: 0;
+  margin-right: auto;
 }
 
 #refresh-btn img,

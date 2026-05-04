@@ -2,8 +2,8 @@ Thank you for installing Histolauncher! (Beta build)
 
 —————————————————————————————————————————————————————————————————————————————
 
-[NOTE]: This version (b1.4) is best tested on Windows. There is partial Linux
-        support: the launcher can run on Linux, but not guaranteed.
+[NOTE]: This version (b1.4.1) is best tested on Windows. There is partial
+        Linux support: the launcher can run on Linux, but not guaranteed.
 
         For Linux, it was tested on CachyOS (Arch-based Linux) KDE Plasma.
 

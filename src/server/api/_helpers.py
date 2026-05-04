@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from typing import Any, Dict
 
 from core import modloaders as core_modloaders
@@ -183,6 +184,78 @@ def _sanitize_settings_payload(data: Dict[str, Any]) -> Dict[str, Any]:
     sanitized = dict(data or {})
     sanitized.pop("custom_storage_directory_valid", None)
     sanitized.pop("custom_storage_directory_error", None)
+
+    valid_themes = {
+        "dark",
+        "light",
+        "dark-contrast",
+        "light-contrast",
+        "chocolate-dark",
+        "chocolate-light",
+        "strawberry-dark",
+        "strawberry-light",
+        "blueberry-dark",
+        "blueberry-light",
+        "leaf-dark",
+        "leaf-light",
+        "aero-dark",
+        "aero-light",
+    }
+    boolean_keys = {
+        "game_fullscreen",
+        "game_demo_mode",
+        "compact_sidebar",
+        "discord_rpc_enabled",
+        "desktop_notifications_enabled",
+    }
+
+    def is_truthy(value: Any) -> bool:
+        return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+    def positive_int_string(value: Any, default: str) -> str:
+        raw = str(value or "").strip()
+        if raw.isdigit():
+            number = max(1, min(int(raw), 99999))
+            return str(number)
+        return default
+
+    if "launcher_theme" in sanitized:
+        theme = str(sanitized.get("launcher_theme") or "dark").strip().lower()
+        sanitized["launcher_theme"] = theme if theme in valid_themes else "dark"
+
+    if "launcher_ui_size" in sanitized:
+        ui_size = str(sanitized.get("launcher_ui_size") or "normal").strip().lower()
+        sanitized["launcher_ui_size"] = ui_size if ui_size in {"small", "normal", "large", "extra-large"} else "normal"
+
+    if "launcher_language" in sanitized:
+        language = str(sanitized.get("launcher_language") or "en").strip().lower()
+        if language == "system":
+            sanitized["launcher_language"] = "system"
+        elif re.fullmatch(r"[a-z]{2,3}(?:-[a-z0-9]{2,8})?", language):
+            sanitized["launcher_language"] = language
+        else:
+            sanitized["launcher_language"] = "en"
+
+    if "layout_density" in sanitized:
+        density = str(sanitized.get("layout_density") or "comfortable").strip().lower()
+        sanitized["layout_density"] = "compact" if density == "compact" else "comfortable"
+
+    if "player_preview_mode" in sanitized:
+        mode = str(sanitized.get("player_preview_mode") or "2d").strip().lower()
+        sanitized["player_preview_mode"] = "3d" if mode == "3d" else "2d"
+
+    for key in boolean_keys:
+        if key in sanitized:
+            sanitized[key] = "1" if is_truthy(sanitized.get(key)) else "0"
+
+    if "game_resolution_width" in sanitized:
+        sanitized["game_resolution_width"] = positive_int_string(
+            sanitized.get("game_resolution_width"), "854"
+        )
+    if "game_resolution_height" in sanitized:
+        sanitized["game_resolution_height"] = positive_int_string(
+            sanitized.get("game_resolution_height"), "480"
+        )
 
     if "storage_directory" in sanitized:
         sanitized["storage_directory"] = normalize_storage_directory_mode(

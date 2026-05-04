@@ -36,9 +36,9 @@
 }
 
 .version-card.selected {
-  background: var(--color-border-strong);
-  border-color: var(--color-text-inverse);
-  color: var(--color-text-inverse);
+  background: var(--color-surface-card-strong);
+  border-color: var(--color-text-title);
+  color: var(--color-text-title);
 }
 
 .version-card.unselectable {
@@ -73,7 +73,7 @@
 .version-card.favorite.selected {
   background: var(--color-favorite-hover-bg);
   border-color: var(--color-favorite-border-selected);
-  color: var(--color-text-inverse);
+  color: var(--color-text-title);
 }
 
 .version-card.recent {
@@ -93,7 +93,6 @@
   padding: 8px 10px;
 }
 
-/* header row inside version-info */
 .version-header-row {
   display: flex;
   align-items: center;
@@ -201,8 +200,9 @@ button.profile-delete-btn:disabled img {
 .version-progress {
   position: relative;
   width: 100%;
-  height: 6px;
+  height: 10px;
   background: var(--color-border-default);
+  border-top: 1px solid var(--color-border-muted);
   overflow: hidden;
 }
 

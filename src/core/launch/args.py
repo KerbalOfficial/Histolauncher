@@ -148,23 +148,27 @@ def username_to_uuid(username: str) -> str:
 
 def _expand_placeholders(args_str, version_identifier, game_dir, version_dir,
                          global_settings, meta, assets_root_override=None):
-    from server.yggdrasil import _get_username_and_uuid  # lazy
+    from core.launch.auth import get_launch_auth_info
 
-    username, auth_uuid_raw = _get_username_and_uuid()
+    auth_info = get_launch_auth_info()
+    username = auth_info["username"]
     base_dir = get_base_dir()
     assets_root = assets_root_override or os.path.join(base_dir, "assets")
     asset_index_name = meta.get("asset_index") or ""
     version_type = meta.get("version_type") or ""
-    auth_uuid = (
-        f"{auth_uuid_raw[0:8]}-{auth_uuid_raw[8:12]}-{auth_uuid_raw[12:16]}-"
-        f"{auth_uuid_raw[16:20]}-{auth_uuid_raw[20:]}"
-    )
-    auth_access_token = "0"
-    user_type = "legacy"
-    user_properties = "{}"
+    auth_uuid = auth_info["uuid"]
+    auth_access_token = auth_info["access_token"]
+    user_type = auth_info["user_type"]
+    user_properties = auth_info["user_properties"]
     game_dir = game_dir or ""
 
     mc_version = version_identifier.split("/")[-1] if "/" in version_identifier else version_identifier
+
+    def resolution_value(key: str, meta_key: str, default: str) -> str:
+        raw = str((meta or {}).get(meta_key) or (global_settings or {}).get(key) or default).strip()
+        if raw.isdigit() and int(raw) > 0:
+            return str(min(int(raw), 99999))
+        return default
 
     replacements = {
         "${auth_player_name}": username,
@@ -172,6 +176,10 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir,
         "${auth_access_token}": auth_access_token,
         "${user_type}": user_type,
         "${user_properties}": user_properties,
+        "${auth_xuid}": auth_info.get("xuid", ""),
+        "${xuid}": auth_info.get("xuid", ""),
+        "${clientid}": auth_info.get("client_id", ""),
+        "${client_id}": auth_info.get("client_id", ""),
         "${version_name}": mc_version,
         "${game_directory}": game_dir,
         "${gameDir}": game_dir,
@@ -179,10 +187,14 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir,
         "${game_assets}": assets_root,
         "${assets_index_name}": asset_index_name,
         "${version_type}": version_type,
-        "${resolution_width}": "854",
-        "${resolution_height}": "480",
-        "${auth_session}": "0",
-        "${auth_player_type}": "legacy",
+        "${resolution_width}": resolution_value(
+            "game_resolution_width", "launch_resolution_width", "854"
+        ),
+        "${resolution_height}": resolution_value(
+            "game_resolution_height", "launch_resolution_height", "480"
+        ),
+        "${auth_session}": auth_access_token,
+        "${auth_player_type}": user_type,
     }
 
     if not asset_index_name:
@@ -194,12 +206,16 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir,
     args_before_expand = args_str.split()
     filtered_before_expand: list[str] = []
     skip_next = False
+    strip_client_identity_args = not (auth_info.get("xuid") and auth_info.get("client_id"))
 
     for i, arg in enumerate(args_before_expand):
         if skip_next:
             skip_next = False
             continue
-        if arg in ("--clientId", "--xuid") or arg.startswith("--quickPlay"):
+        if (
+            strip_client_identity_args
+            and (arg in ("--clientId", "--xuid") or arg.startswith("--clientId=") or arg.startswith("--xuid="))
+        ) or arg.startswith("--quickPlay"):
             if "=" not in arg and i + 1 < len(args_before_expand) and not args_before_expand[i + 1].startswith("--"):
                 skip_next = True
             continue
@@ -230,7 +246,7 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir,
             if "=" not in arg:
                 skip_next = True
             continue
-        if arg.startswith("--demo") or arg.startswith("--width") or arg.startswith("--height"):
+        if arg.startswith("--demo"):
             continue
         filtered.append(arg)
 

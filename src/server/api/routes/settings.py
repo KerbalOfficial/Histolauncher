@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import os
+import re
 
 from core.logger import colorize_log
 from core.settings import (
     clear_account_token,
+    get_active_profile_id,
+    list_profiles,
     load_global_settings,
     normalize_custom_storage_directory,
     save_global_settings,
     validate_custom_storage_directory,
 )
 from core.version_manager import scan_categories
+from launcher.i18n import t
 
 from server.api._constants import (
     MAX_STORAGE_OVERRIDE_PATH_LENGTH,
@@ -22,6 +26,7 @@ from server.api._constants import (
 from server.api._helpers import (
     _normalize_version_storage_override_mode,
     _prepare_settings_response,
+    _is_enabled_setting,
     _read_data_ini_file,
     _resolve_version_dir_secure,
     _sanitize_settings_payload,
@@ -41,26 +46,103 @@ __all__ = [
 ]
 
 
+_RAM_OVERRIDE_RE = re.compile(r"^\d+[KMGT]?$", re.IGNORECASE)
+
+
+def _normalize_version_ram_override(value, field: str):
+    raw = str(value or "").strip().upper()
+    if not raw:
+        return "", ""
+    if len(raw) > 16 or not _RAM_OVERRIDE_RE.match(raw):
+        return "", f"{field} must be a number with optional K, M, G, or T suffix"
+    return raw, ""
+
+
+def _normalize_version_resolution_override(value, field: str):
+    raw = str(value or "").strip()
+    if not raw:
+        return "", ""
+    if not raw.isdigit():
+        return "", f"{field} must be a positive number"
+    number = int(raw)
+    if number < 1 or number > 99999:
+        return "", f"{field} must be between 1 and 99999"
+    return str(number), ""
+
+
+def _normalize_version_fullscreen_override(value):
+    raw = str(value or "").strip().lower()
+    if raw in {"", "default"}:
+        return "", ""
+    if raw in {"1", "true", "yes", "on", "fullscreen"}:
+        return "1", ""
+    if raw in {"0", "false", "no", "off", "windowed"}:
+        return "0", ""
+    return "", "launch_fullscreen must be default, 1, or 0"
+
+
+def _normalize_version_boolean_override(value, field: str):
+    raw = str(value or "").strip().lower()
+    if raw in {"", "default"}:
+        return "", ""
+    if raw in {"1", "true", "yes", "on", "enabled"}:
+        return "1", ""
+    if raw in {"0", "false", "no", "off", "disabled"}:
+        return "0", ""
+    return "", f"{field} must be default, 1, or 0"
+
+
+def _normalize_single_line_override(value, field: str, max_len: int):
+    raw = str(value or "").strip()
+    if len(raw) > max_len:
+        return "", f"{field} must be <= {max_len} characters"
+    if "\n" in raw or "\r" in raw:
+        return "", f"{field} must be a single-line value"
+    return raw, ""
+
+
 def api_settings(data):
     if not isinstance(data, dict):
         data = {}
+    target_profile_id = str(data.get("_profile_id") or "").strip()
+    if target_profile_id:
+        profile_ids = {str(profile.get("id") or "") for profile in list_profiles()}
+        if target_profile_id not in profile_ids:
+            return {"ok": False, "error": "Settings profile not found."}
+    data = dict(data)
+    data.pop("_profile_id", None)
     data = _sanitize_settings_payload(data)
 
-    current = load_global_settings()
+    active_profile_id = get_active_profile_id()
+    profile_arg = target_profile_id or None
+    target_is_active = not target_profile_id or target_profile_id == active_profile_id
+    current = load_global_settings(profile_arg)
     prev_type = (current.get("account_type") or "Local").strip()
 
     current.update(data)
-    save_global_settings(current)
-    current = _prepare_settings_response(load_global_settings())
+    save_global_settings(current, profile_arg)
+    current = _prepare_settings_response(load_global_settings(profile_arg))
+
+    if target_is_active and "discord_rpc_enabled" in data:
+        try:
+            from core import discord_rpc
+
+            if _is_enabled_setting(current.get("discord_rpc_enabled")):
+                discord_rpc.start_discord_rpc()
+                discord_rpc.set_launcher_presence()
+            else:
+                discord_rpc.stop_discord_rpc()
+        except Exception:
+            pass
 
     new_type = (current.get("account_type") or "Local").strip()
     if prev_type.lower() != new_type.lower() and new_type.lower() == "local":
         try:
-            clear_account_token()
+            clear_account_token(profile_arg)
         except Exception:
             pass
 
-    if current.get("account_type") == "Histolauncher":
+    if target_is_active and current.get("account_type") == "Histolauncher":
         username = data.get("username") or current.get("username") or "(from session token)"
         uuid = data.get("uuid") or current.get("uuid") or "(from session token)"
         print(colorize_log(
@@ -102,6 +184,14 @@ def api_version_edit(data):
     image_upload_bytes = None
     storage_override_mode = "default"
     storage_override_path = ""
+    launch_min_ram = ""
+    launch_max_ram = ""
+    launch_extra_jvm_args = ""
+    launch_java_path = ""
+    launch_resolution_width = ""
+    launch_resolution_height = ""
+    launch_fullscreen = ""
+    launch_demo = ""
 
     if not reset_all:
         display_name = str(data.get("display_name") or "").strip()
@@ -171,6 +261,54 @@ def api_version_edit(data):
         else:
             storage_override_path = ""
 
+        launch_min_ram, error = _normalize_version_ram_override(
+            data.get("launch_min_ram"), "launch_min_ram"
+        )
+        if error:
+            return {"ok": False, "error": error}
+
+        launch_max_ram, error = _normalize_version_ram_override(
+            data.get("launch_max_ram"), "launch_max_ram"
+        )
+        if error:
+            return {"ok": False, "error": error}
+
+        launch_resolution_width, error = _normalize_version_resolution_override(
+            data.get("launch_resolution_width"), "launch_resolution_width"
+        )
+        if error:
+            return {"ok": False, "error": error}
+
+        launch_resolution_height, error = _normalize_version_resolution_override(
+            data.get("launch_resolution_height"), "launch_resolution_height"
+        )
+        if error:
+            return {"ok": False, "error": error}
+
+        launch_fullscreen, error = _normalize_version_fullscreen_override(
+            data.get("launch_fullscreen")
+        )
+        if error:
+            return {"ok": False, "error": error}
+
+        launch_demo, error = _normalize_version_boolean_override(
+            data.get("launch_demo"), "launch_demo"
+        )
+        if error:
+            return {"ok": False, "error": error}
+
+        launch_extra_jvm_args, error = _normalize_single_line_override(
+            data.get("launch_extra_jvm_args"), "launch_extra_jvm_args", 2048
+        )
+        if error:
+            return {"ok": False, "error": error}
+
+        launch_java_path, error = _normalize_single_line_override(
+            data.get("launch_java_path"), "launch_java_path", 500
+        )
+        if error:
+            return {"ok": False, "error": error}
+
     if display_name:
         existing_data["display_name"] = display_name
     else:
@@ -210,6 +348,22 @@ def api_version_edit(data):
         else:
             existing_data.pop("storage_override_path", None)
 
+    launch_override_values = {
+        "launch_min_ram": launch_min_ram,
+        "launch_max_ram": launch_max_ram,
+        "launch_extra_jvm_args": launch_extra_jvm_args,
+        "launch_java_path": launch_java_path,
+        "launch_resolution_width": launch_resolution_width,
+        "launch_resolution_height": launch_resolution_height,
+        "launch_fullscreen": launch_fullscreen,
+        "launch_demo": launch_demo,
+    }
+    for launch_key, launch_value in launch_override_values.items():
+        if reset_all or not launch_value:
+            existing_data.pop(launch_key, None)
+        else:
+            existing_data[launch_key] = launch_value
+
     if not str(existing_data.get("category") or "").strip():
         existing_data["category"] = category
 
@@ -239,6 +393,7 @@ def api_version_edit(data):
             "image_url": str(existing_data.get("image_url") or ""),
             "storage_override_mode": storage_override_mode,
             "storage_override_path": storage_override_path,
+            **launch_override_values,
         }
 
     return {
@@ -285,7 +440,7 @@ def api_storage_directory_select(data):
         initialdir = current_path if os.path.isdir(current_path) else os.path.expanduser("~")
         selected_path = askdirectory(
             initialdir=initialdir,
-            title="Select Custom Storage Folder",
+            title=t("native.fileDialogs.customStorageTitle"),
             mustexist=True,
         )
     except Exception as e:

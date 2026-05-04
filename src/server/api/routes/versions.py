@@ -20,12 +20,17 @@ from server.api.manifest_helpers import (
 )
 
 
-__all__ = ["api_versions", "api_search"]
+__all__ = ["api_versions", "api_search", "invalidate_available_versions_cache"]
 
 
 _AVAILABLE_VERSIONS_CACHE_TTL_SECONDS = 30 * 60
 _available_versions_cache_lock = threading.Lock()
 _available_versions_cache: dict[bool, dict[str, Any]] = {}
+
+
+def invalidate_available_versions_cache():
+    with _available_versions_cache_lock:
+        _available_versions_cache.clear()
 
 
 def _copy_remote_versions(remote_versions):
@@ -34,22 +39,45 @@ def _copy_remote_versions(remote_versions):
 
 def _load_remote_versions(show_third_party: bool, *, force_refresh: bool = False):
     now = time.time()
+    stale_cached: dict[str, Any] | None = None
 
-    if not force_refresh:
-        with _available_versions_cache_lock:
-            cached = _available_versions_cache.get(show_third_party)
-            if cached and now - cached.get("loaded_at", 0.0) < _AVAILABLE_VERSIONS_CACHE_TTL_SECONDS:
+    with _available_versions_cache_lock:
+        stale_cached = _available_versions_cache.get(show_third_party)
+
+    if not force_refresh and stale_cached:
+        cache_age = now - stale_cached.get("loaded_at", 0.0)
+        if cache_age < _AVAILABLE_VERSIONS_CACHE_TTL_SECONDS:
+            cached_remote = _copy_remote_versions(stale_cached.get("remote_list"))
+            if cached_remote:
                 return (
-                    _copy_remote_versions(cached.get("remote_list")),
-                    set(cached.get("category_names") or []),
+                    cached_remote,
+                    set(stale_cached.get("category_names") or []),
                     False,
                 )
 
     try:
         mf = core_manifest.fetch_manifest(include_third_party=show_third_party)
-        manifest = mf.get("data") or {}
-        manifest_versions = manifest.get("versions", [])
+        manifest = mf.get("data")
     except Exception:
+        manifest = None
+
+    if not isinstance(manifest, dict):
+        if stale_cached:
+            return (
+                _copy_remote_versions(stale_cached.get("remote_list")),
+                set(stale_cached.get("category_names") or []),
+                True,
+            )
+        return [], set(), True
+
+    manifest_versions = manifest.get("versions")
+    if not isinstance(manifest_versions, list):
+        if stale_cached:
+            return (
+                _copy_remote_versions(stale_cached.get("remote_list")),
+                set(stale_cached.get("category_names") or []),
+                True,
+            )
         return [], set(), True
 
     latest_info = manifest.get("latest") if isinstance(manifest.get("latest"), dict) else {}
@@ -78,6 +106,15 @@ def _load_remote_versions(show_third_party: bool, *, force_refresh: bool = False
             "image_url": _wiki_image_url(vid, vtype),
             "recommended": bool(recommended_id and vid == recommended_id),
         })
+
+    if not remote_list:
+        if stale_cached:
+            return (
+                _copy_remote_versions(stale_cached.get("remote_list")),
+                set(stale_cached.get("category_names") or []),
+                True,
+            )
+        return [], set(), True
 
     with _available_versions_cache_lock:
         _available_versions_cache[show_third_party] = {

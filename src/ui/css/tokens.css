@@ -1,5 +1,5 @@
 :root {
-  --color-app-bg: #1e150f;
+  --color-app-bg: #1a1a1a;
 
   --color-text-primary: #e5e7eb;
   --color-text-secondary: #d1d5db;
@@ -89,6 +89,8 @@
   --color-message-danger-text: #ffd4d4;
   --color-message-danger-border: #8f1b1b;
 
+  --color-scrollbar-thumb: #555555;
+  --color-scrollbar-thumb-border: #444444;
   --color-scrollbar-thumb-hover: #adadad;
   --color-scrollbar-info-track: #1a2430;
   --color-scrollbar-info-track-border: #111922;

@@ -24,6 +24,7 @@ from server.api._validation import (
     _validate_category_string,
     _validate_version_string,
 )
+from server.api.routes.versions import invalidate_available_versions_cache
 
 
 __all__ = [
@@ -272,6 +273,7 @@ def api_delete_version(data):
         version_key = f"{category.lower()}/{folder}"
         _progress.delete_progress(version_key)
         scan_categories(force_refresh=True)
+        invalidate_available_versions_cache()
         return {"ok": True}
     except Exception as e:
         return {"ok": False, "error": str(e)}

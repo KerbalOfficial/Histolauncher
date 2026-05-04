@@ -35,6 +35,7 @@ import {
   updateCardProgressUI,
   startPollingForInstall,
 } from './install.js';
+import { t } from './i18n.js';
 
 const _deps = {};
 for (const k of ['formatSizeBadge', 'init', 'normalizeVersionStorageOverrideMode', 'renderAllVersionSections', 'updateHomeInfo']) {
@@ -56,6 +57,41 @@ export const setVersionsDeps = (deps) => {
   }
 };
 
+const settingsProfilePayload = (patch = {}) => ({
+  ...patch,
+  _profile_id: state.profilesState.activeProfile || 'default',
+});
+
+const versionCardActionLabel = (actionKey, versionLabel) => t(`versions.actions.${actionKey}Version`, { version: versionLabel });
+
+const getVersionLabel = (v, fallback = '') => String(v && (v.display || `${v.category || ''}/${v.folder || ''}`) || fallback || '').trim();
+
+const getVersionStatusLabel = (status) => {
+  const key = String(status || '').trim().toLowerCase();
+  if (key === 'imported') return t('versions.status.imported');
+  if (key === 'installed') return t('versions.status.installed');
+  if (key === 'installing') return t('versions.status.installing');
+  if (key === 'paused') return t('versions.status.paused');
+  if (key === 'available') return t('versions.status.available');
+  if (key === 'lite') return t('versions.status.lite');
+  return key ? key.toUpperCase() : '';
+};
+
+const getVersionSourceLabel = (source) => {
+  const key = String(source || '').trim().toLowerCase();
+  if (key === 'mojang') return t('versions.sources.mojang');
+  if (key === 'omniarchive') return t('versions.sources.omniarchive');
+  if (key === 'proxy') return t('versions.sources.proxy');
+  return key ? key.toUpperCase() : t('versions.sources.proxy');
+};
+
+const getDownloadButtonLabel = ({ isRedownload = false, isLowDataMode = false } = {}) => {
+  if (isRedownload) return t('common.redownload');
+  return isLowDataMode ? t('versions.actions.quickDownload') : t('common.download');
+};
+
+const getLoaderInstallButtonLabel = (version) => t('versions.loaders.installVersion', { version: version || t('versions.loaders.selectedVersion') });
+
 // ---------------- Version card creation ----------------
 
 const createFavoriteButton = (v, fullId) => {
@@ -63,7 +99,7 @@ const createFavoriteButton = (v, fullId) => {
   favBtn.className = 'icon-button';
 
   const favImg = document.createElement('img');
-  favImg.alt = 'favorite';
+  favImg.alt = t('versions.favoriteAlt');
 
   const fullKey = fullId;
 
@@ -71,7 +107,7 @@ const createFavoriteButton = (v, fullId) => {
     const favs = state.settingsState.favorite_versions || [];
     const isFavInitial = favs.includes(fullKey);
     bindKeyboardActivation(favBtn, {
-      ariaLabel: `Toggle favorite for ${String(v && v.display ? v.display : fullKey)}`,
+      ariaLabel: versionCardActionLabel('toggleFavorite', getVersionLabel(v, fullKey)),
     });
     favBtn.setAttribute('aria-pressed', isFavInitial ? 'true' : 'false');
 
@@ -108,9 +144,9 @@ const createFavoriteButton = (v, fullId) => {
 
       favBtn.setAttribute('aria-pressed', isFav ? 'false' : 'true');
 
-      await api('/api/settings', 'POST', {
+      await api('/api/settings', 'POST', settingsProfilePayload({
         favorite_versions: state.settingsState.favorite_versions.join(', '),
-      });
+      }));
       _deps.renderAllVersionSections();
     });
   } else {
@@ -141,6 +177,21 @@ const showVersionEditModal = (v, draftState = null) => {
       : (raw.storage_override_path || v.storage_override_path || '')
   ).trim();
 
+  const readDraftOrRaw = (draftKey, rawKey) => String(
+    draftState && typeof draftState[draftKey] === 'string'
+      ? draftState[draftKey]
+      : (raw[rawKey] || v[rawKey] || '')
+  ).trim();
+
+  const initialLaunchMinRam = readDraftOrRaw('launchMinRam', 'launch_min_ram');
+  const initialLaunchMaxRam = readDraftOrRaw('launchMaxRam', 'launch_max_ram');
+  const initialLaunchExtraJvmArgs = readDraftOrRaw('launchExtraJvmArgs', 'launch_extra_jvm_args');
+  const initialLaunchJavaPath = readDraftOrRaw('launchJavaPath', 'launch_java_path');
+  const initialLaunchResolutionWidth = readDraftOrRaw('launchResolutionWidth', 'launch_resolution_width');
+  const initialLaunchResolutionHeight = readDraftOrRaw('launchResolutionHeight', 'launch_resolution_height');
+  const initialLaunchFullscreen = readDraftOrRaw('launchFullscreen', 'launch_fullscreen');
+  const initialLaunchDemo = readDraftOrRaw('launchDemo', 'launch_demo');
+
   let selectedStoragePath = initialStoragePath;
   let imageBase64 =
     draftState && typeof draftState.imageBase64 === 'string'
@@ -162,7 +213,7 @@ const showVersionEditModal = (v, draftState = null) => {
     if (normalizedLabel) {
       const label = document.createElement('span');
       label.textContent = normalizedLabel;
-      label.style.cssText = 'display:block;font-size:12px;color:#9ca3af;margin-bottom:4px;';
+      label.style.cssText = 'display:block;font-size:12px;color:var(--color-text-muted);margin-bottom:4px;';
       wrap.appendChild(label);
     }
     wrap.appendChild(controlEl);
@@ -177,28 +228,118 @@ const showVersionEditModal = (v, draftState = null) => {
     return input;
   };
 
-  const displayNameInput = createInput('Default (none)');
+  const createCheckbox = (checked = false) => {
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = !!checked;
+    return input;
+  };
+
+  const makeInlineCheckbox = (labelText, input) => {
+    const label = document.createElement('label');
+    label.style.cssText = 'display:flex;align-items:center;gap:8px;color:var(--color-text-secondary-strong);font-size:13px;';
+    label.appendChild(input);
+    label.appendChild(document.createTextNode(labelText));
+    return label;
+  };
+
+  const makeLaunchGrid = (...children) => {
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;';
+    children.forEach((child) => grid.appendChild(child));
+    return grid;
+  };
+
+  const displayNameInput = createInput(t('versions.edit.defaultNone'));
   displayNameInput.maxLength = 128;
   displayNameInput.value = initialDisplayName;
+
+  const launchMinRamInput = createInput(t('versions.edit.useGlobal'));
+  launchMinRamInput.maxLength = 16;
+  launchMinRamInput.value = initialLaunchMinRam;
+
+  const launchMaxRamInput = createInput(t('versions.edit.useGlobal'));
+  launchMaxRamInput.maxLength = 16;
+  launchMaxRamInput.value = initialLaunchMaxRam;
+
+  const launchExtraJvmArgsInput = createInput(t('versions.edit.useGlobal'));
+  launchExtraJvmArgsInput.maxLength = 2048;
+  launchExtraJvmArgsInput.value = initialLaunchExtraJvmArgs;
+
+  const launchJavaPathInput = createInput(t('versions.edit.useGlobal'));
+  launchJavaPathInput.maxLength = 500;
+  launchJavaPathInput.value = initialLaunchJavaPath;
+
+  const launchResolutionWidthInput = createInput(t('versions.edit.useGlobal'));
+  launchResolutionWidthInput.maxLength = 5;
+  launchResolutionWidthInput.inputMode = 'numeric';
+  launchResolutionWidthInput.value = initialLaunchResolutionWidth;
+
+  const launchResolutionHeightInput = createInput(t('versions.edit.useGlobal'));
+  launchResolutionHeightInput.maxLength = 5;
+  launchResolutionHeightInput.inputMode = 'numeric';
+  launchResolutionHeightInput.value = initialLaunchResolutionHeight;
+
+  const launchFullscreenOverrideInput = createCheckbox(initialLaunchFullscreen === '1' || initialLaunchFullscreen === '0');
+  const launchFullscreenInput = createCheckbox(initialLaunchFullscreen === '1');
+  const launchDemoOverrideInput = createCheckbox(initialLaunchDemo === '1' || initialLaunchDemo === '0');
+  const launchDemoInput = createCheckbox(initialLaunchDemo === '1');
+
+  const launchSection = document.createElement('div');
+  launchSection.style.cssText = 'display:grid;gap:8px;padding:10px;border:1px solid var(--color-border-muted);background:var(--color-surface-code);';
+
+  const launchTitle = document.createElement('div');
+  launchTitle.textContent = t('versions.edit.launchSettings');
+  launchTitle.style.cssText = 'font-size:13px;font-weight:700;color:var(--color-text-primary);';
+
+  const launchResolutionRow = document.createElement('div');
+  launchResolutionRow.style.cssText = 'display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center;';
+  const launchResolutionSeparator = document.createElement('span');
+  launchResolutionSeparator.textContent = 'x';
+  launchResolutionSeparator.style.cssText = 'color:var(--color-text-muted);';
+  launchResolutionRow.appendChild(launchResolutionWidthInput);
+  launchResolutionRow.appendChild(launchResolutionSeparator);
+  launchResolutionRow.appendChild(launchResolutionHeightInput);
+
+  const launchFullscreenRow = document.createElement('div');
+  launchFullscreenRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;';
+  launchFullscreenRow.appendChild(makeInlineCheckbox(t('versions.edit.overrideFullscreen'), launchFullscreenOverrideInput));
+  launchFullscreenRow.appendChild(makeInlineCheckbox(t('versions.edit.fullscreen'), launchFullscreenInput));
+
+  const launchDemoRow = document.createElement('div');
+  launchDemoRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;';
+  launchDemoRow.appendChild(makeInlineCheckbox(t('versions.edit.overrideDemoMode'), launchDemoOverrideInput));
+  launchDemoRow.appendChild(makeInlineCheckbox(t('versions.edit.demoMode'), launchDemoInput));
+
+  launchSection.appendChild(launchTitle);
+  launchSection.appendChild(makeLaunchGrid(
+    makeField(t('versions.edit.minimumRamOverride'), launchMinRamInput),
+    makeField(t('versions.edit.maximumRamOverride'), launchMaxRamInput)
+  ));
+  launchSection.appendChild(makeField(t('versions.edit.resolutionOverride'), launchResolutionRow));
+  launchSection.appendChild(launchFullscreenRow);
+  launchSection.appendChild(launchDemoRow);
+  launchSection.appendChild(makeField(t('versions.edit.javaRuntimePathOverride'), launchJavaPathInput));
+  launchSection.appendChild(makeField(t('versions.edit.extraJvmArgumentsOverride'), launchExtraJvmArgsInput));
 
   const storageModeSelect = document.createElement('select');
   storageModeSelect.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;';
 
   const modeDefaultOption = document.createElement('option');
   modeDefaultOption.value = 'default';
-  modeDefaultOption.textContent = 'Default (use Settings rule)';
+  modeDefaultOption.textContent = t('versions.edit.defaultUseSettingsRule');
 
   const modeGlobalOption = document.createElement('option');
   modeGlobalOption.value = 'global';
-  modeGlobalOption.textContent = 'Global';
+  modeGlobalOption.textContent = t('settings.client.storageGlobal');
 
   const modeVersionOption = document.createElement('option');
   modeVersionOption.value = 'version';
-  modeVersionOption.textContent = 'Version';
+  modeVersionOption.textContent = t('settings.client.storageVersion');
 
   const modeCustomOption = document.createElement('option');
   modeCustomOption.value = 'custom';
-  modeCustomOption.textContent = 'Custom (version-specific folder)';
+  modeCustomOption.textContent = t('versions.edit.customVersionFolder');
 
   storageModeSelect.appendChild(modeDefaultOption);
   storageModeSelect.appendChild(modeGlobalOption);
@@ -212,7 +353,7 @@ const showVersionEditModal = (v, draftState = null) => {
 
   const selectStorageFolderBtn = document.createElement('button');
   selectStorageFolderBtn.type = 'button';
-  selectStorageFolderBtn.textContent = 'Select folder';
+  selectStorageFolderBtn.textContent = t('common.selectFolder');
 
   const storagePathLabel = document.createElement('span');
   storagePathLabel.id = "settings-storage-path";
@@ -221,11 +362,11 @@ const showVersionEditModal = (v, draftState = null) => {
     const text = String(selectedStoragePath || '').trim();
     if (text) {
       storagePathLabel.textContent = text;
-      storagePathLabel.style.color = '#cbd5e1';
+      storagePathLabel.style.color = 'var(--color-text-secondary-strong)';
       storagePathLabel.style.fontStyle = 'normal';
     } else {
-      storagePathLabel.textContent = 'None';
-      storagePathLabel.style.color = '#9ca3af';
+      storagePathLabel.textContent = t('common.none');
+      storagePathLabel.style.color = 'var(--color-text-muted)';
       storagePathLabel.style.fontStyle = 'italic';
     }
   };
@@ -237,18 +378,18 @@ const showVersionEditModal = (v, draftState = null) => {
   const imgWrap = document.createElement('div');
   imgWrap.style.marginBottom = '10px';
   const imgLabel = document.createElement('label');
-  imgLabel.style.cssText = 'display:block;font-size:12px;color:#9ca3af;margin-bottom:4px;';
-  imgLabel.textContent = 'Version image file (optional, PNG/JPG)';
+  imgLabel.style.cssText = 'display:block;font-size:12px;color:var(--color-text-muted);margin-bottom:4px;';
+  imgLabel.textContent = t('versions.edit.versionImageFile');
   imgWrap.appendChild(imgLabel);
 
   const imgRow = document.createElement('div');
   imgRow.style.cssText = 'display:grid;gap:8px;justify-items:center;width:100%;';
 
   const previewFrame = document.createElement('div');
-  previewFrame.style.cssText = 'width:min(100%, 260px);aspect-ratio:16 / 9;border:1px solid #1f2937;display:flex;align-items:center;justify-content:center;background:#111;overflow:hidden;';
+  previewFrame.style.cssText = 'width:min(100%, 260px);aspect-ratio:16 / 9;border:1px solid var(--color-border-input);display:flex;align-items:center;justify-content:center;background:var(--color-surface-code-block);overflow:hidden;';
 
   const imgPreview = document.createElement('img');
-  imgPreview.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;background:#111;';
+  imgPreview.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;background:var(--color-surface-code-block);';
 
   const imgInput = document.createElement('input');
   imgInput.type = 'file';
@@ -257,22 +398,22 @@ const showVersionEditModal = (v, draftState = null) => {
 
   const imgPickBtn = document.createElement('button');
   imgPickBtn.type = 'button';
-  imgPickBtn.textContent = 'Choose file';
+  imgPickBtn.textContent = t('common.chooseFile');
 
   const imgPickLabel = document.createElement('div');
   imgPickLabel.style.cssText =
-    'font-size:12px;color:#9ca3af;max-width:min(100%, 260px);overflow-wrap:anywhere;text-align:center;font-style:italic;';
-  imgPickLabel.textContent = 'No file chosen';
+    'font-size:12px;color:var(--color-text-muted);max-width:min(100%, 260px);overflow-wrap:anywhere;text-align:center;font-style:italic;';
+  imgPickLabel.textContent = t('common.noFileChosen');
 
   const renderImgPickLabel = () => {
     const file = imgInput.files && imgInput.files[0];
     if (file && file.name) {
       imgPickLabel.textContent = file.name;
-      imgPickLabel.style.color = '#cbd5e1';
+      imgPickLabel.style.color = 'var(--color-text-secondary-strong)';
       imgPickLabel.style.fontStyle = 'normal';
     } else {
-      imgPickLabel.textContent = 'No file chosen';
-      imgPickLabel.style.color = '#9ca3af';
+      imgPickLabel.textContent = t('common.noFileChosen');
+      imgPickLabel.style.color = 'var(--color-text-muted)';
       imgPickLabel.style.fontStyle = 'italic';
     }
   };
@@ -297,10 +438,10 @@ const showVersionEditModal = (v, draftState = null) => {
         if (typeof result === 'string') {
           resolve(result);
         } else {
-          reject(new Error('Failed to read image data'));
+          reject(new Error(t('versions.edit.failedReadImageData')));
         }
       };
-      reader.onerror = () => reject(new Error('Failed to read image file'));
+      reader.onerror = () => reject(new Error(t('versions.edit.failedReadImageFile')));
       reader.readAsDataURL(file);
     });
   };
@@ -410,7 +551,7 @@ const showVersionEditModal = (v, draftState = null) => {
       imageBase64 = null;
       uploadedPreviewDataUrl = '';
       refreshPreview();
-      errorText.textContent = (err && err.message) || 'Failed to process selected image.';
+      errorText.textContent = (err && err.message) || t('versions.edit.failedProcessSelectedImage');
     }
   });
 
@@ -430,7 +571,7 @@ const showVersionEditModal = (v, draftState = null) => {
       if (!res || res.ok !== true) {
         errorText.textContent =
           (res && (res.error || res.message)) ||
-          'Failed to select a custom storage directory.';
+          t('versions.edit.failedSelectStorageDirectory');
         return;
       }
 
@@ -438,7 +579,7 @@ const showVersionEditModal = (v, draftState = null) => {
       renderStoragePathLabel();
     } catch (err) {
       errorText.textContent =
-        (err && err.message) || 'Failed to open folder picker.';
+        (err && err.message) || t('versions.edit.failedOpenFolderPicker');
     } finally {
       selectStorageFolderBtn.disabled = false;
     }
@@ -452,7 +593,7 @@ const showVersionEditModal = (v, draftState = null) => {
   imgWrap.appendChild(imgRow);
 
   const errorText = document.createElement('div');
-  errorText.style.cssText = 'min-height:16px;font-size:12px;color:#f87171;';
+  errorText.style.cssText = 'min-height:16px;font-size:12px;color:var(--color-error-soft);';
 
   const syncStoragePathState = () => {
     const mode = _deps.normalizeVersionStorageOverrideMode(storageModeSelect.value);
@@ -467,26 +608,62 @@ const showVersionEditModal = (v, draftState = null) => {
   storageModeSelect.addEventListener('change', syncStoragePathState);
   syncStoragePathState();
 
+  const syncLaunchBooleanStates = () => {
+    launchFullscreenInput.disabled = !launchFullscreenOverrideInput.checked;
+    launchFullscreenInput.parentElement.style.opacity = launchFullscreenInput.disabled ? '0.55' : '1';
+    launchDemoInput.disabled = !launchDemoOverrideInput.checked;
+    launchDemoInput.parentElement.style.opacity = launchDemoInput.disabled ? '0.55' : '1';
+  };
+
+  launchFullscreenOverrideInput.addEventListener('change', syncLaunchBooleanStates);
+  launchDemoOverrideInput.addEventListener('change', syncLaunchBooleanStates);
+  syncLaunchBooleanStates();
+
+  [launchMinRamInput, launchMaxRamInput].forEach((input) => {
+    input.addEventListener('input', () => {
+      input.value = String(input.value || '').replace(/[^0-9KMGTkmgt]/g, '').toUpperCase();
+    });
+  });
+
+  [launchResolutionWidthInput, launchResolutionHeightInput].forEach((input) => {
+    input.addEventListener('input', () => {
+      input.value = String(input.value || '').replace(/[^0-9]/g, '').slice(0, 5);
+    });
+  });
+
   const captureDraftState = () => ({
     displayName: String(displayNameInput.value || '').trim(),
     storageMode: _deps.normalizeVersionStorageOverrideMode(storageModeSelect.value),
     storagePath: String(selectedStoragePath || '').trim(),
     imageBase64: imageBase64 || null,
     imagePreviewDataUrl: uploadedPreviewDataUrl || '',
+    launchMinRam: String(launchMinRamInput.value || '').trim().toUpperCase(),
+    launchMaxRam: String(launchMaxRamInput.value || '').trim().toUpperCase(),
+    launchExtraJvmArgs: String(launchExtraJvmArgsInput.value || '').trim(),
+    launchJavaPath: String(launchJavaPathInput.value || '').trim(),
+    launchResolutionWidth: String(launchResolutionWidthInput.value || '').trim(),
+    launchResolutionHeight: String(launchResolutionHeightInput.value || '').trim(),
+    launchFullscreen: launchFullscreenOverrideInput.checked
+      ? (launchFullscreenInput.checked ? '1' : '0')
+      : '',
+    launchDemo: launchDemoOverrideInput.checked
+      ? (launchDemoInput.checked ? '1' : '0')
+      : '',
   });
 
-  content.appendChild(makeField('Display name', displayNameInput));
-  content.appendChild(makeField('Storage directory', storageModeSelect));
+  content.appendChild(makeField(t('versions.edit.displayName'), displayNameInput));
+  content.appendChild(makeField(t('versions.edit.storageDirectory'), storageModeSelect));
   content.appendChild(makeField('', customStorageControls));
+  content.appendChild(launchSection);
   content.appendChild(imgWrap);
   content.appendChild(errorText);
 
   showMessageBox({
-    title: `Edit Version - ${v.category}/${v.folder}`,
+    title: t('versions.edit.title', { version: `${v.category}/${v.folder}` }),
     customContent: content,
     buttons: [
       {
-        label: 'Save',
+        label: t('common.save'),
         classList: ['primary'],
         closeOnClick: false,
         onClick: async (_values, controls) => {
@@ -498,7 +675,7 @@ const showVersionEditModal = (v, draftState = null) => {
 
           if (nextStorageMode === 'custom') {
             if (!nextStoragePath) {
-              errorText.textContent = 'A custom storage folder is required when Custom mode is selected.';
+              errorText.textContent = t('versions.edit.customStorageRequired');
               return;
             }
 
@@ -509,7 +686,7 @@ const showVersionEditModal = (v, draftState = null) => {
             if (!validation || validation.ok !== true) {
               errorText.textContent =
                 (validation && (validation.error || validation.message)) ||
-                'The selected custom storage folder is invalid.';
+                t('versions.edit.customStorageInvalid');
               return;
             }
 
@@ -520,6 +697,19 @@ const showVersionEditModal = (v, draftState = null) => {
             nextStoragePath = '';
           }
 
+          const nextLaunchMinRam = String(launchMinRamInput.value || '').trim().toUpperCase();
+          const nextLaunchMaxRam = String(launchMaxRamInput.value || '').trim().toUpperCase();
+          const nextLaunchExtraJvmArgs = String(launchExtraJvmArgsInput.value || '').trim();
+          const nextLaunchJavaPath = String(launchJavaPathInput.value || '').trim();
+          const nextLaunchResolutionWidth = String(launchResolutionWidthInput.value || '').trim();
+          const nextLaunchResolutionHeight = String(launchResolutionHeightInput.value || '').trim();
+          const nextLaunchFullscreen = launchFullscreenOverrideInput.checked
+            ? (launchFullscreenInput.checked ? '1' : '0')
+            : 'default';
+          const nextLaunchDemo = launchDemoOverrideInput.checked
+            ? (launchDemoInput.checked ? '1' : '0')
+            : 'default';
+
           const res = await api('/api/version/edit', 'POST', {
             category: v.category,
             folder: v.folder,
@@ -527,12 +717,20 @@ const showVersionEditModal = (v, draftState = null) => {
             image_data: imageBase64 || null,
             storage_override_mode: nextStorageMode,
             storage_override_path: nextStoragePath,
+            launch_min_ram: nextLaunchMinRam,
+            launch_max_ram: nextLaunchMaxRam,
+            launch_extra_jvm_args: nextLaunchExtraJvmArgs,
+            launch_java_path: nextLaunchJavaPath,
+            launch_resolution_width: nextLaunchResolutionWidth,
+            launch_resolution_height: nextLaunchResolutionHeight,
+            launch_fullscreen: nextLaunchFullscreen,
+            launch_demo: nextLaunchDemo,
           });
 
           if (!res || res.ok !== true) {
             errorText.textContent =
               (res && (res.error || res.message)) ||
-              'Failed to save version settings.';
+              t('versions.edit.failedSaveSettings');
             return;
           }
 
@@ -542,19 +740,19 @@ const showVersionEditModal = (v, draftState = null) => {
         },
       },
       {
-        label: 'Reset all',
+        label: t('versions.edit.resetAll'),
         classList: ['danger'],
         closeOnClick: false,
         onClick: () => {
           const snapshot = captureDraftState();
 
           showMessageBox({
-            title: 'Reset All Version Settings',
+            title: t('versions.edit.resetAllTitle'),
             message:
-              'This will reset the display name, custom image, and storage directory override to default values. Continue?',
+              t('versions.edit.resetAllMessage'),
             buttons: [
               {
-                label: 'Reset All',
+                label: t('versions.edit.resetAll'),
                 classList: ['danger'],
                 closeOnClick: false,
                 onClick: async (_values, controls) => {
@@ -567,13 +765,13 @@ const showVersionEditModal = (v, draftState = null) => {
                   if (!res || res.ok !== true) {
                     controls.close();
                     showMessageBox({
-                      title: 'Reset Failed',
+                      title: t('versions.edit.resetFailedTitle'),
                       message:
                         (res && (res.error || res.message)) ||
-                        'Failed to reset version settings.',
+                        t('versions.edit.failedResetSettings'),
                       buttons: [
                         {
-                          label: 'Back',
+                          label: t('common.back'),
                           onClick: () => showVersionEditModal(v, snapshot),
                         },
                       ],
@@ -587,14 +785,14 @@ const showVersionEditModal = (v, draftState = null) => {
                 },
               },
               {
-                label: 'Cancel',
+                label: t('common.cancel'),
                 onClick: () => showVersionEditModal(v, snapshot),
               },
             ],
           });
         },
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -603,11 +801,11 @@ const createEditButton = (v) => {
   const editBtn = document.createElement('div');
   editBtn.className = 'icon-button';
   bindKeyboardActivation(editBtn, {
-    ariaLabel: `Edit version ${String(v && v.display ? v.display : `${v.category}/${v.folder}`)}`,
+    ariaLabel: versionCardActionLabel('edit', getVersionLabel(v)),
   });
 
   const editImg = document.createElement('img');
-  editImg.alt = 'edit';
+  editImg.alt = t('common.edit');
   editImg.src = 'assets/images/unfilled_pencil.png';
   imageAttachErrorPlaceholder(editImg, 'assets/images/placeholder.png');
   editBtn.appendChild(editImg);
@@ -648,13 +846,13 @@ export const updateVersionsBulkActionsUI = () => {
   const count = state.versionsBulkState.selected.size;
 
   if (toggleBtn) {
-    toggleBtn.textContent = state.versionsBulkState.enabled ? 'Cancel Bulk' : 'Bulk Select';
+    toggleBtn.textContent = state.versionsBulkState.enabled ? t('common.cancelBulk') : t('common.bulkSelect');
     toggleBtn.className = state.versionsBulkState.enabled ? 'primary' : 'mild';
   }
 
   if (deleteBtn) {
     deleteBtn.classList.toggle('hidden', !state.versionsBulkState.enabled);
-    deleteBtn.textContent = `Delete Selected (${count})`;
+    deleteBtn.textContent = t('versions.deleteSelectedCount', { count });
     deleteBtn.disabled = count === 0;
   }
 
@@ -686,7 +884,7 @@ const applyBulkModeToInstalledCards = () => {
         checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.className = 'bulk-select-checkbox';
-        checkbox.title = 'Select version for bulk actions';
+        checkbox.title = t('versions.selectForBulkActions');
         checkbox.setAttribute('tabindex', '-1');
         checkbox.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -752,9 +950,9 @@ const deleteVersion = async (v) => {
   }
 
   showMessageBox({
-    title: 'Error',
-    message: (res && res.error) || 'Failed to delete version.',
-    buttons: [{ label: 'OK' }],
+    title: t('common.error'),
+    message: (res && res.error) || t('versions.deleteFailed'),
+    buttons: [{ label: t('common.ok') }],
   });
   return false;
 };
@@ -763,9 +961,9 @@ export const bulkDeleteSelectedVersions = async ({ skipConfirm = false } = {}) =
   const keys = Array.from(state.versionsBulkState.selected);
   if (!keys.length) {
     showMessageBox({
-      title: 'Bulk Delete Versions',
-      message: 'No installed versions',
-      buttons: [{ label: 'OK' }],
+      title: t('versions.bulkDelete.title'),
+      message: t('versions.bulkDelete.noInstalledVersions'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
@@ -773,17 +971,17 @@ export const bulkDeleteSelectedVersions = async ({ skipConfirm = false } = {}) =
   const runDelete = async () => {
     let cancelRequested = false;
     let processed = 0;
-    showLoadingOverlay(`Deleting selected versions... (0/${keys.length})`, {
+    showLoadingOverlay(t('versions.bulkDelete.deletingProgress', { current: 0, total: keys.length }), {
       buttons: [
         {
-          label: 'Cancel',
+          label: t('common.cancel'),
           classList: ['danger'],
           closeOnClick: false,
           onClick: (_values, controls) => {
             if (cancelRequested) return;
             cancelRequested = true;
             controls.update({
-              message: 'Cancelling bulk delete after the current version finishes...',
+              message: t('versions.bulkDelete.cancelling'),
               buttons: [],
             });
           },
@@ -799,7 +997,7 @@ export const bulkDeleteSelectedVersions = async ({ skipConfirm = false } = {}) =
       if (splitAt <= 0 || splitAt >= key.length - 1) {
         failures.push(`${key} (invalid key)`);
         processed += 1;
-        setLoadingOverlayText(`Deleting selected versions... (${processed}/${keys.length})`);
+        setLoadingOverlayText(t('versions.bulkDelete.deletingProgress', { current: processed, total: keys.length }));
         continue;
       }
 
@@ -811,13 +1009,13 @@ export const bulkDeleteSelectedVersions = async ({ skipConfirm = false } = {}) =
         if (res && res.ok) {
           deleted += 1;
         } else {
-          failures.push(`${key}: ${(res && res.error) || 'unknown error'}`);
+          failures.push(`${key}: ${(res && res.error) || t('common.unknownError')}`);
         }
       } catch (err) {
-        failures.push(`${key}: ${(err && err.message) || 'request failed'}`);
+        failures.push(`${key}: ${(err && err.message) || t('versions.bulkDelete.requestFailed')}`);
       }
       processed += 1;
-      setLoadingOverlayText(`Deleting selected versions... (${processed}/${keys.length})`);
+      setLoadingOverlayText(t('versions.bulkDelete.deletingProgress', { current: processed, total: keys.length }));
     }
 
     hideLoadingOverlay();
@@ -826,28 +1024,28 @@ export const bulkDeleteSelectedVersions = async ({ skipConfirm = false } = {}) =
 
     if (cancelRequested) {
       showMessageBox({
-        title: 'Bulk Delete Cancelled',
-        message: `Deleted ${deleted} version${deleted !== 1 ? 's' : ''} before cancellation.${failures.length ? `<br><br>Failures: ${failures.length}` : ''}`,
-        buttons: [{ label: 'OK' }],
+        title: t('versions.bulkDelete.cancelledTitle'),
+        message: t(failures.length ? 'versions.bulkDelete.cancelledWithFailures' : 'versions.bulkDelete.cancelledMessage', { deleted, failures: failures.length }),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
 
     if (!failures.length) {
       showMessageBox({
-        title: 'Bulk Delete Complete',
-        message: `Deleted ${deleted} version${deleted !== 1 ? 's' : ''}.`,
-        buttons: [{ label: 'OK' }],
+        title: t('versions.bulkDelete.completeTitle'),
+        message: t('versions.bulkDelete.completeMessage', { deleted }),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
 
     const preview = failures.slice(0, 8).join('<br>');
-    const more = failures.length > 8 ? `<br>...and ${failures.length - 8} more.` : '';
+    const more = failures.length > 8 ? `<br>${t('versions.bulkDelete.andMore', { count: failures.length - 8 })}` : '';
     showMessageBox({
-      title: 'Bulk Delete Finished With Errors',
-      message: `Deleted ${deleted} version${deleted !== 1 ? 's' : ''}.<br><br>Failures:<br>${preview}${more}`,
-      buttons: [{ label: 'OK' }],
+      title: t('versions.bulkDelete.finishedWithErrorsTitle'),
+      message: t('versions.bulkDelete.finishedWithErrorsMessage', { deleted, failures: `${preview}${more}` }),
+      buttons: [{ label: t('common.ok') }],
     });
   };
 
@@ -857,15 +1055,15 @@ export const bulkDeleteSelectedVersions = async ({ skipConfirm = false } = {}) =
   }
 
   showMessageBox({
-    title: 'Bulk Delete Versions',
-    message: `Delete ${keys.length} selected version${keys.length !== 1 ? 's' : ''}?<br><i>This cannot be undone!</i>`,
+    title: t('versions.bulkDelete.title'),
+    message: t('versions.bulkDelete.confirmMessage', { count: keys.length }),
     buttons: [
       {
-        label: 'Delete',
+        label: t('common.delete'),
         classList: ['danger'],
         onClick: runDelete,
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -874,11 +1072,11 @@ const createDeleteButton = (v) => {
   const delBtn = document.createElement('div');
   delBtn.className = 'icon-button';
   bindKeyboardActivation(delBtn, {
-    ariaLabel: `Delete version ${String(v && v.display ? v.display : `${v.category}/${v.folder}`)}`,
+    ariaLabel: versionCardActionLabel('delete', getVersionLabel(v)),
   });
 
   const delImg = document.createElement('img');
-  delImg.alt = 'delete';
+  delImg.alt = t('common.delete');
   delImg.src = 'assets/images/unfilled_delete.png';
   imageAttachErrorPlaceholder(delImg, 'assets/images/placeholder.png');
   delBtn.appendChild(delImg);
@@ -904,15 +1102,15 @@ const createDeleteButton = (v) => {
     }
 
     showMessageBox({
-      title: 'Delete Version',
-      message: `Are you sure you want to permanently delete ${v.category}/${v.folder}?<br><i>This cannot be undone!</i>`,
+      title: t('versions.deleteTitle'),
+      message: t('versions.deleteConfirm', { version: `${v.category}/${v.folder}` }),
       buttons: [
         {
-          label: 'Yes',
+          label: t('common.yes'),
           classList: ['danger'],
           onClick: () => deleteVersion(v),
         },
-        { label: 'No' },
+        { label: t('common.no') },
       ],
     });
   });
@@ -926,11 +1124,11 @@ const createAddLoaderButton = (v) => {
   const loaderBtn = document.createElement('div');
   loaderBtn.className = 'icon-button';
   bindKeyboardActivation(loaderBtn, {
-    ariaLabel: `Manage loaders for ${String(v && v.display ? v.display : `${v.category}/${v.folder}`)}`,
+    ariaLabel: t('versions.loaders.manageForVersion', { version: getVersionLabel(v) }),
   });
 
   const loaderImg = document.createElement('img');
-  loaderImg.alt = 'add loader';
+  loaderImg.alt = t('versions.loaders.addLoaderAlt');
   loaderImg.src = 'assets/images/unfilled_plus.png';
   imageAttachErrorPlaceholder(loaderImg, 'assets/images/placeholder.png');
   loaderBtn.appendChild(loaderImg);
@@ -961,9 +1159,9 @@ const showLoaderManagementModal = async (v) => {
     const loaderData = await api(`/api/loaders/${v.category.toLowerCase()}/${v.folder}`);
     if (!loaderData || !loaderData.ok) {
       showMessageBox({
-        title: 'Error',
-        message: 'Failed to load loaders information.',
-        buttons: [{ label: 'OK' }],
+        title: t('common.error'),
+        message: t('versions.loaders.failedLoadInformation'),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
@@ -978,8 +1176,8 @@ const showLoaderManagementModal = async (v) => {
     let html = `
       <div style="max-height: 500px; overflow-y: auto; padding: 10px;">
         <div style="margin-bottom: 20px;">
-          <h4 style="color: #fff; margin-top: 0; margin-bottom: 10px; font-size: 12px; letter-spacing: 1px;">
-            Installed Loaders
+          <h4 style="color:var(--color-text-title);margin-top:0;margin-bottom:10px;font-size:12px;letter-spacing:1px;">
+            ${t('versions.loaders.installedLoaders')}
           </h4>
           <div style="display: grid; gap: 8px;" id="installed-loaders-container">
     `;
@@ -989,20 +1187,20 @@ const showLoaderManagementModal = async (v) => {
     );
 
     if (installedLoaderTypes.length === 0) {
-      html += `<p style="color:#999;font-size:12px;font-style:italic;">No loaders installed</p>`;
+      html += `<p style="color:var(--color-text-muted);font-size:12px;font-style:italic;">${t('versions.loaders.noLoadersInstalled')}</p>`;
     } else {
       installedLoaderTypes.forEach((loaderType) => {
         const loaderUi = getLoaderUi(loaderType);
         installed[loaderType].forEach((loader) => {
           html += `
-            <div style="background:#222;border-left:3px solid ${loaderUi.accent};padding:7px 10px;display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:38px;">
+            <div style="background:var(--color-surface-card);border-left:3px solid ${loaderUi.accent};padding:7px 10px;display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:38px;">
               <div style="min-width:0;line-height:1.15;text-align:left;">
                 <div style="color:${loaderUi.accent};font-weight:bold;margin:0 0 2px 0;font-size:14px;letter-spacing:0;">${loaderUi.name}</div>
-                <span style="color:#aaa; font-size: 12px;">${loader.version}</span>
-                <span style="color:#666; font-size: 11px;"> - ${loader.size_display || 'Unknown size'}</span>
+                <span style="color:var(--color-text-muted); font-size: 12px;">${loader.version}</span>
+                <span style="color:var(--color-text-dim); font-size: 11px;"> - ${loader.size_display || t('versions.loaders.unknownSize')}</span>
               </div>
-              <button type="button" class="loader-delete-btn" style="width: 24px; height: 24px; cursor: pointer; background: transparent; border: none; padding: 0; display: flex; align-items: center; justify-content: center;" data-loader-type="${loaderType}" data-loader-version="${loader.version}" aria-label="Delete ${loaderUi.name} ${loader.version}" title="Delete ${loaderUi.name} ${loader.version}">
-                <img src="assets/images/unfilled_delete.png" alt="delete" style="width: 100%; height: 100%;">
+              <button type="button" class="loader-delete-btn" style="width: 24px; height: 24px; cursor: pointer; background: transparent; border: none; padding: 0; display: flex; align-items: center; justify-content: center;" data-loader-type="${loaderType}" data-loader-version="${loader.version}" aria-label="${t('versions.loaders.deleteLoaderVersion', { loader: loaderUi.name, version: loader.version })}" title="${t('versions.loaders.deleteLoaderVersion', { loader: loaderUi.name, version: loader.version })}">
+                <img src="assets/images/unfilled_delete.png" alt="${t('common.delete')}" style="width: 100%; height: 100%;">
               </button>
             </div>
           `;
@@ -1015,18 +1213,20 @@ const showLoaderManagementModal = async (v) => {
         </div>
 
         <div>
-          <h4 style="color: #fff; margin-top: 0; margin-bottom: 10px; font-size: 12px; letter-spacing: 1px;">
-            Add New Loader
+          <h4 style="color:var(--color-text-title);margin-top:0;margin-bottom:10px;font-size:12px;letter-spacing:1px;">
+            ${t('versions.loaders.addNewLoader')}
           </h4>
           <div style="display:grid;gap:8px;">
             ${availableLoaderTypes.length === 0 ? `
-              <p style="color:#999;font-size:12px;font-style:italic;">No additional loaders available for this version</p>
+              <p style="color:var(--color-text-muted);font-size:12px;font-style:italic;">${t('versions.loaders.noAdditionalLoaders')}</p>
             ` : availableLoaderTypes.map((loaderType) => {
               const loaderUi = getLoaderUi(loaderType);
+              const loaderDescription = loaderUi.descriptionKey ? t(loaderUi.descriptionKey) : (loaderUi.description || '');
+              const loaderSubtitle = loaderUi.subtitleKey ? t(loaderUi.subtitleKey) : (loaderUi.subtitle || '');
               return `
                 <button type="button" class="${loaderUi.buttonClass}" data-action="install-${loaderType}">
                   <div style="font-size:15px;font-weight:bold;margin-bottom:4px;">${loaderUi.name}</div>
-                  <div style="font-size:9px;opacity:75%;"><b>${loaderUi.description}</b><br><i>${loaderUi.subtitle}</i></div>
+                  <div style="font-size:9px;opacity:75%;"><b>${loaderDescription}</b><br><i>${loaderSubtitle}</i></div>
                 </button>
               `;
             }).join('')}
@@ -1036,9 +1236,9 @@ const showLoaderManagementModal = async (v) => {
     `;
 
     showMessageBox({
-      title: `Mod Loaders - ${v.display}`,
+      title: t('versions.loaders.modalTitle', { version: v.display }),
       message: html,
-      buttons: [{ label: 'Close' }],
+      buttons: [{ label: t('common.close') }],
     });
 
     // Add click handlers after modal is shown
@@ -1074,9 +1274,9 @@ const showLoaderManagementModal = async (v) => {
   } catch (err) {
     console.error('Failed to fetch loaders:', err);
     showMessageBox({
-      title: 'Error',
-      message: 'Failed to load loaders information.',
-      buttons: [{ label: 'OK' }],
+      title: t('common.error'),
+      message: t('versions.loaders.failedLoadInformation'),
+      buttons: [{ label: t('common.ok') }],
     });
   }
 };
@@ -1087,9 +1287,9 @@ const showLoaderVersionSelector = async (v, loaderType) => {
     const loaderData = await api(`/api/loaders/${v.category.toLowerCase()}/${v.folder}`);
     if (!loaderData || !loaderData.ok) {
       showMessageBox({
-        title: 'Error',
-        message: `Failed to fetch available ${loaderName} versions.`,
-        buttons: [{ label: 'OK' }],
+        title: t('common.error'),
+        message: t('versions.loaders.failedFetchAvailableVersions', { loader: loaderName }),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
@@ -1100,9 +1300,9 @@ const showLoaderVersionSelector = async (v, loaderType) => {
 
     if (!allVersions || allVersions.length === 0) {
       showMessageBox({
-        title: `Install ${loaderName}`,
-        message: `No ${loaderName} versions available for ${v.display}.`,
-        buttons: [{ label: 'OK' }],
+        title: t('versions.loaders.installLoaderTitle', { loader: loaderName }),
+        message: t('versions.loaders.noVersionsAvailableForVersion', { loader: loaderName, version: v.display }),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
@@ -1123,12 +1323,12 @@ const showLoaderVersionSelector = async (v, loaderType) => {
 
         if (isRecommended && isSelected) {
           btnClass = 'primary'
-          metaLabel += '<i>(Selected, <b>Recommended</b>)</i>';
+          metaLabel += `<i>${t('versions.loaders.selectedRecommended')}</i>`;
         } else if (isRecommended) {
-          metaLabel += '<i>(<b>Recommended</b>)</i>';
+          metaLabel += `<i>${t('versions.loaders.recommended')}</i>`;
         } else if (isSelected) {
           btnClass = 'important'
-          metaLabel += '<i>(Selected)</i>';
+          metaLabel += `<i>${t('versions.loaders.selected')}</i>`;
         };
 
         html += `
@@ -1148,17 +1348,17 @@ const showLoaderVersionSelector = async (v, loaderType) => {
 
       let msg = `
         <div>
-          <p style="margin-top: 0; color: #aaa; font-size: 12px; margin-bottom: 12px;">
-            Select a ${loaderName} version for <b>${v.display}</b>
+          <p style="margin-top: 0; color: var(--color-text-muted); font-size: 12px; margin-bottom: 12px;">
+            ${t('versions.loaders.selectVersionFor', { loader: loaderName, version: v.display })}
           </p>
           ${renderVersionList(displayedVersions, selectedLoaderVersion)}
-          <p style="margin-top: 8px; margin-bottom: 8px; color: #666; font-size: 11px;">
-            Showing ${displayedVersions.length} of ${totalAvailable} versions
+          <p style="margin-top: 8px; margin-bottom: 8px; color: var(--color-text-dim); font-size: 11px;">
+            ${t('versions.loaders.showingVersions', { count: displayedVersions.length, total: totalAvailable })}
           </p>
       `;
 
       if (hasMore) {
-        msg += `<button id="load-more-btn" type="button" class="default" style="width: 100%; padding: 8px; margin-top: 4px;">Load More...</button>`;
+        msg += `<button id="load-more-btn" type="button" class="default" style="width: 100%; padding: 8px; margin-top: 4px;">${t('versions.loaders.loadMore')}</button>`;
       }
 
       msg += `</div>`;
@@ -1176,20 +1376,20 @@ const showLoaderVersionSelector = async (v, loaderType) => {
 
       const installBtn = document.querySelector('#msgbox-buttons button');
       if (installBtn) {
-        installBtn.textContent = `Install ${selectedLoaderVersion || allVersions[0]?.version || 'Selected Version'}`;
+        installBtn.textContent = getLoaderInstallButtonLabel(selectedLoaderVersion || allVersions[0]?.version);
       }
     };
 
     const versionButtons = [
       {
-        label: `Install ${selectedLoaderVersion || allVersions[0]?.version || 'Selected Version'}`,
+        label: getLoaderInstallButtonLabel(selectedLoaderVersion || allVersions[0]?.version),
         classList: ['primary'],
         onClick: () => installLoaderVersion(v, loaderType, selectedLoaderVersion || allVersions[0].version),
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ];
 
-    const title = `Install ${loaderName} - Select Version`;
+    const title = t('versions.loaders.selectVersionTitle', { loader: loaderName });
 
     showMessageBox({
       title: title,
@@ -1199,7 +1399,7 @@ const showLoaderVersionSelector = async (v, loaderType) => {
 
     const installBtn = document.querySelector('#msgbox-buttons button');
     if (installBtn) {
-      installBtn.textContent = `Install ${selectedLoaderVersion || allVersions[0]?.version || 'Selected Version'}`;
+      installBtn.textContent = getLoaderInstallButtonLabel(selectedLoaderVersion || allVersions[0]?.version);
     }
 
     const attachHandlers = () => {
@@ -1231,9 +1431,9 @@ const showLoaderVersionSelector = async (v, loaderType) => {
   } catch (err) {
     console.error(`Failed to fetch ${loaderType} versions:`, err);
     showMessageBox({
-      title: 'Error',
-      message: `Failed to fetch available ${loaderName} versions.`,
-      buttons: [{ label: 'OK' }],
+      title: t('common.error'),
+      message: t('versions.loaders.failedFetchAvailableVersions', { loader: loaderName }),
+      buttons: [{ label: t('common.ok') }],
     });
   }
 };
@@ -1260,7 +1460,7 @@ const installLoaderVersion = async (v, loaderType, loaderVersion) => {
     image_url: loaderUi.image,
     _cardFullId: modloaderVersionKey,
     _installKey: installKey,
-    _progressText: 'Starting...',
+    _progressText: t('versions.install.starting'),
     _progressOverall: 0,
     _loaderType: loaderType,
     _loaderVersion: loaderVersion,
@@ -1342,12 +1542,12 @@ const installLoaderVersion = async (v, loaderType, loaderVersion) => {
 
               updateCardProgressUI(vMeta, pct, text, {
                 paused: false,
-                statusLabel: 'INSTALLING',
+                statusLabel: t('versions.status.installing').toUpperCase(),
                 keepInstalling: true,
               });
             } else if (status === 'paused') {
               vMeta.paused = true;
-              const text = `${pct}% (paused)`;
+              const text = t('versions.install.percentPaused', { percent: pct });
 
               updateVersionInListByKey(encodedInstallKey, (x) => ({
                 ...x,
@@ -1358,25 +1558,25 @@ const installLoaderVersion = async (v, loaderType, loaderVersion) => {
 
               updateCardProgressUI(vMeta, pct, text, {
                 paused: true,
-                statusLabel: 'PAUSED',
+                statusLabel: t('versions.status.paused').toUpperCase(),
                 keepInstalling: true,
               });
             } else if (status === 'installed' || pct >= 100) {
               keepPolling = false;
-              updateCardProgressUI(vMeta, 100, 'Installed', { keepInstalling: false });
+              updateCardProgressUI(vMeta, 100, t('versions.status.installed'), { keepInstalling: false });
 
               state.versionsList = state.versionsList.filter((x) => x._installKey !== encodedInstallKey);
               await _deps.init();
             } else if (status === 'failed' || status === 'error') {
-              const errorMsg = s.message || 'Unknown error';
+              const errorMsg = s.message || t('common.unknownError');
               keepPolling = false;
 
               state.versionsList = state.versionsList.filter((x) => x._installKey !== encodedInstallKey);
               await _deps.init();
               showMessageBox({
-                title: `${loaderName} Install Failed`,
+                title: t('versions.loaders.installFailedTitle', { loader: loaderName }),
                 message: errorMsg,
-                buttons: [{ label: 'OK' }],
+                buttons: [{ label: t('common.ok') }],
               });
             } else if (status === 'cancelled') {
               keepPolling = false;
@@ -1400,11 +1600,11 @@ const installLoaderVersion = async (v, loaderType, loaderVersion) => {
       // Start polling for modloader progress
       pollModloaderProgress();
     } else {
-      const errorMsg = installResult?.error || 'Unknown error';
+      const errorMsg = installResult?.error || t('common.unknownError');
 
       // Mark as failed in the list
       state.versionsList = state.versionsList.map(x =>
-        x._installKey === installKey ? { ...x, installing: false, _progressText: `Failed: ${errorMsg}` } : x
+        x._installKey === installKey ? { ...x, installing: false, _progressText: t('versions.install.failedWithMessage', { message: errorMsg }) } : x
       );
       _deps.renderAllVersionSections();
     }
@@ -1413,7 +1613,7 @@ const installLoaderVersion = async (v, loaderType, loaderVersion) => {
 
     // Mark as failed in the list
     state.versionsList = state.versionsList.map(x =>
-      x._installKey === installKey ? { ...x, installing: false, _progressText: `Failed: ${err.message}` } : x
+      x._installKey === installKey ? { ...x, installing: false, _progressText: t('versions.install.failedWithMessage', { message: err.message }) } : x
     );
     _deps.renderAllVersionSections();
   }
@@ -1439,17 +1639,17 @@ const deleteLoaderVersion = (v, loaderType, loaderVersion, options = {}) => {
         }, 500);
       } else {
         showMessageBox({
-          title: 'Delete Loader Failed',
-          message: (deleteResult && deleteResult.error) || 'Unknown error',
-          buttons: [{ label: 'OK' }],
+          title: t('versions.loaders.deleteFailedTitle'),
+          message: (deleteResult && deleteResult.error) || t('common.unknownError'),
+          buttons: [{ label: t('common.ok') }],
         });
       }
     } catch (err) {
       console.error('Loader deletion error:', err);
       showMessageBox({
-        title: 'Delete Loader Failed',
-        message: (err && err.message) || 'Unexpected loader deletion error.',
-        buttons: [{ label: 'OK' }],
+        title: t('versions.loaders.deleteFailedTitle'),
+        message: (err && err.message) || t('versions.loaders.unexpectedDeleteError'),
+        buttons: [{ label: t('common.ok') }],
       });
     }
   };
@@ -1460,12 +1660,12 @@ const deleteLoaderVersion = (v, loaderType, loaderVersion, options = {}) => {
   }
 
   showMessageBox({
-    title: 'Delete Loader',
-    message: `Are you sure you want to delete ${loaderName} ${loaderVersion}?`,
+    title: t('versions.loaders.deleteTitle'),
+    message: t('versions.loaders.deleteConfirm', { loader: loaderName, version: loaderVersion }),
     buttons: [
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
       {
-        label: 'Delete',
+        label: t('common.delete'),
         classList: ['danger'],
         onClick: runDelete,
       }
@@ -1485,15 +1685,15 @@ const createBadgeRow = (v, sectionType) => {
           : 'available');
 
   if (sectionType === 'installing' && v.paused) {
-      badgeMain.textContent = 'PAUSED';
+      badgeMain.textContent = getVersionStatusLabel('paused').toUpperCase();
       badgeMain.classList.add('paused');
   } else {
       badgeMain.textContent =
           sectionType === 'installed'
-              ? (v.raw && v.raw.is_imported === true ? 'IMPORTED' : 'INSTALLED')
+              ? (v.raw && v.raw.is_imported === true ? getVersionStatusLabel('imported').toUpperCase() : getVersionStatusLabel('installed').toUpperCase())
               : sectionType === 'installing'
-              ? 'INSTALLING'
-              : 'AVAILABLE';
+              ? getVersionStatusLabel('installing').toUpperCase()
+              : getVersionStatusLabel('available').toUpperCase();
   }
   badgeRow.appendChild(badgeMain);
 
@@ -1504,17 +1704,17 @@ const createBadgeRow = (v, sectionType) => {
           (v.source === 'mojang' ? 'official' : 'nonofficial');
     badgeSource.textContent =
       v.source === 'mojang'
-        ? 'MOJANG'
+        ? getVersionSourceLabel('mojang').toUpperCase()
         : v.source === 'omniarchive'
-        ? 'OMNIARCHIVE'
-        : 'PROXY';
+        ? getVersionSourceLabel('omniarchive').toUpperCase()
+        : getVersionSourceLabel('proxy').toUpperCase();
       badgeRow.appendChild(badgeSource);
   }
 
   if ((sectionType === 'installed' && v.raw && v.raw.full_assets === false)||(sectionType === 'installing' && v.full_install === false)) {
       const badgeLite = document.createElement('span');
       badgeLite.className = 'version-badge lite';
-      badgeLite.textContent = 'LITE';
+      badgeLite.textContent = getVersionStatusLabel('lite').toUpperCase();
       badgeRow.appendChild(badgeLite);
   }
 
@@ -1536,7 +1736,7 @@ const createAvailableActions = (v, card) => {
   const installBtn = document.createElement('button');
   const isLowDataMode = state.settingsState.low_data_mode === "1";
   const isRedownload = !!(v.redownload_available || v.installed_local);
-  installBtn.textContent = isRedownload ? 'Redownload' : (isLowDataMode ? 'Quick Download' : 'Download');
+  installBtn.textContent = getDownloadButtonLabel({ isRedownload, isLowDataMode });
   installBtn.className = isRedownload ? 'mild' : (isLowDataMode ? 'important' : 'primary');
 
   installBtn.addEventListener('click', async (e) => {
@@ -1555,7 +1755,7 @@ const createInstallingActions = (v) => {
 
   const pauseBtn = document.createElement('button');
   pauseBtn.className = 'pause-resume-btn mild';
-  pauseBtn.textContent = v.paused ? 'Resume' : 'Pause';
+  pauseBtn.textContent = v.paused ? t('common.resume') : t('common.pause');
   pauseBtn.classList.remove(v.paused ? 'mild' : 'primary');
   pauseBtn.classList.add(v.paused ? 'primary' : 'mild');
 
@@ -1573,7 +1773,7 @@ const createInstallingActions = (v) => {
         updateVersionInListByKey(v._installKey, (x) => ({
           ...x,
           paused: false,
-          _progressText: 'Resuming...',
+          _progressText: t('versions.install.resuming'),
         }));
         _deps.renderAllVersionSections();
       } else {
@@ -1583,7 +1783,7 @@ const createInstallingActions = (v) => {
         updateVersionInListByKey(v._installKey, (x) => ({
           ...x,
           paused: true,
-          _progressText: 'Paused',
+          _progressText: t('versions.install.paused'),
         }));
         _deps.renderAllVersionSections();
       }
@@ -1612,17 +1812,17 @@ const createInstallingActions = (v) => {
   actions.appendChild(pauseBtn);
 
   const cancelBtn = document.createElement('button');
-  cancelBtn.textContent = 'Cancel';
+  cancelBtn.textContent = t('common.cancel');
 
   cancelBtn.addEventListener('click', (e) => {
     e.stopPropagation();
 
     showMessageBox({
-      title: 'Cancel Download',
-      message: `Do you want to cancel downloading ${v.category}/${v.folder}?`,
+      title: t('versions.install.cancelDownloadTitle'),
+      message: t('versions.install.cancelDownloadMessage', { version: `${v.category}/${v.folder}` }),
       buttons: [
         {
-          label: 'Yes',
+          label: t('common.yes'),
           classList: ['danger'],
           onClick: async () => {
             if (!v._installKey) return;
@@ -1636,7 +1836,7 @@ const createInstallingActions = (v) => {
             }, 100);
           },
         },
-        { label: 'No' },
+        { label: t('common.no') },
       ],
     });
   });
@@ -1682,7 +1882,7 @@ export const createVersionCard = (v, sectionType) => {
 
   if (sectionType === 'installed') {
     bindKeyboardActivation(card, {
-      ariaLabel: `Select version ${String(v && v.display ? v.display : fullId)}`,
+      ariaLabel: t('versions.actions.selectVersion', { version: getVersionLabel(v, fullId) }),
     });
     card.setAttribute('aria-current', state.selectedVersion === fullId ? 'true' : 'false');
   }
@@ -1700,7 +1900,7 @@ export const createVersionCard = (v, sectionType) => {
     checkbox.type = 'checkbox';
     checkbox.className = 'bulk-select-checkbox';
     checkbox.checked = isSelected;
-    checkbox.title = 'Select version for bulk actions';
+    checkbox.title = t('versions.selectForBulkActions');
     checkbox.setAttribute('tabindex', '-1');
     checkbox.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1789,7 +1989,7 @@ export const createVersionCard = (v, sectionType) => {
       state.selectedVersionDisplay = v.display;
       state.settingsState.selected_version = state.selectedVersion;
       _deps.updateHomeInfo();
-      await api('/api/settings', 'POST', { selected_version: state.selectedVersion });
+      await api('/api/settings', 'POST', settingsProfilePayload({ selected_version: state.selectedVersion }));
     });
   }
 

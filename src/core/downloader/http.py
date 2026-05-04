@@ -11,6 +11,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Iterator, List, Optional, Tuple
 
+from core.constants import DOWNLOAD_PARALLEL_WORKERS
 from core.downloader.errors import DownloadFailed, HashMismatch
 from core.logger import colorize_log
 
@@ -322,7 +323,7 @@ class HttpClient:
         self,
         tasks: Iterable["DownloadTask"],
         *,
-        max_workers: int = 8,
+        max_workers: int = DOWNLOAD_PARALLEL_WORKERS,
         cancel_check: Optional[CancelCheck] = None,
     ) -> None:
         from concurrent.futures import ThreadPoolExecutor, as_completed

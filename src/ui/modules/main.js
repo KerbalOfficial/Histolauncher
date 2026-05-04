@@ -16,8 +16,9 @@ import { showLoadingOverlay, hideLoadingOverlay } from './modal.js';
 import { closeAllActionOverflowMenus, initResponsiveActionOverflowMenus } from './action-overflow.js';
 
 import { initTooltips } from './tooltips.js';
+import { initI18n, t } from './i18n.js';
 
-import { initWorldsPage, refreshWorldsPageState, loadInstalledWorlds } from './worlds.js';
+import { initWorldsPage, refreshWorldsPageState, loadInstalledWorlds, updateWorldsBulkActionsUI } from './worlds.js';
 
 import {
   initModsPage,
@@ -26,7 +27,7 @@ import {
   showModDetailModal,
 } from './mods.js';
 
-import { setVersionsDeps } from './versions.js';
+import { setVersionsDeps, updateVersionsBulkActionsUI } from './versions.js';
 
 import { startPollingForInstall, setInstallDeps } from './install.js';
 
@@ -46,6 +47,7 @@ import {
   getCustomStorageDirectoryError,
   refreshCustomStorageDirectoryValidation,
   applyScopeProfilesState,
+  renderProfilesSelect,
   renderScopeProfilesSelect,
   setProfilesDeps,
 } from './profiles.js';
@@ -71,6 +73,7 @@ import {
 } from './home.js';
 
 import { initSidebar } from './navigation.js';
+import { applyAppearanceSettings, initAppearanceObserver } from './appearance.js';
 import {
   autoSaveSetting,
   initSettingsInputs,
@@ -521,7 +524,7 @@ const init = async ({ preserveAvailableData = false } = {}) => {
         }
       } else {
         el.classList.remove('outdated');
-        el.textContent = 'unknown';
+        el.textContent = t('common.unknown');
       }
     }
   } catch (e) {
@@ -685,7 +688,7 @@ const resolveModrinthAddonLink = (href) => {
   };
 };
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   document.addEventListener('click', async (ev) => {
     const a = ev.target.closest('a[href]');
     if (!a) return;
@@ -760,11 +763,31 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  window.addEventListener('histolauncher:language-changed', () => {
+    updateHomeInfo();
+    renderProfilesSelect();
+    renderScopeProfilesSelect('versions');
+    renderScopeProfilesSelect('mods');
+    initCategoryFilter();
+    updateVersionsBulkActionsUI();
+    updateWorldsBulkActionsUI();
+    renderAllVersionSections();
+    if (state.javaRuntimesLoaded) {
+      refreshJavaRuntimeOptions(false).catch((err) => {
+        console.warn('Failed to refresh translated Java runtime options:', err);
+      });
+    }
+    applyAppearanceSettings(state.settingsState);
+  });
+
+  await initI18n();
   initShiftTracking();
   initSidebar();
   initSettingsDropdowns();
   initCollapsibleSections();
   initTooltips();
+  applyAppearanceSettings(state.settingsState);
+  initAppearanceObserver();
   initLaunchButton();
   initRefreshButton();
   initSettingsInputs();

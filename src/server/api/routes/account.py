@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 import re
 import time
@@ -8,6 +9,7 @@ import urllib.parse
 import urllib.request
 
 from core.logger import colorize_log
+from core.notifications import send_desktop_notification
 from core.settings import (
     _apply_url_proxy,
     clear_account_token,
@@ -22,6 +24,16 @@ from server.api._constants import HISTOLAUNCHER_WEB_ORIGINS
 __all__ = [
     "_verify_and_store_session_token",
     "api_account_login",
+    "api_account_microsoft_device_code",
+    "api_account_microsoft_cape_disable",
+    "api_account_microsoft_cape_select",
+    "api_account_microsoft_poll",
+    "api_account_microsoft_skin_delete",
+    "api_account_microsoft_skin_favorite",
+    "api_account_microsoft_skin_save",
+    "api_account_microsoft_skin_select",
+    "api_account_microsoft_skin_upload",
+    "api_account_microsoft_textures",
     "api_account_verify_session",
     "api_account_current",
     "api_account_refresh_assets",
@@ -30,6 +42,125 @@ __all__ = [
     "api_account_status",
     "api_account_disconnect",
 ]
+
+
+MAX_SKIN_UPLOAD_BASE64_LENGTH = 4 * 1024 * 1024
+
+
+def _account_error_is_unauthorized(error: str | None) -> bool:
+    err_msg = str(error or "").lower()
+    return (
+        "not logged in" in err_msg
+        or "session expired" in err_msg
+        or "sign in again" in err_msg
+        or "unauthorized" in err_msg
+        or "invalid_grant" in err_msg
+    )
+
+
+def _dashed_uuid(uuid_value: str) -> str:
+    clean = re.sub(r"[^a-fA-F0-9]", "", str(uuid_value or ""))
+    if len(clean) != 32:
+        return str(uuid_value or "").strip()
+    return f"{clean[0:8]}-{clean[8:12]}-{clean[12:16]}-{clean[16:20]}-{clean[20:32]}"
+
+
+def _safe_texture_cache_identifier(value: str) -> str:
+    text = str(value or "").strip()
+    if not text or len(text) > 160:
+        return ""
+    if not re.match(r"^[A-Za-z0-9_. -]+$", text):
+        return ""
+    return text
+
+
+def _invalidate_account_texture_cache(uuid_value: str = "", username: str = "") -> None:
+    uuid_raw = str(uuid_value or "").strip()
+    username_raw = str(username or "").strip()
+    identifiers: list[str] = []
+
+    for value in (uuid_raw, _dashed_uuid(uuid_raw), uuid_raw.replace("-", ""), username_raw):
+        clean = _safe_texture_cache_identifier(value)
+        if clean and clean not in identifiers:
+            identifiers.append(clean)
+
+    try:
+        from server import yggdrasil
+
+        yggdrasil.invalidate_texture_cache(uuid_raw, username_raw)
+    except Exception:
+        pass
+
+    if not identifiers:
+        return
+
+    try:
+        from server.auth.microsoft import remove_microsoft_texture_cache
+
+        for identifier in identifiers:
+            for suffix in ("skin", "cape"):
+                remove_microsoft_texture_cache(identifier, suffix)
+    except Exception:
+        pass
+
+
+def _send_microsoft_login_notification(
+    *,
+    username: str = "",
+    error: str | None = None,
+) -> None:
+    try:
+        if error:
+            detail = str(error).strip() or "Microsoft login failed."
+            send_desktop_notification(
+                title="Microsoft Login Failed",
+                message=detail,
+                icon_kind="failed",
+            )
+            return
+
+        display_name = str(username or "Microsoft account").strip() or "Microsoft account"
+        send_desktop_notification(
+            title="Microsoft Login Successful",
+            message=f"Signed in to Microsoft account as {display_name}.",
+            icon_kind="success",
+        )
+    except Exception as exc:
+        print(colorize_log(f"[api] Could not send Microsoft login notification: {exc}"))
+
+
+def _microsoft_texture_response(texture_profile: dict, *, refresh_result: dict | None = None):
+    uuid_value = str(texture_profile.get("uuid") or "")
+    username = str(texture_profile.get("username") or "")
+    texture_revision = int(time.time() * 1000)
+    return {
+        "ok": True,
+        "authenticated": True,
+        "account_type": "Microsoft",
+        "uuid": uuid_value,
+        "username": username,
+        "texture_revision": texture_revision,
+        "textures": texture_profile,
+        "skins": texture_profile.get("skins") if isinstance(texture_profile.get("skins"), list) else [],
+        "capes": texture_profile.get("capes") if isinstance(texture_profile.get("capes"), list) else [],
+        "active_skin": texture_profile.get("active_skin"),
+        "active_cape": texture_profile.get("active_cape"),
+        "refresh_result": refresh_result or {"provider": "Microsoft"},
+    }
+
+
+def _decode_skin_upload(data: dict) -> bytes:
+    raw = str(data.get("file_base64") or data.get("skin_base64") or "").strip()
+    if not raw:
+        raise ValueError("Choose a skin PNG before saving.")
+    if "," in raw and raw.lower().startswith("data:"):
+        raw = raw.split(",", 1)[1]
+    if len(raw) > MAX_SKIN_UPLOAD_BASE64_LENGTH:
+        raise ValueError("Skin file is too large. Choose a PNG under 2 MB.")
+    try:
+        return base64.b64decode(raw, validate=True)
+    except Exception as e:
+        raise ValueError("Could not read the uploaded skin PNG.") from e
 
 
 def _verify_and_store_session_token(session_token: str):
@@ -46,17 +177,18 @@ def _verify_and_store_session_token(session_token: str):
 
     save_account_token(session_value)
 
+    username = user_data.get("username", "")
+    account_uuid = user_data.get("uuid", "")
+
     try:
         s = load_global_settings() or {}
         s["account_type"] = "Histolauncher"
-        s.pop("uuid", None)
-        s.pop("username", None)
+        s["username"] = username
+        s["uuid"] = account_uuid
         save_global_settings(s)
     except Exception as e:
         return {"ok": False, "error": f"Failed to save settings: {str(e)}"}
 
-    username = user_data.get("username", "")
-    account_uuid = user_data.get("uuid", "")
     print(colorize_log(
         f"[api_account_verify_session] Account verified: "
         f"username={username}, uuid={account_uuid}"
@@ -102,26 +234,286 @@ def api_account_verify_session(data):
         return {"ok": False, "error": str(e)}
 
 
+def api_account_microsoft_device_code(data=None):
+    try:
+        from server.auth.microsoft import start_device_code
+
+        result = start_device_code()
+        if not result.get("ok"):
+            _send_microsoft_login_notification(error=result.get("error"))
+        return result
+    except Exception as e:
+        _send_microsoft_login_notification(error=str(e))
+        return {"ok": False, "error": str(e)}
+
+
+def api_account_microsoft_poll(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+
+        from server.auth.microsoft import poll_device_code
+
+        interval = data.get("interval")
+        try:
+            interval_int = int(interval) if interval is not None else None
+        except Exception:
+            interval_int = None
+        result = poll_device_code(data.get("device_code", ""), interval=interval_int)
+        if result.get("ok") and result.get("authenticated"):
+            _send_microsoft_login_notification(username=result.get("username"))
+        elif not result.get("pending"):
+            _send_microsoft_login_notification(error=result.get("error"))
+        return result
+    except Exception as e:
+        _send_microsoft_login_notification(error=str(e))
+        return {"ok": False, "error": str(e)}
+
+
+def api_account_microsoft_textures(data=None):
+    try:
+        from server.auth.microsoft import get_microsoft_texture_profile
+
+        texture_profile, used_cached_profile = get_microsoft_texture_profile(
+            force_profile=True,
+            return_cache_state=True,
+        )
+        if not used_cached_profile:
+            _invalidate_account_texture_cache(
+                texture_profile.get("uuid", ""),
+                texture_profile.get("username", ""),
+            )
+        return _microsoft_texture_response(texture_profile)
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "authenticated": False,
+            "unauthorized": _account_error_is_unauthorized(str(e)),
+        }
+
+
+def api_account_microsoft_skin_upload(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+
+        from server.auth.microsoft import upload_microsoft_skin
+
+        skin_bytes = _decode_skin_upload(data)
+        texture_profile = upload_microsoft_skin(
+            skin_bytes,
+            variant=str(data.get("variant") or data.get("model") or "classic"),
+            file_name=str(data.get("file_name") or "skin.png"),
+            display_name=str(data.get("name") or ""),
+            library_id=str(data.get("skin_id") or data.get("library_id") or ""),
+            cape_id=data.get("cape_id") if "cape_id" in data else data.get("capeId") if "capeId" in data else None,
+        )
+        _invalidate_account_texture_cache(
+            texture_profile.get("uuid", ""),
+            texture_profile.get("username", ""),
+        )
+        return _microsoft_texture_response(texture_profile, refresh_result={"provider": "Microsoft", "action": "skin_upload"})
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "authenticated": False,
+            "unauthorized": _account_error_is_unauthorized(str(e)),
+        }
+
+
+def api_account_microsoft_skin_save(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+
+        from server.auth.microsoft import save_microsoft_local_skin
+
+        has_skin_data = bool(str(data.get("file_base64") or data.get("skin_base64") or "").strip())
+        skin_bytes = _decode_skin_upload(data) if has_skin_data else None
+        texture_profile = save_microsoft_local_skin(
+            skin_bytes,
+            variant=str(data.get("variant") or data.get("model") or "classic"),
+            file_name=str(data.get("file_name") or "skin.png"),
+            display_name=str(data.get("name") or ""),
+            library_id=str(data.get("skin_id") or data.get("library_id") or ""),
+            cape_id=data.get("cape_id") if "cape_id" in data else data.get("capeId") if "capeId" in data else None,
+        )
+        return _microsoft_texture_response(texture_profile, refresh_result={"provider": "Microsoft", "action": "skin_save"})
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "authenticated": False,
+            "unauthorized": _account_error_is_unauthorized(str(e)),
+        }
+
+
+def api_account_microsoft_skin_delete(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+
+        from server.auth.microsoft import delete_microsoft_local_skin
+
+        texture_profile = delete_microsoft_local_skin(data.get("skin_id") or data.get("id") or "")
+        return _microsoft_texture_response(texture_profile, refresh_result={"provider": "Microsoft", "action": "skin_delete"})
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "authenticated": False,
+            "unauthorized": _account_error_is_unauthorized(str(e)),
+        }
+
+
+def api_account_microsoft_skin_favorite(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+
+        from server.auth.microsoft import set_microsoft_skin_favorite
+
+        texture_profile = set_microsoft_skin_favorite(
+            data.get("skin_id") or data.get("id") or "",
+            data.get("favorite"),
+        )
+        return _microsoft_texture_response(texture_profile, refresh_result={"provider": "Microsoft", "action": "skin_favorite"})
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "authenticated": False,
+            "unauthorized": _account_error_is_unauthorized(str(e)),
+        }
+
+
+def api_account_microsoft_skin_select(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+
+        from server.auth.microsoft import activate_microsoft_skin
+
+        texture_profile = activate_microsoft_skin(
+            data.get("skin_id") or data.get("id") or "",
+            display_name=str(data.get("name") or ""),
+            variant=str(data.get("variant") or data.get("model") or ""),
+            cape_id=data.get("cape_id") if "cape_id" in data else data.get("capeId") if "capeId" in data else None,
+        )
+        _invalidate_account_texture_cache(
+            texture_profile.get("uuid", ""),
+            texture_profile.get("username", ""),
+        )
+        return _microsoft_texture_response(texture_profile, refresh_result={"provider": "Microsoft", "action": "skin_select"})
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "authenticated": False,
+            "unauthorized": _account_error_is_unauthorized(str(e)),
+        }
+
+
+def api_account_microsoft_cape_select(data):
+    try:
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "invalid request"}
+
+        cape_id = str(data.get("cape_id") or data.get("id") or "").strip()
+        if cape_id.lower() in {"", "none", "null"}:
+            return api_account_microsoft_cape_disable(data)
+
+        from server.auth.microsoft import activate_microsoft_cape
+
+        texture_profile = activate_microsoft_cape(cape_id)
+        _invalidate_account_texture_cache(
+            texture_profile.get("uuid", ""),
+            texture_profile.get("username", ""),
+        )
+        return _microsoft_texture_response(texture_profile, refresh_result={"provider": "Microsoft", "action": "cape_select"})
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "authenticated": False,
+            "unauthorized": _account_error_is_unauthorized(str(e)),
+        }
+
+
+def api_account_microsoft_cape_disable(data=None):
+    try:
+        from server.auth.microsoft import disable_microsoft_cape
+
+        texture_profile = disable_microsoft_cape()
+        _invalidate_account_texture_cache(
+            texture_profile.get("uuid", ""),
+            texture_profile.get("username", ""),
+        )
+        return _microsoft_texture_response(texture_profile, refresh_result={"provider": "Microsoft", "action": "cape_disable"})
+    except Exception as e:
+        return {
+            "ok": False,
+            "error": str(e),
+            "authenticated": False,
+            "unauthorized": _account_error_is_unauthorized(str(e)),
+        }
+
+
 def api_account_current():
     try:
         settings = load_global_settings() or {}
-        if str(settings.get("account_type") or "Local").strip().lower() != "histolauncher":
+        account_type = str(settings.get("account_type") or "Local").strip()
+        account_type_norm = account_type.lower()
+        if account_type_norm not in {"histolauncher", "microsoft"}:
             return {
                 "ok": False,
-                "error": "Histolauncher account not enabled",
+                "error": "Online account not enabled",
                 "authenticated": False,
                 "unauthorized": False,
                 "local_account": True,
             }
 
-        from server.auth import get_verified_account
+        if account_type_norm == "microsoft":
+            from server.auth.microsoft import (
+                get_microsoft_texture_profile,
+                get_verified_microsoft_account,
+                refresh_microsoft_account,
+            )
 
-        success, user_data, error = get_verified_account()
+            texture_revision = 0
+            texture_profile = None
+            try:
+                user_data = refresh_microsoft_account(force_profile=True)
+                success = True
+                error = None
+                try:
+                    texture_profile = get_microsoft_texture_profile(force_profile=False)
+                except Exception:
+                    texture_profile = None
+                texture_revision = int(time.time() * 1000)
+                _invalidate_account_texture_cache(
+                    user_data.get("uuid", ""),
+                    user_data.get("username", ""),
+                )
+            except Exception as refresh_error:
+                success, user_data, error = get_verified_microsoft_account()
+                if not error:
+                    error = str(refresh_error)
+                if success:
+                    try:
+                        texture_profile = get_microsoft_texture_profile(force_profile=False)
+                    except Exception:
+                        texture_profile = None
+        else:
+            from server.auth import get_verified_account
+
+            success, user_data, error = get_verified_account()
+            texture_revision = 0
+
         if not success:
-            err_msg = (error or "").lower()
-            unauthorized = False
-            if "not logged in" in err_msg or "session expired" in err_msg:
-                unauthorized = True
+            unauthorized = _account_error_is_unauthorized(error)
             return {
                 "ok": False,
                 "error": error or "Not authenticated",
@@ -129,12 +521,19 @@ def api_account_current():
                 "unauthorized": unauthorized,
             }
 
-        return {
+        response = {
             "ok": True,
             "authenticated": True,
+            "account_type": "Microsoft" if account_type_norm == "microsoft" else "Histolauncher",
             "uuid": user_data.get("uuid", ""),
             "username": user_data.get("username", ""),
         }
+        if texture_revision:
+            response["texture_revision"] = texture_revision
+        if account_type_norm == "microsoft" and isinstance(texture_profile, dict):
+            response["active_skin"] = texture_profile.get("active_skin")
+            response["active_cape"] = texture_profile.get("active_cape")
+        return response
     except Exception as e:
         return {
             "ok": False,
@@ -147,13 +546,40 @@ def api_account_current():
 def api_account_refresh_assets(data=None):
     try:
         settings = load_global_settings() or {}
-        if str(settings.get("account_type") or "Local").strip().lower() != "histolauncher":
+        account_type = str(settings.get("account_type") or "Local").strip().lower()
+        if account_type not in {"histolauncher", "microsoft"}:
             return {
                 "ok": False,
-                "error": "Histolauncher account not enabled",
+                "error": "Online account not enabled",
                 "authenticated": False,
                 "unauthorized": False,
             }
+
+        if account_type == "microsoft":
+            from server.auth.microsoft import refresh_microsoft_account
+
+            try:
+                user_data = refresh_microsoft_account(force_profile=True)
+                _invalidate_account_texture_cache(
+                    user_data.get("uuid", ""),
+                    user_data.get("username", ""),
+                )
+                return {
+                    "ok": True,
+                    "authenticated": True,
+                    "account_type": "Microsoft",
+                    "uuid": user_data.get("uuid", ""),
+                    "username": user_data.get("username", ""),
+                    "texture_revision": int(time.time() * 1000),
+                    "refresh_result": {"provider": "Microsoft"},
+                }
+            except Exception as e:
+                return {
+                    "ok": False,
+                    "error": str(e),
+                    "authenticated": False,
+                    "unauthorized": _account_error_is_unauthorized(str(e)),
+                }
 
         from core.settings import load_account_token
         from server import yggdrasil
@@ -603,7 +1029,11 @@ def api_account_status():
     try:
         s = load_global_settings() or {}
         account_type = s.get("account_type", "Local")
-        return {"ok": True, "connected": account_type == "Histolauncher"}
+        return {
+            "ok": True,
+            "connected": str(account_type).strip().lower() in {"histolauncher", "microsoft"},
+            "account_type": account_type,
+        }
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -612,6 +1042,7 @@ def api_account_disconnect():
     try:
         s = load_global_settings() or {}
         s["account_type"] = "Local"
+        s["uuid"] = ""
         save_global_settings(s)
         clear_account_token()
         return {"ok": True, "message": "Account disconnected."}

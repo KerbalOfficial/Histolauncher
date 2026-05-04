@@ -14,12 +14,49 @@ from server.yggdrasil.textures.urls import (
 
 __all__ = [
     "_collect_local_texture_paths",
+    "_is_valid_local_texture_file",
     "_remove_local_texture_files",
     "_remove_local_skin_model_metadata",
     "_persist_cached_skin_model",
     "_has_local_skin_file",
     "_resolve_local_cape_url",
 ]
+
+
+def _read_png_dimensions(path: str) -> tuple[int, int] | None:
+    try:
+        with open(path, "rb") as f:
+            header = f.read(24)
+        if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n":
+            return None
+        width = int.from_bytes(header[16:20], "big")
+        height = int.from_bytes(header[20:24], "big")
+        return width, height
+    except Exception:
+        return None
+
+
+def _is_valid_local_texture_file(path: str, texture_type: str) -> bool:
+    if not path or not os.path.isfile(path):
+        return False
+
+    safe_type = str(texture_type or "").strip().lower()
+    dimensions = _read_png_dimensions(path)
+    if not dimensions:
+        return False
+
+    width, height = dimensions
+    if safe_type == "skin":
+        if width < 64 or height < 32 or (width % 64) != 0:
+            return False
+        is_legacy = width == (height * 2) and (height % 32) == 0
+        is_modern = width == height and (height % 64) == 0
+        return is_legacy or is_modern
+    if safe_type == "cape":
+        if width < 64 or height < 32:
+            return False
+        return width == (height * 2) and (width % 64) == 0
+    return False
 
 
 def _collect_local_texture_paths(
@@ -136,7 +173,10 @@ def _has_local_skin_file(uuid_hex: str, username: str = "") -> bool:
     if clean_username:
         candidates.append(os.path.join(skins_dir, f"{clean_username}+skin.png"))
 
-    return any(candidate and os.path.isfile(candidate) for candidate in candidates)
+    return any(
+        candidate and _is_valid_local_texture_file(candidate, "skin")
+        for candidate in candidates
+    )
 
 
 def _resolve_local_cape_url(
@@ -157,7 +197,7 @@ def _resolve_local_cape_url(
             local_candidates.append(os.path.join(skins_dir, f"{identifier}+cape.png"))
 
         for candidate in local_candidates:
-            if candidate and os.path.isfile(candidate):
+            if candidate and _is_valid_local_texture_file(candidate, "cape"):
                 return _build_public_cape_url(identifier, port)
 
     return None
