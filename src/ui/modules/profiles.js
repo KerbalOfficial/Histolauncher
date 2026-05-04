@@ -6,6 +6,7 @@ import { getEl, toggleClass } from './dom-utils.js';
 import { showMessageBox } from './modal.js';
 import { ADD_PROFILE_OPTION } from './config.js';
 import { updateSettingsValidationUI } from './launch.js';
+import { t } from './i18n.js';
 
 const _deps = {};
 for (const k of ['init']) {
@@ -212,9 +213,16 @@ export const getScopeProfileEditIconId = (scope) => {
 
 export const getScopeLabel = (scope) => {
   const key = String(scope || '').trim().toLowerCase();
-  if (key === 'versions') return 'Versions';
-  if (key === 'mods') return 'Addons';
-  return 'Scope';
+  if (key === 'versions') return t('profiles.scopes.versions');
+  if (key === 'mods') return t('profiles.scopes.addons');
+  return t('profiles.scopes.scope');
+};
+
+const getProfileDisplayName = (profile) => {
+  if (profile && profile.id === 'default' && (!profile.name || profile.name === 'Default')) {
+    return t('profiles.defaultName');
+  }
+  return (profile && (profile.name || profile.id)) || t('profiles.genericName');
 };
 
 export const applyScopeProfilesState = (scope, profiles, activeProfile) => {
@@ -239,16 +247,16 @@ export const renderScopeProfilesSelect = (scope) => {
   stateRef.profiles.forEach((profile) => {
     const opt = document.createElement('option');
     opt.value = profile.id;
-    opt.textContent = profile.name || profile.id;
+    opt.textContent = getProfileDisplayName(profile);
     if (profile.id === stateRef.activeProfile) opt.style.fontWeight = 'bold';
     select.appendChild(opt);
   });
 
   const addOpt = document.createElement('option');
   addOpt.value = ADD_PROFILE_OPTION;
-  addOpt.textContent = '+ Add new profile';
+  addOpt.textContent = t('profiles.addNew');
   addOpt.style.fontStyle = 'italic';
-  addOpt.style.color = 'rgba(255, 255, 255, 0.5)';
+  addOpt.style.color = 'var(--color-text-disabled)';
   select.appendChild(addOpt);
 
   select.value = stateRef.activeProfile;
@@ -291,23 +299,23 @@ export const showDeleteScopeProfileModal = (scope) => {
   if (!stateRef || !apiBase) return;
 
   const active = stateRef.profiles.find((p) => p.id === stateRef.activeProfile);
-  const activeName = (active && active.name) || stateRef.activeProfile || 'profile';
+  const activeName = (active && active.name) || stateRef.activeProfile || t('profiles.genericName');
 
   if (stateRef.activeProfile === 'default') {
     showMessageBox({
-      title: 'Cannot Delete',
-      message: 'The Default profile cannot be deleted.',
-      buttons: [{ label: 'OK' }],
+      title: t('profiles.dialog.cannotDeleteTitle'),
+      message: t('profiles.dialog.defaultCannotBeDeleted'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
 
   showMessageBox({
-    title: `Delete ${scopeLabel} Profile`,
-    message: `Delete profile <b>${activeName}</b>?<br>This will delete all the data stored in the profile and cannot be undone!`,
+    title: t('profiles.dialog.deleteScopeTitle', { scope: scopeLabel }),
+    message: t('profiles.dialog.deleteConfirm', { profile: activeName }),
     buttons: [
       {
-        label: 'Delete',
+        label: t('common.delete'),
         classList: ['danger'],
         onClick: async () => {
           const res = await api(`${apiBase}/delete`, 'POST', {
@@ -315,16 +323,16 @@ export const showDeleteScopeProfileModal = (scope) => {
           });
           if (!res || !res.ok) {
             showMessageBox({
-              title: 'Delete Failed',
-              message: (res && res.error) || 'Failed to delete profile.',
-              buttons: [{ label: 'OK' }],
+              title: t('profiles.dialog.deleteFailedTitle'),
+              message: (res && res.error) || t('profiles.dialog.deleteFailed'),
+              buttons: [{ label: t('common.ok') }],
             });
             return;
           }
           await _deps.init();
         },
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -346,7 +354,7 @@ export const showRenameScopeProfileModal = (scope) => {
 
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
-  label.textContent = `Rename active ${scopeLabel.toLowerCase()} profile (1-32 characters):`;
+  label.textContent = t('profiles.dialog.renameScopePrompt', { scope: scopeLabel.toLowerCase() });
 
   const input = document.createElement('input');
   input.type = 'text';
@@ -358,19 +366,19 @@ export const showRenameScopeProfileModal = (scope) => {
   content.appendChild(input);
 
   showMessageBox({
-    title: `Rename ${scopeLabel} Profile`,
+    title: t('profiles.dialog.renameScopeTitle', { scope: scopeLabel }),
     customContent: content,
     buttons: [
       {
-        label: 'Save',
+        label: t('common.save'),
         classList: ['primary'],
         onClick: async () => {
           const name = String(input.value || '').trim();
           if (name.length < 1 || name.length > 32) {
             showMessageBox({
-              title: 'Invalid Name',
-              message: 'Profile name must be between 1 and 32 characters.',
-              buttons: [{ label: 'OK', onClick: () => showRenameScopeProfileModal(scope) }],
+              title: t('profiles.dialog.invalidNameTitle'),
+              message: t('profiles.dialog.nameLength'),
+              buttons: [{ label: t('common.ok'), onClick: () => showRenameScopeProfileModal(scope) }],
             });
             return;
           }
@@ -381,9 +389,9 @@ export const showRenameScopeProfileModal = (scope) => {
           });
           if (!res || !res.ok) {
             showMessageBox({
-              title: 'Rename Failed',
-              message: (res && res.error) || 'Failed to rename profile.',
-              buttons: [{ label: 'OK', onClick: () => showRenameScopeProfileModal(scope) }],
+              title: t('profiles.dialog.renameFailedTitle'),
+              message: (res && res.error) || t('profiles.dialog.renameFailed'),
+              buttons: [{ label: t('common.ok'), onClick: () => showRenameScopeProfileModal(scope) }],
             });
             return;
           }
@@ -392,7 +400,7 @@ export const showRenameScopeProfileModal = (scope) => {
         },
       },
       {
-        label: 'Cancel',
+        label: t('common.cancel'),
         onClick: () => {
           renderScopeProfilesSelect(scope);
         },
@@ -413,9 +421,9 @@ export const switchScopeProfile = async (scope, profileId) => {
   const res = await api(`${apiBase}/switch`, 'POST', { profile_id: profileId });
   if (!res || !res.ok) {
     showMessageBox({
-      title: `${getScopeLabel(scope)} Profile Switch Failed`,
-      message: (res && res.error) || 'Failed to switch profile.',
-      buttons: [{ label: 'OK' }],
+      title: t('profiles.dialog.scopeSwitchFailedTitle', { scope: getScopeLabel(scope) }),
+      message: (res && res.error) || t('profiles.dialog.switchFailed'),
+      buttons: [{ label: t('common.ok') }],
     });
     renderScopeProfilesSelect(scope);
     return;
@@ -433,31 +441,31 @@ export const showCreateScopeProfileModal = (scope) => {
 
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
-  label.textContent = `Enter a ${scopeLabel.toLowerCase()} profile name (1-32 characters):`;
+  label.textContent = t('profiles.dialog.createScopePrompt', { scope: scopeLabel.toLowerCase() });
 
   const input = document.createElement('input');
   input.type = 'text';
   input.maxLength = 32;
   input.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;';
-  input.placeholder = 'New profile name';
+  input.placeholder = t('profiles.dialog.newProfileNamePlaceholder');
 
   content.appendChild(label);
   content.appendChild(input);
 
   showMessageBox({
-    title: `Create ${scopeLabel} Profile`,
+    title: t('profiles.dialog.createScopeTitle', { scope: scopeLabel }),
     customContent: content,
     buttons: [
       {
-        label: 'Create',
+        label: t('profiles.dialog.createButton'),
         classList: ['primary'],
         onClick: async () => {
           const name = String(input.value || '').trim();
           if (name.length < 1 || name.length > 32) {
             showMessageBox({
-              title: 'Invalid Name',
-              message: 'Profile name must be between 1 and 32 characters.',
-              buttons: [{ label: 'OK', onClick: () => showCreateScopeProfileModal(scope) }],
+              title: t('profiles.dialog.invalidNameTitle'),
+              message: t('profiles.dialog.nameLength'),
+              buttons: [{ label: t('common.ok'), onClick: () => showCreateScopeProfileModal(scope) }],
             });
             return;
           }
@@ -465,9 +473,9 @@ export const showCreateScopeProfileModal = (scope) => {
           const res = await api(`${apiBase}/create`, 'POST', { name });
           if (!res || !res.ok) {
             showMessageBox({
-              title: 'Create Failed',
-              message: (res && res.error) || 'Failed to create profile.',
-              buttons: [{ label: 'OK', onClick: () => showCreateScopeProfileModal(scope) }],
+              title: t('profiles.dialog.createFailedTitle'),
+              message: (res && res.error) || t('profiles.dialog.createFailed'),
+              buttons: [{ label: t('common.ok'), onClick: () => showCreateScopeProfileModal(scope) }],
             });
             return;
           }
@@ -476,7 +484,7 @@ export const showCreateScopeProfileModal = (scope) => {
         },
       },
       {
-        label: 'Cancel',
+        label: t('common.cancel'),
         onClick: () => {
           renderScopeProfilesSelect(scope);
         },
@@ -497,16 +505,16 @@ export const renderProfilesSelect = () => {
   state.profilesState.profiles.forEach((profile) => {
     const opt = document.createElement('option');
     opt.value = profile.id;
-    opt.textContent = profile.name || profile.id;
+    opt.textContent = getProfileDisplayName(profile);
     if (profile.id === state.profilesState.activeProfile) opt.style.fontWeight = 'bold';
     select.appendChild(opt);
   });
 
   const addOpt = document.createElement('option');
   addOpt.value = ADD_PROFILE_OPTION;
-  addOpt.textContent = '+ Add new profile';
+  addOpt.textContent = t('profiles.addNew');
   addOpt.style.fontStyle = 'italic';
-  addOpt.style.color = 'rgba(255, 255, 255, 0.5)';
+  addOpt.style.color = 'var(--color-text-disabled)';
   select.appendChild(addOpt);
 
   select.value = state.profilesState.activeProfile;
@@ -537,9 +545,9 @@ export const switchProfile = async (profileId) => {
   const res = await api('/api/profiles/switch', 'POST', { profile_id: profileId });
   if (!res || !res.ok) {
     showMessageBox({
-      title: 'Profile Switch Failed',
-      message: (res && res.error) || 'Failed to switch profile.',
-      buttons: [{ label: 'OK' }],
+      title: t('profiles.dialog.switchFailedTitle'),
+      message: (res && res.error) || t('profiles.dialog.switchFailed'),
+      buttons: [{ label: t('common.ok') }],
     });
     renderProfilesSelect();
     return;
@@ -552,31 +560,31 @@ export const showCreateProfileModal = () => {
 
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
-  label.textContent = 'Enter a profile name (1-32 characters):';
+  label.textContent = t('profiles.dialog.createPrompt');
 
   const input = document.createElement('input');
   input.type = 'text';
   input.maxLength = 32;
   input.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;';
-  input.placeholder = 'New profile name';
+  input.placeholder = t('profiles.dialog.newProfileNamePlaceholder');
 
   content.appendChild(label);
   content.appendChild(input);
 
   showMessageBox({
-    title: 'Create Profile',
+    title: t('profiles.dialog.createTitle'),
     customContent: content,
     buttons: [
       {
-        label: 'Create',
+        label: t('profiles.dialog.createButton'),
         classList: ['primary'],
         onClick: async () => {
           const name = String(input.value || '').trim();
           if (name.length < 1 || name.length > 32) {
             showMessageBox({
-              title: 'Invalid Name',
-              message: 'Profile name must be between 1 and 32 characters.',
-              buttons: [{ label: 'OK', onClick: () => showCreateProfileModal() }],
+              title: t('profiles.dialog.invalidNameTitle'),
+              message: t('profiles.dialog.nameLength'),
+              buttons: [{ label: t('common.ok'), onClick: () => showCreateProfileModal() }],
             });
             return;
           }
@@ -584,9 +592,9 @@ export const showCreateProfileModal = () => {
           const res = await api('/api/profiles/create', 'POST', { name });
           if (!res || !res.ok) {
             showMessageBox({
-              title: 'Create Failed',
-              message: (res && res.error) || 'Failed to create profile.',
-              buttons: [{ label: 'OK', onClick: () => showCreateProfileModal() }],
+              title: t('profiles.dialog.createFailedTitle'),
+              message: (res && res.error) || t('profiles.dialog.createFailed'),
+              buttons: [{ label: t('common.ok'), onClick: () => showCreateProfileModal() }],
             });
             return;
           }
@@ -595,7 +603,7 @@ export const showCreateProfileModal = () => {
         },
       },
       {
-        label: 'Cancel',
+        label: t('common.cancel'),
         onClick: () => {
           renderProfilesSelect();
         },
@@ -610,23 +618,23 @@ export const showCreateProfileModal = () => {
 
 export const showDeleteProfileModal = () => {
   const active = state.profilesState.profiles.find((p) => p.id === state.profilesState.activeProfile);
-  const activeName = (active && active.name) || state.profilesState.activeProfile || 'profile';
+  const activeName = (active && active.name) || state.profilesState.activeProfile || t('profiles.genericName');
 
   if (state.profilesState.activeProfile === 'default') {
     showMessageBox({
-      title: 'Cannot Delete',
-      message: 'The Default profile cannot be deleted.',
-      buttons: [{ label: 'OK' }],
+      title: t('profiles.dialog.cannotDeleteTitle'),
+      message: t('profiles.dialog.defaultCannotBeDeleted'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
 
   showMessageBox({
-    title: 'Delete Profile',
-    message: `Delete profile <b>${activeName}</b>?<br><i>This will delete all the data stored in the profile and cannot be undone!</i>` ,
+    title: t('profiles.dialog.deleteTitle'),
+    message: t('profiles.dialog.deleteConfirm', { profile: activeName }),
     buttons: [
       {
-        label: 'Delete',
+        label: t('common.delete'),
         classList: ['danger'],
         onClick: async () => {
           const res = await api('/api/profiles/delete', 'POST', {
@@ -634,16 +642,16 @@ export const showDeleteProfileModal = () => {
           });
           if (!res || !res.ok) {
             showMessageBox({
-              title: 'Delete Failed',
-              message: (res && res.error) || 'Failed to delete profile.',
-              buttons: [{ label: 'OK' }],
+              title: t('profiles.dialog.deleteFailedTitle'),
+              message: (res && res.error) || t('profiles.dialog.deleteFailed'),
+              buttons: [{ label: t('common.ok') }],
             });
             return;
           }
           await _deps.init();
         },
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -661,7 +669,7 @@ export const showRenameProfileModal = () => {
 
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
-  label.textContent = 'Rename active profile (1-32 characters):';
+  label.textContent = t('profiles.dialog.renamePrompt');
 
   const input = document.createElement('input');
   input.type = 'text';
@@ -673,19 +681,19 @@ export const showRenameProfileModal = () => {
   content.appendChild(input);
 
   showMessageBox({
-    title: 'Rename Profile',
+    title: t('profiles.dialog.renameTitle'),
     customContent: content,
     buttons: [
       {
-        label: 'Save',
+        label: t('common.save'),
         classList: ['primary'],
         onClick: async () => {
           const name = String(input.value || '').trim();
           if (name.length < 1 || name.length > 32) {
             showMessageBox({
-              title: 'Invalid Name',
-              message: 'Profile name must be between 1 and 32 characters.',
-              buttons: [{ label: 'OK', onClick: () => showRenameProfileModal() }],
+              title: t('profiles.dialog.invalidNameTitle'),
+              message: t('profiles.dialog.nameLength'),
+              buttons: [{ label: t('common.ok'), onClick: () => showRenameProfileModal() }],
             });
             return;
           }
@@ -696,9 +704,9 @@ export const showRenameProfileModal = () => {
           });
           if (!res || !res.ok) {
             showMessageBox({
-              title: 'Rename Failed',
-              message: (res && res.error) || 'Failed to rename profile.',
-              buttons: [{ label: 'OK', onClick: () => showRenameProfileModal() }],
+              title: t('profiles.dialog.renameFailedTitle'),
+              message: (res && res.error) || t('profiles.dialog.renameFailed'),
+              buttons: [{ label: t('common.ok'), onClick: () => showRenameProfileModal() }],
             });
             return;
           }
@@ -707,7 +715,7 @@ export const showRenameProfileModal = () => {
         },
       },
       {
-        label: 'Cancel',
+        label: t('common.cancel'),
         onClick: () => {
           renderProfilesSelect();
         },

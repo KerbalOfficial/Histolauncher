@@ -9,7 +9,6 @@ import sys
 import threading
 
 from core.logger import colorize_log, dim_line
-from core.settings import save_global_settings
 from core.subprocess_utils import no_window_kwargs
 
 from launcher._constants import (
@@ -23,9 +22,12 @@ from launcher._constants import (
 from launcher.console import setup_launcher_logging
 from launcher.dialogs import (
     ask_custom_okcancel,
+    build_language_selector,
+    show_custom_dialog,
     show_custom_error,
     show_custom_info,
 )
+from launcher.i18n import set_temporary_language, suggested_language_code, t
 from launcher.pip_installer import install
 from launcher.prompts import (
     prompt_create_shortcut,
@@ -77,42 +79,74 @@ def _reconfigure_std_streams() -> None:
             pass
 
 
+def _save_initial_language_choice(language: str | None) -> None:
+    if not language:
+        return
+    try:
+        from core.settings import save_global_settings
+
+        save_global_settings({"launcher_language": language})
+    except Exception:
+        pass
+
+
 def show_disclaimer_if_needed() -> None:
     if has_accepted_mojang_eula():
         return
     try:
-        note = (
-            "NOTE: No Histolauncher data folder has been created yet, so "
-            "you can safely delete the launcher files if you choose not to "
-            "proceed."
-        )
-        if os.path.exists(DATA_DIR_PATH):
-            note = (
-                "NOTE: Histolauncher will not continue until you accept. "
-                "Existing local data remains untouched."
+        language_selector = {}
+
+        def build_language_prompt(context):
+            language_selector.clear()
+            language_selector.update(
+                build_language_selector(
+                    context["text_wrap"],
+                    context["dialog"],
+                    context["ui_font"],
+                    context["direction"],
+                    initial_code=suggested_language_code(),
+                    refresh_dialog=context["refresh_dialog"],
+                )
+                or {}
             )
-        msg = (
-            "DISCLAIMER: Histolauncher is a third-party Minecraft launcher "
-            "and is not affiliated with, endorsed by, or associated with "
-            "Mojang Studios or Microsoft.\n\n"
-            "All Minecraft game files are downloaded directly from Mojang's "
-            "official servers. Histolauncher does not host, modify, or "
-            "redistribute any proprietary Minecraft files.\n\n"
-            "By selecting OK, you acknowledge that you have read and agreed "
-            "to the Minecraft EULA "
-            "(https://www.minecraft.net/en-us/eula) and understood that "
-            "Histolauncher is an independent project with no official "
-            "connection to Mojang or Microsoft.\n\n"
-            "If you do NOT agree, please press 'Cancel' and do not use this "
-            "launcher.\n\n"
-            f"{note}"
+            return language_selector
+
+        selected_language = show_custom_dialog(
+            lambda: t("native.languagePrompt.title"),
+            lambda: t("native.languagePrompt.message"),
+            kind="question",
+            show_icon=False,
+            buttons=[
+                {
+                    "label": lambda: t("common.cancel"),
+                    "value": None,
+                    "style": "default",
+                    "cancel": True,
+                },
+                {
+                    "label": lambda: t("common.next"),
+                    "value": lambda: language_selector.get("get_value", lambda: None)(),
+                    "style": "primary",
+                    "primary": True,
+                },
+            ],
+            content_builder=build_language_prompt,
         )
-        result = ask_custom_okcancel("Disclaimer", msg, kind="question")
+        if not selected_language:
+            sys.exit()
+        selected_language = set_temporary_language(selected_language)
+
+        note = t("native.disclaimer.noteFresh")
+        if os.path.exists(DATA_DIR_PATH):
+            note = t("native.disclaimer.noteExisting")
+        msg = t("native.disclaimer.message", {"note": note})
+        result = ask_custom_okcancel(t("native.disclaimer.title"), msg, kind="question")
         if not result:
             sys.exit()
         os.makedirs(DATA_DIR_PATH, exist_ok=True)
         with open(EULA_ACCEPTANCE_MARKER, "w", encoding="utf-8") as handle:
             handle.write("Minecraft EULA (https://www.minecraft.net/en-us/eula) has been successfully acknowledged by the user.\n")
+        _save_initial_language_choice(selected_language)
     except Exception:
         sys.exit()
 
@@ -168,13 +202,13 @@ def check_and_prompt(splash=None):
 
                     if install_platform_shortcut(PROJECT_ROOT):
                         show_custom_info(
-                            "Shortcut Created",
-                            "The Histolauncher shortcut is ready.",
+                            t("native.prompts.shortcutCreatedTitle"),
+                            t("native.prompts.shortcutCreatedMessage"),
                         )
                     else:
                         show_custom_error(
-                            "Shortcut Error",
-                            "Histolauncher could not create or repair the shortcut.",
+                            t("native.prompts.shortcutErrorTitle"),
+                            t("native.prompts.shortcutErrorMessage"),
                         )
             except Exception as e:
                 print(colorize_log(
@@ -213,8 +247,8 @@ def check_and_prompt(splash=None):
             if update_result.get("success"):
                 try:
                     show_custom_info(
-                        "Update installed",
-                        "Histolauncher has been updated and will now restart.",
+                        t("native.prompts.updateInstalledTitle"),
+                        t("native.prompts.updateInstalledMessage"),
                     )
                 except Exception:
                     pass
@@ -239,9 +273,8 @@ def check_and_prompt(splash=None):
             ))
             try:
                 show_custom_error(
-                    "Update failed",
-                    "The update failed and Histolauncher attempted to "
-                    "restore from backup. Check logs for details.",
+                    t("native.prompts.updateFailedTitle"),
+                    t("native.prompts.updateFailedMessage"),
                 )
             except Exception:
                 pass
@@ -408,7 +441,7 @@ def _ensure_runtime_dependencies() -> tuple[dict[str, bool], dict[str, Exception
 
     success = install(
         missing_packages,
-        display_name="required components",
+        display_name=t("native.install.requiredComponents"),
     )
     if not success:
         print(colorize_log(
@@ -566,6 +599,8 @@ def main():
     port = random.randint(10000, 20000)
 
     try:
+        from core.settings import save_global_settings
+
         save_global_settings({"ygg_port": str(port)})
     except Exception:
         pass

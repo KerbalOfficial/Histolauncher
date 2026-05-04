@@ -24,6 +24,7 @@ from launcher._constants import (
 from launcher.dialogs import center_dialog_window, resolve_dialog_owner
 from launcher.dispatcher import create_tk_ui_dispatcher
 from launcher.fonts import get_native_ui_font_family
+from launcher.i18n import t, tk_direction_options
 
 
 __all__ = ["install"]
@@ -48,7 +49,7 @@ def install(package, *, display_name: str | None = None):
         return True
 
     package_label = display_name or (
-        packages[0] if len(packages) == 1 else "required launcher components"
+        packages[0] if len(packages) == 1 else t("native.install.requiredComponents")
     )
 
     result = {"success": False}
@@ -69,8 +70,9 @@ def install(package, *, display_name: str | None = None):
     owner, owns_owner = resolve_dialog_owner()
     root = tkinter.Toplevel(owner)
     queue_ui, start_ui_dispatcher, stop_ui_dispatcher = create_tk_ui_dispatcher(root)
-    title_text = f"Installing {package_label}..."
+    title_text = t("native.install.title", {"target": package_label})
     ui_font = get_native_ui_font_family(root)
+    direction = tk_direction_options()
     drag_state = {"x": 0, "y": 0}
 
     def ui_log(line):
@@ -88,7 +90,11 @@ def install(package, *, display_name: str | None = None):
         progress["value"] = max(0, min(100, value))
 
     def ui_finish(success):
-        ui_set_status("Finished!" if success else "Installation failed.")
+        ui_set_status(
+            t("native.install.statusFinished")
+            if success
+            else t("native.install.statusFailed")
+        )
         if success:
             ui_set_progress(100)
         else:
@@ -156,12 +162,12 @@ def install(package, *, display_name: str | None = None):
             queue_ui(lambda line=line: ui_log(line))
             if line.lower().startswith("collecting "):
                 total_packages += 1
-                queue_ui(lambda: ui_set_status("Collecting packages.."))
+                queue_ui(lambda: ui_set_status(t("native.install.statusCollecting")))
             phase_frac = detect_phase_fraction(line)
             if phase_frac is not None and total_packages > 0:
                 if "successfully installed" in line.lower():
                     completed_packages += 1
-                    queue_ui(lambda: ui_set_status("Installing packages..."))
+                    queue_ui(lambda: ui_set_status(t("native.install.statusPackages")))
                 overall = (
                     (completed_packages + phase_frac) / total_packages
                 ) * 100
@@ -245,6 +251,17 @@ def install(package, *, display_name: str | None = None):
                 "\n[installer] Could not create a complete launcher venv.\n"
             ))
             return try_installed_python_target_install(venv_py)
+
+        if sys.platform.startswith("win"):
+            venv_log(
+                "[installer] Windows launcher venv is created without pip to "
+                "avoid a transient console during bootstrap. Installing "
+                "packages directly into launcher site-packages."
+            )
+            rc = try_installed_python_target_install(venv_py)
+            if rc == 0:
+                activate_venv_site_packages()
+            return rc
 
         rc, _ = _run_pip([], python_exe=venv_py)
         if rc == 0:
@@ -375,8 +392,12 @@ def install(package, *, display_name: str | None = None):
             queue_ui(lambda success=result["success"]: ui_finish(success))
         except Exception as e:
             result["success"] = False
-            queue_ui(lambda err=e: ui_log(f"\nError: {err}\n"))
-            queue_ui(lambda: ui_set_status("Installation failed."))
+            queue_ui(
+                lambda err=e: ui_log(
+                    "\n" + t("native.install.errorPrefix", {"error": err}) + "\n"
+                )
+            )
+            queue_ui(lambda: ui_set_status(t("native.install.statusFailed")))
         finally:
             queue_ui(lambda: root.after(300, close_dialog))
 
@@ -438,21 +459,22 @@ def install(package, *, display_name: str | None = None):
         bg=TOPBAR_BG_COLOR,
         fg=TEXT_PRIMARY_COLOR,
         font=(ui_font, 10, "bold"),
-        anchor="w",
+        anchor=direction["anchor"],
+        justify=direction["justify"],
         padx=12,
     )
-    topbar_title.pack(side="left", fill="both", expand=True)
+    topbar_title.pack(side=direction["start_side"], fill="both", expand=True)
 
     topbar_status = tkinter.Label(
         topbar,
-        text="Installing",
+        text=t("native.install.statusInstalling"),
         bg=TOPBAR_BG_COLOR,
         fg=TEXT_SECONDARY_COLOR,
         font=(ui_font, 9),
-        anchor="e",
+        anchor="w" if direction["start_side"] == "right" else "e",
         padx=12,
     )
-    topbar_status.pack(side="right", fill="y")
+    topbar_status.pack(side=direction["end_side"], fill="y")
 
     def start_drag(event):
         drag_state["x"] = event.x_root - root.winfo_x()
@@ -472,25 +494,25 @@ def install(package, *, display_name: str | None = None):
 
     label = tkinter.Label(
         content,
-        text=f"Installing {package_label}",
+        text=t("native.install.label", {"target": package_label}),
         font=(ui_font, 12, "bold"),
         bg=PANEL_BG_COLOR,
         fg=TEXT_PRIMARY_COLOR,
-        anchor="w",
-        justify="left",
+        anchor=direction["anchor"],
+        justify=direction["justify"],
     )
-    label.pack(anchor="w")
+    label.pack(anchor=direction["anchor"])
 
     progress_label = tkinter.Label(
         content,
-        text="Starting...",
+        text=t("native.install.statusStarting"),
         font=(ui_font, 10),
         bg=PANEL_BG_COLOR,
         fg=TEXT_SECONDARY_COLOR,
-        anchor="w",
-        justify="left",
+        anchor=direction["anchor"],
+        justify=direction["justify"],
     )
-    progress_label.pack(anchor="w", pady=(8, 10))
+    progress_label.pack(anchor=direction["anchor"], pady=(8, 10))
 
     progress = ttk.Progressbar(
         content,
@@ -509,7 +531,7 @@ def install(package, *, display_name: str | None = None):
 
     details_button = tkinter.Button(
         controls_row,
-        text="Show console",
+        text=t("native.install.showConsole"),
         command=lambda: toggle_details(),
         bg=button_style["bg"],
         fg=button_style["fg"],
@@ -584,11 +606,11 @@ def install(package, *, display_name: str | None = None):
         details_visible = not details_visible
 
         if details_visible:
-            details_button.config(text="Hide console")
+            details_button.config(text=t("native.install.hideConsole"))
             details_frame.pack(fill="both", expand=True)
             root.geometry(f"{expanded_size[0]}x{expanded_size[1]}")
         else:
-            details_button.config(text="Show console")
+            details_button.config(text=t("native.install.showConsole"))
             details_frame.pack_forget()
             root.geometry(f"{collapsed_size[0]}x{collapsed_size[1]}")
 

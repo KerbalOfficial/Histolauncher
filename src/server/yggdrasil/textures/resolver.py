@@ -7,6 +7,7 @@ import time
 from core.logger import colorize_log
 
 from server.yggdrasil.identity import (
+    _active_account_scope,
     _normalize_uuid_hex,
     _uuid_hex_to_dashed,
 )
@@ -38,7 +39,8 @@ __all__ = [
 def _resolve_cached_skin_model(
     uuid_hex: str, username: str = "", allow_stale: bool = False
 ) -> str | None:
-    cache_key = f"{uuid_hex}|{(username or '').strip().lower()}"
+    cache_scope = _active_account_scope()
+    cache_key = f"{cache_scope}|{uuid_hex}|{(username or '').strip().lower()}"
     now = time.time()
     cached = STATE.model_cache.get(cache_key)
     if cached and (allow_stale or (now - cached.get("at", 0) <= MODEL_CACHE_TTL_SECONDS)):
@@ -72,7 +74,8 @@ def _resolve_cached_skin_model(
 
 
 def _resolve_skin_model(uuid_hex: str, username: str = "") -> str:
-    cache_key = f"{uuid_hex}|{(username or '').strip().lower()}"
+    cache_scope = _active_account_scope()
+    cache_key = f"{cache_scope}|{uuid_hex}|{(username or '').strip().lower()}"
     now = time.time()
 
     clean_username = (username or "").strip()
@@ -100,7 +103,8 @@ def _resolve_cape_url(
     port: int = 0,
     probe_remote: bool = True,
 ) -> str | None:
-    cache_key = f"{uuid_hex}|{(username or '').strip().lower()}"
+    cache_scope = _active_account_scope()
+    cache_key = f"{cache_scope}|{uuid_hex}|{(username or '').strip().lower()}"
     cached = STATE.cape_cache.get(cache_key)
     now = time.time()
     if cached and (now - cached.get("at", 0) <= CAPE_CACHE_TTL_SECONDS):
@@ -137,7 +141,10 @@ def invalidate_texture_cache(uuid_hex: str = "", username: str = "") -> None:
 
     def _matches_key(key: str) -> bool:
         key_norm = str(key or "").strip().lower()
-        if norm_uuid and key_norm.startswith(f"{norm_uuid}|"):
+        if norm_uuid and (
+            key_norm.startswith(f"{norm_uuid}|")
+            or f"|{norm_uuid}|" in key_norm
+        ):
             return True
         if clean_username and (
             key_norm.endswith(f"|{clean_username}") or f"|{clean_username}|" in key_norm

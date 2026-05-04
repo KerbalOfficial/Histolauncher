@@ -18,6 +18,7 @@ from core.launch.mods import _cleanup_copied_mods
 from core.launch.state import STATE
 from core.subprocess_utils import no_window_kwargs
 from core.logger import colorize_log
+from core.notifications import send_desktop_notification
 from core.settings import get_base_dir, get_versions_profile_dir
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "_detect_client_jar_java_major",
     "_class_file_major_to_java_major",
     "_finalize_process_exit",
+    "_format_command_for_logging",
     "_get_game_window_visible",
     "_get_latest_log_path",
     "_get_log_directories",
@@ -35,6 +37,7 @@ __all__ = [
     "_process_monitor_thread",
     "_register_process",
     "_resolve_java_launch_candidates",
+    "_set_process_crash_notification_enabled",
     "_set_last_launch_error",
     "_set_last_launch_diagnostic",
     "_spawn_version_process",
@@ -44,9 +47,16 @@ __all__ = [
 ]
 
 
+_SENSITIVE_COMMAND_FLAGS = frozenset({
+    "--accesstoken",
+    "--clienttoken",
+})
+
+
 def _finalize_process_exit(process_id, exit_code=None):
     cleanup_files = []
     snapshot = None
+    should_notify_crash = False
 
     with STATE.process_lock:
         proc_info = STATE.active_processes.get(process_id)
@@ -68,7 +78,31 @@ def _finalize_process_exit(process_id, exit_code=None):
             proc_info["cleanup_started"] = True
             cleanup_files = list(proc_info.get("copied_mods") or [])
 
+        if (
+            exit_code not in (None, 0)
+            and proc_info.get("notify_on_crash", True)
+            and not proc_info.get("crash_notification_sent")
+        ):
+            proc_info["crash_notification_sent"] = True
+            should_notify_crash = True
+
         snapshot = dict(proc_info)
+
+    if should_notify_crash and snapshot:
+        try:
+            version_identifier = str(snapshot.get("version") or "Minecraft").strip() or "Minecraft"
+            version_name = version_identifier.split("/", 1)[1] if "/" in version_identifier else version_identifier
+            log_path = str(snapshot.get("log_path") or "").strip()
+            message = f"Minecraft {version_name} crashed with exit code {exit_code}."
+            if log_path:
+                message += f"\nLog: {log_path}"
+            send_desktop_notification(
+                title=f"[{version_name}] Game Crashed",
+                message=message,
+                icon_kind="failed",
+            )
+        except Exception as e:
+            print(colorize_log(f"[launcher] Could not send crash notification: {e}"))
 
     if cleanup_files:
         _cleanup_copied_mods(cleanup_files)
@@ -88,6 +122,14 @@ def _finalize_process_exit(process_id, exit_code=None):
         snapshot = dict(proc_info)
 
     return snapshot
+
+
+def _set_process_crash_notification_enabled(process_id, enabled: bool) -> None:
+    with STATE.process_lock:
+        proc_info = STATE.active_processes.get(process_id)
+        if not proc_info:
+            return
+        proc_info["notify_on_crash"] = bool(enabled)
 
 
 def _is_minecraft_window_visible(process_pid):
@@ -407,7 +449,7 @@ def _process_monitor_thread(process_id, process_obj):
 
 
 def _register_process(process_id, process_obj, version_identifier, log_file_path=None,
-                      copied_mods=None, start_time=None):
+                      copied_mods=None, start_time=None, notify_on_crash=True):
     with STATE.process_lock:
         STATE.active_processes[process_id] = {
             "pid": process_obj.pid,
@@ -418,6 +460,8 @@ def _register_process(process_id, process_obj, version_identifier, log_file_path
             "copied_mods": copied_mods or [],
             "status": "running",
             "exit_code": None,
+            "notify_on_crash": bool(notify_on_crash),
+            "crash_notification_sent": False,
             "cleanup_started": False,
             "cleanup_done": False,
             "end_time": None,
@@ -674,6 +718,43 @@ def _wait_for_launch_stability(process_obj, timeout_seconds: float = 8.0):
     return True, None
 
 
+def _format_command_for_logging(cmd) -> str:
+    redacted: list[str] = []
+    hide_next = False
+
+    for part in cmd or []:
+        text = str(part or "")
+        if hide_next:
+            redacted.append("<redacted>")
+            hide_next = False
+            continue
+
+        name, sep, _value = text.partition("=")
+        flag = (name if sep else text).strip().lower()
+        if flag in _SENSITIVE_COMMAND_FLAGS:
+            if sep:
+                redacted.append(f"{name}=<redacted>")
+            else:
+                redacted.append(text)
+                hide_next = True
+            continue
+
+        redacted.append(text)
+
+    if platform.system().lower().startswith("win"):
+        try:
+            return subprocess.list2cmdline(redacted)
+        except Exception:
+            pass
+
+    try:
+        import shlex
+
+        return shlex.join(redacted)
+    except Exception:
+        return " ".join(redacted)
+
+
 def _spawn_version_process(cmd, launch_cwd, version_identifier):
     log_file_path = None
     log_file = None
@@ -681,7 +762,7 @@ def _spawn_version_process(cmd, launch_cwd, version_identifier):
 
     print("Launching version:", version_identifier)
     print("Working dir:", launch_cwd)
-    print("Command:", " ".join(cmd))
+    print("Command:", _format_command_for_logging(cmd))
 
     _popen_kwargs = no_window_kwargs()
 

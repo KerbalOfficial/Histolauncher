@@ -109,6 +109,7 @@ def _send_addon_install_notification(
         send_desktop_notification(
             title=f"[{name}] {label} Installation complete!",
             message=f"{label} {name}{version_suffix}{loader_text} has installed successfully!",
+            icon_kind="installed",
         )
     except Exception as exc:
         print(colorize_log(f"[api] Could not send addon notification: {exc}"))

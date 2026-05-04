@@ -180,7 +180,6 @@
   padding: 0;
 }
 
-/* List-view mod cards need stronger selectors than generic version-card list rules. */
 .versions-list.list-view .version-card.mod-card {
   display: grid;
   grid-template-columns: var(--list-image-width) minmax(0, 1fr) minmax(28px, auto) minmax(118px, max-content) auto;
@@ -362,7 +361,6 @@
   grid-column: 1 / -1;
 }
 
-/* Delete icon placed before badges */
 .mod-card-delete-icon {
   display: flex;
   align-items: center;
@@ -370,7 +368,6 @@
   padding: 0 6px;
 }
 
-/* Loader group header inside installed mods list */
 .installed-mods-loader-header {
   width: 100%;
   padding: 6px 10px 4px 10px;
@@ -430,7 +427,6 @@
   filter: grayscale(85%);
 }
 
-/* Mod card description + control rows */
 .version-card.mod-card .mod-card-description {
   line-height: 1.25;
   word-break: break-word;

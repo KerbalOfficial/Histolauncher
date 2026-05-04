@@ -73,6 +73,7 @@ def _send_world_install_notification(world_name: str) -> None:
         send_desktop_notification(
             title=f"[{name}] World Installation complete!",
             message=f'World {name} has installed successfully!',
+            icon_kind="installed",
         )
     except Exception as exc:
         print(colorize_log(f"[api] Could not send world notification: {exc}"))

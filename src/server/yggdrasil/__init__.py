@@ -1,6 +1,7 @@
 from server.yggdrasil.handlers import (
     handle_auth_post,
     handle_has_joined_get,
+    handle_player_certificates,
     handle_services_profile_get,
     handle_session_get,
     handle_session_join_post,
@@ -34,6 +35,7 @@ __all__ = [
     "get_public_key_pem",
     "handle_auth_post",
     "handle_has_joined_get",
+    "handle_player_certificates",
     "handle_services_profile_get",
     "handle_session_get",
     "handle_session_join_post",

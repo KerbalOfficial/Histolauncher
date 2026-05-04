@@ -3,6 +3,8 @@
 import { api } from './api.js';
 import { showMessageBox } from './modal.js';
 import { debug } from './home.js';
+import { t } from './i18n.js';
+import { escapeInfoHtml } from './string-utils.js';
 
 let corruptedCheckPromise = null;
 let lastCorruptedSignature = '';
@@ -46,7 +48,7 @@ const showCorruptedVersionsModal = (corruptedList) => {
     checkboxHtml += `
       <label class="corrupted-version-item">
         <input type="checkbox" id="${id}" data-version-id="${id}">
-        <span style="font-size:13px;">${v.folder} (${v.category})</span>
+        <span style="font-size:13px;">${escapeInfoHtml(v.folder)} (${escapeInfoHtml(v.category)})</span>
       </label>
     `;
   });
@@ -55,19 +57,19 @@ const showCorruptedVersionsModal = (corruptedList) => {
 
   const message = `
     <div style="padding: 8px 0;">
-      <p style="margin: 0 0 12px 0; color: #aaa; font-size: 13px;">
-        You have corrupted versions that cannot be launched.<br><i>Select which ones you'd like to delete:</i>
+      <p style="margin: 0 0 12px 0; color: var(--color-text-muted); font-size: 13px;">
+        ${t('versions.corrupted.prompt')}
       </p>
       ${checkboxHtml}
     </div>
   `;
 
   showMessageBox({
-    title: 'Corrupted Versions detected',
+    title: t('versions.corrupted.title'),
     message: message,
     buttons: [
       {
-        label: 'Delete Selected',
+        label: t('versions.corrupted.deleteSelected'),
         classList: ['danger'],
         onClick: async () => {
           const checkboxes = document.querySelectorAll('input[data-version-id]:checked');
@@ -100,23 +102,23 @@ const showCorruptedVersionsModal = (corruptedList) => {
               } else {
                 console.error('[corrupted] Delete failed:', deleteResult.error);
                 showMessageBox({
-                  title: 'Error',
-                  message: `Failed to delete corrupted versions: ${deleteResult.error}`,
-                  buttons: [{ label: 'OK' }],
+                  title: t('common.error'),
+                  message: t('versions.corrupted.deleteFailed', { error: escapeInfoHtml(deleteResult.error || t('common.unknownError')) }),
+                  buttons: [{ label: t('common.ok') }],
                 });
               }
             } catch (e) {
               console.error('[corrupted] Error deleting:', e);
               showMessageBox({
-                title: 'Error',
-                message: `Failed to delete corrupted versions: ${e.message}`,
-                buttons: [{ label: 'OK' }],
+                title: t('common.error'),
+                message: t('versions.corrupted.deleteFailed', { error: escapeInfoHtml(e.message || t('common.unknownError')) }),
+                buttons: [{ label: t('common.ok') }],
               });
             }
           }
         },
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 

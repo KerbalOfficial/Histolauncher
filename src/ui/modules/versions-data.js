@@ -21,6 +21,7 @@ import {
   updateScopeProfileDeleteButtonState,
   updateScopeProfileEditButtonState,
 } from './profiles.js';
+import { t } from './i18n.js';
 
 // ---------------- Category / filtering ----------------
 
@@ -35,6 +36,10 @@ export const buildCategoryListFromVersions = (list) => {
 export const formatCategoryName = (cat) => {
   if (!cat) return '';
   const lower = String(cat).toLowerCase();
+  if (lower === 'release') return t('versions.categories.release');
+  if (lower === 'snapshot') return t('versions.categories.snapshot');
+  if (lower === 'old_beta' || lower === 'old-beta' || lower === 'beta') return t('versions.categories.oldBeta');
+  if (lower === 'old_alpha' || lower === 'old-alpha' || lower === 'alpha') return t('versions.categories.oldAlpha');
   if (lower.startsWith('oa-')) {
     return 'OA-' + cat.slice(3);
   }
@@ -131,7 +136,7 @@ export const loadAvailableVersions = async ({ force = false, reload = false } = 
     if (requestId !== state.versionsLoadRequestId) return false;
 
     if (!res || res.ok === false) {
-      throw new Error((res && res.error) || 'Failed to load versions.');
+      throw new Error((res && res.error) || t('versions.load.failed'));
     }
 
     mergeAvailableVersionsIntoState(res.available, res.categories);
@@ -140,7 +145,7 @@ export const loadAvailableVersions = async ({ force = false, reload = false } = 
 
     if (state.versionsManifestError) {
       setVersionsWarning(
-        'Unable to fetch downloadable versions, please check your internet connection (or URL Proxy in settings)!'
+        t('versions.load.unableToFetch')
       );
     } else {
       setVersionsWarning('');
@@ -155,7 +160,7 @@ export const loadAvailableVersions = async ({ force = false, reload = false } = 
     state.categoriesList = buildCategoryListFromVersions(state.versionsList);
     initCategoryFilter();
     setVersionsWarning(
-      'Unable to fetch downloadable versions, please check your internet connection (or URL Proxy in settings)!'
+      t('versions.load.unableToFetch')
     );
   } finally {
     if (requestId === state.versionsLoadRequestId) {
@@ -229,17 +234,17 @@ export const initCategoryFilter = () => {
     allOpt.textContent =
       state.selectedVersionCategories.length > 0
         ? state.selectedVersionCategories.map(formatCategoryName).join(', ')
-        : '* All';
+        : t('versions.filters.allCategories');
     sel.appendChild(allOpt);
 
     const selectAllOpt = document.createElement('option');
     selectAllOpt.value = '[SELECT ALL]';
-    selectAllOpt.textContent = '[ SELECT ALL ]';
+    selectAllOpt.textContent = t('versions.filters.selectAll');
     sel.appendChild(selectAllOpt);
 
     const deselectAllOpt = document.createElement('option');
     deselectAllOpt.value = '[DESELECT ALL]';
-    deselectAllOpt.textContent = '[ DESELECT ALL ]';
+    deselectAllOpt.textContent = t('versions.filters.deselectAll');
     sel.appendChild(deselectAllOpt);
 
     state.categoriesList.forEach((c) => {
@@ -387,7 +392,7 @@ export const renderAllVersionSections = () => {
   const installedVersionsSubtitle = getEl('installed-versions-subtitle');
   if (installedVersionsSubtitle) {
     const c = installed.length;
-    installedVersionsSubtitle.textContent = `${c} version${c !== 1 ? 's' : ''} installed`;
+    installedVersionsSubtitle.textContent = t('versions.installedSubtitleCount', { count: c });
   }
 
   const favs = state.settingsState.favorite_versions || [];
@@ -401,7 +406,7 @@ export const renderAllVersionSections = () => {
   installed.sort(sortByFavorite);
 
   if (installed.length === 0) {
-    installedContainer.appendChild(createEmptyState('No versions installed'));
+    installedContainer.appendChild(createEmptyState(t('versions.emptyInstalled')));
   } else {
     installed.forEach((v) => {
       const card = createVersionCard(v, 'installed');
@@ -432,7 +437,7 @@ export const renderAllVersionSections = () => {
       }
       const pauseBtn = card.querySelector('.pause-resume-btn');
       if (pauseBtn) {
-        pauseBtn.textContent = v.paused ? 'Resume' : 'Pause';
+        pauseBtn.textContent = v.paused ? t('common.resume') : t('common.pause');
         pauseBtn.classList.remove(v.paused ? 'mild' : 'primary');
         pauseBtn.classList.add(v.paused ? 'primary' : 'mild');
       }
@@ -464,7 +469,7 @@ export const renderAllVersionSections = () => {
   if (available.length === 0) {
     if (state.versionsPageDataLoaded) {
       availableContainer.appendChild(
-        createEmptyState('No available versions')
+        createEmptyState(t('versions.emptyAvailable'))
       );
     }
     updateVersionsBulkActionsUI();

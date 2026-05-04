@@ -18,6 +18,7 @@ from core.zip_utils import safe_extract_zip
 
 from launcher._constants import ICO_PATH, PROJECT_ROOT, REMOTE_TIMEOUT
 from launcher.dispatcher import create_tk_ui_dispatcher
+from launcher.i18n import t, tk_direction_options
 from launcher.theme import themed_colors
 
 
@@ -233,8 +234,8 @@ def perform_self_update(release, current_version):
             )
             download_path = os.path.join(tempfile.gettempdir(), download_name)
 
-            queue_ui(lambda: ui_log(f"Selected release: {release_tag}"))
-            queue_ui(lambda: ui_progress(2, "Creating backup..."))
+            queue_ui(lambda: ui_log(t("native.updater.selectedRelease", {"release": release_tag})))
+            queue_ui(lambda: ui_progress(2, t("native.updater.creatingBackup")))
 
             project_files = []
             for base, _, files in os.walk(PROJECT_ROOT):
@@ -252,12 +253,12 @@ def perform_self_update(release, current_version):
                     pct = 2 + int((idx / total_files) * 23)
                     queue_ui(
                         lambda p=pct: ui_progress(
-                            p, f"Creating backup... {p}%"
+                            p, t("native.updater.creatingBackupProgress", {"percent": p})
                         )
                     )
 
-            queue_ui(lambda: ui_log(f"Backup saved: {backup_path}"))
-            queue_ui(lambda: ui_progress(26, "Downloading update package..."))
+            queue_ui(lambda: ui_log(t("native.updater.backupSaved", {"path": backup_path})))
+            queue_ui(lambda: ui_progress(26, t("native.updater.downloading")))
 
             last_download_error = None
             for candidate_url in _iter_request_urls(asset["url"]):
@@ -291,7 +292,7 @@ def perform_self_update(release, current_version):
                                 queue_ui(
                                     lambda p=pct: ui_progress(
                                         p,
-                                        f"Downloading update package... {p}%",
+                                        t("native.updater.downloadingProgress", {"percent": p}),
                                     )
                                 )
                     last_download_error = None
@@ -303,10 +304,10 @@ def perform_self_update(release, current_version):
             if last_download_error is not None:
                 raise last_download_error
 
-            queue_ui(lambda: ui_log(f"Update package downloaded: {download_path}"))
-            queue_ui(lambda: ui_progress(56, "Clearing old launcher files..."))
+            queue_ui(lambda: ui_log(t("native.updater.downloaded", {"path": download_path})))
+            queue_ui(lambda: ui_progress(56, t("native.updater.clearing")))
             _clear_project_root(PROJECT_ROOT)
-            queue_ui(lambda: ui_progress(60, "Applying update..."))
+            queue_ui(lambda: ui_progress(60, t("native.updater.applying")))
 
             with zipfile.ZipFile(download_path, "r") as update_zip:
                 members = [i for i in update_zip.infolist() if not i.is_dir()]
@@ -324,7 +325,7 @@ def perform_self_update(release, current_version):
                     pct = 60 + int((done / max(1, total)) * 38)
                     queue_ui(
                         lambda p=pct: ui_progress(
-                            p, f"Applying update... {p}%"
+                            p, t("native.updater.applyingProgress", {"percent": p})
                         )
                     )
 
@@ -335,13 +336,13 @@ def perform_self_update(release, current_version):
                     progress_cb=_progress_cb,
                 )
 
-            queue_ui(lambda: ui_progress(100, "Update complete."))
-            queue_ui(lambda: ui_log("Update completed successfully."))
+            queue_ui(lambda: ui_progress(100, t("native.updater.complete")))
+            queue_ui(lambda: ui_log(t("native.updater.completedLog")))
             result["success"] = True
         except Exception as e:
             result["error"] = str(e)
-            queue_ui(lambda err=e: ui_log(f"Update failed: {err}"))
-            queue_ui(lambda: ui_log("Restoring from backup..."))
+            queue_ui(lambda err=e: ui_log(t("native.updater.failedLog", {"error": err})))
+            queue_ui(lambda: ui_log(t("native.updater.restoring")))
             try:
                 current_ver_name = _sanitize_version_for_filename(current_version)
                 backup_name = f"backup_histolauncher_{current_ver_name}.zip"
@@ -350,15 +351,19 @@ def perform_self_update(release, current_version):
                     try:
                         _clear_project_root(PROJECT_ROOT)
                     except Exception as clear_err:
-                        queue_ui(lambda err=clear_err: ui_log(f"Could not clear partial update before restore: {err}"))
+                        queue_ui(
+                            lambda err=clear_err: ui_log(
+                                t("native.updater.clearBeforeRestoreFailed", {"error": err})
+                            )
+                        )
                     _restore_backup_zip(backup_path, PROJECT_ROOT)
-                    queue_ui(lambda: ui_log("Backup restored successfully."))
+                    queue_ui(lambda: ui_log(t("native.updater.restored")))
                 else:
-                    queue_ui(lambda: ui_log("Backup file was not found in %temp%."))
+                    queue_ui(lambda: ui_log(t("native.updater.backupMissing")))
             except Exception as restore_err:
                 queue_ui(
                     lambda err=restore_err: ui_log(
-                        f"Backup restore failed: {err}"
+                        t("native.updater.restoreFailed", {"error": err})
                     )
                 )
         finally:
@@ -368,11 +373,12 @@ def perform_self_update(release, current_version):
         root.iconbitmap(ICO_PATH)
     except Exception:
         pass
-    root.title("Updating Histolauncher...")
+    root.title(t("native.updater.windowTitle"))
     root.geometry("680x360")
     root.resizable(False, False)
     root.focus_set()
     colors = themed_colors(root)
+    direction = tk_direction_options()
     root.protocol("WM_DELETE_WINDOW", lambda: None)
 
     style = ttk.Style()
@@ -383,21 +389,25 @@ def perform_self_update(release, current_version):
 
     label = tkinter.Label(
         root,
-        text="Updating Histolauncher",
+        text=t("native.updater.heading"),
         font=("Segoe UI", 11, "bold"),
         bg=colors["bg"],
         fg=colors["fg"],
+        anchor=direction["anchor"],
+        justify=direction["justify"],
     )
-    label.pack(pady=10)
+    label.pack(fill="x", padx=20, pady=10)
 
     progress_label = tkinter.Label(
         root,
-        text="Starting updater...",
+        text=t("native.updater.starting"),
         font=("Segoe UI", 9),
         bg=colors["bg"],
         fg=colors["fg"],
+        anchor=direction["anchor"],
+        justify=direction["justify"],
     )
-    progress_label.pack(pady=4)
+    progress_label.pack(fill="x", padx=20, pady=4)
 
     progress = ttk.Progressbar(root, mode="determinate", length=520, maximum=100)
     progress.pack(pady=5)

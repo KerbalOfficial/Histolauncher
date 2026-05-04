@@ -5,6 +5,7 @@ from launcher.dialogs import (
     ask_custom_yesno,
     show_custom_warning,
 )
+from launcher.i18n import t
 
 
 __all__ = [
@@ -17,42 +18,35 @@ __all__ = [
 
 def prompt_create_shortcut():
     try:
-        msg = (
-            "Would you like Histolauncher to create a shortcut now?\n\n"
-            "This adds Histolauncher to your Start Menu on Windows or your "
-            "applications menu on Linux, and it can be repaired later with "
-            "shortcut.pyw or shortcut.sh."
+        return ask_custom_yesno(
+            t("native.prompts.createShortcutTitle"),
+            t("native.prompts.createShortcutMessage"),
+            kind="question",
         )
-        return ask_custom_yesno("Create shortcut?", msg, kind="question")
     except Exception:
         return False
 
 
 def prompt_new_user():
     try:
-        msg = (
-            "Hi there, new user! Welcome to Histolauncher!\n\n"
-            "Would you like to read INSTRUCTIONS.txt for more information "
-            "about this launcher and how to enable special features (such as "
-            "debug mode)?"
+        return ask_custom_okcancel(
+            t("native.prompts.newUserTitle"),
+            t("native.prompts.newUserMessage"),
+            kind="question",
         )
-        return ask_custom_okcancel("Welcome!", msg, kind="question")
     except Exception:
         return False
 
 
 def prompt_user_update(local, remote):
     try:
-        msg = (
-            "Histolauncher is out-dated!\n\n"
-            "Would you like to automatically download the latest version "
-            "now? Be aware that this will delete everything inside the "
-            "launcher directory and will reinstall everything freshly from "
-            "the Histolauncher GitHub repository.\n\n"
-            f"(your version: {local}, latest version: {remote})"
-        )
         return ask_custom_yesno(
-            "Launcher update available", msg, kind="question"
+            t("native.prompts.updateAvailableTitle"),
+            t(
+                "native.prompts.updateAvailableMessage",
+                {"local": local, "remote": remote},
+            ),
+            kind="question",
         )
     except Exception:
         return False
@@ -60,14 +54,10 @@ def prompt_user_update(local, remote):
 
 def prompt_beta_warning(local):
     try:
-        msg = (
-            "This is a beta version of Histolauncher, you may encounter many "
-            "bugs during usage so please keep that in mind. If you did "
-            "encounter any problems or bugs, please report it to us in the "
-            "GitHub/Discord as soon as possible!\n\n"
-            f"(beta version: {local})"
+        show_custom_warning(
+            t("native.prompts.betaWarningTitle"),
+            t("native.prompts.betaWarningMessage", {"local": local}),
         )
-        show_custom_warning("Beta version warning", msg)
         return True
     except Exception:
         return False

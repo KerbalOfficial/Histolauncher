@@ -16,6 +16,7 @@ from launcher._constants import (
     SPLASH_TEXT_COLOR,
 )
 from launcher.fonts import get_native_ui_font_family
+from launcher.i18n import is_rtl_language, t
 
 
 __all__ = ["LauncherSplash"]
@@ -167,27 +168,36 @@ class LauncherSplash:
         spinner = self._spinner_frames[0] if self._spinner_frames else None
         spinner_width = spinner.width() if spinner else 24
         spinner_height = spinner.height() if spinner else 24
+        is_rtl = is_rtl_language()
 
         bottom_padding = 18
-        spinner_x = 18
         spinner_y = self.WINDOW_HEIGHT - bottom_padding
-        text_x = spinner_x + spinner_width + 10
         text_y = spinner_y - (spinner_height // 2)
+        if is_rtl:
+            spinner_x = self.WINDOW_WIDTH - 18
+            spinner_anchor = "se"
+            text_x = spinner_x - spinner_width - 10
+            text_anchor = "e"
+        else:
+            spinner_x = 18
+            spinner_anchor = "sw"
+            text_x = spinner_x + spinner_width + 10
+            text_anchor = "w"
 
         if spinner is not None:
             self._spinner_image_id = self.canvas.create_image(
                 spinner_x,
                 spinner_y,
                 image=spinner,
-                anchor="sw",
+                anchor=spinner_anchor,
             )
 
         self.canvas.create_text(
             text_x,
             text_y,
-            text="Loading...",
+            text=t("common.loading"),
             fill=SPLASH_TEXT_COLOR,
-            anchor="w",
+            anchor=text_anchor,
             font=(font_family, 10),
         )
 

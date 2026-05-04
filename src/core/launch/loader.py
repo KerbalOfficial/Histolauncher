@@ -1003,8 +1003,7 @@ def _expand_loader_metadata_args(
     version_identifier: str = "",
     assets_root_override: str = "",
 ) -> list:
-    # Lazy import to avoid pulling server.* at module load time
-    from server.yggdrasil import _get_username_and_uuid
+    from core.launch.auth import get_launch_auth_info
 
     loader_type = str(loader_type or "").strip().lower()
     actual_loader_version = loader_version or _get_loader_version(version_dir, loader_type)
@@ -1019,11 +1018,9 @@ def _expand_loader_metadata_args(
     native_folder = meta.get("native_subfolder") or _native_subfolder_for_platform()
     natives_directory = os.path.join(version_dir, native_folder)
     assets_root = assets_root_override or os.path.join(get_base_dir(), "assets")
-    username, auth_uuid_raw = _get_username_and_uuid()
-    auth_uuid = (
-        f"{auth_uuid_raw[0:8]}-{auth_uuid_raw[8:12]}-{auth_uuid_raw[12:16]}-"
-        f"{auth_uuid_raw[16:20]}-{auth_uuid_raw[20:]}"
-    )
+    auth_info = get_launch_auth_info()
+    username = auth_info["username"]
+    auth_uuid = auth_info["uuid"]
 
     profile_version = ""
     try:
@@ -1051,11 +1048,16 @@ def _expand_loader_metadata_args(
         "${classpath_separator}": os.pathsep,
         "${version_name}": profile_version,
         "${auth_player_name}": username,
-        "${auth_session}": "0",
-        "${auth_access_token}": "0",
+        "${auth_session}": auth_info["access_token"],
+        "${auth_access_token}": auth_info["access_token"],
         "${auth_uuid}": auth_uuid,
-        "${user_type}": "legacy",
-        "${user_properties}": "{}",
+        "${user_type}": auth_info["user_type"],
+        "${auth_player_type}": auth_info["user_type"],
+        "${user_properties}": auth_info["user_properties"],
+        "${auth_xuid}": auth_info.get("xuid", ""),
+        "${xuid}": auth_info.get("xuid", ""),
+        "${clientid}": auth_info.get("client_id", ""),
+        "${client_id}": auth_info.get("client_id", ""),
         "${game_directory}": game_dir,
         "${natives_directory}": natives_directory,
         "${assets_root}": assets_root,

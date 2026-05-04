@@ -7,6 +7,7 @@ from core.logger import colorize_log
 from core.settings import get_base_dir
 from core.version_manager import get_clients_dir, scan_categories
 from core.zip_utils import ZipSecurityError, safe_extract_zip
+from launcher.i18n import t
 
 from server.api._constants import CURRENT_MD_VERSION, VALID_LOADER_TYPES
 from server.api._helpers import (
@@ -190,9 +191,15 @@ def api_export_versions(data):
                 save_path = asksaveasfilename(
                     initialfile=initial_name,
                     defaultextension=".hlvdf",
-                    filetypes=[("Histolauncher Version", "*.hlvdf"), ("All Files", "*.*")],
+                    filetypes=[
+                        (t("native.fileDialogs.histolauncherVersion"), "*.hlvdf"),
+                        (t("native.fileDialogs.allFiles"), "*.*"),
+                    ],
                     initialdir=default_dir,
-                    title=f"Save {category} {folder} Export",
+                    title=t(
+                        "native.fileDialogs.saveVersionExportTitle",
+                        {"category": category, "folder": folder},
+                    ),
                 )
 
                 root.destroy()

@@ -226,11 +226,23 @@ class ProxyMixin:
 
                             if tex_type and ident:
                                 try:
-                                    cache_dir = os.path.join(get_base_dir(), "skins")
-                                    os.makedirs(cache_dir, exist_ok=True)
-                                    cache_name = os.path.join(
-                                        cache_dir, f"{ident}+{tex_type}.png"
-                                    )
+                                    cache_name = ""
+                                    try:
+                                        from server.auth.microsoft import (
+                                            microsoft_account_enabled,
+                                            microsoft_texture_cache_path,
+                                        )
+
+                                        if microsoft_account_enabled():
+                                            cache_name = microsoft_texture_cache_path(ident, tex_type)
+                                    except Exception:
+                                        pass
+                                    if not cache_name:
+                                        cache_dir = os.path.join(get_base_dir(), "skins")
+                                        cache_name = os.path.join(
+                                            cache_dir, f"{ident}+{tex_type}.png"
+                                        )
+                                    os.makedirs(os.path.dirname(cache_name), exist_ok=True)
                                     with open(cache_name, "wb") as wf:
                                         wf.write(payload)
                                     print(colorize_log(

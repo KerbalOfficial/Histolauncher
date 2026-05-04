@@ -16,7 +16,7 @@ HTTP_DOWNLOAD_TIMEOUT_S: Final[float] = 30.0
 HTTP_RETRY_ATTEMPTS: Final[int] = 3
 
 #: Backoff (seconds) between retry attempts (multiplied by attempt index).
-HTTP_RETRY_BACKOFF_S: Final[float] = 0.5
+HTTP_RETRY_BACKOFF_S: Final[float] = 0.2
 
 #: ``User-Agent`` header sent on every outbound request.
 HTTP_USER_AGENT: Final[str] = "Histolauncher/1.0"
@@ -50,10 +50,10 @@ ZIP_MAX_TOTAL_BYTES: Final[int] = 4 * 1024 * 1024 * 1024      # 4 GiB
 # ---------------------------------------------------------------------------
 
 #: Read chunk size used by :func:`core.downloader.download_file`.
-DOWNLOAD_CHUNK_BYTES: Final[int] = 8 * 1024
+DOWNLOAD_CHUNK_BYTES: Final[int] = 64 * 1024
 
 #: Default thread-pool size for parallel downloads.
-DOWNLOAD_PARALLEL_WORKERS: Final[int] = 15
+DOWNLOAD_PARALLEL_WORKERS: Final[int] = 20
 
 # ---------------------------------------------------------------------------
 # Launch pipeline

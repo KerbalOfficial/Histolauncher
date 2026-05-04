@@ -5,6 +5,7 @@ import {
   showMessageBox,
 } from './modal.js';
 import { escapeInfoHtml, formatBytes } from './string-utils.js';
+import { t } from './i18n.js';
 
 const JAVA_ACCENT = '#f89820';
 const RECOMMENDED_ACCENT = '#1f84e2';
@@ -37,14 +38,14 @@ export const installJavaRuntime = async (version) => {
   const javaVersion = parseJavaVersion(version);
   if (!javaVersion) {
     showMessageBox({
-      title: 'Java Download Error',
-      message: 'Invalid Java version.',
-      buttons: [{ label: 'OK', classList: ['primary'] }],
+      title: t('java.download.errorTitle'),
+      message: t('java.download.invalidVersion'),
+      buttons: [{ label: t('common.ok'), classList: ['primary'] }],
     });
-    return { ok: false, error: 'Invalid Java version' };
+    return { ok: false, error: t('java.download.invalidVersionShort') };
   }
 
-  showLoadingOverlay(`Downloading Java ${javaVersion}...`, {
+  showLoadingOverlay(t('java.download.downloading', { version: javaVersion }), {
     image: 'assets/images/java_icon.png',
     boxClassList: ['activity-box'],
   });
@@ -55,15 +56,15 @@ export const installJavaRuntime = async (version) => {
 
     if (!res || !res.ok) {
       showMessageBox({
-        title: 'Java Download Error',
-        message: escapeInfoHtml(res?.error || 'Failed to download Java.'),
-        buttons: [{ label: 'OK', classList: ['primary'] }],
+        title: t('java.download.errorTitle'),
+        message: escapeInfoHtml(res?.error || t('java.download.failed')),
+        buttons: [{ label: t('common.ok'), classList: ['primary'] }],
       });
       return res || { ok: false };
     }
 
     const actualVersion = parseJavaVersion(res.feature_version) || javaVersion;
-    const fileName = escapeInfoHtml(res.file_name || 'Java installer');
+    const fileName = escapeInfoHtml(res.file_name || t('java.download.installerFallback'));
     const path = escapeInfoHtml(res.path || '');
     const sizeText = formatBytes(Number(res.size || 0));
     const installed = res.installed === true;
@@ -71,10 +72,12 @@ export const installJavaRuntime = async (version) => {
     const runtimePath = escapeInfoHtml(res.runtime_path || '');
     const opened = res.opened !== false;
     const openError = escapeInfoHtml(res.open_error || '');
-    const title = installed ? 'Java Runtime Installed' : (opened ? 'Java Installer Opened' : 'Java Downloaded');
+    const title = installed
+      ? t('java.download.runtimeInstalledTitle')
+      : (opened ? t('java.download.installerOpenedTitle') : t('java.download.downloadedTitle'));
     let message = installed
-      ? `Java ${actualVersion} runtime installed.<br><br><b>${fileName}</b>`
-      : `Java ${actualVersion} ${opened ? 'installer opened' : 'download finished'}.<br><br><b>${fileName}</b>`;
+      ? t('java.download.runtimeInstalledMessage', { version: actualVersion, file: fileName })
+      : t(opened ? 'java.download.installerOpenedMessage' : 'java.download.downloadedMessage', { version: actualVersion, file: fileName });
     if (sizeText) message += `<br>${escapeInfoHtml(sizeText)}`;
     if (installDir) message += `<br><br>${installDir}`;
     if (runtimePath) message += `<br>${runtimePath}`;
@@ -87,7 +90,7 @@ export const installJavaRuntime = async (version) => {
       image: 'assets/images/java_icon.png',
       buttons: [
         {
-          label: 'OK',
+          label: t('common.ok'),
           classList: ['primary'],
           onClick: () => refreshDetectedJavaRuntimes(),
         },
@@ -98,9 +101,9 @@ export const installJavaRuntime = async (version) => {
   } catch (err) {
     hideLoadingOverlay();
     showMessageBox({
-      title: 'Java Download Error',
-      message: escapeInfoHtml(err?.message || String(err || 'Failed to download Java.')),
-      buttons: [{ label: 'OK', classList: ['primary'] }],
+      title: t('java.download.errorTitle'),
+      message: escapeInfoHtml(err?.message || String(err || t('java.download.failed'))),
+      buttons: [{ label: t('common.ok'), classList: ['primary'] }],
     });
     return { ok: false, error: err?.message || String(err || '') };
   }
@@ -110,8 +113,8 @@ const makeJavaCard = ({ option, meta, onPick }) => {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.style.cssText =
-    `width:100%;background:#222;border:1px solid #111;border-left:3px solid ${option.recommended ? RECOMMENDED_ACCENT : JAVA_ACCENT};` +
-    'padding:8px 12px;display:flex;justify-content:space-between;align-items:center;text-align:left;color:#e5e7eb;';
+    `width:100%;background:var(--color-surface-card);border:1px solid var(--color-border-strong);border-left:3px solid ${option.recommended ? RECOMMENDED_ACCENT : JAVA_ACCENT};` +
+    'padding:8px 12px;display:flex;justify-content:space-between;align-items:center;text-align:left;color:var(--color-text-primary);';
 
   const left = document.createElement('div');
   left.style.cssText = 'min-width:0;';
@@ -121,13 +124,13 @@ const makeJavaCard = ({ option, meta, onPick }) => {
   title.textContent = option.label || `Java ${option.version || ''}`.trim();
 
   const subtitle = document.createElement('div');
-  subtitle.style.cssText = 'color:#aaa;font-size:12px;line-height:1.2;margin-top:2px;';
+  subtitle.style.cssText = 'color:var(--color-text-muted);font-size:12px;line-height:1.2;margin-top:2px;';
   subtitle.textContent = option.description || '';
   if (!subtitle.textContent) subtitle.style.display = 'none';
 
   const details = document.createElement('div');
-  details.style.cssText = 'color:#666;font-size:11px;line-height:1.2;margin-top:2px;';
-  details.textContent = [meta, option.recommended ? 'Recommended' : '']
+  details.style.cssText = 'color:var(--color-text-dim);font-size:11px;line-height:1.2;margin-top:2px;';
+  details.textContent = [meta, option.recommended ? t('java.install.recommended') : '']
     .filter(Boolean)
     .join(' | ');
   if (!details.textContent) details.style.display = 'none';
@@ -138,10 +141,10 @@ const makeJavaCard = ({ option, meta, onPick }) => {
   btn.appendChild(left);
 
   btn.addEventListener('mouseenter', () => {
-    btn.style.background = '#2a2a2a';
+    btn.style.background = 'var(--color-surface-card-hover)';
   });
   btn.addEventListener('mouseleave', () => {
-    btn.style.background = '#222';
+    btn.style.background = 'var(--color-surface-card)';
   });
   btn.addEventListener('click', () => {
     if (typeof onPick === 'function') onPick();
@@ -151,7 +154,7 @@ const makeJavaCard = ({ option, meta, onPick }) => {
 };
 
 export const showJavaInstallChooser = async () => {
-  showLoadingOverlay('Loading Java runtimes...', {
+  showLoadingOverlay(t('java.install.loadingRuntimes'), {
     image: 'assets/images/java_icon.png',
     boxClassList: ['activity-box'],
   });
@@ -162,9 +165,9 @@ export const showJavaInstallChooser = async () => {
   } catch (err) {
     hideLoadingOverlay();
     showMessageBox({
-      title: 'Java Install Error',
-      message: escapeInfoHtml(err?.message || String(err || 'Failed to load Java runtimes.')),
-      buttons: [{ label: 'OK', classList: ['primary'] }],
+      title: t('java.install.errorTitle'),
+      message: escapeInfoHtml(err?.message || String(err || t('java.install.failedLoadRuntimes'))),
+      buttons: [{ label: t('common.ok'), classList: ['primary'] }],
     });
     return false;
   }
@@ -172,9 +175,9 @@ export const showJavaInstallChooser = async () => {
 
   if (!data || !data.ok) {
     showMessageBox({
-      title: 'Java Install Error',
-      message: escapeInfoHtml(data?.error || 'No Java runtime downloads are available for this system.'),
-      buttons: [{ label: 'OK', classList: ['primary'] }],
+      title: t('java.install.errorTitle'),
+      message: escapeInfoHtml(data?.error || t('java.install.noDownloadsAvailable')),
+      buttons: [{ label: t('common.ok'), classList: ['primary'] }],
     });
     return false;
   }
@@ -182,9 +185,9 @@ export const showJavaInstallChooser = async () => {
   const options = Array.isArray(data.options) ? data.options : [];
   if (!options.length) {
     showMessageBox({
-      title: 'Java Install Error',
-      message: 'No Java runtime downloads are available for this system.',
-      buttons: [{ label: 'OK', classList: ['primary'] }],
+      title: t('java.install.errorTitle'),
+      message: t('java.install.noDownloadsAvailable'),
+      buttons: [{ label: t('common.ok'), classList: ['primary'] }],
     });
     return false;
   }
@@ -231,11 +234,11 @@ export const showJavaInstallChooser = async () => {
     });
 
     controls = showMessageBox({
-      title: 'Install Java Runtime',
+      title: t('java.install.title'),
       customContent: wrap,
       image: 'assets/images/java_icon.png',
       buttons: [
-        { label: 'Cancel', onClick: () => safeResolve(false) },
+        { label: t('common.cancel'), onClick: () => safeResolve(false) },
       ],
     });
   });

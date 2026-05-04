@@ -19,6 +19,7 @@ import { renderCommonPagination } from './pagination.js';
 import { formatBytes } from './string-utils.js';
 import { createEmptyState, createInlineLoadingState } from './ui-states.js';
 import { buildWorldNbtTreeEditor } from './worlds-nbt-tree.js';
+import { t } from './i18n.js';
 
 let _autoSaveSetting = () => {
   throw new Error('worlds.js: autoSaveSetting was not configured. Call setAutoSaveSetting() first.');
@@ -48,7 +49,7 @@ let worldsState = {
   installedWorlds: [],
   storageOptions: [],
   versionOptions: [],
-  storageLabel: 'Default',
+  storageLabel: '',
   storagePath: '',
   installedLoading: false,
   installedError: null,
@@ -110,7 +111,7 @@ const normalizeWorldIconFileToDataUrl = (file) => new Promise((resolve, reject) 
   image.src = objectUrl;
 });
 
-const formatWorldInstallProgressText = (progress, fallback = 'Downloading') => {
+const formatWorldInstallProgressText = (progress, fallback = t('worlds.install.downloading')) => {
   const pct = Math.round(clampWorldInstallPercent(progress && progress.overall_percent));
   const message = String((progress && progress.message) || '').trim();
   const bytesDone = Number((progress && progress.bytes_done) || 0);
@@ -137,7 +138,7 @@ const ensureWorldInstallProgressElements = (card) => {
 
   const progressText = document.createElement('div');
   progressText.className = 'version-progress-text world-install-progress-text';
-  progressText.textContent = 'Starting...';
+  progressText.textContent = t('worlds.install.starting');
 
   card.appendChild(progressBar);
   card.appendChild(progressText);
@@ -155,7 +156,7 @@ const updateWorldInlineInstallProgress = ({ card, button }, pct, text, buttonTex
   if (button && buttonText) button.textContent = buttonText;
 };
 
-const startWorldInlineInstallProgress = ({ installKey, button, card, activeLabel = 'Downloading', doneLabel = 'Downloaded', idleLabel = 'Download' }) => {
+const startWorldInlineInstallProgress = ({ installKey, button, card, activeLabel = t('worlds.install.downloading'), doneLabel = t('worlds.install.downloaded'), idleLabel = t('common.download') }) => {
   if (!installKey) {
     return { complete: () => {}, fail: () => {}, close: () => {} };
   }
@@ -163,7 +164,7 @@ const startWorldInlineInstallProgress = ({ installKey, button, card, activeLabel
   let eventSource = null;
   let closed = false;
   const target = { card, button };
-  updateWorldInlineInstallProgress(target, 0, 'Starting...', `${activeLabel}...`);
+  updateWorldInlineInstallProgress(target, 0, t('worlds.install.starting'), t('versions.install.activeEllipsis', { label: activeLabel }));
 
   const close = () => {
     if (closed) return;
@@ -174,7 +175,7 @@ const startWorldInlineInstallProgress = ({ installKey, button, card, activeLabel
     updateWorldInlineInstallProgress(target, 100, message, doneLabel);
     close();
   };
-  const fail = (message = 'Download failed') => {
+  const fail = (message = t('worlds.install.failed')) => {
     updateWorldInlineInstallProgress(target, 0, message, idleLabel);
     if (button) button.disabled = false;
     close();
@@ -199,17 +200,17 @@ const startWorldInlineInstallProgress = ({ installKey, button, card, activeLabel
         return;
       }
       if (status === 'failed' || status === 'cancelled') {
-        fail(progress.message || (status === 'cancelled' ? 'Download cancelled' : 'Download failed'));
+        fail(progress.message || (status === 'cancelled' ? t('worlds.install.cancelled') : t('worlds.install.failed')));
         return;
       }
 
       const text = formatWorldInstallProgressText(progress, activeLabel);
       const stage = String(progress.stage || '').toLowerCase();
-      const stageLabel = stage === 'extract' ? 'Extracting' : stage === 'finalize' ? 'Finalizing' : activeLabel;
+      const stageLabel = stage === 'extract' ? t('worlds.install.extracting') : stage === 'finalize' ? t('worlds.install.finalizing') : activeLabel;
       updateWorldInlineInstallProgress(target, pct, text, `${stageLabel} ${Math.round(pct)}%`);
     };
   } catch (_err) {
-    updateWorldInlineInstallProgress(target, 0, 'Starting...', `${activeLabel}...`);
+    updateWorldInlineInstallProgress(target, 0, t('worlds.install.starting'), t('versions.install.activeEllipsis', { label: activeLabel }));
   }
 
   return { complete, fail, close };
@@ -256,11 +257,25 @@ const buildWorldCardSummary = (world) => {
   if (explicit) return explicit;
 
   const parts = [];
-  if (world.game_mode && world.game_mode !== 'Unknown') parts.push(world.game_mode);
+  if (world.game_mode && world.game_mode !== 'Unknown') parts.push(getWorldGameModeLabel(world.game_mode));
   if (world.version_name) parts.push(world.version_name);
   const modifiedText = formatWorldDateTime(world.modified_at);
-  if (modifiedText !== 'Unknown') parts.push(`Modified ${modifiedText}`);
-  return parts.join(' | ');
+  if (modifiedText !== 'Unknown') parts.push(t('worlds.card.modified', { value: modifiedText }));
+  return parts.join(t('common.listSeparator'));
+};
+
+const getWorldGameModeLabel = (value) => {
+  const key = String(value || '').trim().toLowerCase();
+  if (key === 'survival') return t('worlds.editor.gameModes.survival');
+  if (key === 'creative') return t('worlds.editor.gameModes.creative');
+  if (key === 'adventure') return t('worlds.editor.gameModes.adventure');
+  if (key === 'spectator') return t('worlds.editor.gameModes.spectator');
+  return String(value || t('common.unknown'));
+};
+
+const getWorldStorageLabel = (value) => {
+  const label = String(value || '').trim();
+  return label.toLowerCase() === 'default' || !label ? t('common.defaultName') : label;
 };
 
 const compareMinecraftVersionValues = (left, right) => (
@@ -292,7 +307,7 @@ const renderWorldVersionDropdown = () => {
   const previousValue = String(worldsState.gameVersion || select.value || '').trim();
   const versions = getWorldVersionOptions();
 
-  select.innerHTML = '<option value="">All</option>';
+  select.innerHTML = `<option value="">${t('common.all')}</option>`;
   versions.forEach((version) => {
     const option = document.createElement('option');
     option.value = version;
@@ -343,7 +358,7 @@ const refreshWorldCategoryOptions = () => {
   );
   if (previousValue) categories.add(previousValue);
   const sortedCategories = Array.from(categories).sort((a, b) => a.localeCompare(b));
-  select.innerHTML = '<option value="">All</option>';
+  select.innerHTML = `<option value="">${t('common.all')}</option>`;
   sortedCategories.forEach((category) => {
     const option = document.createElement('option');
     option.value = category;
@@ -420,11 +435,11 @@ const updateWorldsWarning = (message = '') => {
 
 const updateWorldsProviderDisplay = () => {
   const display = getEl('worlds-provider-display');
-  if (display) display.textContent = 'CurseForge';
+  if (display) display.textContent = t('worlds.providerCurseforge');
 
   const subtitle = getEl('worlds-available-subtitle');
   if (subtitle) {
-    subtitle.innerHTML = 'Worlds from <span id="worlds-provider-display">CurseForge</span>';
+    subtitle.innerHTML = t('worlds.availableSubtitleWithProvider', { provider: `<span id="worlds-provider-display">${t('worlds.providerCurseforge')}</span>` });
   }
 };
 
@@ -432,7 +447,7 @@ const syncWorldsCustomControls = () => {
   const item = getEl('worlds-custom-filter-item');
   const pathLabel = getEl('worlds-custom-path');
   if (item) item.classList.toggle('hidden', worldsState.storageTarget !== 'custom');
-  if (pathLabel) pathLabel.textContent = worldsState.customPath || 'None';
+  if (pathLabel) pathLabel.textContent = worldsState.customPath || t('common.none');
 };
 
 const applyWorldsViewMode = () => {
@@ -478,7 +493,7 @@ const populateWorldStorageOptions = async () => {
   if (!select) return;
 
   const previousValue = normalizeWorldStorageTarget(worldsState.storageTarget || select.value || 'default');
-  select.innerHTML = '<option value="default">Default</option>';
+  select.innerHTML = `<option value="default">${t('common.defaultName')}</option>`;
 
   try {
     const res = await api('/api/worlds/storage-options', 'POST', {});
@@ -494,7 +509,7 @@ const populateWorldStorageOptions = async () => {
     options.forEach((optionData) => {
       const option = document.createElement('option');
       option.value = optionData.value || 'default';
-      option.textContent = optionData.label || option.value || 'Default';
+      option.textContent = optionData.label || option.value || t('common.defaultName');
       select.appendChild(option);
     });
 
@@ -522,15 +537,15 @@ export const loadInstalledWorlds = async () => {
     });
 
     worldsState.installedWorlds = (res && res.ok && Array.isArray(res.worlds)) ? res.worlds : [];
-    worldsState.storageLabel = (res && res.storage_label) || 'Default';
+    worldsState.storageLabel = (res && res.storage_label) || t('common.defaultName');
     worldsState.storagePath = (res && res.storage_path) || '';
     worldsState.installedError = (!res || !res.ok)
-      ? ((res && res.error) || 'Failed to load installed worlds.')
+      ? ((res && res.error) || t('worlds.list.failedLoadInstalled'))
       : null;
   } catch (err) {
     console.error('Failed to load installed worlds:', err);
     worldsState.installedWorlds = [];
-    worldsState.installedError = 'Failed to load installed worlds.';
+    worldsState.installedError = t('worlds.list.failedLoadInstalled');
   } finally {
     worldsState.installedLoading = false;
     renderWorldVersionDropdown();
@@ -624,12 +639,12 @@ export const updateWorldsBulkActionsUI = () => {
   const count = state.worldsBulkState.selected.size;
 
   if (toggleBtn) {
-    toggleBtn.textContent = state.worldsBulkState.enabled ? 'Cancel Bulk' : 'Bulk Select';
+    toggleBtn.textContent = state.worldsBulkState.enabled ? t('common.cancelBulk') : t('common.bulkSelect');
     toggleBtn.className = state.worldsBulkState.enabled ? 'primary' : 'mild';
   }
   if (deleteBtn) {
     deleteBtn.classList.toggle('hidden', !state.worldsBulkState.enabled);
-    deleteBtn.textContent = `Delete Selected (${count})`;
+    deleteBtn.textContent = t('worlds.deleteSelectedCount', { count });
     deleteBtn.disabled = count === 0;
   }
   refreshActionOverflowMenus();
@@ -657,9 +672,9 @@ const bulkDeleteSelectedWorlds = async ({ skipConfirm = false } = {}) => {
   const keys = Array.from(state.worldsBulkState.selected);
   if (!keys.length) {
     showMessageBox({
-      title: 'Bulk Delete Worlds',
-      message: 'No installed worlds selected.',
-      buttons: [{ label: 'OK' }],
+      title: t('worlds.bulkDelete.title'),
+      message: t('worlds.bulkDelete.noSelected'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
@@ -667,17 +682,17 @@ const bulkDeleteSelectedWorlds = async ({ skipConfirm = false } = {}) => {
   const runDelete = async () => {
     let cancelRequested = false;
     let processed = 0;
-    showLoadingOverlay(`Deleting selected worlds... (0/${keys.length})`, {
+    showLoadingOverlay(t('worlds.bulkDelete.deletingProgress', { current: 0, total: keys.length }), {
       buttons: [
         {
-          label: 'Cancel',
+          label: t('common.cancel'),
           classList: ['danger'],
           closeOnClick: false,
           onClick: (_values, controls) => {
             if (cancelRequested) return;
             cancelRequested = true;
             controls.update({
-              message: 'Cancelling bulk delete after the current world finishes...',
+              message: t('worlds.bulkDelete.cancelling'),
               buttons: [],
             });
           },
@@ -698,13 +713,13 @@ const bulkDeleteSelectedWorlds = async ({ skipConfirm = false } = {}) => {
         if (res && res.ok) {
           deleted += 1;
         } else {
-          failures.push(`${key}: ${(res && res.error) || 'unknown error'}`);
+          failures.push(`${key}: ${(res && res.error) || t('common.unknownError')}`);
         }
       } catch (err) {
-        failures.push(`${key}: ${(err && err.message) || 'request failed'}`);
+        failures.push(`${key}: ${(err && err.message) || t('versions.bulkDelete.requestFailed')}`);
       }
       processed += 1;
-      setLoadingOverlayText(`Deleting selected worlds... (${processed}/${keys.length})`);
+      setLoadingOverlayText(t('worlds.bulkDelete.deletingProgress', { current: processed, total: keys.length }));
     }
 
     hideLoadingOverlay();
@@ -713,28 +728,28 @@ const bulkDeleteSelectedWorlds = async ({ skipConfirm = false } = {}) => {
 
     if (cancelRequested) {
       showMessageBox({
-        title: 'Bulk Delete Cancelled',
-        message: `Deleted ${deleted} world${deleted !== 1 ? 's' : ''} before cancellation.${failures.length ? `<br><br>Failures: ${failures.length}` : ''}`,
-        buttons: [{ label: 'OK' }],
+        title: t('worlds.bulkDelete.cancelledTitle'),
+        message: t(failures.length ? 'worlds.bulkDelete.cancelledWithFailures' : 'worlds.bulkDelete.cancelledMessage', { deleted, failures: failures.length }),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
 
     if (!failures.length) {
       showMessageBox({
-        title: 'Bulk Delete Complete',
-        message: `Deleted ${deleted} world${deleted !== 1 ? 's' : ''}.`,
-        buttons: [{ label: 'OK' }],
+        title: t('worlds.bulkDelete.completeTitle'),
+        message: t('worlds.bulkDelete.completeMessage', { deleted }),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
 
     const preview = failures.slice(0, 8).join('<br>');
-    const more = failures.length > 8 ? `<br>...and ${failures.length - 8} more.` : '';
+    const more = failures.length > 8 ? `<br>${t('versions.bulkDelete.andMore', { count: failures.length - 8 })}` : '';
     showMessageBox({
-      title: 'Bulk Delete Finished With Errors',
-      message: `Deleted ${deleted} world${deleted !== 1 ? 's' : ''}.<br><br>Failures:<br>${preview}${more}`,
-      buttons: [{ label: 'OK' }],
+      title: t('worlds.bulkDelete.finishedWithErrorsTitle'),
+      message: t('worlds.bulkDelete.finishedWithErrorsMessage', { deleted, failures: `${preview}${more}` }),
+      buttons: [{ label: t('common.ok') }],
     });
   };
 
@@ -744,11 +759,11 @@ const bulkDeleteSelectedWorlds = async ({ skipConfirm = false } = {}) => {
   }
 
   showMessageBox({
-    title: 'Bulk Delete Worlds',
-    message: `Delete ${keys.length} selected world${keys.length !== 1 ? 's' : ''}?<br><i>This cannot be undone!</i>`,
+    title: t('worlds.bulkDelete.title'),
+    message: t('worlds.bulkDelete.confirmMessage', { count: keys.length }),
     buttons: [
-      { label: 'Delete', classList: ['danger'], onClick: runDelete },
-      { label: 'Cancel' },
+      { label: t('common.delete'), classList: ['danger'], onClick: runDelete },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -772,22 +787,22 @@ const renderInstalledWorlds = () => {
   const count = filtered.length;
   if (subtitle) {
     subtitle.textContent = worldsState.installedLoading
-      ? `Loading worlds in ${worldsState.storageLabel || 'Default'}...`
-      : `${count} world${count !== 1 ? 's' : ''} in ${worldsState.storageLabel || 'Default'}`;
+      ? t('worlds.list.loadingInStorage', { storage: getWorldStorageLabel(worldsState.storageLabel) })
+      : t('worlds.list.countInStorage', { count, storage: getWorldStorageLabel(worldsState.storageLabel) });
   }
 
   pruneWorldsBulkSelection();
 
   list.innerHTML = '';
   if (worldsState.installedLoading) {
-    list.appendChild(createInlineLoadingState('Loading worlds...', { centered: true }));
+    list.appendChild(createInlineLoadingState(t('worlds.list.loading'), { centered: true }));
     applyWorldsViewMode();
     updateWorldsBulkActionsUI();
     return;
   }
 
   if (!filtered.length) {
-    list.appendChild(createEmptyState('No worlds installed'));
+    list.appendChild(createEmptyState(t('worlds.list.emptyInstalled')));
     applyWorldsViewMode();
     updateWorldsBulkActionsUI();
     return;
@@ -809,7 +824,7 @@ const renderAvailableWorlds = () => {
     if (worldsState.lastError) {
       list.appendChild(createEmptyState(worldsState.lastError, { isError: true }));
     } else {
-      list.appendChild(createEmptyState('No worlds found'));
+      list.appendChild(createEmptyState(t('worlds.list.emptyAvailable')));
     }
     applyWorldsViewMode();
     return;
@@ -830,9 +845,9 @@ const openWorldFolder = async (world) => {
     });
     if (!res || !res.ok) {
       showMessageBox({
-        title: 'Open Folder Failed',
-        message: (res && res.error) || 'Failed to open the world folder.',
-        buttons: [{ label: 'OK' }],
+        title: t('worlds.actions.openFolderFailedTitle'),
+        message: (res && res.error) || t('worlds.actions.openFolderFailed'),
+        buttons: [{ label: t('common.ok') }],
       });
     }
   } catch (err) {
@@ -852,9 +867,9 @@ const deleteWorld = (world, options = {}) => {
       });
       if (!res || !res.ok) {
         showMessageBox({
-          title: 'Delete Failed',
-          message: (res && res.error) || 'Failed to delete the world.',
-          buttons: [{ label: 'OK' }],
+          title: t('worlds.actions.deleteFailedTitle'),
+          message: (res && res.error) || t('worlds.actions.deleteFailed'),
+          buttons: [{ label: t('common.ok') }],
         });
         return;
       }
@@ -870,11 +885,11 @@ const deleteWorld = (world, options = {}) => {
   }
 
   showMessageBox({
-    title: 'Delete World',
-    message: `Delete <b>${world.title || world.world_id || 'this world'}</b>?<br><i>This cannot be undone!</i>`,
+    title: t('worlds.actions.deleteWorldTitle'),
+    message: t('worlds.actions.deleteWorldConfirm', { world: world.title || world.world_id || t('worlds.editor.thisWorld') }),
     buttons: [
-      { label: 'Delete', classList: ['danger'], onClick: runDelete },
-      { label: 'Cancel' },
+      { label: t('common.delete'), classList: ['danger'], onClick: runDelete },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -884,8 +899,8 @@ const exportWorld = async (world) => {
   if (!worldId) return;
 
   const progressBox = showMessageBox({
-    title: 'Export World',
-    message: `Building world archive for <b>${world.title || worldId}</b>...`,
+    title: t('worlds.export.title'),
+    message: t('worlds.export.buildingArchive', { world: world.title || worldId }),
     buttons: [],
   });
 
@@ -902,9 +917,9 @@ const exportWorld = async (world) => {
 
   if (!res || !res.ok || !res.zip_b64) {
     progressBox.update({
-      title: 'Export Failed',
-      message: (res && res.error) || 'Failed to export the world.',
-      buttons: [{ label: 'OK' }],
+      title: t('worlds.export.failedTitle'),
+      message: (res && res.error) || t('worlds.export.failed'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
@@ -914,9 +929,9 @@ const exportWorld = async (world) => {
     bytes = Uint8Array.from(atob(res.zip_b64), (c) => c.charCodeAt(0));
   } catch (err) {
     progressBox.update({
-      title: 'Export Failed',
-      message: 'Failed to decode exported world data.',
-      buttons: [{ label: 'OK' }],
+      title: t('worlds.export.failedTitle'),
+      message: t('worlds.export.decodeFailed'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
@@ -929,7 +944,7 @@ const exportWorld = async (world) => {
     try {
       const fileHandle = await window.showSaveFilePicker({
         suggestedName: fileName,
-        types: [{ description: 'World archive (.zip)', accept: { 'application/zip': ['.zip'] } }],
+        types: [{ description: t('worlds.export.archiveDescription'), accept: { 'application/zip': ['.zip'] } }],
       });
       const writable = await fileHandle.createWritable();
       await writable.write(blob);
@@ -938,9 +953,9 @@ const exportWorld = async (world) => {
     } catch (saveErr) {
       if (saveErr && saveErr.name === 'AbortError') {
         progressBox.update({
-          title: 'Export Cancelled',
-          message: 'You cancelled the export.',
-          buttons: [{ label: 'OK' }],
+          title: t('worlds.export.cancelledTitle'),
+          message: t('worlds.export.cancelledMessage'),
+          buttons: [{ label: t('common.ok') }],
         });
         return;
       }
@@ -960,9 +975,9 @@ const exportWorld = async (world) => {
       savedLabel = `Downloads/${fileName}`;
     } catch (downloadErr) {
       progressBox.update({
-        title: 'Export Failed',
-        message: `Failed to save the exported file.<br><br>${(downloadErr && downloadErr.message) || 'Unknown save error'}`,
-        buttons: [{ label: 'OK' }],
+        title: t('worlds.export.failedTitle'),
+        message: t('worlds.export.saveFailed', { error: (downloadErr && downloadErr.message) || t('worlds.export.unknownSaveError') }),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
@@ -970,9 +985,9 @@ const exportWorld = async (world) => {
 
   const sizeMb = bytes.length > 0 ? (bytes.length / (1024 * 1024)).toFixed(2) : '0.00';
   progressBox.update({
-    title: 'Export Successful',
-    message: `World <b>${world.title || worldId}</b> was exported.<br><br>Saved to: <b>${savedLabel}</b><br>File size: <b>${sizeMb} MB</b>`,
-    buttons: [{ label: 'OK' }],
+    title: t('worlds.export.successTitle'),
+    message: t('worlds.export.successMessage', { world: world.title || worldId, path: savedLabel, size: sizeMb }),
+    buttons: [{ label: t('common.ok') }],
   });
 };
 
@@ -1022,8 +1037,8 @@ const importWorldFlow = async () => {
   if (!fileSelected) return;
 
   const progressBox = showMessageBox({
-    title: 'Import World',
-    message: `Scanning <b>${fileSelected.name}</b>...`,
+    title: t('worlds.import.title'),
+    message: t('worlds.import.scanning', { file: fileSelected.name }),
     buttons: [],
   });
 
@@ -1032,18 +1047,18 @@ const importWorldFlow = async () => {
     scanRes = await _uploadWorldZip(fileSelected, '/api/worlds/import-scan');
   } catch (err) {
     progressBox.update({
-      title: 'Import Failed',
-      message: (err && err.message) || 'Failed to scan the world archive.',
-      buttons: [{ label: 'OK' }],
+      title: t('worlds.import.failedTitle'),
+      message: (err && err.message) || t('worlds.import.scanFailed'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
 
   if (!scanRes || !scanRes.ok || !Array.isArray(scanRes.roots) || scanRes.roots.length === 0) {
     progressBox.update({
-      title: 'Import Failed',
-      message: (scanRes && scanRes.error) || 'No worlds were found in the archive.',
-      buttons: [{ label: 'OK' }],
+      title: t('worlds.import.failedTitle'),
+      message: (scanRes && scanRes.error) || t('worlds.import.noWorldsFound'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
@@ -1052,8 +1067,8 @@ const importWorldFlow = async () => {
 
   const performImport = async (selectedRoots) => {
     progressBox.update({
-      title: 'Import World',
-      message: `Importing ${selectedRoots ? selectedRoots.length : roots.length} world(s)...`,
+      title: t('worlds.import.title'),
+      message: t('worlds.import.importingCount', { count: selectedRoots ? selectedRoots.length : roots.length }),
       buttons: [],
     });
 
@@ -1066,18 +1081,18 @@ const importWorldFlow = async () => {
       importRes = await _uploadWorldZip(fileSelected, '/api/worlds/import', extra);
     } catch (err) {
       progressBox.update({
-        title: 'Import Failed',
-        message: (err && err.message) || 'Failed to import the world archive.',
-        buttons: [{ label: 'OK' }],
+        title: t('worlds.import.failedTitle'),
+        message: (err && err.message) || t('worlds.import.failed'),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
 
     if (!importRes || !importRes.ok) {
       progressBox.update({
-        title: 'Import Failed',
-        message: (importRes && importRes.error) || 'Failed to import the world archive.',
-        buttons: [{ label: 'OK' }],
+        title: t('worlds.import.failedTitle'),
+        message: (importRes && importRes.error) || t('worlds.import.failed'),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
@@ -1088,15 +1103,15 @@ const importWorldFlow = async () => {
     const skippedCount = Array.isArray(importRes.skipped) ? importRes.skipped.length : 0;
     const errorCount = Array.isArray(importRes.errors) ? importRes.errors.length : 0;
     const lines = [
-      `Imported: <b>${importedCount}</b>`,
-      skippedCount > 0 ? `Skipped: <b>${skippedCount}</b>` : null,
-      errorCount > 0 ? `Errors: <b>${errorCount}</b>` : null,
+      t('worlds.import.importedCount', { count: importedCount }),
+      skippedCount > 0 ? t('worlds.import.skippedCount', { count: skippedCount }) : null,
+      errorCount > 0 ? t('worlds.import.errorCount', { count: errorCount }) : null,
     ].filter(Boolean).join('<br>');
 
     progressBox.update({
-      title: 'Import Complete',
-      message: lines || importRes.message || 'World import finished.',
-      buttons: [{ label: 'OK' }],
+      title: t('worlds.import.completeTitle'),
+      message: lines || importRes.message || t('worlds.import.finished'),
+      buttons: [{ label: t('common.ok') }],
     });
   };
 
@@ -1109,27 +1124,27 @@ const importWorldFlow = async () => {
   content.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
 
   const intro = document.createElement('p');
-  intro.style.cssText = 'margin:0 0 4px 0;font-size:12px;color:#cbd5e1;';
-  intro.innerHTML = `The archive contains <b>${roots.length}</b> worlds. Choose which ones to import.`;
+  intro.style.cssText = 'margin:0 0 4px 0;font-size:12px;color:var(--color-text-secondary-strong);';
+  intro.innerHTML = t('worlds.import.chooseWorldsIntro', { count: roots.length });
   content.appendChild(intro);
 
   const selectAllRow = document.createElement('label');
-  selectAllRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;color:#e5e7eb;border-bottom:1px solid #1f2937;padding-bottom:4px;';
+  selectAllRow.style.cssText = 'display:flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-primary);border-bottom:1px solid var(--color-border-input);padding-bottom:4px;';
   const selectAllCb = document.createElement('input');
   selectAllCb.type = 'checkbox';
   selectAllCb.checked = true;
   const selectAllText = document.createElement('span');
-  selectAllText.textContent = 'Select all';
+  selectAllText.textContent = t('common.selectAll');
   selectAllRow.appendChild(selectAllCb);
   selectAllRow.appendChild(selectAllText);
   content.appendChild(selectAllRow);
 
   const list = document.createElement('div');
-  list.style.cssText = 'max-height:280px;overflow-y:auto;border:1px solid #1f2937;padding:6px;display:flex;flex-direction:column;gap:4px;';
+  list.style.cssText = 'max-height:280px;overflow-y:auto;border:1px solid var(--color-border-input);padding:6px;display:flex;flex-direction:column;gap:4px;';
 
   const rowEntries = roots.map((entry) => {
     const row = document.createElement('label');
-    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;color:#e5e7eb;';
+    row.style.cssText = 'display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px;color:var(--color-text-primary);';
     const cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = true;
@@ -1137,8 +1152,8 @@ const importWorldFlow = async () => {
     labelText.style.cssText = 'flex:1;';
     const sizeKb = entry.level_dat_size > 0 ? `${(entry.level_dat_size / 1024).toFixed(1)} KB` : '';
     labelText.innerHTML = `<b>${entry.label || entry.path}</b>` + (entry.path && entry.path !== entry.label
-      ? ` <span style="color:#9ca3af;">(${entry.path})</span>`
-      : '') + (sizeKb ? ` <span style="color:#6b7280;">level.dat: ${sizeKb}</span>` : '');
+      ? ` <span style="color:var(--color-text-muted);">(${entry.path})</span>`
+      : '') + (sizeKb ? ` <span style="color:var(--color-text-dim);">level.dat: ${sizeKb}</span>` : '');
     row.appendChild(cb);
     row.appendChild(labelText);
     list.appendChild(row);
@@ -1157,11 +1172,11 @@ const importWorldFlow = async () => {
   content.appendChild(list);
 
   progressBox.update({
-    title: 'Import World',
+    title: t('worlds.import.title'),
     customContent: content,
     buttons: [
       {
-        label: 'Import',
+        label: t('worlds.import.importButton'),
         classList: ['primary'],
         closeOnClick: false,
         onClick: () => {
@@ -1170,7 +1185,7 @@ const importWorldFlow = async () => {
           performImport(selected);
         },
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -1178,18 +1193,18 @@ const importWorldFlow = async () => {
 const installWorld = async (world, version, installBtn) => {
   let progress = null;
   try {
-    const idleLabel = installBtn ? (installBtn.textContent || 'Download') : 'Download';
+    const idleLabel = installBtn ? (installBtn.textContent || t('common.download')) : t('common.download');
     const installKey = `worlds/${createOperationId('install')}`;
     if (installBtn) {
       installBtn.disabled = true;
-      installBtn.textContent = 'Downloading...';
+      installBtn.textContent = t('versions.install.activeEllipsis', { label: t('worlds.install.downloading') });
     }
     progress = startWorldInlineInstallProgress({
       installKey,
       button: installBtn,
       card: installBtn ? installBtn.closest('.world-card') : null,
-      activeLabel: 'Downloading',
-      doneLabel: 'Downloaded',
+      activeLabel: t('worlds.install.downloading'),
+      doneLabel: t('worlds.install.downloaded'),
       idleLabel,
     });
 
@@ -1206,24 +1221,24 @@ const installWorld = async (world, version, installBtn) => {
     });
 
     if (!res || !res.ok) {
-      if (progress) progress.fail((res && res.error) || 'Failed to download the world.');
+      if (progress) progress.fail((res && res.error) || t('worlds.install.failedDownloadWorld'));
       if (installBtn) {
         installBtn.disabled = false;
         installBtn.textContent = idleLabel;
       }
       showMessageBox({
-        title: 'Download Failed',
-        message: (res && res.error) || 'Failed to download the world.',
-        buttons: [{ label: 'OK' }],
+        title: t('worlds.install.downloadFailedTitle'),
+        message: (res && res.error) || t('worlds.install.failedDownloadWorld'),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
 
-    if (progress) progress.complete(res.message || 'Downloaded');
+    if (progress) progress.complete(res.message || t('worlds.install.downloaded'));
 
     if (installBtn) {
       installBtn.disabled = false;
-      installBtn.textContent = 'Downloaded';
+      installBtn.textContent = t('worlds.install.downloaded');
       installBtn.className = '';
       installBtn.style.color = '#4ade80';
       installBtn.style.fontWeight = 'bold';
@@ -1235,15 +1250,15 @@ const installWorld = async (world, version, installBtn) => {
     await loadInstalledWorlds();
   } catch (err) {
     console.error('Failed to install world:', err);
-    if (progress) progress.fail('Unexpected download error');
+    if (progress) progress.fail(t('worlds.install.unexpectedDownloadError'));
     if (installBtn) {
       installBtn.disabled = false;
-      installBtn.textContent = 'Download';
+      installBtn.textContent = t('common.download');
     }
     showMessageBox({
-      title: 'Download Failed',
-      message: 'An unexpected error occurred while downloading the world.',
-      buttons: [{ label: 'OK' }],
+      title: t('worlds.install.downloadFailedTitle'),
+      message: t('worlds.install.unexpectedDownloadMessage'),
+      buttons: [{ label: t('common.ok') }],
     });
   }
 };
@@ -1275,7 +1290,7 @@ const createWorldCard = (world, isInstalled) => {
 
   const name = document.createElement('div');
   name.className = 'version-display';
-  name.textContent = world.title || world.display_name || world.name || world.world_id || 'Unknown World';
+  name.textContent = world.title || world.display_name || world.name || world.world_id || t('worlds.editor.worldFallback');
 
   const desc = document.createElement('div');
   desc.className = 'version-folder mod-card-description';
@@ -1291,13 +1306,13 @@ const createWorldCard = (world, isInstalled) => {
   if (isInstalled) {
     const installedBadge = document.createElement('span');
     installedBadge.className = 'version-badge installed';
-    installedBadge.textContent = 'INSTALLED';
+    installedBadge.textContent = t('mods.status.installed').toUpperCase();
     badgeRow.appendChild(installedBadge);
 
     if (world.game_mode && world.game_mode !== 'Unknown') {
       const modeBadge = document.createElement('span');
       modeBadge.className = 'version-badge lite';
-      modeBadge.textContent = String(world.game_mode).toUpperCase();
+      modeBadge.textContent = getWorldGameModeLabel(world.game_mode).toUpperCase();
       badgeRow.appendChild(modeBadge);
     }
 
@@ -1310,7 +1325,7 @@ const createWorldCard = (world, isInstalled) => {
   } else {
     const providerBadge = document.createElement('span');
     providerBadge.className = 'version-badge nonofficial';
-    providerBadge.textContent = 'CURSEFORGE';
+    providerBadge.textContent = t('worlds.providerCurseforge').toUpperCase();
     badgeRow.appendChild(providerBadge);
   }
 
@@ -1320,14 +1335,14 @@ const createWorldCard = (world, isInstalled) => {
     const exportBtn = document.createElement('div');
     exportBtn.className = 'icon-button';
     bindKeyboardActivation(exportBtn, {
-      ariaLabel: `Export world ${String(name.textContent || '').trim() || 'this world'}`,
+      ariaLabel: t('worlds.actions.exportWorld', { world: String(name.textContent || '').trim() || t('worlds.editor.thisWorld') }),
     });
     const exportImg = document.createElement('img');
-    exportImg.alt = 'export';
+    exportImg.alt = t('common.export');
     exportImg.src = 'assets/images/export_version.png';
     imageAttachErrorPlaceholder(exportImg, 'assets/images/placeholder.png');
     exportBtn.appendChild(exportImg);
-    exportBtn.title = 'Export world to .zip archive';
+    exportBtn.title = t('worlds.actions.exportWorldZip');
     exportBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (state.worldsBulkState.enabled) {
@@ -1341,10 +1356,10 @@ const createWorldCard = (world, isInstalled) => {
     const delBtn = document.createElement('div');
     delBtn.className = 'icon-button';
     bindKeyboardActivation(delBtn, {
-      ariaLabel: `Delete world ${String(name.textContent || '').trim() || 'this world'}`,
+      ariaLabel: t('worlds.actions.deleteWorld', { world: String(name.textContent || '').trim() || t('worlds.editor.thisWorld') }),
     });
     const delImg = document.createElement('img');
-    delImg.alt = 'delete';
+    delImg.alt = t('common.delete');
     delImg.src = 'assets/images/unfilled_delete.png';
     imageAttachErrorPlaceholder(delImg, 'assets/images/placeholder.png');
     delBtn.appendChild(delImg);
@@ -1367,7 +1382,7 @@ const createWorldCard = (world, isInstalled) => {
   if (isInstalled) {
     const editBtn = document.createElement('button');
     editBtn.className = 'primary';
-    editBtn.textContent = 'Edit';
+    editBtn.textContent = t('common.edit');
     editBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       promptEditWorld(world);
@@ -1376,7 +1391,7 @@ const createWorldCard = (world, isInstalled) => {
 
     const openBtn = document.createElement('button');
     openBtn.className = 'important';
-    openBtn.textContent = 'Open Folder';
+    openBtn.textContent = t('common.openFolder');
     openBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       openWorldFolder(world);
@@ -1388,16 +1403,16 @@ const createWorldCard = (world, isInstalled) => {
 
     const quickBtn = document.createElement('button');
     quickBtn.className = 'primary';
-    quickBtn.textContent = 'Download';
+    quickBtn.textContent = t('common.download');
 
     const quickVersion = document.createElement('div');
     quickVersion.className = 'quick-install-version';
-    quickVersion.textContent = 'Latest';
+    quickVersion.textContent = t('mods.detail.latest');
 
     quickBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
       quickBtn.disabled = true;
-      quickBtn.textContent = 'Fetching...';
+      quickBtn.textContent = t('mods.detail.fetching');
       try {
         const versionsRes = await api('/api/worlds/versions', 'POST', {
           provider: world.provider || worldsState.provider,
@@ -1406,33 +1421,33 @@ const createWorldCard = (world, isInstalled) => {
         });
         if (!versionsRes || !versionsRes.ok) {
           quickBtn.disabled = false;
-          quickBtn.textContent = 'Download';
-          quickVersion.textContent = 'Lookup failed';
+          quickBtn.textContent = t('common.download');
+          quickVersion.textContent = t('mods.detail.lookupFailed');
           showMessageBox({
-            title: 'Version Lookup Failed',
-            message: (versionsRes && versionsRes.error) || 'Failed to fetch world versions.',
-            buttons: [{ label: 'OK' }],
+            title: t('mods.detail.versionLookupFailedTitle'),
+            message: (versionsRes && versionsRes.error) || t('worlds.detail.versionLookupFailedMessage'),
+            buttons: [{ label: t('common.ok') }],
           });
           return;
         }
         const versions = Array.isArray(versionsRes.versions) ? versionsRes.versions : [];
         if (!versions.length) {
           quickBtn.disabled = false;
-          quickBtn.textContent = 'Download';
-          quickVersion.textContent = 'No versions found';
+          quickBtn.textContent = t('common.download');
+          quickVersion.textContent = t('mods.detail.noVersionsFound');
           return;
         }
         let recommendedIdx = versions.findIndex((ver) => String(ver.version_type || '').toLowerCase() === 'release');
         if (recommendedIdx === -1) recommendedIdx = versions.findIndex((ver) => String(ver.version_type || '').toLowerCase() === 'beta');
         if (recommendedIdx === -1) recommendedIdx = 0;
         const version = versions[recommendedIdx];
-        quickVersion.textContent = version.version_number || version.display_name || 'Latest';
-        quickBtn.textContent = 'Download';
+        quickVersion.textContent = version.version_number || version.display_name || t('mods.detail.latest');
+        quickBtn.textContent = t('common.download');
         installWorld(world, version, quickBtn);
       } catch (err) {
         console.error('Failed quick world version lookup:', err);
         quickBtn.disabled = false;
-        quickBtn.textContent = 'Download';
+        quickBtn.textContent = t('common.download');
       }
     });
 
@@ -1457,7 +1472,7 @@ const createWorldCard = (world, isInstalled) => {
 
   card.style.cursor = 'pointer';
   bindKeyboardActivation(card, {
-    ariaLabel: `View details for world ${String(name.textContent || '').trim() || 'this world'}`,
+    ariaLabel: t('worlds.actions.viewDetails', { world: String(name.textContent || '').trim() || t('worlds.editor.thisWorld') }),
   });
   card.addEventListener('click', (e) => {
     if (e.target.closest('button, select, input, .icon-button')) return;
@@ -1492,7 +1507,7 @@ const renderInstalledWorldDetailContent = (detail) => {
   meta.className = 'world-detail-meta';
 
   const title = document.createElement('h4');
-  title.textContent = detail.title || detail.world_id || 'Unknown World';
+  title.textContent = detail.title || detail.world_id || t('worlds.editor.worldFallback');
   meta.appendChild(title);
 
   const addRow = (...parts) => {
@@ -1506,10 +1521,24 @@ const renderInstalledWorldDetailContent = (detail) => {
     if (row.childNodes.length) meta.appendChild(row);
   };
 
-  addRow(`World ID: ${detail.world_id || 'Unknown'}`, `Storage: ${detail.storage_label || worldsState.storageLabel || 'Default'}`);
-  addRow(`Modified: ${formatWorldDateTime(detail.modified_at)}`, `Last Played: ${formatWorldDateTime(detail.last_played)}`);
-  addRow(`Size: ${formatBytes(detail.size_bytes) || 'Unknown'}`, `Game Mode: ${detail.game_mode || 'Unknown'}`, `Difficulty: ${detail.difficulty || 'Unknown'}`);
-  addRow(`Version: ${detail.version_name || 'Unknown'}`, `Cheats: ${detail.allow_commands ? 'Enabled' : 'Disabled'}`, `Hardcore: ${detail.hardcore ? 'Yes' : 'No'}`);
+  addRow(
+    t('worlds.detail.worldIdValue', { value: detail.world_id || t('common.unknown') }),
+    t('worlds.detail.storageValue', { value: getWorldStorageLabel(detail.storage_label || worldsState.storageLabel) })
+  );
+  addRow(
+    t('worlds.detail.modifiedValue', { value: formatWorldDateTime(detail.modified_at) }),
+    t('worlds.detail.lastPlayedValue', { value: formatWorldDateTime(detail.last_played) })
+  );
+  addRow(
+    t('worlds.detail.sizeValue', { value: formatBytes(detail.size_bytes) || t('common.unknown') }),
+    t('worlds.detail.gameModeValue', { value: detail.game_mode || t('common.unknown') }),
+    t('worlds.detail.difficultyValue', { value: detail.difficulty || t('common.unknown') })
+  );
+  addRow(
+    t('worlds.detail.versionValue', { value: detail.version_name || t('common.unknown') }),
+    t('worlds.detail.cheatsValue', { value: detail.allow_commands ? t('worlds.detail.enabled') : t('worlds.detail.disabled') }),
+    t('worlds.detail.hardcoreValue', { value: detail.hardcore ? t('worlds.detail.yes') : t('worlds.detail.no') })
+  );
 
   if (detail.path) {
     const note = document.createElement('div');
@@ -1525,7 +1554,7 @@ const renderInstalledWorldDetailContent = (detail) => {
 };
 
 const createWorldEditorLoadingContent = (message) => {
-  return createInlineLoadingState(message);
+  return createInlineLoadingState(message, { centered: true });
 };
 
 const setWorldEditorStatus = (statusEl, message = '', tone = '') => {
@@ -1664,14 +1693,14 @@ const createWorldEditorWeatherDurationAccessory = (inputEl, tooltipText = '') =>
   const accessory = document.createElement('div');
   accessory.className = 'world-nbt-weather-duration';
 
-  const durationLabel = createWorldEditorLabelRow('Lasts', tooltipText);
+  const durationLabel = createWorldEditorLabelRow(t('worlds.editor.durationLasts'), tooltipText);
   durationLabel.classList.add('world-nbt-weather-duration-label');
 
   inputEl.classList.add('world-nbt-weather-duration-input');
 
   const unit = document.createElement('span');
   unit.className = 'world-nbt-inline-unit';
-  unit.textContent = 'seconds';
+  unit.textContent = t('worlds.editor.seconds');
 
   accessory.appendChild(durationLabel);
   accessory.appendChild(inputEl);
@@ -1693,35 +1722,43 @@ const createWorldEditorSelect = (options, selectedValue) => {
   return select;
 };
 
-const WORLD_SIMPLE_TOOLTIPS = {
-  gameMode: 'Changes how the world plays for the current player.\n\nSurvival: Normal gameplay.\nCreative: Unlimited blocks and flying.\nAdventure: Restricted map play.\nSpectator: Free-fly camera mode.',
-  difficulty: 'Changes how harsh the world feels.\n\nHigher difficulty means tougher enemies and faster hunger loss.',
-  allowCommands: 'Turns commands on or off for this world.\n\nUseful if you want things like teleporting, giving items, or using other cheats.',
-  hardcore: 'Marks the world as Hardcore.\n\nHardcore worlds are much less forgiving and are meant for a one-life style challenge.',
-  spawnX: 'The default X coordinate where players respawn in this world.',
-  spawnY: 'The default Y height where players respawn in this world.',
-  spawnZ: 'The default Z coordinate where players respawn in this world.',
-  timeOfDay: 'Controls where the sun or moon is right now.\n\nCommon values:\n0: Sunrise\n6000: Midday\n12000: Sunset\n18000: Midnight',
-  raining: 'Turns rain on or off.',
-  thundering: 'Turns thunderstorms on or off.',
-  rainDuration: 'How long rain should stay active before Minecraft can clear it again.',
-  thunderDuration: 'How long the thunderstorm should stay active before Minecraft can calm it down.',
-  health: 'The player\'s current health.\n\n20 is full health for a normal player.',
-  foodLevel: 'The player\'s current hunger bar.\n\n20 is full hunger.',
-  foodSaturation: 'How long the hunger bar stays full before it starts dropping.',
-  xpLevel: 'The green experience level number shown above the hotbar.',
-  xpTotal: 'The player\'s total saved experience points.',
-  playerX: 'The player\'s saved X coordinate.\n\nThis decides where they will stand when the world loads.',
-  playerY: 'The player\'s saved Y height.\n\nThis decides how high or low they will be when the world loads.',
-  playerZ: 'The player\'s saved Z coordinate.\n\nThis decides where they will stand when the world loads.',
-  inventorySlot: 'The slot number used for this item.\n\nUse the picker button if you want a visual hotbar, inventory, armor, and offhand layout instead of remembering slot numbers.',
-  inventoryItem: 'The item id to place in this slot.\n\nExample: minecraft:stone',
-  inventoryCount: 'How many items should be in this slot.',
-  enderSlot: 'The ender chest slot number.\n\nUse the picker button if you want a visual 9x3 ender chest layout.',
-  enderItem: 'The item id to place in this ender chest slot.\n\nExample: minecraft:diamond_block',
-  enderCount: 'How many items should be in this ender chest slot.',
-  hotbarSlot: 'Which hotbar slot is selected when the player loads in.\n\nThis is shown as 1 through 9 to match what players normally see in game.',
+const WORLD_SIMPLE_TOOLTIP_KEYS = {
+  gameMode: 'worlds.editor.tooltips.gameMode',
+  difficulty: 'worlds.editor.tooltips.difficulty',
+  allowCommands: 'worlds.editor.tooltips.allowCommands',
+  hardcore: 'worlds.editor.tooltips.hardcore',
+  spawnX: 'worlds.editor.tooltips.spawnX',
+  spawnY: 'worlds.editor.tooltips.spawnY',
+  spawnZ: 'worlds.editor.tooltips.spawnZ',
+  timeOfDay: 'worlds.editor.tooltips.timeOfDay',
+  raining: 'worlds.editor.tooltips.raining',
+  thundering: 'worlds.editor.tooltips.thundering',
+  rainDuration: 'worlds.editor.tooltips.rainDuration',
+  thunderDuration: 'worlds.editor.tooltips.thunderDuration',
+  health: 'worlds.editor.tooltips.health',
+  foodLevel: 'worlds.editor.tooltips.foodLevel',
+  foodSaturation: 'worlds.editor.tooltips.foodSaturation',
+  xpLevel: 'worlds.editor.tooltips.xpLevel',
+  xpTotal: 'worlds.editor.tooltips.xpTotal',
+  playerX: 'worlds.editor.tooltips.playerX',
+  playerY: 'worlds.editor.tooltips.playerY',
+  playerZ: 'worlds.editor.tooltips.playerZ',
+  inventorySlot: 'worlds.editor.tooltips.inventorySlot',
+  inventoryItem: 'worlds.editor.tooltips.inventoryItem',
+  inventoryCount: 'worlds.editor.tooltips.inventoryCount',
+  enderSlot: 'worlds.editor.tooltips.enderSlot',
+  enderItem: 'worlds.editor.tooltips.enderItem',
+  enderCount: 'worlds.editor.tooltips.enderCount',
+  hotbarSlot: 'worlds.editor.tooltips.hotbarSlot',
 };
+
+const WORLD_SIMPLE_TOOLTIPS = {};
+Object.entries(WORLD_SIMPLE_TOOLTIP_KEYS).forEach(([tooltipName, tooltipKey]) => {
+  Object.defineProperty(WORLD_SIMPLE_TOOLTIPS, tooltipName, {
+    enumerable: true,
+    get: () => t(tooltipKey),
+  });
+});
 
 const WORLD_NBT_TAGS = {
   END: 0,
@@ -1941,11 +1978,11 @@ const formatWorldGameRuleLabel = (name = '') => String(name || '')
 const createWorldGameRuleTooltipText = (rule) => {
   const valueType = String(rule && rule.value_type || 'text');
   const typeLabel = valueType === 'boolean'
-    ? 'On/Off rule'
+    ? t('worlds.editor.gameRuleTypes.boolean')
     : valueType === 'integer'
-      ? 'Number rule'
-      : 'Text rule';
-  return `${typeLabel}\n\nMinecraft gamerule: ${String(rule && rule.name || '')}`;
+      ? t('worlds.editor.gameRuleTypes.integer')
+      : t('worlds.editor.gameRuleTypes.text');
+  return `${typeLabel}\n\n${t('worlds.editor.minecraftGameRule', { name: String(rule && rule.name || '') })}`;
 };
 
 const extractWorldGameRules = (dataValue) => {
@@ -2633,7 +2670,7 @@ const createWorldEditorHotbarSelector = (selectedSlot = null) => {
   input.placeholder = '1-9';
 
   const picker = createWorldEditorPickerControl(input, {
-    buttonLabel: 'Pick',
+    buttonLabel: t('worlds.editor.pick'),
     renderPopover: (popover, { close }) => {
       const parsedInputValue = worldEditorIntValue(input.value, null);
       const currentValue = parsedInputValue !== null && parsedInputValue >= 1 && parsedInputValue <= 9
@@ -2641,13 +2678,13 @@ const createWorldEditorHotbarSelector = (selectedSlot = null) => {
         : null;
 
       popover.appendChild(createWorldEditorSlotGridSection({
-        title: 'Hotbar',
+        title: t('worlds.editor.hotbar'),
         rows: [
           {
             slots: Array.from({ length: 9 }, (_item, index) => ({
               slot: index,
               label: String(index + 1),
-              ariaLabel: `Hotbar slot ${index + 1}`,
+              ariaLabel: t('worlds.editor.hotbarSlotAria', { slot: index + 1 }),
             })),
           },
         ],
@@ -2656,7 +2693,7 @@ const createWorldEditorHotbarSelector = (selectedSlot = null) => {
           input.value = String(slot + 1);
           close();
         },
-        noteText: 'Choose the hotbar slot the player should have selected when the world loads.',
+        noteText: t('worlds.editor.hotbarPickNote'),
       }));
     },
   });
@@ -2664,7 +2701,7 @@ const createWorldEditorHotbarSelector = (selectedSlot = null) => {
   return {
     element: picker.element,
     input,
-    getValue: () => parseWorldEditorIntegerField(input.value, 'Selected Hotbar Slot', {
+    getValue: () => parseWorldEditorIntegerField(input.value, t('worlds.editor.selectedHotbarSlot'), {
       min: 1,
       max: 9,
       defaultValue: null,
@@ -2684,7 +2721,7 @@ const createWorldEditorSlotPickerInput = ({
   input.placeholder = placeholder;
 
   const picker = createWorldEditorPickerControl(input, {
-    buttonLabel: 'Pick',
+    buttonLabel: t('worlds.editor.pick'),
     renderPopover: (popover, { close }) => {
       const parsedInputValue = worldEditorIntValue(input.value, null);
       const selectedSlot = parsedInputValue !== null && parsedInputValue >= min && parsedInputValue <= max
@@ -2697,16 +2734,16 @@ const createWorldEditorSlotPickerInput = ({
           [9, 10, 11, 12, 13, 14, 15, 16, 17],
           [18, 19, 20, 21, 22, 23, 24, 25, 26],
         ].map((slots, rowIndex) => ({
-          label: ['Top', 'Middle', 'Bottom'][rowIndex],
+          label: [t('worlds.editor.rows.top'), t('worlds.editor.rows.middle'), t('worlds.editor.rows.bottom')][rowIndex],
           slots: slots.map((slot, slotIndex) => ({
             slot,
             label: String(slot),
-            ariaLabel: `Ender chest row ${rowIndex + 1}, slot ${slot}`,
+            ariaLabel: t('worlds.editor.enderChestSlotAria', { row: rowIndex + 1, slot }),
           })),
         }));
 
         popover.appendChild(createWorldEditorSlotGridSection({
-          title: 'Ender Chest Layout',
+          title: t('worlds.editor.enderChestLayout'),
           rows,
           selectedSlot,
           onSelect: (slot) => {
@@ -2722,11 +2759,11 @@ const createWorldEditorSlotPickerInput = ({
         [18, 19, 20, 21, 22, 23, 24, 25, 26],
         [27, 28, 29, 30, 31, 32, 33, 34, 35],
       ].map((slots, rowIndex) => ({
-        label: ['Top', 'Middle', 'Bottom'][rowIndex],
+        label: [t('worlds.editor.rows.top'), t('worlds.editor.rows.middle'), t('worlds.editor.rows.bottom')][rowIndex],
         slots: slots.map((slot, slotIndex) => ({
           slot,
           label: String(slot),
-          ariaLabel: `Inventory row ${rowIndex + 1}, slot ${slot}`,
+          ariaLabel: t('worlds.editor.inventorySlotAria', { row: rowIndex + 1, slot }),
         })),
       }));
 
@@ -2735,20 +2772,20 @@ const createWorldEditorSlotPickerInput = ({
           slots: Array.from({ length: 9 }, (_item, index) => ({
             slot: index,
             label: String(index),
-            ariaLabel: `Hotbar slot ${index}`,
+            ariaLabel: t('worlds.editor.hotbarSlotAria', { slot: index }),
           })),
         },
       ];
 
       const armorAndOffhandRows = [
-        { label: 'Helmet', slot: 103 },
-        { label: 'Chest', slot: 102 },
-        { label: 'Legs', slot: 101 },
-        { label: 'Boots', slot: 100 },
+        { label: t('worlds.editor.armor.helmet'), slot: 103 },
+        { label: t('worlds.editor.armor.chest'), slot: 102 },
+        { label: t('worlds.editor.armor.legs'), slot: 101 },
+        { label: t('worlds.editor.armor.boots'), slot: 100 },
       ];
 
       if (showOffhandSlot) {
-        armorAndOffhandRows.push({ label: 'Offhand', slot: -106 });
+        armorAndOffhandRows.push({ label: t('worlds.editor.armor.offhand'), slot: -106 });
       }
 
       const armorAndOffhandRowsLayout = armorAndOffhandRows.map((entry) => ({
@@ -2757,13 +2794,13 @@ const createWorldEditorSlotPickerInput = ({
           {
             slot: entry.slot,
             label: String(entry.slot),
-            ariaLabel: `${entry.label} slot ${entry.slot}`,
+            ariaLabel: t('worlds.editor.equipmentSlotAria', { label: entry.label, slot: entry.slot }),
           },
         ],
       }));
 
       popover.appendChild(createWorldEditorSlotGridSection({
-        title: showOffhandSlot ? 'Armor & Offhand' : 'Armor',
+        title: showOffhandSlot ? t('worlds.editor.armorAndOffhand') : t('worlds.editor.armorTitle'),
         rows: armorAndOffhandRowsLayout,
         selectedSlot,
         onSelect: (slot) => {
@@ -2773,7 +2810,7 @@ const createWorldEditorSlotPickerInput = ({
       }));
 
       popover.appendChild(createWorldEditorSlotGridSection({
-        title: 'Inventory Layout',
+        title: t('worlds.editor.inventoryLayout'),
         rows: inventoryRows,
         selectedSlot,
         onSelect: (slot) => {
@@ -2783,14 +2820,14 @@ const createWorldEditorSlotPickerInput = ({
       }));
 
       popover.appendChild(createWorldEditorSlotGridSection({
-        title: 'Hotbar',
+        title: t('worlds.editor.hotbar'),
         rows: hotbarRows,
         selectedSlot,
         onSelect: (slot) => {
           input.value = String(slot);
           close();
         },
-        noteText: 'This picker covers inventory, hotbar, armor, and offhand slots (if compatible).',
+        noteText: t('worlds.editor.slotPickerNote'),
       }));
     },
   });
@@ -2809,7 +2846,7 @@ const createWorldEditorInventorySection = ({
   addButtonLabel,
   slotPlaceholder,
   itemPlaceholder,
-  countPlaceholder = 'Count',
+  countPlaceholder = '',
   slotTooltip,
   itemTooltip,
   countTooltip,
@@ -2817,13 +2854,14 @@ const createWorldEditorInventorySection = ({
   createSlotControl = null,
 }) => {
   const { section, body } = createWorldEditorSection(title, description);
+  const resolvedCountPlaceholder = countPlaceholder || t('worlds.editor.count');
 
   const header = document.createElement('div');
   header.className = 'world-nbt-inventory-header';
   [
-    createWorldEditorLabelRow('Slot', slotTooltip),
-    createWorldEditorLabelRow('Item ID', itemTooltip),
-    createWorldEditorLabelRow('Count', countTooltip),
+    createWorldEditorLabelRow(t('worlds.editor.slot'), slotTooltip),
+    createWorldEditorLabelRow(t('worlds.editor.itemId'), itemTooltip),
+    createWorldEditorLabelRow(t('worlds.editor.count'), countTooltip),
     document.createElement('span'),
   ].forEach((node) => header.appendChild(node));
   body.appendChild(header);
@@ -2854,13 +2892,13 @@ const createWorldEditorInventorySection = ({
 
     const countValue = Object.prototype.hasOwnProperty.call(item, 'count') ? item.count : '';
     const countInput = createWorldEditorNumberInput(countValue, { min: 0, max: 127 });
-    countInput.placeholder = countPlaceholder;
+    countInput.placeholder = resolvedCountPlaceholder;
     countInput.dataset.field = 'count';
 
     const removeBtn = document.createElement('button');
     removeBtn.type = 'button';
     removeBtn.className = 'danger';
-    removeBtn.textContent = 'Remove';
+    removeBtn.textContent = t('common.remove');
     removeBtn.addEventListener('click', () => row.remove());
 
     row._slotControl = slotControl;
@@ -3233,8 +3271,8 @@ const createWorldEditorPlayerDropdown = (playerMeta, bodyContent) => {
   const summaryMeta = document.createElement('div');
   summaryMeta.className = 'world-nbt-player-summary-meta';
   summaryMeta.textContent = playerMeta && playerMeta.hasSavedData
-    ? 'Saved player data'
-    : 'Player data will be created when you save';
+    ? t('worlds.editor.player.savedData')
+    : t('worlds.editor.player.willCreateData');
   summaryMain.appendChild(summaryMeta);
   summary.appendChild(summaryMain);
 
@@ -3244,7 +3282,7 @@ const createWorldEditorPlayerDropdown = (playerMeta, bodyContent) => {
   if (playerMeta && playerMeta.isPrimary) {
     const badge = document.createElement('span');
     badge.className = 'world-nbt-player-badge';
-    badge.textContent = 'Primary';
+    badge.textContent = t('worlds.editor.player.primary');
     summaryActions.appendChild(badge);
   }
 
@@ -3274,18 +3312,18 @@ const buildWorldSimplePlayerEditor = (simple, playerMeta = {}) => {
   const content = document.createElement('div');
   content.className = 'world-nbt-player-editor';
   const features = isWorldEditorObject(simple && simple.features) ? simple.features : {};
-  const playerName = String(playerMeta && playerMeta.label || 'Player').trim() || 'Player';
+  const playerName = String(playerMeta && playerMeta.label || t('worlds.editor.player.label')).trim() || t('worlds.editor.player.label');
 
   const playerIntro = document.createElement('p');
   playerIntro.className = 'world-nbt-section-note';
   if (simple.has_player_data) {
-    playerIntro.textContent = `These settings only affect ${playerName}.`;
+    playerIntro.textContent = t('worlds.editor.player.settingsAffectPlayer', { player: playerName });
   } else {
-    playerIntro.textContent = `${playerName} does not have saved player data in this world yet. Any fields you set here will be created when you save.`;
+    playerIntro.textContent = t('worlds.editor.player.noSavedDataYet', { player: playerName });
   }
   content.appendChild(playerIntro);
 
-  const playerSection = createWorldEditorSection('Player Stats', 'Health, hunger, experience, and the selected hotbar slot are all saved per player.');
+  const playerSection = createWorldEditorSection(t('worlds.editor.player.stats'), t('worlds.editor.player.statsDescription'));
   const healthInput = createWorldEditorNumberInput(simple.health ?? '', { step: '0.5', min: 0 });
   const foodLevelInput = createWorldEditorNumberInput(simple.food_level ?? '', { min: 0 });
   const foodSaturationInput = createWorldEditorNumberInput(simple.food_saturation ?? '', { step: '0.5', min: 0 });
@@ -3293,43 +3331,43 @@ const buildWorldSimplePlayerEditor = (simple, playerMeta = {}) => {
   const xpTotalInput = createWorldEditorNumberInput(simple.xp_total ?? '', { min: 0 });
   const selectedHotbarControl = createWorldEditorHotbarSelector(simple.selected_item_slot ?? null);
   [
-    createWorldEditorField('Health', healthInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.health, hintText: '20 is full health' }),
-    createWorldEditorField('Food Level', foodLevelInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.foodLevel, hintText: '20 is a full hunger bar' }),
-    createWorldEditorField('Food Saturation', foodSaturationInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.foodSaturation }),
-    createWorldEditorField('XP Level', xpLevelInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.xpLevel }),
-    createWorldEditorField('XP Total', xpTotalInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.xpTotal }),
-    createWorldEditorField('Selected Hotbar Slot', selectedHotbarControl.element, {
+    createWorldEditorField(t('worlds.editor.player.health'), healthInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.health, hintText: t('worlds.editor.player.fullHealthHint') }),
+    createWorldEditorField(t('worlds.editor.player.foodLevel'), foodLevelInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.foodLevel, hintText: t('worlds.editor.player.fullHungerHint') }),
+    createWorldEditorField(t('worlds.editor.player.foodSaturation'), foodSaturationInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.foodSaturation }),
+    createWorldEditorField(t('worlds.editor.player.xpLevel'), xpLevelInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.xpLevel }),
+    createWorldEditorField(t('worlds.editor.player.xpTotal'), xpTotalInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.xpTotal }),
+    createWorldEditorField(t('worlds.editor.selectedHotbarSlot'), selectedHotbarControl.element, {
       tooltipText: WORLD_SIMPLE_TOOLTIPS.hotbarSlot,
-      hintText: 'Shown as 1 through 9, just like the in-game hotbar.',
+      hintText: t('worlds.editor.player.hotbarHint'),
     }),
   ].forEach((field) => playerSection.body.appendChild(field));
   content.appendChild(playerSection.section);
 
-  const playerPositionSection = createWorldEditorSection('Player Position', 'This is where this player appears when they join the world.');
+  const playerPositionSection = createWorldEditorSection(t('worlds.editor.player.position'), t('worlds.editor.player.positionDescription'));
   const playerXInput = createWorldEditorNumberInput(simple.player_x ?? '', { step: '0.1' });
   const playerYInput = createWorldEditorNumberInput(simple.player_y ?? '', { step: '0.1' });
   const playerZInput = createWorldEditorNumberInput(simple.player_z ?? '', { step: '0.1' });
   [
     createWorldEditorField('X', playerXInput, {
       tooltipText: WORLD_SIMPLE_TOOLTIPS.playerX,
-      hintText: 'Decimals are allowed',
+      hintText: t('worlds.editor.decimalsAllowed'),
     }),
     createWorldEditorField('Y', playerYInput, {
       tooltipText: WORLD_SIMPLE_TOOLTIPS.playerY,
-      hintText: 'Decimals are allowed',
+      hintText: t('worlds.editor.decimalsAllowed'),
     }),
     createWorldEditorField('Z', playerZInput, {
       tooltipText: WORLD_SIMPLE_TOOLTIPS.playerZ,
-      hintText: 'Decimals are allowed',
+      hintText: t('worlds.editor.decimalsAllowed'),
     }),
   ].forEach((field) => playerPositionSection.body.appendChild(field));
   content.appendChild(playerPositionSection.section);
 
   const inventorySection = createWorldEditorInventorySection({
-    title: 'Inventory Layout',
-    description: 'Use the slot picker if you want a visual hotbar, inventory, armor, and offhand layout, or type a different slot number manually when you need something more advanced.',
+    title: t('worlds.editor.inventoryLayout'),
+    description: t('worlds.editor.inventoryLayoutDescription'),
     items: simple.inventory_items,
-    addButtonLabel: 'Add Inventory Item',
+    addButtonLabel: t('worlds.editor.addInventoryItem'),
     slotPlaceholder: 'Slot',
     itemPlaceholder: 'minecraft:stone',
     slotTooltip: WORLD_SIMPLE_TOOLTIPS.inventorySlot,
@@ -3350,10 +3388,10 @@ const buildWorldSimplePlayerEditor = (simple, playerMeta = {}) => {
   let enderChestSection = null;
   if (features.has_ender_chest) {
     enderChestSection = createWorldEditorInventorySection({
-      title: 'Ender Chest',
-      description: 'This is the personal storage this player can open from any ender chest, and the picker shows the same 9x3 layout Minecraft uses.',
+      title: t('worlds.editor.enderChest'),
+      description: t('worlds.editor.enderChestDescription'),
       items: simple.ender_items,
-      addButtonLabel: 'Add Ender Chest Item',
+      addButtonLabel: t('worlds.editor.addEnderChestItem'),
       slotPlaceholder: '0-26',
       itemPlaceholder: 'minecraft:diamond_block',
       slotTooltip: WORLD_SIMPLE_TOOLTIPS.enderSlot,
@@ -3406,18 +3444,21 @@ const buildWorldSimpleEditorView = (simple, detail) => {
       }];
   const playerEditors = [];
 
-  const gameSection = createWorldEditorSection('World Rules', `Editing ${detail.title || detail.world_id || 'this world'}`);
+  const gameSection = createWorldEditorSection(
+    t('worlds.editor.worldRules'),
+    t('worlds.editor.editingWorld', { world: detail.title || detail.world_id || t('worlds.editor.thisWorld') })
+  );
   const gameModeSelect = createWorldEditorSelect([
-    { value: 0, label: 'Survival' },
-    { value: 1, label: 'Creative' },
-    { value: 2, label: 'Adventure' },
-    { value: 3, label: 'Spectator' },
+    { value: 0, label: t('worlds.editor.gameModes.survival') },
+    { value: 1, label: t('worlds.editor.gameModes.creative') },
+    { value: 2, label: t('worlds.editor.gameModes.adventure') },
+    { value: 3, label: t('worlds.editor.gameModes.spectator') },
   ], simple.game_mode ?? 0);
   const difficultySelect = createWorldEditorSelect([
-    { value: 0, label: 'Peaceful' },
-    { value: 1, label: 'Easy' },
-    { value: 2, label: 'Normal' },
-    { value: 3, label: 'Hard' },
+    { value: 0, label: t('worlds.editor.difficulties.peaceful') },
+    { value: 1, label: t('worlds.editor.difficulties.easy') },
+    { value: 2, label: t('worlds.editor.difficulties.normal') },
+    { value: 3, label: t('worlds.editor.difficulties.hard') },
   ], simple.difficulty ?? 1);
   const allowCommandsInput = document.createElement('input');
   allowCommandsInput.type = 'checkbox';
@@ -3426,14 +3467,14 @@ const buildWorldSimpleEditorView = (simple, detail) => {
   hardcoreInput.type = 'checkbox';
   hardcoreInput.checked = !!simple.hardcore;
   [
-    createWorldEditorField('Game Mode', gameModeSelect, { tooltipText: WORLD_SIMPLE_TOOLTIPS.gameMode }),
-    createWorldEditorField('Difficulty', difficultySelect, { tooltipText: WORLD_SIMPLE_TOOLTIPS.difficulty }),
-    createWorldEditorCheckboxField('Allow Commands', allowCommandsInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.allowCommands }),
-    createWorldEditorCheckboxField('Hardcore', hardcoreInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.hardcore }),
+    createWorldEditorField(t('worlds.editor.gameMode'), gameModeSelect, { tooltipText: WORLD_SIMPLE_TOOLTIPS.gameMode }),
+    createWorldEditorField(t('worlds.editor.difficulty'), difficultySelect, { tooltipText: WORLD_SIMPLE_TOOLTIPS.difficulty }),
+    createWorldEditorCheckboxField(t('worlds.editor.allowCommands'), allowCommandsInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.allowCommands }),
+    createWorldEditorCheckboxField(t('worlds.editor.hardcore'), hardcoreInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.hardcore }),
   ].forEach((field) => gameSection.body.appendChild(field));
   content.appendChild(gameSection.section);
 
-  const spawnSection = createWorldEditorSection('Spawn Position', 'This is the place players return to when the world uses the default spawn point.');
+  const spawnSection = createWorldEditorSection(t('worlds.editor.spawnPosition'), t('worlds.editor.spawnPositionDescription'));
   const spawnXInput = createWorldEditorNumberInput(simple.spawn_x ?? 0);
   const spawnYInput = createWorldEditorNumberInput(simple.spawn_y ?? 0);
   const spawnZInput = createWorldEditorNumberInput(simple.spawn_z ?? 0);
@@ -3640,11 +3681,11 @@ const buildWorldAdvancedEditorView = (advancedText, options = {}) => {
   const treeBtn = document.createElement('button');
   treeBtn.type = 'button';
   treeBtn.className = 'world-nbt-tab active';
-  treeBtn.textContent = 'Tree';
+  treeBtn.textContent = t('worlds.editor.nbt.treeTab');
   const rawBtn = document.createElement('button');
   rawBtn.type = 'button';
   rawBtn.className = 'world-nbt-tab';
-  rawBtn.textContent = 'Raw JSON';
+  rawBtn.textContent = t('worlds.editor.nbt.rawJsonTab');
   subTabs.appendChild(treeBtn);
   subTabs.appendChild(rawBtn);
   content.appendChild(subTabs);
@@ -3745,12 +3786,12 @@ const buildWorldAdvancedEditorView = (advancedText, options = {}) => {
 };
 
 const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) => {
-  const loading = createWorldEditorLoadingContent('Loading world editor...');
+  const loading = createWorldEditorLoadingContent(t('worlds.editor.loadingEditor'));
   const controls = showMessageBox({
-    title: `Edit World: ${world.title || world.world_id || 'World'}`,
+    title: t('worlds.editor.editWorldTitle', { world: world.title || world.world_id || t('worlds.editor.worldFallback') }),
     customContent: loading,
     boxClassList: ['world-nbt-dialog'],
-    buttons: [{ label: 'Close' }],
+    buttons: [{ label: t('common.close') }],
   });
 
   try {
@@ -3762,7 +3803,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
     });
 
     if (!result || !result.ok) {
-      loading.innerHTML = `<p style="color:#ff4141;">${(result && result.error) || 'Failed to load world NBT data.'}</p>`;
+      loading.innerHTML = `<p style="color:var(--color-error);">${(result && result.error) || t('worlds.editor.failedNbtLoad')}</p>`;
       return;
     }
 
@@ -3774,13 +3815,13 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
     const normalizedPlayers = availablePlayers.length > 0
       ? availablePlayers.map((entry, index) => ({
           player_id: String(entry && entry.player_id || '').trim(),
-          label: String(entry && entry.label || entry && entry.uuid || `Player ${index + 1}`),
+          label: String(entry && entry.label || entry && entry.uuid || t('worlds.editor.playerNumber', { number: index + 1 })),
           uuid: String(entry && entry.uuid || '').trim(),
           is_primary: String(entry && entry.player_id || '').trim() === selectedPlayerId,
         }))
       : [{
           player_id: selectedPlayerId,
-          label: 'Primary Player',
+          label: t('worlds.editor.primaryPlayer'),
           uuid: '',
           is_primary: true,
         }];
@@ -3817,7 +3858,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
     }));
     const primaryPlayerRecord = playerRecords.find((entry) => entry.isPrimary) || playerRecords[0] || {
       playerId: '',
-      label: 'Primary Player',
+      label: t('worlds.editor.primaryPlayer'),
       uuid: '',
       isPrimary: true,
       root: parsedRoot,
@@ -3836,23 +3877,23 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
     content.appendChild(status);
 
     const identitySection = createWorldEditorSection(
-      'World Identity',
-      'Rename the world here or change the world icon.'
+      t('worlds.editor.worldIdentity'),
+      t('worlds.editor.worldIdentityDescription')
     );
     let pendingWorldIconBase64 = null;
     const titleInput = createWorldEditorTextInput(detail.title || primaryPlayerRecord.simple.world_title || world.title || world.world_id || '');
     const worldIdInput = createWorldEditorTextInput(detail.world_id || world.world_id || '');
-    identitySection.body.appendChild(createWorldEditorField('World Title', titleInput, {
-      hintText: 'This is the name players see inside Minecraft.',
+    identitySection.body.appendChild(createWorldEditorField(t('worlds.editor.worldTitle'), titleInput, {
+      hintText: t('worlds.editor.worldTitleHint'),
     }));
-    identitySection.body.appendChild(createWorldEditorField('World ID', worldIdInput, {
-      hintText: 'This is the folder name on disk.',
+    identitySection.body.appendChild(createWorldEditorField(t('worlds.editor.worldId'), worldIdInput, {
+      hintText: t('worlds.editor.worldIdHint'),
     }));
     const iconPicker = document.createElement('div');
     iconPicker.className = 'world-icon-replacer';
     const iconPreview = document.createElement('img');
     iconPreview.className = 'world-icon-replacer-preview';
-    iconPreview.alt = 'World icon preview';
+    iconPreview.alt = t('worlds.editor.worldIconPreview');
     iconPreview.src = detail.icon_url || world.icon_url || 'assets/images/placeholder_pack.png';
     imageAttachErrorPlaceholder(iconPreview, 'assets/images/placeholder_pack.png');
 
@@ -3864,10 +3905,10 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
     iconInput.style.display = 'none';
     const iconButton = document.createElement('button');
     iconButton.type = 'button';
-    iconButton.textContent = 'Choose PNG';
+    iconButton.textContent = t('worlds.editor.choosePng');
     const iconFileLabel = document.createElement('span');
     iconFileLabel.className = 'world-icon-replacer-file';
-    iconFileLabel.textContent = detail.has_icon || world.has_icon ? 'Current world icon' : 'No custom icon';
+    iconFileLabel.textContent = detail.has_icon || world.has_icon ? t('worlds.editor.currentWorldIcon') : t('worlds.editor.noCustomIcon');
     iconButton.addEventListener('click', () => iconInput.click());
     iconInput.addEventListener('change', async () => {
       const file = iconInput.files && iconInput.files[0];
@@ -3875,7 +3916,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
       const fileName = String(file.name || '');
       const lowerFileName = fileName.toLowerCase();
       if ((file.type && file.type !== 'image/png') || (!file.type && !lowerFileName.endsWith('.png'))) {
-        setWorldEditorStatus(status, 'World icon must be a PNG file.', 'error');
+        setWorldEditorStatus(status, t('worlds.editor.iconMustBePng'), 'error');
         iconInput.value = '';
         return;
       }
@@ -3883,13 +3924,13 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
         const dataUrl = await normalizeWorldIconFileToDataUrl(file);
         const comma = dataUrl.indexOf(',');
         if (!dataUrl.startsWith('data:image/png') || comma < 0) {
-          setWorldEditorStatus(status, 'World icon must be a PNG file.', 'error');
+          setWorldEditorStatus(status, t('worlds.editor.iconMustBePng'), 'error');
           return;
         }
         pendingWorldIconBase64 = dataUrl.slice(comma + 1);
         iconPreview.src = dataUrl;
-        iconFileLabel.textContent = fileName ? `${fileName} (64x64)` : 'Selected PNG (64x64)';
-        setWorldEditorStatus(status, 'World icon will be replaced when you save.', 'info');
+        iconFileLabel.textContent = fileName ? t('worlds.editor.selectedPngNamed', { file: fileName }) : t('worlds.editor.selectedPng');
+        setWorldEditorStatus(status, t('worlds.editor.iconWillReplace'), 'info');
       } catch (err) {
         setWorldEditorStatus(status, err.message || String(err), 'error');
         iconInput.value = '';
@@ -3900,8 +3941,8 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
     iconActions.appendChild(iconInput);
     iconPicker.appendChild(iconPreview);
     iconPicker.appendChild(iconActions);
-    identitySection.body.appendChild(createWorldEditorField('World Icon', iconPicker, {
-      hintText: 'Select a PNG to replace icon.png for the Minecraft world list.',
+    identitySection.body.appendChild(createWorldEditorField(t('worlds.editor.worldIcon'), iconPicker, {
+      hintText: t('worlds.editor.worldIconHint'),
     }));
     content.appendChild(identitySection.section);
 
@@ -3910,11 +3951,11 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
     const simpleTabButton = document.createElement('button');
     simpleTabButton.type = 'button';
     simpleTabButton.className = 'world-nbt-tab';
-    simpleTabButton.textContent = 'Simple';
+    simpleTabButton.textContent = t('worlds.editor.simpleTab');
     const advancedTabButton = document.createElement('button');
     advancedTabButton.type = 'button';
     advancedTabButton.className = 'world-nbt-tab';
-    advancedTabButton.textContent = 'Advanced';
+    advancedTabButton.textContent = t('worlds.editor.advancedTab');
     tabs.appendChild(simpleTabButton);
     tabs.appendChild(advancedTabButton);
     content.appendChild(tabs);
@@ -3940,8 +3981,8 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
 
     const updateLead = () => {
       lead.textContent = editorState.activeTab === 'advanced'
-        ? 'Advanced mode edits the full world data view as JSON for the world and the primary player. The other player dropdowns keep their own edits when you switch tabs.'
-        : 'Simple mode groups the common edits by category, adds beginner-friendly help text, and lets every saved player keep their own dropdown for separate editing.';
+        ? t('worlds.editor.advancedModeLead')
+        : t('worlds.editor.simpleModeLead');
     };
 
     const refreshTabButtons = () => {
@@ -4118,7 +4159,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
 
       if (isAdvancedRaw) {
         buttons.push({
-          label: 'Format JSON',
+          label: t('worlds.editor.formatJson'),
           classList: ['mild'],
           closeOnClick: false,
           onClick: () => {
@@ -4128,7 +4169,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
               const parsed = parseWorldEditorAdvancedRoot(advancedView.textarea.value);
               reconcileTitleInputWithRoot(parsed);
               advancedView.setRoot(parsed);
-              setWorldEditorStatus(status, 'Advanced JSON formatted successfully.', 'info');
+              setWorldEditorStatus(status, t('worlds.editor.formatJsonSuccess'), 'info');
             } catch (err) {
               setWorldEditorStatus(status, err.message || String(err), 'error');
             }
@@ -4137,7 +4178,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
       }
 
       buttons.push({
-        label: 'Save',
+        label: t('common.save'),
         classList: ['primary'],
         closeOnClick: false,
         onClick: async (_values, modalControls) => {
@@ -4145,7 +4186,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
             if (!syncFromCurrentTab()) return;
 
             saving = true;
-            setWorldEditorStatus(status, 'Saving world editor changes...', 'info');
+            setWorldEditorStatus(status, t('worlds.editor.saving'), 'info');
 
             const requestedTitle = String(titleInput.value || '').trim()
               || String(editorState.simple.world_title || '').trim()
@@ -4172,7 +4213,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
                 });
                 if (!saveResult || !saveResult.ok) {
                   const label = record.label ? `${record.label}: ` : '';
-                  setWorldEditorStatus(status, `${label}${(saveResult && saveResult.error) || 'Failed to save world NBT data.'}`, 'error');
+                  setWorldEditorStatus(status, `${label}${(saveResult && saveResult.error) || t('worlds.editor.failedSaveNbt')}`, 'error');
                   return;
                 }
               }
@@ -4188,7 +4229,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
                 if (!renameResult || !renameResult.ok) {
                   setWorldEditorStatus(
                     status,
-                    `NBT changes were saved, but the world folder rename failed: ${(renameResult && renameResult.error) || 'Unknown error.'}`,
+                    t('worlds.editor.renameFailedAfterNbt', { error: (renameResult && renameResult.error) || t('common.unknownError') }),
                     'error'
                   );
                   return;
@@ -4207,7 +4248,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
                 if (!iconResult || !iconResult.ok) {
                   setWorldEditorStatus(
                     status,
-                    `World data was saved, but the icon update failed: ${(iconResult && iconResult.error) || 'Unknown error.'}`,
+                    t('worlds.editor.iconFailedAfterSave', { error: (iconResult && iconResult.error) || t('common.unknownError') }),
                     'error'
                   );
                   return;
@@ -4229,7 +4270,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
           },
         });
 
-      buttons.push({ label: 'Close' });
+      buttons.push({ label: t('common.close') });
       return buttons;
     };
 
@@ -4238,7 +4279,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
     };
 
     controls.update({
-      title: `Edit World: ${detail.title || detail.world_id || 'World'}`,
+      title: t('worlds.editor.editWorldTitle', { world: detail.title || detail.world_id || t('worlds.editor.worldFallback') }),
       customContent: content,
       boxClassList: ['world-nbt-dialog'],
       buttons: buildModalButtons(),
@@ -4246,7 +4287,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
 
     renderActiveTab();
   } catch (err) {
-    loading.innerHTML = `<p style="color:#ff4141;">${err.message || err}</p>`;
+    loading.innerHTML = `<p style="color:var(--color-error);">${err.message || err}</p>`;
   }
 };
 
@@ -4255,35 +4296,35 @@ const openSimpleWorldNbtEditor = (world) => openWorldNbtEditor(world, 'simple');
 const openAdvancedWorldNbtEditor = (world) => openWorldNbtEditor(world, 'advanced');
 
 const showInstalledWorldDetailModal = async (world) => {
-  const loading = createWorldEditorLoadingContent('Loading world details...');
+  const loading = createWorldEditorLoadingContent(t('worlds.detail.loadingDetails'));
 
   const controls = showMessageBox({
-    title: world.title || world.world_id || 'World Details',
+    title: world.title || world.world_id || t('worlds.detail.title'),
     customContent: loading,
     boxClassList: ['world-detail-dialog'],
     buttons: [
       {
-        label: 'Open Folder',
+        label: t('common.openFolder'),
         classList: ['important'],
         onClick: () => openWorldFolder(world),
       },
       {
-        label: 'Edit',
+        label: t('common.edit'),
         classList: ['primary'],
         onClick: () => promptEditWorld(world),
       },
       {
-        label: 'Export',
+        label: t('common.export'),
         classList: ['mild'],
         closeOnClick: false,
         onClick: () => exportWorld(world),
       },
       {
-        label: 'Delete',
+        label: t('common.delete'),
         classList: ['danger'],
         onClick: () => deleteWorld(world),
       },
-      { label: 'Close' },
+      { label: t('common.close') },
     ],
   });
 
@@ -4294,17 +4335,17 @@ const showInstalledWorldDetailModal = async (world) => {
       world_id: world.world_id,
     });
     if (!detail || !detail.ok) {
-      loading.innerHTML = `<p style="color:#ff4141;">${(detail && detail.error) || 'Failed to load world details.'}</p>`;
+      loading.innerHTML = `<p style="color:var(--color-error);">${(detail && detail.error) || t('worlds.detail.failedLoadDetails')}</p>`;
       return;
     }
     controls.update({
-      title: detail.title || detail.world_id || 'World Details',
+      title: detail.title || detail.world_id || t('worlds.detail.title'),
       customContent: renderInstalledWorldDetailContent(detail),
       boxClassList: ['world-detail-dialog'],
     });
   } catch (err) {
     console.error('Failed to load installed world details:', err);
-    loading.innerHTML = '<p style="color:#ff4141;">Failed to load world details.</p>';
+    loading.innerHTML = `<p style="color:var(--color-error);">${t('worlds.detail.failedLoadDetails')}</p>`;
   }
 };
 
@@ -4312,13 +4353,13 @@ const showAvailableWorldDetailModal = async (world) => {
   const content = document.createElement('div');
   content.className = 'mod-detail-content';
 
-  const loadingEl = createInlineLoadingState('Loading world details...');
+  const loadingEl = createInlineLoadingState(t('worlds.detail.loadingDetails'), { centered: true });
   content.appendChild(loadingEl);
 
   showMessageBox({
-    title: world.name || world.title || 'World Details',
+    title: world.name || world.title || t('worlds.detail.title'),
     customContent: content,
-    buttons: [{ label: 'Close' }],
+    buttons: [{ label: t('common.close') }],
   });
 
   try {
@@ -4336,11 +4377,11 @@ const showAvailableWorldDetailModal = async (world) => {
     const detailRes = detailResult.status === 'fulfilled' ? detailResult.value : null;
     const versionsRes = versionsResult.status === 'fulfilled' ? versionsResult.value : null;
     const detailError = detailResult.status === 'rejected'
-      ? ((detailResult.reason && detailResult.reason.message) || 'Failed to fetch world details.')
-      : ((!detailRes || !detailRes.ok) ? ((detailRes && detailRes.error) || 'Failed to fetch world details.') : '');
+      ? ((detailResult.reason && detailResult.reason.message) || t('worlds.detail.failedFetchDetails'))
+      : ((!detailRes || !detailRes.ok) ? ((detailRes && detailRes.error) || t('worlds.detail.failedFetchDetails')) : '');
     const versionsError = versionsResult.status === 'rejected'
-      ? ((versionsResult.reason && versionsResult.reason.message) || 'Failed to fetch world versions.')
-      : ((!versionsRes || !versionsRes.ok) ? ((versionsRes && versionsRes.error) || 'Failed to fetch world versions.') : '');
+      ? ((versionsResult.reason && versionsResult.reason.message) || t('worlds.detail.failedFetchVersions'))
+      : ((!versionsRes || !versionsRes.ok) ? ((versionsRes && versionsRes.error) || t('worlds.detail.failedFetchVersions')) : '');
 
     content.innerHTML = '';
 
@@ -4374,7 +4415,7 @@ const showAvailableWorldDetailModal = async (world) => {
 
     if (detailError) {
       const detailErrorEl = document.createElement('p');
-      detailErrorEl.style.cssText = 'color:#ffb36a;margin-top:8px;';
+      detailErrorEl.style.cssText = 'color:var(--color-warning);margin-top:8px;';
       detailErrorEl.textContent = detailError;
       content.appendChild(detailErrorEl);
     }
@@ -4385,7 +4426,7 @@ const showAvailableWorldDetailModal = async (world) => {
       section.className = 'mod-detail-gallery';
 
       const title = document.createElement('h4');
-      title.textContent = 'Screenshots';
+      title.textContent = t('mods.detail.screenshots');
       title.style.marginBottom = '8px';
       section.appendChild(title);
 
@@ -4399,7 +4440,7 @@ const showAvailableWorldDetailModal = async (world) => {
         img.src = url;
         img.className = 'mod-detail-screenshot';
         img.onerror = () => { img.style.display = 'none'; };
-        img.title = 'Click to enlarge';
+        img.title = t('mods.detail.clickToEnlarge');
         img.addEventListener('click', () => {
           const lightbox = ensureScreenshotLightbox();
           const lightboxImg = lightbox.querySelector('img');
@@ -4418,9 +4459,9 @@ const showAvailableWorldDetailModal = async (world) => {
       stats.className = 'mod-detail-stats';
       const downloads = Number(detailRes.downloads || world.download_count || 0);
       const categories = Array.isArray(detailRes.categories) ? detailRes.categories : (world.categories || []);
-      stats.innerHTML = `<span>Downloads: ${downloads.toLocaleString()}</span>`;
+      stats.innerHTML = `<span>${t('mods.detail.downloads', { count: downloads.toLocaleString() })}</span>`;
       if (categories.length > 0) {
-        stats.innerHTML += ` <span>Categories: ${categories.join(', ')}</span>`;
+        stats.innerHTML += ` <span>${t('mods.detail.categories', { categories: categories.join(', ') })}</span>`;
       }
       content.appendChild(stats);
     }
@@ -4436,7 +4477,7 @@ const showAvailableWorldDetailModal = async (world) => {
       versionSection.className = 'mod-detail-versions';
 
       const versionTitle = document.createElement('h4');
-      versionTitle.textContent = `Versions (${allVersions.length})`;
+      versionTitle.textContent = t('mods.detail.versionsTitle', { count: allVersions.length });
       versionTitle.style.marginBottom = '8px';
       versionSection.appendChild(versionTitle);
 
@@ -4448,7 +4489,7 @@ const showAvailableWorldDetailModal = async (world) => {
         (ver.game_versions || []).forEach((mcVersion) => versionSet.add(mcVersion));
       });
       const mcVersionFilter = document.createElement('select');
-      mcVersionFilter.innerHTML = '<option value="">All MC Versions</option>';
+      mcVersionFilter.innerHTML = `<option value="">${t('mods.detail.allMcVersions')}</option>`;
       Array.from(versionSet)
         .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
         .forEach((mcVersion) => {
@@ -4476,7 +4517,7 @@ const showAvailableWorldDetailModal = async (world) => {
           filtered = filtered.filter((ver) => (ver.game_versions || []).includes(localSelected));
         }
         if (!filtered.length) {
-          versionList.innerHTML = '<p style="text-align:center;color:#999;padding:8px;">No versions match filters</p>';
+          versionList.innerHTML = `<p style="text-align:center;color:var(--color-text-muted);padding:8px;">${t('mods.detail.noVersionsMatch')}</p>`;
           return;
         }
 
@@ -4497,7 +4538,7 @@ const showAvailableWorldDetailModal = async (world) => {
 
           const versionName = document.createElement('span');
           versionName.className = 'mod-detail-version-name';
-          versionName.textContent = ver.version_number || ver.display_name || ver.file_name || 'Unknown';
+          versionName.textContent = ver.version_number || ver.display_name || ver.file_name || t('common.unknown');
 
           const meta = document.createElement('span');
           meta.className = 'mod-detail-version-meta';
@@ -4505,7 +4546,7 @@ const showAvailableWorldDetailModal = async (world) => {
 
           const downloadBtn = document.createElement('button');
           downloadBtn.className = 'primary';
-          downloadBtn.textContent = 'Download';
+          downloadBtn.textContent = t('common.download');
           downloadBtn.style.fontSize = '11px';
           downloadBtn.style.padding = '3px 8px';
           downloadBtn.addEventListener('click', () => {
@@ -4528,12 +4569,12 @@ const showAvailableWorldDetailModal = async (world) => {
     } else {
       const noVersions = document.createElement('p');
       noVersions.style.color = '#999';
-      noVersions.textContent = 'No downloadable versions were found for this world.';
+      noVersions.textContent = t('worlds.detail.noDownloadableVersions');
       content.appendChild(noVersions);
     }
   } catch (err) {
     console.error('Failed to load available world details:', err);
-    content.innerHTML = '<p style="color:#ff4141;">Failed to render world details.</p>';
+    content.innerHTML = `<p style="color:var(--color-error);">${t('worlds.detail.renderFailed')}</p>`;
   }
 };
 
@@ -4676,9 +4717,9 @@ export const initWorldsPage = () => {
         if (res && res.cancelled) return;
         if (!res || res.ok !== true) {
           showMessageBox({
-            title: 'Folder Selection Error',
-            message: (res && (res.error || res.message)) || 'Failed to select a custom world storage directory.',
-            buttons: [{ label: 'OK' }],
+            title: t('worlds.storage.folderSelectionErrorTitle'),
+            message: (res && (res.error || res.message)) || t('worlds.storage.failedSelectCustomDirectory'),
+            buttons: [{ label: t('common.ok') }],
           });
           return;
         }
@@ -4689,9 +4730,9 @@ export const initWorldsPage = () => {
         }
       } catch (err) {
         showMessageBox({
-          title: 'Folder Selection Error',
-          message: `Failed to select a custom world storage directory.<br><br>${err.message || err}`,
-          buttons: [{ label: 'OK' }],
+          title: t('worlds.storage.folderSelectionErrorTitle'),
+          message: t('worlds.storage.failedSelectCustomDirectoryWithError', { error: err.message || err }),
+          buttons: [{ label: t('common.ok') }],
         });
       } finally {
         selectFolderBtn.disabled = false;

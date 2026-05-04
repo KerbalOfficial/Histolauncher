@@ -9,12 +9,24 @@ from core.settings import load_global_settings
 
 
 __all__ = [
+    "_active_account_scope",
     "_histolauncher_account_enabled",
     "_ensure_uuid",
     "_get_username_and_uuid",
     "_normalize_uuid_hex",
     "_uuid_hex_to_dashed",
 ]
+
+
+def _active_account_scope() -> str:
+    try:
+        settings = load_global_settings() or {}
+        account_type = str(settings.get("account_type") or "Local").strip().lower()
+    except Exception:
+        account_type = "local"
+    if account_type in {"microsoft", "histolauncher"}:
+        return account_type
+    return "local"
 
 
 def _histolauncher_account_enabled() -> bool:
@@ -35,9 +47,27 @@ def _ensure_uuid(username: str) -> str:
 
 def _get_username_and_uuid() -> Tuple[str, str]:
     settings = load_global_settings()
-    account_type = settings.get("account_type", "Local")
+    account_type = str(settings.get("account_type", "Local") or "Local").strip()
+    account_type_norm = account_type.lower()
 
-    if account_type == "Histolauncher":
+    if account_type_norm == "microsoft":
+        try:
+            from server.auth.microsoft import get_verified_microsoft_account
+
+            success, account_data, _error = get_verified_microsoft_account()
+            if success and account_data:
+                username = account_data.get("username", "Player")
+                u = str(account_data.get("uuid", "")).replace("-", "")
+                if u:
+                    try:
+                        uuid.UUID(u)
+                        return username, u
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(colorize_log(f"[yggdrasil] Failed to verify Microsoft session: {e}"))
+
+    if account_type_norm == "histolauncher":
         try:
             from server.auth import get_verified_account
 

@@ -9,13 +9,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.downloader._legacy._constants import (
     ASSETS_INDEXES_DIR,
     ASSET_THREADS_HIGH,
-    ASSET_THREADS_LOW,
-    ASSET_THREADS_MED,
     CACHE_LIBRARIES_DIR,
     DOWNLOAD_CHUNK_SIZE,
 )
 from core.downloader._legacy.progress import _maybe_abort
-from core.downloader._legacy.transport import _is_fast_download_enabled, download_file
+from core.downloader._legacy.transport import download_file
 from core.logger import colorize_log
 from core.settings import load_global_settings
 
@@ -266,14 +264,7 @@ def _infer_main_class_from_client_jar(client_jar_path: str, version_id: str = ""
 
 
 def _choose_asset_threads() -> int:
-    if _is_fast_download_enabled():
-        return ASSET_THREADS_HIGH
-    threads = os.cpu_count() or 1
-    if threads >= 12:
-        return ASSET_THREADS_HIGH
-    if threads >= 6:
-        return ASSET_THREADS_MED
-    return ASSET_THREADS_LOW
+    return ASSET_THREADS_HIGH
 
 
 def _is_modern_assets(version_id: str) -> bool:

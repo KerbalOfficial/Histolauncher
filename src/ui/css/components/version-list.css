@@ -122,7 +122,7 @@
   bottom: -1px;
   left: var(--list-image-width);
   right: 0;
-  height: 6px;
+  height: 8px;
 }
 
 .versions-list.list-view .version-progress-text {
@@ -166,14 +166,14 @@
 }
 
 .view-toggle-btn:hover {
-  background: var(--color-border-strong);
-  color: var(--color-text-inverse);
+  background: var(--color-surface-interactive-hover);
+  color: var(--color-text-title);
 }
 
 .view-toggle-btn.active {
   background: var(--color-surface-interactive);
   border-color: var(--color-border-subtle);
-  color: var(--color-text-inverse);
+  color: var(--color-text-title);
 }
 
 .view-toggle-btn svg {
@@ -261,8 +261,8 @@
   justify-content: flex-end;
   gap: 6px;
   padding: 6px;
-  background: var(--color-border-strong);
-  border: 2px solid var(--color-surface-card-hover);
+  background: var(--color-surface-panel);
+  border: 2px solid var(--color-border-strong);
 }
 
 .actions-overflow-menu button {

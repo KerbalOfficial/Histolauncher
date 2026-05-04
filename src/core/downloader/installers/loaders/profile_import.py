@@ -6,6 +6,7 @@ import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from core.constants import DOWNLOAD_PARALLEL_WORKERS
 from core.downloader.errors import DownloadFailed
 from core.downloader.http import CLIENT, DownloadTask
 from core.downloader.library_store import link_into_version, store_path_for
@@ -134,7 +135,7 @@ def import_profile(
     expected_profile_id: Optional[str] = None,
     cancel_check: Optional[Callable[[], None]] = None,
     progress_cb: Optional[Callable[[int, int], None]] = None,
-    max_workers: int = 8,
+    max_workers: int = DOWNLOAD_PARALLEL_WORKERS,
 ) -> ImportResult:
     profile_id, profile_src = find_profile_json(
         fake_mc_dir=fake_mc_dir, expected_profile_id=expected_profile_id

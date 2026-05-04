@@ -13,6 +13,7 @@ import { LOADER_UI_ORDER, getLoaderUi, unicodeList } from './config.js';
 import { initTooltips } from './tooltips.js';
 import { installJavaRuntime } from './java-installer.js';
 import { escapeInfoHtml } from './string-utils.js';
+import { t } from './i18n.js';
 
 const _deps = {};
 for (const k of ['debug', 'getCustomStorageDirectoryError', 'getCustomStorageDirectoryPath', 'normalizeStorageDirectoryMode', 'refreshCustomStorageDirectoryValidation', 'updateHomeInfo']) {
@@ -126,37 +127,37 @@ export const updateSettingsValidationUI = () => {
     if (errorKey === 'username') {
       const len = value.length;
       if (len === 0) {
-        tooltip = 'Username cannot be empty';
+        tooltip = t('settings.validation.username.empty');
       } else if (len < 3) {
-        tooltip = `Username too short (${len}/3-16 characters)`;
+        tooltip = t('settings.validation.username.tooShort', { length: len });
       } else if (len > 16) {
-        tooltip = `Username too long (${len}/3-16 characters)`;
+        tooltip = t('settings.validation.username.tooLong', { length: len });
       }
     } else if (errorKey === 'min_ram') {
       if (!value || value.trim() === '') {
-        tooltip = 'Minimum RAM cannot be empty';
+        tooltip = t('settings.validation.ram.minEmpty');
       } else if (!validateRAMFormat(value)) {
-        tooltip = 'Invalid format: use number with optional K, M, G, or T suffix (e.g., 16M)';
+        tooltip = t('settings.validation.ram.invalidFormat', { example: '16M' });
       } else {
         const minVal = parseRAMValue(value);
         if (minVal < 0) {
-          tooltip = 'Minimum RAM cannot be negative';
+          tooltip = t('settings.validation.ram.minNegative');
         }
       }
     } else if (errorKey === 'max_ram') {
       if (!value || value.trim() === '') {
-        tooltip = 'Maximum RAM cannot be empty';
+        tooltip = t('settings.validation.ram.maxEmpty');
       } else if (!validateRAMFormat(value)) {
-        tooltip = 'Invalid format: use number with optional K, M, G, or T suffix (e.g., 4096M)';
+        tooltip = t('settings.validation.ram.invalidFormat', { example: '4096M' });
       } else {
         const maxVal = parseRAMValue(value);
         const minRamStr = (getEl('settings-min-ram')?.value || '').trim();
         if (maxVal < 1) {
-          tooltip = 'Maximum RAM must be at least 1 byte or more (value is too low)';
+          tooltip = t('settings.validation.ram.maxTooLow');
         } else if (minRamStr && validateRAMFormat(minRamStr)) {
           const minVal = parseRAMValue(minRamStr);
           if (minVal > maxVal) {
-            tooltip = `Maximum RAM must be greater than Minimum RAM (${minRamStr} > ${value})`;
+            tooltip = t('settings.validation.ram.maxGreaterThanMin', { min: minRamStr, max: value });
           }
         }
       }
@@ -267,14 +268,14 @@ export const initLaunchButton = () => {
 
     const validationErrors = validateSettings();
     if (Object.keys(validationErrors).length > 0) {
-      setText('status', `${unicodeList.warning} Please fix the invalid settings before launching!`);
+      setText('status', `${unicodeList.warning} ${t('launch.status.fixInvalidSettings')}`);
       return;
     }
 
     if (!state.selectedVersion) {
       setText(
         'status',
-        `${unicodeList.warning} Please select a version on the Versions page first!`
+        `${unicodeList.warning} ${t('launch.status.selectVersionFirst')}`
       );
       return;
     }
@@ -283,16 +284,16 @@ export const initLaunchButton = () => {
       (v) => `${v.category}/${v.folder}` === state.selectedVersion
     );
     if (!meta) {
-      setText('status', `${unicodeList.warning} Selected version metadata not found!`);
+      setText('status', `${unicodeList.warning} ${t('launch.status.versionMetadataMissing')}`);
       return;
     }
 
     if (meta.raw && meta.raw.launch_disabled) {
       const msg =
         meta.raw.launch_disabled_message ||
-        `${unicodeList.warning} This version cannot be launched!`;
+        `${unicodeList.warning} ${t('launch.status.versionCannotLaunch')}`;
       window.alert(msg);
-      setText('status', `${unicodeList.warning} Failed to launch: ` + msg);
+      setText('status', `${unicodeList.warning} ${t('launch.status.failedToLaunch', { message: msg })}`);
       return;
     }
 
@@ -316,7 +317,7 @@ export const initLaunchButton = () => {
       console.warn('Failed to check loaders:', err);
     }
 
-    showLoadingOverlay('Launching...', {
+    showLoadingOverlay(t('launch.launching'), {
       image: 'assets/images/nether_block.gif',
       boxClassList: ['activity-box'],
     });
@@ -345,15 +346,15 @@ export const initLaunchButton = () => {
         await showCrashDialog(null, res.log_path, res.message || '');
       } else if (javaDownloadMajor > 0) {
         showMessageBox({
-          title: 'Java Runtime Required',
-          message: String(res.message || 'A compatible Java runtime is required.').replace(/\n/g, '<br>'),
+          title: t('launch.javaRequiredTitle'),
+          message: String(res.message || t('launch.javaRequiredMessage')).replace(/\n/g, '<br>'),
           buttons: [
             {
-              label: 'Download Java',
+              label: t('launch.downloadJava'),
               classList: ['important'],
               onClick: () => installJavaRuntime(javaDownloadMajor),
             },
-            { label: 'OK', onClick: () => {} },
+            { label: t('common.ok'), onClick: () => {} },
           ],
         });
       }
@@ -376,7 +377,7 @@ export const initLaunchButton = () => {
           _deps.debug('[Window] Game window is visible, closing overlay');
           overlayClosedByWindow = true;
           hideLoadingOverlay();
-          setText('status', 'Minecraft has opened!');
+          setText('status', t('launch.status.minecraftOpened'));
           return;
         }
       } catch (err) {
@@ -401,8 +402,8 @@ export const initLaunchButton = () => {
             const minutes = Math.floor(elapsed / 60);
             const seconds = elapsed % 60;
             const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-            setLoadingOverlayText(`Launching... (${timeStr})`);
-            setText('status', `Launching... (${timeStr})`);
+            setLoadingOverlayText(t('launch.launchingTimed', { time: timeStr }));
+            setText('status', t('launch.launchingTimed', { time: timeStr }));
           }
 
           if (pollAttempts < maxPollAttempts) {
@@ -422,7 +423,7 @@ export const initLaunchButton = () => {
         if (statusRes.ok) {
           setText('status', '');
         } else {
-          setText('status', `Minecraft has crashed! (exit code: ${statusRes.exit_code || 'unknown'})`);
+          setText('status', t('launch.status.minecraftCrashedExit', { exitCode: statusRes.exit_code || t('common.unknown') }));
           if (statusRes.log_path) {
             await showCrashDialog(processId, statusRes.log_path);
           }
@@ -440,7 +441,7 @@ export const initLaunchButton = () => {
       }
     };
 
-    setText('status', 'Launching...');
+    setText('status', t('launch.launching'));
     setTimeout(() => {
       pollGameStatus();
       pollWindowVisibility();
@@ -468,7 +469,7 @@ export const showCrashDialog = async (processId, logPath, contextMessage = '') =
       if (crashRes.ok && crashRes.error_analysis) {
         const analysis = crashRes.error_analysis;
         if (analysis.has_error && analysis.message) {
-          crashDetails += `<br><br><b style="color:#ff6b6b;">${analysis.message}</b><br>`;
+          crashDetails += `<br><br><b style="color:var(--color-error-soft);">${analysis.message}</b><br>`;
           if (analysis.details) {
             crashDetails += `<i>${analysis.details}</i>`;
           }
@@ -490,35 +491,37 @@ export const showCrashDialog = async (processId, logPath, contextMessage = '') =
 
   const buttons = [
     {
-      label: 'Open logs',
+      label: t('launch.openLogs'),
       onClick: () => viewCrashLogs(processId, logPath),
     },
   ];
 
   if (javaDownloadMajor > 0) {
     buttons.push({
-      label: 'Download Java',
+      label: t('launch.downloadJava'),
       classList: ['important'],
       onClick: () => installJavaRuntime(javaDownloadMajor),
     });
   }
 
   buttons.push({
-    label: 'OK',
+    label: t('common.ok'),
     classList: ['primary'],
     onClick: () => {},
   });
 
-  let message = 'Ouch, it looks like Minecraft crashed...';
+  let message = t('launch.crashMessage');
   if (crashDetails) {
     message += `\n\n${crashDetails}`;
   }
 
   showMessageBox({
-    title: 'Minecraft Crashed',
+    title: t('launch.crashTitle'),
     message: message,
     buttons: buttons,
-    description: logPath ? `Latest log: ${getFileName(logPath)}` : 'No log file found',
+    description: logPath
+      ? t('launch.latestLog', { file: getFileName(logPath) })
+      : t('launch.noLogFileFound'),
   });
 };
 
@@ -526,10 +529,10 @@ export const viewCrashLogs = async (processId, logPath) => {
   try {
     if (!logPath) {
       showMessageBox({
-        title: 'Log Not Found',
-        message: 'No crash log file found for this process.',
+        title: t('launch.logNotFoundTitle'),
+        message: t('launch.noCrashLogForProcess'),
         buttons: [{
-          label: 'OK',
+          label: t('common.ok'),
           onClick: () => {},
         }],
       });
@@ -546,19 +549,19 @@ export const viewCrashLogs = async (processId, logPath) => {
 
     if (openRes.ok) {
       showMessageBox({
-        title: 'Opening Crash Log',
-        message: `Opening ${logPath.split(/[\\/]/).pop()} in your default text editor...`,
+        title: t('launch.openingCrashLogTitle'),
+        message: t('launch.openingCrashLogMessage', { file: logPath.split(/[\\/]/).pop() }),
         buttons: [{
-          label: 'OK',
+          label: t('common.ok'),
           onClick: () => {},
         }],
       });
     } else {
       showMessageBox({
-        title: 'Error',
-        message: `Failed to open crash log: ${openRes.error || 'Unknown error'}`,
+        title: t('common.error'),
+        message: t('launch.failedToOpenCrashLog', { error: openRes.error || t('common.unknownError') }),
         buttons: [{
-          label: 'OK',
+          label: t('common.ok'),
           onClick: () => {},
         }],
       });
@@ -566,10 +569,10 @@ export const viewCrashLogs = async (processId, logPath) => {
   } catch (err) {
     console.error('Error opening crash log:', err);
     showMessageBox({
-      title: 'Error',
+      title: t('common.error'),
       message: `Error: ${err.message}`,
       buttons: [{
-        label: 'OK',
+        label: t('common.ok'),
         onClick: () => {},
       }],
     });
@@ -601,8 +604,8 @@ export const promptLoaderSelection = (installed) => {
     wrap.style.cssText = 'max-height:60vh;overflow-y:auto;padding:10px;text-align:center;';
 
     const hint = document.createElement('div');
-    hint.style.cssText = 'color:#9ca3af;font-size:12px;margin-bottom:12px;line-height:1.35;';
-    hint.textContent = 'Click a loader to launch.';
+    hint.style.cssText = 'color:var(--color-text-muted);font-size:12px;margin-bottom:12px;line-height:1.35;';
+    hint.textContent = t('launch.loader.hint');
     wrap.appendChild(hint);
 
     const list = document.createElement('div');
@@ -613,37 +616,37 @@ export const promptLoaderSelection = (installed) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.style.cssText =
-        `width:100%;background:#222;border:1px solid #111;border-left:3px solid ${accent};` +
-        'padding:8px 12px;display:flex;justify-content:space-between;align-items:center;text-align:left;color:#e5e7eb;';
+        `width:100%;background:var(--color-surface-card);border:1px solid var(--color-border-strong);border-left:3px solid ${accent};` +
+        'padding:8px 12px;display:flex;justify-content:space-between;align-items:center;text-align:left;color:var(--color-text-primary);';
 
       const left = document.createElement('div');
       left.style.cssText = 'min-width:0;';
 
-      const t = document.createElement('div');
-      t.style.cssText = `color:${accent};font-weight:700;line-height:1.2;`;
-      t.textContent = title || 'Loader';
+      const titleEl = document.createElement('div');
+      titleEl.style.cssText = `color:${accent};font-weight:700;line-height:1.2;`;
+      titleEl.textContent = title || t('launch.loader.generic');
 
       const sub = document.createElement('div');
-      sub.style.cssText = 'color:#aaa;font-size:12px;line-height:1.2;margin-top:2px;';
+      sub.style.cssText = 'color:var(--color-text-muted);font-size:12px;line-height:1.2;margin-top:2px;';
       sub.textContent = subtitle || '';
       if (!subtitle) sub.style.display = 'none';
 
       const m = document.createElement('div');
-      m.style.cssText = 'color:#666;font-size:11px;line-height:1.2;margin-top:2px;';
+      m.style.cssText = 'color:var(--color-text-dim);font-size:11px;line-height:1.2;margin-top:2px;';
       m.textContent = meta || '';
       if (!meta) m.style.display = 'none';
 
-      left.appendChild(t);
+      left.appendChild(titleEl);
       left.appendChild(sub);
       left.appendChild(m);
 
       btn.appendChild(left);
 
       btn.addEventListener('mouseenter', () => {
-        btn.style.background = '#2a2a2a';
+        btn.style.background = 'var(--color-surface-card-hover)';
       });
       btn.addEventListener('mouseleave', () => {
-        btn.style.background = '#222';
+        btn.style.background = 'var(--color-surface-card)';
       });
       btn.addEventListener('click', () => {
         if (typeof onPick === 'function') onPick();
@@ -654,8 +657,8 @@ export const promptLoaderSelection = (installed) => {
 
     list.appendChild(makeCard({
       accent: '#ccc',
-      title: 'Vanilla',
-      subtitle: 'None (no mod loader)',
+      title: t('launch.loader.vanilla'),
+      subtitle: t('launch.loader.none'),
       meta: '',
       onPick: () => safeResolve(null),
     }));
@@ -675,10 +678,10 @@ export const promptLoaderSelection = (installed) => {
     });
 
     controls = showMessageBox({
-      title: 'Choose Mod Loader',
+      title: t('launch.loader.title'),
       customContent: wrap,
       buttons: [
-        { label: 'Cancel', onClick: () => safeResolve(false) },
+        { label: t('common.cancel'), onClick: () => safeResolve(false) },
       ],
     });
   });

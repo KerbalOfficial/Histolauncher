@@ -1,6 +1,7 @@
 // ui/modules/worlds-nbt-tree.js
 
 import { unicodeList } from './config.js';
+import { t } from './i18n.js';
 
 const NBT = {
   END: 0,
@@ -21,20 +22,25 @@ const NBT = {
 const NUMERIC_TAGS = new Set([NBT.BYTE, NBT.SHORT, NBT.INT, NBT.LONG, NBT.FLOAT, NBT.DOUBLE]);
 const ARRAY_TAGS = new Set([NBT.BYTE_ARRAY, NBT.INT_ARRAY, NBT.LONG_ARRAY]);
 
-const TYPE_LABELS = {
-  [NBT.END]: 'End (empty)',
-  [NBT.BYTE]: 'Byte',
-  [NBT.SHORT]: 'Short',
-  [NBT.INT]: 'Int',
-  [NBT.LONG]: 'Long',
-  [NBT.FLOAT]: 'Float',
-  [NBT.DOUBLE]: 'Double',
-  [NBT.BYTE_ARRAY]: 'Byte Array',
-  [NBT.STRING]: 'String',
-  [NBT.LIST]: 'List',
-  [NBT.COMPOUND]: 'Compound',
-  [NBT.INT_ARRAY]: 'Int Array',
-  [NBT.LONG_ARRAY]: 'Long Array',
+const TYPE_LABEL_KEYS = {
+  [NBT.END]: 'worlds.editor.nbt.types.end',
+  [NBT.BYTE]: 'worlds.editor.nbt.types.byte',
+  [NBT.SHORT]: 'worlds.editor.nbt.types.short',
+  [NBT.INT]: 'worlds.editor.nbt.types.int',
+  [NBT.LONG]: 'worlds.editor.nbt.types.long',
+  [NBT.FLOAT]: 'worlds.editor.nbt.types.float',
+  [NBT.DOUBLE]: 'worlds.editor.nbt.types.double',
+  [NBT.BYTE_ARRAY]: 'worlds.editor.nbt.types.byteArray',
+  [NBT.STRING]: 'worlds.editor.nbt.types.string',
+  [NBT.LIST]: 'worlds.editor.nbt.types.list',
+  [NBT.COMPOUND]: 'worlds.editor.nbt.types.compound',
+  [NBT.INT_ARRAY]: 'worlds.editor.nbt.types.intArray',
+  [NBT.LONG_ARRAY]: 'worlds.editor.nbt.types.longArray',
+};
+
+const getTypeLabel = (type) => {
+  const key = TYPE_LABEL_KEYS[type];
+  return key ? t(key) : t('worlds.editor.nbt.types.unknown', { type });
 };
 
 const ALL_TYPE_OPTIONS = [
@@ -91,7 +97,7 @@ const parseIntegerInput = (raw) => {
   const text = String(raw ?? '').trim();
   if (!text) return 0;
   if (!/^-?\d+$/.test(text)) {
-    throw new Error(`"${raw}" is not a valid integer.`);
+    throw new Error(t('worlds.editor.nbt.errors.invalidInteger', { value: raw }));
   }
   return Number(text);
 };
@@ -101,7 +107,7 @@ const parseFloatInput = (raw) => {
   if (!text) return 0;
   const value = Number(text);
   if (!Number.isFinite(value)) {
-    throw new Error(`"${raw}" is not a valid number.`);
+    throw new Error(t('worlds.editor.nbt.errors.invalidNumber', { value: raw }));
   }
   return value;
 };
@@ -124,7 +130,7 @@ const createTypeSelect = (currentType, { allowedTypes = ALL_TYPE_OPTIONS, includ
   options.forEach((type) => {
     const opt = document.createElement('option');
     opt.value = String(type);
-    opt.textContent = TYPE_LABELS[type] || `Type ${type}`;
+    opt.textContent = getTypeLabel(type);
     if (type === currentType) opt.selected = true;
     select.appendChild(opt);
   });
@@ -132,7 +138,7 @@ const createTypeSelect = (currentType, { allowedTypes = ALL_TYPE_OPTIONS, includ
   if (!options.includes(currentType)) {
     const opt = document.createElement('option');
     opt.value = String(currentType);
-    opt.textContent = TYPE_LABELS[currentType] || `Type ${currentType}`;
+    opt.textContent = getTypeLabel(currentType);
     opt.selected = true;
     select.insertBefore(opt, select.firstChild);
   }
@@ -185,7 +191,7 @@ class TagNode {
       this.nameInput = document.createElement('input');
       this.nameInput.type = 'text';
       this.nameInput.className = 'world-nbt-tree-key';
-      this.nameInput.placeholder = 'name';
+      this.nameInput.placeholder = t('worlds.editor.nbt.namePlaceholder');
       this.nameInput.value = this.name;
       this.nameInput.addEventListener('input', () => {
         this.name = String(this.nameInput.value || '');
@@ -214,7 +220,7 @@ class TagNode {
       const removeBtn = document.createElement('button');
       removeBtn.type = 'button';
       removeBtn.className = 'danger world-nbt-tree-remove-btn';
-      removeBtn.textContent = 'Remove';
+      removeBtn.textContent = t('common.remove');
       removeBtn.addEventListener('click', () => {
         try { this.element.remove(); } catch (_e) { /* ignore */ }
         this.onRemove(this);
@@ -243,7 +249,7 @@ class TagNode {
       this.toggleBtn.disabled = !collapsible;
       this.toggleBtn.textContent = this.collapsed ? unicodeList.dropdown_close : unicodeList.dropdown_open;
       this.toggleBtn.setAttribute('aria-hidden', collapsible ? 'false' : 'true');
-      this.toggleBtn.setAttribute('aria-label', this.collapsed ? 'Expand tag' : 'Collapse tag');
+      this.toggleBtn.setAttribute('aria-label', this.collapsed ? t('worlds.editor.nbt.expandTag') : t('worlds.editor.nbt.collapseTag'));
     }
 
     if (this.body) {
@@ -268,7 +274,7 @@ class TagNode {
     if (this.type === NBT.END) {
       const note = document.createElement('span');
       note.className = 'world-nbt-tree-note';
-      note.textContent = 'End tags hold no value.';
+      note.textContent = t('worlds.editor.nbt.endTagNote');
       this.body.appendChild(note);
       this._syncCollapseUi();
       return;
@@ -311,7 +317,7 @@ class TagNode {
       const textarea = document.createElement('textarea');
       textarea.className = 'world-nbt-tree-value world-nbt-tree-array';
       textarea.spellcheck = false;
-      textarea.placeholder = 'Comma or whitespace separated numbers';
+      textarea.placeholder = t('worlds.editor.nbt.arrayPlaceholder');
       textarea.value = formatArrayValue(this.value);
       textarea.addEventListener('input', () => {
         try {
@@ -357,7 +363,7 @@ class TagNode {
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'primary world-nbt-tree-add-btn';
-    addBtn.textContent = 'Add Child Tag';
+    addBtn.textContent = t('worlds.editor.nbt.addChildTag');
     addBtn.addEventListener('click', () => {
       const newKey = this._generateUniqueKey('newTag');
       this._addCompoundChild(childrenWrap, newKey, NBT.STRING, '');
@@ -400,7 +406,7 @@ class TagNode {
 
     const listTypeLabel = document.createElement('span');
     listTypeLabel.className = 'world-nbt-tree-list-label';
-    listTypeLabel.textContent = 'Items type';
+    listTypeLabel.textContent = t('worlds.editor.nbt.itemsType');
     controls.appendChild(listTypeLabel);
 
     const listTypeSelect = createTypeSelect(Number(this.value.list_type) || NBT.END, {
@@ -423,7 +429,7 @@ class TagNode {
 
     const updateItemsCount = () => {
       const count = this._listItems.length;
-      itemsCountNote.textContent = `${count} item${count === 1 ? '' : 's'}`;
+      itemsCountNote.textContent = t('worlds.editor.nbt.itemCount', { count });
     };
 
     const buildItem = (rawItem, listType) => {
@@ -458,7 +464,7 @@ class TagNode {
     const addItemBtn = document.createElement('button');
     addItemBtn.type = 'button';
     addItemBtn.className = 'primary world-nbt-tree-add-btn';
-    addItemBtn.textContent = 'Add Item';
+    addItemBtn.textContent = t('worlds.editor.nbt.addItem');
     addItemBtn.addEventListener('click', () => {
       const listType = Number(this.value.list_type) || NBT.END;
       if (listType === NBT.END) {
@@ -515,10 +521,10 @@ class TagNode {
       (this._compoundChildren || []).forEach((child) => {
         const rawName = String(child.name || '').trim();
         if (!rawName) {
-          throw new Error('Compound child tags must have a name.');
+          throw new Error(t('worlds.editor.nbt.errors.childNameRequired'));
         }
         if (seen.has(rawName)) {
-          throw new Error(`Compound has duplicate key "${rawName}".`);
+          throw new Error(t('worlds.editor.nbt.errors.duplicateKey', { key: rawName }));
         }
         seen.add(rawName);
         value[rawName] = child.toTag();
@@ -558,7 +564,7 @@ export const buildWorldNbtTreeEditor = (root) => {
   const rootNameWrap = document.createElement('label');
   rootNameWrap.className = 'world-nbt-tree-root-name';
   const nameLabel = document.createElement('span');
-  nameLabel.textContent = 'Root name';
+  nameLabel.textContent = t('worlds.editor.nbt.rootName');
   const rootNameInput = document.createElement('input');
   rootNameInput.type = 'text';
   rootNameInput.value = rootName;
@@ -588,10 +594,10 @@ export const buildWorldNbtTreeEditor = (root) => {
       const rawName = String(rootNameInput.value || '');
       const finalRoot = { type: tag.type, name: rawName, value: tag.value };
       if (Number(finalRoot.type) !== NBT.COMPOUND) {
-        throw new Error('The root tag must remain a compound (type 10).');
+        throw new Error(t('worlds.editor.nbt.errors.rootMustRemainCompound'));
       }
       if (!isObject(finalRoot.value)) {
-        throw new Error('The root value must be a compound payload.');
+        throw new Error(t('worlds.editor.nbt.errors.rootValueMustBeCompound'));
       }
       return finalRoot;
     },

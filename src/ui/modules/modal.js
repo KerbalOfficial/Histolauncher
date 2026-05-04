@@ -1,8 +1,9 @@
 // ui/modules/modal.js
 
 import { getEl, toggleClass } from './dom-utils.js';
+import { t } from './i18n.js';
 
-const DEFAULT_LOADING_TEXT = 'Loading...';
+const defaultLoadingText = () => t('common.loading');
 const DEFAULT_ACTIVITY_IMAGE = 'assets/images/settings.gif';
 
 let activeMessageBoxMode = null;
@@ -29,12 +30,12 @@ const updateLoadingOverlay = (patch = {}) => {
   renderActivityOverlay();
 };
 
-export const setLoadingOverlayText = (message = DEFAULT_LOADING_TEXT) => {
+export const setLoadingOverlayText = (message = defaultLoadingText()) => {
   if (!activeActivityOverlay) return;
-  updateLoadingOverlay({ message: message || DEFAULT_LOADING_TEXT });
+  updateLoadingOverlay({ message: message || defaultLoadingText() });
 };
 
-export const showLoadingOverlay = (message = DEFAULT_LOADING_TEXT, options = {}) => {
+export const showLoadingOverlay = (message = defaultLoadingText(), options = {}) => {
   const {
     title = '',
     image = DEFAULT_ACTIVITY_IMAGE,
@@ -45,7 +46,7 @@ export const showLoadingOverlay = (message = DEFAULT_LOADING_TEXT, options = {})
 
   activeActivityOverlay = {
     title,
-    message: message || DEFAULT_LOADING_TEXT,
+    message: message || defaultLoadingText(),
     image,
     buttons,
     description,
@@ -137,11 +138,19 @@ export const hideMessageBox = () => {
   const restoreTarget = messageBoxRestoreFocusEl;
   messageBoxRestoreFocusEl = null;
 
+  const closeHook = activeMessageBoxState && typeof activeMessageBoxState.onClose === 'function'
+    ? activeMessageBoxState.onClose
+    : null;
+
   if (activeMessageBoxMode === 'activity') {
     activeActivityOverlay = null;
   }
   activeMessageBoxMode = null;
   activeMessageBoxState = null;
+
+  if (closeHook) {
+    try { closeHook(); } catch (e) { /* swallow cleanup errors */ }
+  }
 
   if (restoreTarget && typeof restoreTarget.focus === 'function' && restoreTarget.isConnected) {
     try {
@@ -209,6 +218,7 @@ export const showMessageBox = ({
   description = '',
   image = '',
   boxClassList = [],
+  onClose = null,
   _internalMode = 'dialog',
 }) => {
   const overlay = getEl('msgbox-overlay');
@@ -238,6 +248,7 @@ export const showMessageBox = ({
     description,
     image,
     boxClassList,
+    onClose,
     _internalMode: activeMessageBoxMode,
   };
   if (activeMessageBoxMode !== 'activity') {
@@ -276,10 +287,10 @@ export const showMessageBox = ({
     const descEl = document.createElement('div');
     descEl.style.cssText = `
         font-size: 12px;
-        color: #888;
+        color: var(--color-text-dim);
         margin-top: 8px;
         padding-top: 8px;
-        border-top: 1px solid #ddd;
+        border-top: 1px solid var(--color-border-soft);
       `;
     descEl.textContent = description;
     boxText.appendChild(descEl);
@@ -330,7 +341,7 @@ export const showMessageBox = ({
       if ((nextState._internalMode || 'dialog') === 'activity') {
         activeActivityOverlay = {
           title: nextState.title || '',
-          message: nextState.message || DEFAULT_LOADING_TEXT,
+          message: nextState.message || defaultLoadingText(),
           image: nextState.image || DEFAULT_ACTIVITY_IMAGE,
           buttons: Array.isArray(nextState.buttons) ? nextState.buttons : [],
           description: nextState.description || '',

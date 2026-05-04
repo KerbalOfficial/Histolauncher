@@ -9,6 +9,7 @@ from tkinter import ttk
 from core.logger import colorize_log, dim_line
 
 from launcher._constants import ICO_PATH, PNG_ICON_PATH
+from launcher.i18n import t, tk_direction_options
 from launcher.linux_icon import (
     apply_gtk_window_icon,
     install_linux_window_icon,
@@ -152,6 +153,7 @@ def control_panel_fallback_window(port):
         pass
     root.title("Histolauncher")
     colors = themed_colors(root)
+    direction = tk_direction_options()
 
     style = ttk.Style()
     try:
@@ -164,34 +166,38 @@ def control_panel_fallback_window(port):
 
     title = tkinter.Label(
         root,
-        text="Histolauncher - Control Panel for Browser-users",
+        text=t("native.browserFallback.title"),
         font=("Segoe UI", 12, "bold"),
         bg=colors["bg"],
         fg=colors["fg"],
+        anchor=direction["anchor"],
+        justify=direction["justify"],
     )
-    title.pack(pady=20)
+    title.pack(fill="x", padx=20, pady=20)
 
     desc = tkinter.Label(
         root,
-        text=(
-            "This is the control panel for browser-users.\n\n"
-            "Click 'Open Launcher' to open the launcher's web link onto your "
-            "default browser.\n"
-            "Click 'Close Launcher' to close the web server and exit "
-            "Histolauncher."
-        ),
+        text=t("native.browserFallback.description"),
         font=("Segoe UI", 9),
         bg=colors["bg"],
         fg=colors["fg"],
+        anchor=direction["anchor"],
+        justify=direction["justify"],
     )
-    desc.pack(pady=10)
+    desc.pack(fill="x", padx=20, pady=10)
 
     open_btn = ttk.Button(
-        root, text="Open Launcher", command=lambda: open_in_browser(port)
+        root,
+        text=t("native.browserFallback.openLauncher"),
+        command=lambda: open_in_browser(port),
     )
     open_btn.pack(pady=5)
 
-    close_btn = ttk.Button(root, text="Close Launcher", command=root.destroy)
+    close_btn = ttk.Button(
+        root,
+        text=t("native.browserFallback.closeLauncher"),
+        command=root.destroy,
+    )
     close_btn.pack(pady=5)
 
     root.mainloop()

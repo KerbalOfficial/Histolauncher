@@ -33,6 +33,17 @@ from server.http.textures import TextureMixin
 __all__ = ["RequestHandler"]
 
 
+def _is_player_certificates_path(path: str) -> bool:
+    normalized = "/" + "/".join(
+        part for part in str(path or "").split("/") if part
+    )
+    return normalized.endswith("/player/certificates") and (
+        normalized.startswith("/authserver/")
+        or normalized.startswith("/authserverminecraftservices/")
+        or normalized.startswith("/minecraftservices/")
+    )
+
+
 class RequestHandler(
     ProxyMixin,
     TextureMixin,
@@ -262,6 +273,12 @@ class RequestHandler(
 
         public_key = yggdrasil.get_public_key_pem()
 
+        try:
+            from core.launch.auth import is_microsoft_account_active
+            profile_key_enabled = bool(is_microsoft_account_active())
+        except Exception:
+            profile_key_enabled = False
+
         data = {
             "meta": {
                 "serverName": f"Histolauncher {launcher_version}",
@@ -269,10 +286,12 @@ class RequestHandler(
                 "implementationVersion": launcher_version,
                 "usesSignature": public_key is not None,
                 "feature.non_email_login": True,
-                "feature.enable_profile_key": False,
+                "feature.enable_profile_key": profile_key_enabled,
             },
             "skinDomains": [
                 "127.0.0.1",
+                "localhost",
+                "textures.minecraft.net",
                 "textures.histolauncher.org",
             ],
             "signaturePublickey": public_key,
@@ -554,15 +573,9 @@ class RequestHandler(
             self._send_json(resp, status=status)
             return
 
-        if path.startswith("/authserver/player/certificates"):
-            self._send_json(
-                {
-                    "keyPair": None,
-                    "publicKeySignature": None,
-                    "expiresAt": None,
-                },
-                status=200,
-            )
+        if _is_player_certificates_path(path):
+            status, resp = yggdrasil.handle_player_certificates()
+            self._send_json(resp, status=status)
             return
 
         # API endpoints
@@ -713,6 +726,14 @@ class RequestHandler(
             status, resp = yggdrasil.handle_services_profile_get(
                 self.server.server_port
             )
+            self._send_json(resp, status=status)
+            return
+
+        if _is_player_certificates_path(path):
+            length = int(self.headers.get("Content-Length", 0))
+            if length > 0:
+                self.rfile.read(length)
+            status, resp = yggdrasil.handle_player_certificates()
             self._send_json(resp, status=status)
             return
 

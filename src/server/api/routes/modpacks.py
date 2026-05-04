@@ -4,6 +4,7 @@ import os
 import shutil
 
 from core.logger import colorize_log
+from launcher.i18n import t
 
 from server.api._constants import VALID_MOD_LOADERS
 from server.api._helpers import (
@@ -233,9 +234,9 @@ def api_modpacks_export(data):
                     save_path = asksaveasfilename(
                         initialfile=file_name,
                         defaultextension=format_spec["extension"],
-                        filetypes=[*format_spec["filetypes"], ("All Files", "*.*")],
+                        filetypes=[*format_spec["filetypes"], (t("native.fileDialogs.allFiles"), "*.*")],
                         initialdir=os.path.expanduser("~"),
-                        title=f"Save {name} Modpack Export",
+                        title=t("native.fileDialogs.saveModpackExportTitle", {"name": name}),
                     )
                 except Exception as dialog_err:
                     dialog_failed = True

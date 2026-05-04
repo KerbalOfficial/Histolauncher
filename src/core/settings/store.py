@@ -3,6 +3,8 @@ from __future__ import annotations
 import configparser
 import logging
 import os
+import threading
+import time
 from typing import Any
 
 from core.settings.defaults import (
@@ -16,8 +18,11 @@ from core.settings.paths import (
     normalize_storage_directory_mode,
 )
 from core.settings.profiles import get_settings_path
+from core.settings.profiles import get_active_profile_id
 
 logger = logging.getLogger(__name__)
+
+SETTINGS_IO_LOCK = threading.RLock()
 
 __all__ = [
     "load_global_settings",
@@ -55,64 +60,78 @@ def _normalise_loaded_dict(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_global_settings(profile_id: str | None = None) -> dict[str, Any]:
-    path = get_settings_path(profile_id)
-    data: dict[str, Any] = {}
+    with SETTINGS_IO_LOCK:
+        resolved_profile_id = profile_id or get_active_profile_id()
+        path = get_settings_path(resolved_profile_id)
+        data: dict[str, Any] = {}
 
-    if os.path.exists(path):
-        try:
-            config = configparser.ConfigParser()
-            config.read(path, encoding="utf-8")
-            for section in config.sections():
-                data.update(dict(config[section]))
-        except (configparser.MissingSectionHeaderError, configparser.ParsingError):
-            data = _read_legacy_flat_ini(path)
-            if data:
-                logger.info(f"Migrated legacy settings format from {path}")
-        except (OSError, configparser.Error) as e:
-            logger.warning(f"Failed to parse settings file, using defaults: {e}")
-            data = {}
+        if os.path.exists(path):
+            try:
+                config = configparser.ConfigParser()
+                config.read(path, encoding="utf-8")
+                for section in config.sections():
+                    data.update(dict(config[section]))
+            except (configparser.MissingSectionHeaderError, configparser.ParsingError):
+                data = _read_legacy_flat_ini(path)
+                if data:
+                    logger.info(f"Migrated legacy settings format from {path}")
+            except (OSError, configparser.Error) as e:
+                logger.warning(f"Failed to parse settings file, using defaults: {e}")
+                data = {}
 
-    return _normalise_loaded_dict(data)
+        return _normalise_loaded_dict(data)
 
 
 def save_global_settings(
     settings_dict: dict[str, Any], profile_id: str | None = None
 ) -> None:
-    path = get_settings_path(profile_id)
-    current = load_global_settings(profile_id)
-    current.update(settings_dict)
-    current["storage_directory"] = normalize_storage_directory_mode(
-        current.get("storage_directory")
-    )
-    current["custom_storage_directory"] = normalize_custom_storage_directory(
-        current.get("custom_storage_directory")
-    )
+    with SETTINGS_IO_LOCK:
+        resolved_profile_id = profile_id or get_active_profile_id()
+        path = get_settings_path(resolved_profile_id)
+        current = load_global_settings(resolved_profile_id)
+        current.update(settings_dict)
+        current["storage_directory"] = normalize_storage_directory_mode(
+            current.get("storage_directory")
+        )
+        current["custom_storage_directory"] = normalize_custom_storage_directory(
+            current.get("custom_storage_directory")
+        )
 
-    config = configparser.ConfigParser()
+        config = configparser.ConfigParser()
 
-    for section, defaults in DEFAULTS.items():
-        config[section] = {key: str(current.get(key, defaults[key])) for key in defaults}
+        for section, defaults in DEFAULTS.items():
+            config[section] = {key: str(current.get(key, defaults[key])) for key in defaults}
 
-    extras = {k: v for k, v in current.items() if k not in all_default_keys()}
-    if extras:
-        if "launcher" not in config:
-            config["launcher"] = {}
-        for key, value in extras.items():
-            config["launcher"][key] = str(value)
+        extras = {k: v for k, v in current.items() if k not in all_default_keys()}
+        if extras:
+            if "launcher" not in config:
+                config["launcher"] = {}
+            for key, value in extras.items():
+                config["launcher"][key] = str(value)
 
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    tmp_path = path + ".tmp"
-    try:
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            config.write(f)
-        os.replace(tmp_path, path)
-    except Exception:
-        try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
-        raise
+        last_error: Exception | None = None
+        for attempt in range(6):
+            tmp_path = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+            try:
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    config.write(f)
+                os.replace(tmp_path, path)
+                return
+            except PermissionError as e:
+                last_error = e
+                time.sleep(0.04 * (attempt + 1))
+            finally:
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                except OSError:
+                    pass
+
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("Failed to save settings file")
 
 
 def load_version_data(version_dir: str) -> dict[str, str] | None:

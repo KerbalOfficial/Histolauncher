@@ -30,6 +30,7 @@ from core.launch.args import (
     _parse_mc_version,
     _resolve_runtime_main_class,
 )
+from core.launch.auth import get_launch_auth_info, is_microsoft_account_active
 from core.launch.legacy import (
     _find_forge_core_jar,
     _find_modloader_runtime_jar,
@@ -93,10 +94,12 @@ from core.launch.paths import (
 from core.launch.process import (
     _attach_copied_mods_to_process,
     _create_version_log_file,
+    _format_command_for_logging,
     _get_process_status,
     _output_reader_thread,
     _register_process,
     _resolve_java_launch_candidates,
+    _set_process_crash_notification_enabled,
     _set_last_launch_error,
     _set_last_launch_diagnostic,
     _wait_for_launch_stability,
@@ -106,6 +109,64 @@ from core.launch.state import STATE
 
 
 __all__ = ["_launch_version_once", "launch_version"]
+
+
+def _positive_int_setting(value, default: str) -> str:
+    raw = str(value or "").strip()
+    if raw.isdigit():
+        number = max(1, min(int(raw), 99999))
+        return str(number)
+    return default
+
+
+def _remove_cli_flag(args: list, flag: str, *, takes_value: bool = False) -> None:
+    i = 0
+    while i < len(args):
+        arg = str(args[i] or "")
+        if arg == flag:
+            del args[i]
+            if takes_value and i < len(args) and not str(args[i] or "").startswith("--"):
+                del args[i]
+            continue
+        if arg.startswith(flag + "="):
+            del args[i]
+            continue
+        i += 1
+
+
+def _apply_window_launch_settings(cmd: list, global_settings: dict, meta: dict) -> None:
+    width = _positive_int_setting(
+        (meta or {}).get("launch_resolution_width")
+        or (global_settings or {}).get("game_resolution_width"),
+        "854",
+    )
+    height = _positive_int_setting(
+        (meta or {}).get("launch_resolution_height")
+        or (global_settings or {}).get("game_resolution_height"),
+        "480",
+    )
+    _set_or_append_cli_arg(cmd, "--width", width)
+    _set_or_append_cli_arg(cmd, "--height", height)
+
+    fullscreen_raw = str((meta or {}).get("launch_fullscreen") or "").strip()
+    fullscreen_enabled = (
+        fullscreen_raw == "1"
+        if fullscreen_raw
+        else _is_truthy_setting((global_settings or {}).get("game_fullscreen", "0"))
+    )
+    _remove_cli_flag(cmd, "--fullscreen", takes_value=False)
+    if fullscreen_enabled:
+        cmd.append("--fullscreen")
+
+    demo_raw = str((meta or {}).get("launch_demo") or "").strip()
+    demo_enabled = (
+        demo_raw == "1"
+        if demo_raw
+        else _is_truthy_setting((global_settings or {}).get("game_demo_mode", "0"))
+    )
+    _remove_cli_flag(cmd, "--demo", takes_value=False)
+    if demo_enabled:
+        cmd.append("--demo")
 
 
 def _is_direct_legacy_forge_launch(loader_key: str, legacy_runtime: bool, main_class: str) -> bool:
@@ -198,6 +259,7 @@ def _launch_version_once(
     copied_mods_override=None,
     modloader_overwrite_dir_override=None,
     track_copied_mods=True,
+    notify_on_crash=True,
 ):
     base_dir = get_base_dir()
     version_dir = _resolve_version_dir(version_identifier)
@@ -215,6 +277,16 @@ def _launch_version_once(
     )
     modloader_overwrite_dir = str(modloader_overwrite_dir_override or "").strip()
     global_settings = load_global_settings() or {}
+    launch_auth_info = None
+    if is_microsoft_account_active(global_settings):
+        try:
+            launch_auth_info = get_launch_auth_info(require_valid=True)
+        except RuntimeError as e:
+            message = f"Microsoft account authentication failed: {e}"
+            print(colorize_log(f"[launcher] ERROR: {message}"))
+            _set_last_launch_error(version_identifier, message)
+            return False
+
     loader_key = str(loader or "").strip().lower()
     legacy_runtime = _is_legacy_pre16_runtime(version_identifier)
     allow_override_for_all_modloaders = _is_truthy_setting(
@@ -420,8 +492,8 @@ def _launch_version_once(
 
     classpath = _join_classpath(version_dir, classpath_entries)
     username = username_override or global_settings.get("username", "Player")
-    min_ram = global_settings.get("min_ram", "2048M")
-    max_ram = global_settings.get("max_ram", "4096M")
+    min_ram = (meta.get("launch_min_ram") or global_settings.get("min_ram") or "2048M")
+    max_ram = (meta.get("launch_max_ram") or global_settings.get("max_ram") or "4096M")
     selected_java_setting = (global_settings.get("java_path") or "").strip()
     if java_runtime_override:
         java_executable = str(java_runtime_override).strip()
@@ -433,7 +505,12 @@ def _launch_version_once(
         java_executable = selected_java_setting
     else:
         java_executable = get_path_java_executable()
-    global_extra_jvm_args_raw = (global_settings.get("extra_jvm_args") or "").strip()
+    global_extra_jvm_args_raw = (
+        meta.get("launch_extra_jvm_args")
+        if str(meta.get("launch_extra_jvm_args") or "").strip()
+        else global_settings.get("extra_jvm_args")
+        or ""
+    ).strip()
     game_dir = _resolve_game_dir(global_settings, version_dir)
     if loader and loader.lower() == "neoforge":
         _ensure_neoforge_early_window_disabled(game_dir)
@@ -575,6 +652,7 @@ def _launch_version_once(
             ygg_port = int(port_str)
         except ValueError:
             ygg_port = 0
+    os.environ["HISTOLAUNCHER_ACTIVE_VERSION_IDENTIFIER"] = str(version_identifier or "")
 
     project_root = os.path.dirname(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -583,9 +661,13 @@ def _launch_version_once(
     if os.path.exists(authlib_path):
         if ygg_port > 0:
             ygg_url = f"http://127.0.0.1:{ygg_port}/authserver"
+            print(colorize_log(f"[launcher] Using authlib-injector: {authlib_path}"))
             cmd.append(f"-javaagent:{authlib_path}={ygg_url}")
 
-    if ygg_port > 0 and _is_legacy_http_proxy_needed(version_identifier):
+    if (
+        ygg_port > 0
+        and _is_legacy_http_proxy_needed(version_identifier)
+    ):
         cmd.extend([
             "-Dhttp.proxyHost=127.0.0.1",
             f"-Dhttp.proxyPort={ygg_port}",
@@ -952,13 +1034,9 @@ def _launch_version_once(
         main_class = "net.minecraft.client.Minecraft"
         cmd[-1] = main_class
 
-    from server.yggdrasil import _get_username_and_uuid
-
-    username, auth_uuid_raw = _get_username_and_uuid()
-    auth_uuid = (
-        f"{auth_uuid_raw[0:8]}-{auth_uuid_raw[8:12]}-{auth_uuid_raw[12:16]}-"
-        f"{auth_uuid_raw[16:20]}-{auth_uuid_raw[20:]}"
-    )
+    if launch_auth_info is None:
+        launch_auth_info = get_launch_auth_info()
+    username = launch_auth_info["username"]
 
     expanded_game_args: list = []
     extra = meta.get("extra_jvm_args")
@@ -985,7 +1063,7 @@ def _launch_version_once(
                 "--username",
                 username,
                 "--session",
-                "0",
+                launch_auth_info["access_token"],
                 "--version",
                 _extract_mc_version_string(version_identifier) or version_identifier,
                 "--assetsDir",
@@ -997,7 +1075,7 @@ def _launch_version_once(
         else:
             expanded_game_args = [
                 username,
-                "0",
+                launch_auth_info["access_token"],
                 "--assetsDir",
                 legacy_assets_dir,
                 "--tweakClass",
@@ -1026,6 +1104,9 @@ def _launch_version_once(
     has_flag_style_game_args = any(arg.startswith("--") for arg in expanded_game_args)
     if game_dir is not None and has_flag_style_game_args:
         _set_or_append_cli_arg(cmd, "--gameDir", game_dir)
+
+    if has_flag_style_game_args:
+        _apply_window_launch_settings(cmd, global_settings, meta)
 
     if loader and loader.lower() == "forge" and main_class == "cpw.mods.modlauncher.Launcher":
         mc_ver = (
@@ -1311,7 +1392,7 @@ def _launch_version_once(
         print(f"Mod loader: {loader}")
     launch_cwd = game_dir if (game_dir and os.path.isdir(game_dir)) else version_dir
     print("Working dir:", launch_cwd)
-    print("Command:", " ".join(cmd))
+    print("Command:", _format_command_for_logging(cmd))
     # Suppress the stray Windows console java.exe would otherwise allocate
     # when pythonw (no console) is the parent process.
     _popen_kwargs = no_window_kwargs()
@@ -1368,7 +1449,14 @@ def _launch_version_once(
         ).hexdigest()[:16]
 
         tracked_copied_mods = copied_mods if track_copied_mods else []
-        _register_process(process_id, process, version_identifier, log_file_path, tracked_copied_mods)
+        _register_process(
+            process_id,
+            process,
+            version_identifier,
+            log_file_path,
+            tracked_copied_mods,
+            notify_on_crash=notify_on_crash,
+        )
 
         print(colorize_log(f"[launcher] Process launched with ID: {process_id}"))
         return process_id
@@ -1469,7 +1557,10 @@ def launch_version(version_identifier, username_override=None, loader=None, load
         _set_last_launch_error(version_identifier, game_dir_error)
         return False
 
-    selected_java_setting = (global_settings.get("java_path") or "").strip()
+    meta = _load_data_ini(version_dir)
+    selected_java_setting = (
+        meta.get("launch_java_path") or global_settings.get("java_path") or ""
+    ).strip()
     selected_mode = selected_java_setting or JAVA_RUNTIME_MODE_PATH
     loader_key = str(loader or "").strip().lower()
     allow_override_for_all_modloaders = _is_truthy_setting(
@@ -1546,6 +1637,7 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             copied_mods_override=copied_mods,
             modloader_overwrite_dir_override=modloader_overwrite_dir,
             track_copied_mods=not auto_mode,
+            notify_on_crash=not auto_mode,
         )
 
         if not process_id:
@@ -1597,6 +1689,7 @@ def launch_version(version_identifier, username_override=None, loader=None, load
         launch_stable, exit_code = _wait_for_launch_stability(process_obj)
         if launch_stable:
             _attach_copied_mods_to_process(process_id, copied_mods)
+            _set_process_crash_notification_enabled(process_id, True)
             print(colorize_log(f"[launcher] Auto Java selection succeeded with {java_label}"))
             return process_id
 

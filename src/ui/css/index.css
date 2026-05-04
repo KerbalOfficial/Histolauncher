@@ -19,6 +19,7 @@
 @import "components/mods.css";
 @import "components/pagination.css";
 @import "components/mod-detail-modal.css";
+@import "components/skin-editor.css";
 @import "components/version-section.css";
 @import "components/version-list.css";
 @import "components/version-card.css";
@@ -30,3 +31,6 @@
 @import "pages/home.css";
 @import "pages/versions.css";
 @import "pages/settings.css";
+
+/* theme overrides */
+@import "themes.css";

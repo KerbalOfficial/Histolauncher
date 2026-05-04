@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
@@ -18,7 +18,7 @@
         src="assets/images/histolauncher.png"
         alt=""
       />
-      <span>Home</span>
+      <span data-i18n="nav.home">Home</span>
     </div>
     <div class="sidebar-item" data-page="versions" role="button" tabindex="0" aria-controls="page-versions">
       <img
@@ -28,7 +28,7 @@
         src="assets/images/library.png"
         alt=""
       />
-      <span>Versions</span>
+      <span data-i18n="nav.versions">Versions</span>
     </div>
     <div class="sidebar-item" data-page="worlds" role="button" tabindex="0" aria-controls="page-worlds">
       <img
@@ -38,7 +38,7 @@
         src="assets/images/chest.png"
         alt=""
       />
-      <span>Worlds</span>
+      <span data-i18n="nav.worlds">Worlds</span>
     </div>
     <div class="sidebar-item" data-page="mods" role="button" tabindex="0" aria-controls="page-mods">
       <img
@@ -48,7 +48,7 @@
         src="assets/images/anvil_hammer.png"
         alt=""
       />
-      <span>Addons</span>
+      <span data-i18n="nav.addons">Addons</span>
     </div>
     <div class="sidebar-item" data-page="settings" role="button" tabindex="0" aria-controls="page-settings">
       <img
@@ -58,7 +58,7 @@
         src="assets/images/settings.png"
         alt=""
       />
-      <span>Settings</span>
+      <span data-i18n="nav.settings">Settings</span>
     </div>
     <div class="sidebar-item" data-page="about" role="button" tabindex="0" aria-controls="page-about">
       <img
@@ -68,10 +68,10 @@
         src="assets/images/unknown.png"
         alt=""
       />
-      <span>About</span>
+      <span data-i18n="nav.about">About</span>
     </div>
 
-    <div id="sidebar-version" class="sidebar-version" title="Launcher version" aria-live="polite"></div>
+    <div id="sidebar-version" class="sidebar-version" data-i18n-title="topbar.versionTooltip" title="Launcher version" aria-live="polite"></div>
   </nav>
 
   <!-- MAIN APP -->
@@ -80,17 +80,17 @@
     <!-- TOPBAR -->
     <header class="topbar">
       <div id="topbar-profile">
-        <img id="topbar-profile-pic" width="32" height="32" alt="Profile" title="Histolauncher Account"/>
+        <img id="topbar-profile-pic" width="32" height="32" alt="Profile" data-i18n-alt="topbar.profileAlt" data-i18n-title="topbar.profileTooltip" title="Histolauncher Account"/>
         <span id="topbar-username"></span>
       </div>
-      <button id="refresh-btn" type="button" title="Refresh values (Hold shift to refresh page)" aria-label="Refresh">
-        <img src="assets/images/refresh.png" alt="Refresh"/>
+      <button id="refresh-btn" type="button" data-i18n-title="topbar.refreshTooltip" title="Refresh values (Hold shift to refresh page)" data-i18n-aria-label="topbar.refreshAria" aria-label="Refresh">
+        <img src="assets/images/refresh.png" alt="Refresh" data-i18n-alt="topbar.refreshAlt"/>
       </button>
     </header>
 
     <!-- HOME PAGE -->
     <div id="page-home" class="page">
-      <h2 class="section-title"><img width="24" height="24" src="assets/images/histolauncher.png" alt=""/><span class="section-title-text">Home</span></h2>
+      <h2 class="section-title"><img width="24" height="24" src="assets/images/histolauncher.png" alt=""/><span class="section-title-text" data-i18n="nav.home">Home</span></h2>
 
       <div id="home-global-message" class="global-message-float global-message-message hidden" role="status" aria-live="polite">
         <div id="home-global-message-content" class="global-message-content"></div>
@@ -116,7 +116,7 @@
       </div>
 
       <div class="home-launch-container">
-        <button id="launch-btn" class="big-launch-btn" type="button">Launch ⏵</button>
+        <button id="launch-btn" class="big-launch-btn" type="button"><span data-i18n="home.launchButton">Launch</span> ⏵</button>
       </div>
 
       <!-- a little easter egg -->
@@ -128,20 +128,20 @@
     <!-- VERSIONS PAGE -->
     <div id="page-versions" class="page hidden">
       <div class="versions-header">
-        <h2 class="section-title"><img width="24" height="24" src="assets/images/library.png" alt=""/><span class="section-title-text">Versions</span></h2>
+        <h2 class="section-title"><img width="24" height="24" src="assets/images/library.png" alt=""/><span class="section-title-text" data-i18n="nav.versions">Versions</span></h2>
 
         <div id="versions-topbar-filter" class="versions-filter">
-          <label for="versions-profile-select">Profile:</label>
+          <label for="versions-profile-select" data-i18n="versions.profileLabel">Profile:</label>
           <select id="versions-profile-select"></select>
-          <button id="versions-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" type="button" title="Rename active versions profile" aria-label="Rename versions profile">
+          <button id="versions-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" type="button" data-i18n-title="versions.profile.renameTooltip" title="Rename active versions profile" data-i18n-aria-label="versions.profile.renameAria" aria-label="Rename versions profile">
             <img id="versions-profile-edit-icon" src="assets/images/unfilled_pencil.png" alt="rename versions profile"/>
           </button>
-          <button id="versions-profile-delete-btn" class="icon-button profile-delete-btn" type="button" title="Delete active versions profile" aria-label="Delete versions profile">
+          <button id="versions-profile-delete-btn" class="icon-button profile-delete-btn" type="button" data-i18n-title="versions.profile.deleteTooltip" title="Delete active versions profile" data-i18n-aria-label="versions.profile.deleteAria" aria-label="Delete versions profile">
             <img id="versions-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete versions profile"/>
           </button>
 
           <div class="view-toggle">
-            <button id="view-grid-btn" class="view-toggle-btn" type="button" title="Grid View" aria-label="Grid View">
+            <button id="view-grid-btn" class="view-toggle-btn" type="button" data-i18n-title="common.gridView" title="Grid View" data-i18n-aria-label="common.gridView" aria-label="Grid View">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="3" y="3" width="7" height="7"/>
                 <rect x="14" y="3" width="7" height="7"/>
@@ -149,7 +149,7 @@
                 <rect x="14" y="14" width="7" height="7"/>
               </svg>
             </button>
-            <button id="view-list-btn" class="view-toggle-btn" type="button" title="List View" aria-label="List View">
+            <button id="view-list-btn" class="view-toggle-btn" type="button" data-i18n-title="common.listView" title="List View" data-i18n-aria-label="common.listView" aria-label="List View">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="3" y="4" width="18" height="4"/>
                 <rect x="3" y="10" width="18" height="4"/>
@@ -159,20 +159,20 @@
           </div>
 
           <div id="versions-action-buttons" class="versions-action-buttons">
-            <button id="export-versions-btn" class="icon-btn action-overflow-source" type="button" title="Export version" aria-label="Export version">
+            <button id="export-versions-btn" class="icon-btn action-overflow-source" type="button" data-i18n-title="versions.exportTooltip" title="Export version" data-i18n-aria-label="versions.exportTooltip" aria-label="Export version">
               <img class="action-icon" src="assets/images/export_version.png" alt=""/>
             </button>
-            <button id="import-versions-btn" class="icon-btn action-overflow-source" type="button" title="Import version" aria-label="Import version">
+            <button id="import-versions-btn" class="icon-btn action-overflow-source" type="button" data-i18n-title="versions.importTooltip" title="Import version" data-i18n-aria-label="versions.importTooltip" aria-label="Import version">
               <img class="action-icon" src="assets/images/import_version.png" alt=""/>
             </button>
-            <button id="versions-actions-overflow-btn" class="icon-btn actions-overflow-trigger hidden" type="button" title="More version actions" aria-label="More version actions">
+            <button id="versions-actions-overflow-btn" class="icon-btn actions-overflow-trigger hidden" type="button" data-i18n-title="versions.moreActionsTooltip" title="More version actions" data-i18n-aria-label="versions.moreActionsTooltip" aria-label="More version actions">
               <img style="width:48px;height:48px;" src="assets/images/folder.png" alt="more version actions"/>
             </button>
             <div id="versions-actions-overflow-menu" class="actions-overflow-menu hidden" role="menu" aria-label="Version actions">
-              <button id="versions-overflow-export-btn" type="button" class="actions-overflow-icon-btn" title="Export versions" aria-label="Export versions">
+              <button id="versions-overflow-export-btn" type="button" class="actions-overflow-icon-btn" data-i18n-title="versions.exportVersionsTooltip" title="Export versions" data-i18n-aria-label="versions.exportVersionsTooltip" aria-label="Export versions">
                 <img src="assets/images/export_version.png" alt="Export versions"/>
               </button>
-              <button id="versions-overflow-import-btn" type="button" class="actions-overflow-icon-btn" title="Import versions" aria-label="Import versions">
+              <button id="versions-overflow-import-btn" type="button" class="actions-overflow-icon-btn" data-i18n-title="versions.importVersionsTooltip" title="Import versions" data-i18n-aria-label="versions.importVersionsTooltip" aria-label="Import versions">
                 <img src="assets/images/import_version.png" alt="Import versions"/>
               </button>
             </div>
@@ -183,13 +183,13 @@
       <div id="versions-filter-menu" class="info-box versions-filter-menu">
         <div class="versions-filter-grid">
           <div class="versions-filter-item">
-            <label for="versions-category-select">Category:</label>
+            <label for="versions-category-select" data-i18n="versions.categoryLabel">Category:</label>
             <select id="versions-category-select"></select>
           </div>
 
           <div class="versions-filter-item">
-            <label for="versions-search">Search:</label>
-            <input id="versions-search" type="search" placeholder="Search...">
+            <label for="versions-search" data-i18n="common.searchLabel">Search:</label>
+            <input id="versions-search" type="search" data-i18n-placeholder="common.searchPlaceholder" placeholder="Search...">
           </div>
         </div>
       </div>
@@ -200,18 +200,18 @@
         <section id="installed-section" class="info-box collapsible-section">
           <div class="versions-section-header">
             <div class="versions-section-header-top">
-              <h3 class="section-dropdown-trigger">Installed</h3>
+              <h3 class="section-dropdown-trigger" data-i18n="versions.installedSection">Installed</h3>
               <div class="versions-section-header-actions">
                 <div class="section-bulk-actions">
-                  <button id="versions-bulk-toggle-btn" class="mild" type="button" title="Toggle bulk select mode for installed versions">Bulk Select</button>
-                  <button id="versions-bulk-delete-btn" class="danger hidden" type="button" title="Delete selected installed versions" disabled>Delete Selected (0)</button>
+                  <button id="versions-bulk-toggle-btn" class="mild" type="button" data-i18n-title="versions.bulkSelectTooltip" title="Toggle bulk select mode for installed versions" data-i18n="common.bulkSelect">Bulk Select</button>
+                  <button id="versions-bulk-delete-btn" class="danger hidden" type="button" data-i18n-title="versions.bulkDeleteTooltip" title="Delete selected installed versions" data-i18n="versions.deleteSelected" disabled>Delete Selected (0)</button>
                 </div>
-                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle installed versions section">
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" data-i18n-aria-label="versions.toggleInstalledAria" aria-label="Toggle installed versions section">
                   <span class="section-dropdown-indicator">v</span>
                 </span>
               </div>
             </div>
-            <span id="installed-versions-subtitle" class="versions-section-subtitle">Versions that are installed in your device and ready to launch!</span>
+            <span id="installed-versions-subtitle" class="versions-section-subtitle" data-i18n="versions.installedSubtitle">Versions that are installed in your device and ready to launch!</span>
           </div>
           <div class="section-dropdown-body">
             <div id="installed-versions" class="versions-list"></div>
@@ -221,14 +221,14 @@
         <section id="installing-section" class="info-box collapsible-section">
           <div class="versions-section-header">
             <div class="versions-section-header-top">
-              <h3 class="section-dropdown-trigger">Installing</h3>
+              <h3 class="section-dropdown-trigger" data-i18n="versions.installingSection">Installing</h3>
               <div class="versions-section-header-actions">
-                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle installing versions section">
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" data-i18n-aria-label="versions.toggleInstallingAria" aria-label="Toggle installing versions section">
                   <span class="section-dropdown-indicator">v</span>
                 </span>
               </div>
             </div>
-            <span class="versions-section-subtitle">Versions that are currently being downloaded.</span>
+            <span class="versions-section-subtitle" data-i18n="versions.installingSubtitle">Versions that are currently being downloaded.</span>
           </div>
           <div class="section-dropdown-body">
             <div id="installing-versions" class="versions-list"></div>
@@ -238,21 +238,21 @@
         <section id="available-section" class="info-box collapsible-section">
           <div class="versions-section-header">
             <div class="versions-section-header-top">
-              <h3 class="section-dropdown-trigger">Available</h3>
+              <h3 class="section-dropdown-trigger" data-i18n="versions.availableSection">Available</h3>
               <div class="versions-section-header-actions">
-                <button id="versions-refresh-btn" type="button" title="Refresh version list">Refresh</button>
-                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle available versions section">
+                <button id="versions-refresh-btn" type="button" data-i18n-title="versions.refreshTooltip" title="Refresh version list" data-i18n="common.refresh">Refresh</button>
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" data-i18n-aria-label="versions.toggleAvailableAria" aria-label="Toggle available versions section">
                   <span class="section-dropdown-indicator">v</span>
                 </span>
               </div>
             </div>
-            <span class="versions-section-subtitle">Available installable versions</span>
+            <span class="versions-section-subtitle" data-i18n="versions.availableSubtitle">Available installable versions</span>
           </div>
           <div class="section-dropdown-body">
             <div id="available-versions" class="versions-list"></div>
             <div id="versions-loading" class="versions-loading hidden">
               <img src="assets/images/settings.gif" width="32" height="32" alt="Loading...">
-              <span>Loading...</span>
+              <span data-i18n="common.loading">Loading...</span>
             </div>
             <div id="versions-pagination" class="mods-pagination"></div>
           </div>
@@ -263,27 +263,27 @@
     <!-- MODS PAGE -->
     <div id="page-mods" class="page hidden">
       <div class="versions-header">
-        <h2 class="section-title"><img width="24" height="24" src="assets/images/anvil_hammer.png" alt=""/><span class="section-title-text">Addons</span></h2>
+        <h2 class="section-title"><img width="24" height="24" src="assets/images/anvil_hammer.png" alt=""/><span class="section-title-text" data-i18n="nav.addons">Addons</span></h2>
 
         <div id="mods-topbar-filter" class="versions-filter mods-topbar-filter">
-          <label for="mods-profile-select">Profile:</label>
+          <label for="mods-profile-select" data-i18n="mods.profileLabel">Profile:</label>
           <select id="mods-profile-select"></select>
-          <button id="mods-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" type="button" title="Rename active addons profile" aria-label="Rename addons profile">
-            <img id="mods-profile-edit-icon" src="assets/images/unfilled_pencil.png" alt="rename addons profile"/>
+          <button id="mods-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" type="button" data-i18n-title="mods.profile.renameTooltip" title="Rename active addons profile" data-i18n-aria-label="mods.profile.renameAria" aria-label="Rename addons profile">
+            <img id="mods-profile-edit-icon" src="assets/images/unfilled_pencil.png" alt="rename addons profile" data-i18n-alt="mods.profile.renameAria"/>
           </button>
-          <button id="mods-profile-delete-btn" class="icon-button profile-delete-btn" type="button" title="Delete active addons profile" aria-label="Delete addons profile">
-            <img id="mods-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete addons profile"/>
+          <button id="mods-profile-delete-btn" class="icon-button profile-delete-btn" type="button" data-i18n-title="mods.profile.deleteTooltip" title="Delete active addons profile" data-i18n-aria-label="mods.profile.deleteAria" aria-label="Delete addons profile">
+            <img id="mods-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete addons profile" data-i18n-alt="mods.profile.deleteAria"/>
           </button>
-          <label for="mods-type-select">Type:</label>
+          <label for="mods-type-select" data-i18n="mods.typeLabel">Type:</label>
           <select id="mods-type-select">
-            <option value="mods">Mods</option>
-            <option value="modpacks">Modpacks</option>
-            <option value="resourcepacks">Resource Packs</option>
-            <option value="shaderpacks">Shader Packs</option>
+            <option value="mods" data-i18n="mods.typeMods">Mods</option>
+            <option value="modpacks" data-i18n="mods.typeModpacks">Modpacks</option>
+            <option value="resourcepacks" data-i18n="mods.typeResourcePacks">Resource Packs</option>
+            <option value="shaderpacks" data-i18n="mods.typeShaderPacks">Shader Packs</option>
           </select>
 
           <div class="view-toggle">
-            <button id="mods-view-grid-btn" class="view-toggle-btn active" type="button" title="Grid View" aria-label="Grid View">
+            <button id="mods-view-grid-btn" class="view-toggle-btn active" type="button" data-i18n-title="common.gridView" title="Grid View" data-i18n-aria-label="common.gridView" aria-label="Grid View">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="3" y="3" width="7" height="7"/>
                 <rect x="14" y="3" width="7" height="7"/>
@@ -291,7 +291,7 @@
                 <rect x="14" y="14" width="7" height="7"/>
               </svg>
             </button>
-            <button id="mods-view-list-btn" class="view-toggle-btn" type="button" title="List View" aria-label="List View">
+            <button id="mods-view-list-btn" class="view-toggle-btn" type="button" data-i18n-title="common.listView" title="List View" data-i18n-aria-label="common.listView" aria-label="List View">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="3" y="4" width="18" height="4"/>
                 <rect x="3" y="10" width="18" height="4"/>
@@ -301,28 +301,28 @@
           </div>
 
           <div id="mods-action-buttons" class="versions-action-buttons">
-            <button id="export-modpack-btn" class="icon-btn action-overflow-source" type="button" title="Export modpack (.hlmp, .mrpack, .zip)" aria-label="Export modpack">
+            <button id="export-modpack-btn" class="icon-btn action-overflow-source" type="button" data-i18n-title="mods.exportModpackTooltip" title="Export modpack (.hlmp, .mrpack, .zip)" data-i18n-aria-label="mods.exportModpackAria" aria-label="Export modpack">
               <img class="action-icon" src="assets/images/export_version.png" alt=""/>
             </button>
-            <button id="import-modpack-btn" class="icon-btn action-overflow-source" type="button" title="Import modpack (.hlmp, .mrpack, .zip)" aria-label="Import modpack">
+            <button id="import-modpack-btn" class="icon-btn action-overflow-source" type="button" data-i18n-title="mods.importModpackTooltip" title="Import modpack (.hlmp, .mrpack, .zip)" data-i18n-aria-label="mods.importModpackAria" aria-label="Import modpack">
               <img class="action-icon" src="assets/images/import_version.png" alt=""/>
             </button>
             <input type="file" id="import-modpack-file-input" accept=".hlmp,.mrpack,.zip" hidden>
-            <button id="import-mod-btn" class="icon-btn action-overflow-source" type="button" title="Import custom mod archive" aria-label="Import mod archive">
+            <button id="import-mod-btn" class="icon-btn action-overflow-source" type="button" data-i18n-title="mods.importModTooltip" title="Import custom mod archive" data-i18n-aria-label="mods.importModAria" aria-label="Import mod archive">
               <img class="action-icon" src="assets/images/import_jar.png" alt=""/>
             </button>
-            <button id="mods-actions-overflow-btn" class="icon-btn actions-overflow-trigger hidden" type="button" title="More mod actions" aria-label="More mod actions">
-              <img style="width:48px;height:48px;" src="assets/images/folder.png" alt="more mod actions"/>
+            <button id="mods-actions-overflow-btn" class="icon-btn actions-overflow-trigger hidden" type="button" data-i18n-title="mods.moreActionsTooltip" title="More mod actions" data-i18n-aria-label="mods.moreActionsTooltip" aria-label="More mod actions">
+              <img style="width:48px;height:48px;" src="assets/images/folder.png" alt="more mod actions" data-i18n-alt="mods.moreActionsTooltip"/>
             </button>
             <div id="mods-actions-overflow-menu" class="actions-overflow-menu hidden" role="menu" aria-label="Mod actions">
-              <button id="mods-overflow-export-modpack-btn" type="button" class="actions-overflow-icon-btn" title="Export modpack" aria-label="Export modpack">
-                <img src="assets/images/export_version.png" alt="Export modpack"/>
+              <button id="mods-overflow-export-modpack-btn" type="button" class="actions-overflow-icon-btn" data-i18n-title="mods.exportModpackAria" title="Export modpack" data-i18n-aria-label="mods.exportModpackAria" aria-label="Export modpack">
+                <img src="assets/images/export_version.png" alt="Export modpack" data-i18n-alt="mods.exportModpackAria"/>
               </button>
-              <button id="mods-overflow-import-modpack-btn" type="button" class="actions-overflow-icon-btn" title="Import modpack" aria-label="Import modpack">
-                <img src="assets/images/import_version.png" alt="Import modpack"/>
+              <button id="mods-overflow-import-modpack-btn" type="button" class="actions-overflow-icon-btn" data-i18n-title="mods.importModpackAria" title="Import modpack" data-i18n-aria-label="mods.importModpackAria" aria-label="Import modpack">
+                <img src="assets/images/import_version.png" alt="Import modpack" data-i18n-alt="mods.importModpackAria"/>
               </button>
-              <button id="mods-overflow-import-mod-btn" type="button" class="actions-overflow-icon-btn" title="Import mod jar" aria-label="Import mod jar">
-                <img src="assets/images/import_jar.png" alt="Import mod jar"/>
+              <button id="mods-overflow-import-mod-btn" type="button" class="actions-overflow-icon-btn" data-i18n-title="mods.importModJarTooltip" title="Import mod jar" data-i18n-aria-label="mods.importModJarTooltip" aria-label="Import mod jar">
+                <img src="assets/images/import_jar.png" alt="Import mod jar" data-i18n-alt="mods.importModJarTooltip"/>
               </button>
             </div>
             <input type="file" id="import-mod-file-input" accept=".jar,.zip" hidden>
@@ -333,52 +333,52 @@
       <div id="mods-filter-menu" class="info-box mods-filter-menu">
         <div class="mods-filter-grid">
           <div class="mods-filter-item mods-filter-item-search">
-            <label for="mods-search">Search:</label>
-            <input id="mods-search" type="search" placeholder="Search...">
+            <label for="mods-search" data-i18n="common.searchLabel">Search:</label>
+            <input id="mods-search" type="search" data-i18n-placeholder="common.searchPlaceholder" placeholder="Search...">
           </div>
 
           <div id="mods-provider-filter-item" class="mods-filter-item">
-            <label for="mods-provider-select">Provider:</label>
+            <label for="mods-provider-select" data-i18n="mods.providerLabel">Provider:</label>
             <select id="mods-provider-select">
-              <option value="modrinth">Modrinth</option>
-              <option value="curseforge">CurseForge</option>
+              <option value="modrinth" data-i18n="mods.providerModrinth">Modrinth</option>
+              <option value="curseforge" data-i18n="mods.providerCurseforge">CurseForge</option>
             </select>
           </div>
 
           <div id="mods-loader-filter-item" class="mods-filter-item">
-            <label for="mods-loader-select">Mod Loader:</label>
+            <label for="mods-loader-select" data-i18n="mods.modLoaderLabel">Mod Loader:</label>
             <select id="mods-loader-select">
-              <option value="">All</option>
-              <option value="fabric">Fabric</option>
-              <option value="babric">Babric</option>
-              <option value="forge">Forge</option>
-              <option value="modloader">ModLoader</option>
-              <option value="neoforge">NeoForge</option>
-              <option value="quilt">Quilt</option>
+              <option value="" data-i18n="common.all">All</option>
+              <option value="fabric" data-i18n="mods.loaderFabric">Fabric</option>
+              <option value="babric" data-i18n="mods.loaderBabric">Babric</option>
+              <option value="forge" data-i18n="mods.loaderForge">Forge</option>
+              <option value="modloader" data-i18n="mods.loaderModloader">ModLoader</option>
+              <option value="neoforge" data-i18n="mods.loaderNeoforge">NeoForge</option>
+              <option value="quilt" data-i18n="mods.loaderQuilt">Quilt</option>
             </select>
           </div>
 
           <div id="mods-version-filter-item" class="mods-filter-item">
-            <label for="mods-version-select">Minecraft Version:</label>
+            <label for="mods-version-select" data-i18n="mods.versionLabel">Minecraft Version:</label>
             <select id="mods-version-select">
-              <option value="">All</option>
+              <option value="" data-i18n="common.all">All</option>
             </select>
           </div>
 
           <div id="mods-category-filter-item" class="mods-filter-item">
-            <label for="mods-category-select">Category:</label>
+            <label for="mods-category-select" data-i18n="mods.categoryLabel">Category:</label>
             <select id="mods-category-select">
-              <option value="">All</option>
+              <option value="" data-i18n="common.all">All</option>
             </select>
           </div>
 
           <div id="mods-sort-filter-item" class="mods-filter-item">
-            <label for="mods-sort-select">Sort:</label>
+            <label for="mods-sort-select" data-i18n="mods.sortLabel">Sort:</label>
             <select id="mods-sort-select">
-              <option value="relevance">Relevance</option>
-              <option value="downloads">Downloads</option>
-              <option value="name">Name</option>
-              <option value="updated">Recently Updated</option>
+              <option value="relevance" data-i18n="mods.sortRelevance">Relevance</option>
+              <option value="downloads" data-i18n="mods.sortDownloads">Downloads</option>
+              <option value="name" data-i18n="mods.sortName">Name</option>
+              <option value="updated" data-i18n="mods.sortRecentlyUpdated">Recently Updated</option>
             </select>
           </div>
         </div>
@@ -390,19 +390,19 @@
         <section id="installed-mods-section" class="info-box collapsible-section">
           <div class="versions-section-header">
             <div class="versions-section-header-top">
-              <h3 class="section-dropdown-trigger">Installed</h3>
+              <h3 class="section-dropdown-trigger" data-i18n="mods.installedSection">Installed</h3>
               <div class="versions-section-header-actions">
                 <div class="section-bulk-actions">
-                <button id="mods-bulk-toggle-btn" class="mild" type="button" title="Toggle bulk select mode for installed addons">Bulk Select</button>
-                  <button id="mods-bulk-delete-btn" class="danger hidden" type="button" title="Delete selected installed addons" disabled>Delete Selected (0)</button>
-                  <button id="mods-bulk-move-btn" class="important hidden" type="button" title="Move selected installed mods to another loader" disabled>Move Selected (0)</button>
+                <button id="mods-bulk-toggle-btn" class="mild" type="button" data-i18n-title="mods.bulkSelectTooltip" title="Toggle bulk select mode for installed addons" data-i18n="common.bulkSelect">Bulk Select</button>
+                  <button id="mods-bulk-delete-btn" class="danger hidden" type="button" data-i18n-title="mods.bulkDeleteTooltip" title="Delete selected installed addons" data-i18n="mods.deleteSelected" disabled>Delete Selected (0)</button>
+                  <button id="mods-bulk-move-btn" class="important hidden" type="button" data-i18n-title="mods.bulkMoveTooltip" title="Move selected installed mods to another loader" data-i18n="mods.moveSelected" disabled>Move Selected (0)</button>
                 </div>
-                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle installed mods section">
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" data-i18n-aria-label="mods.toggleInstalledAria" aria-label="Toggle installed mods section">
                   <span class="section-dropdown-indicator">v</span>
                 </span>
               </div>
             </div>
-            <span id="installed-mods-subtitle" class="versions-section-subtitle">Your installed addons (0 installed, 0 disabled)</span>
+            <span id="installed-mods-subtitle" class="versions-section-subtitle" data-i18n="mods.installedSubtitle">Your installed addons (0 installed, 0 disabled)</span>
           </div>
           <div class="section-dropdown-body">
             <div id="installed-modpacks-list" class="versions-list"></div>
@@ -413,21 +413,21 @@
         <section id="available-mods-section" class="info-box collapsible-section">
           <div class="versions-section-header">
             <div class="versions-section-header-top">
-              <h3 class="section-dropdown-trigger">Available</h3>
+              <h3 class="section-dropdown-trigger" data-i18n="mods.availableSection">Available</h3>
               <div class="versions-section-header-actions">
-                <button id="mods-refresh-btn" type="button" title="Refresh addon list">Refresh</button>
-                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle available mods section">
+                <button id="mods-refresh-btn" type="button" data-i18n-title="mods.refreshTooltip" title="Refresh addon list" data-i18n="common.refresh">Refresh</button>
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" data-i18n-aria-label="mods.toggleAvailableAria" aria-label="Toggle available mods section">
                   <span class="section-dropdown-indicator">v</span>
                 </span>
               </div>
             </div>
-            <span id="mods-available-subtitle" class="versions-section-subtitle">Mods from <span id="mods-provider-display">Modrinth</span></span>
+            <span id="mods-available-subtitle" class="versions-section-subtitle"><span data-i18n="mods.availableSubtitlePrefix">Mods from </span><span id="mods-provider-display">Modrinth</span></span>
           </div>
           <div class="section-dropdown-body">
             <div id="available-mods-list" class="versions-list"></div>
             <div id="mods-loading" class="mods-loading hidden">
               <img src="assets/images/settings.gif" width="32" height="32" alt="Loading...">
-              <span>Loading...</span>
+              <span data-i18n="common.loading">Loading...</span>
             </div>
             <div id="mods-pagination" class="mods-pagination"></div>
           </div>
@@ -438,11 +438,11 @@
     <!-- WORLDS PAGE -->
     <div id="page-worlds" class="page hidden">
       <div class="versions-header">
-        <h2 class="section-title"><img width="24" height="24" src="assets/images/chest.png" alt=""/><span class="section-title-text">Worlds</span></h2>
+        <h2 class="section-title"><img width="24" height="24" src="assets/images/chest.png" alt=""/><span class="section-title-text" data-i18n="nav.worlds">Worlds</span></h2>
 
         <div id="worlds-topbar-filter" class="versions-filter mods-topbar-filter">
           <div class="view-toggle">
-            <button id="worlds-view-grid-btn" class="view-toggle-btn active" type="button" title="Grid View" aria-label="Grid View">
+            <button id="worlds-view-grid-btn" class="view-toggle-btn active" type="button" data-i18n-title="common.gridView" title="Grid View" data-i18n-aria-label="common.gridView" aria-label="Grid View">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="3" y="3" width="7" height="7"/>
                 <rect x="14" y="3" width="7" height="7"/>
@@ -450,7 +450,7 @@
                 <rect x="14" y="14" width="7" height="7"/>
               </svg>
             </button>
-            <button id="worlds-view-list-btn" class="view-toggle-btn" type="button" title="List View" aria-label="List View">
+            <button id="worlds-view-list-btn" class="view-toggle-btn" type="button" data-i18n-title="common.listView" title="List View" data-i18n-aria-label="common.listView" aria-label="List View">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="3" y="4" width="18" height="4"/>
                 <rect x="3" y="10" width="18" height="4"/>
@@ -460,14 +460,14 @@
           </div>
 
           <div id="worlds-action-buttons" class="versions-action-buttons">
-            <button id="worlds-import-btn" class="icon-btn action-overflow-source" type="button" title="Import a world from a .zip archive" aria-label="Import world">
+            <button id="worlds-import-btn" class="icon-btn action-overflow-source" type="button" data-i18n-title="worlds.importTooltip" title="Import a world from a .zip archive" data-i18n-aria-label="worlds.importAria" aria-label="Import world">
               <img class="action-icon" src="assets/images/import_version.png" alt=""/>
             </button>
-            <button id="worlds-actions-overflow-btn" class="icon-btn actions-overflow-trigger hidden" type="button" title="More world actions" aria-label="More world actions">
+            <button id="worlds-actions-overflow-btn" class="icon-btn actions-overflow-trigger hidden" type="button" data-i18n-title="worlds.moreActionsTooltip" title="More world actions" data-i18n-aria-label="worlds.moreActionsTooltip" aria-label="More world actions">
               <img style="width:48px;height:48px;" src="assets/images/folder.png" alt="more world actions"/>
             </button>
             <div id="worlds-actions-overflow-menu" class="actions-overflow-menu hidden" role="menu" aria-label="World actions">
-              <button id="worlds-overflow-import-btn" type="button" class="actions-overflow-icon-btn" title="Import world" aria-label="Import world">
+              <button id="worlds-overflow-import-btn" type="button" class="actions-overflow-icon-btn" data-i18n-title="worlds.importAria" title="Import world" data-i18n-aria-label="worlds.importAria" aria-label="Import world">
                 <img src="assets/images/import_version.png" alt="Import world"/>
               </button>
             </div>
@@ -478,51 +478,51 @@
       <div id="worlds-filter-menu" class="info-box mods-filter-menu">
         <div class="mods-filter-grid">
           <div class="mods-filter-item mods-filter-item-search">
-            <label for="worlds-search">Search:</label>
-            <input id="worlds-search" type="search" placeholder="Search...">
+            <label for="worlds-search" data-i18n="common.searchLabel">Search:</label>
+            <input id="worlds-search" type="search" data-i18n-placeholder="common.searchPlaceholder" placeholder="Search...">
           </div>
 
           <div class="mods-filter-item">
-            <label for="worlds-provider-select">Provider:</label>
+            <label for="worlds-provider-select" data-i18n="worlds.providerLabel">Provider:</label>
             <select id="worlds-provider-select">
-              <option value="curseforge">CurseForge</option>
+              <option value="curseforge" data-i18n="worlds.providerCurseforge">CurseForge</option>
             </select>
           </div>
 
           <div class="mods-filter-item">
-            <label for="worlds-storage-select">Storage Directory:</label>
+            <label for="worlds-storage-select" data-i18n="worlds.storageDirectoryLabel">Storage Directory:</label>
             <select id="worlds-storage-select"></select>
           </div>
 
           <div id="worlds-custom-filter-item" class="mods-filter-item hidden">
-            <label>Custom Folder:</label>
+            <label data-i18n="worlds.customFolderLabel">Custom Folder:</label>
             <div class="worlds-custom-controls">
-              <button id="worlds-select-storage-folder-btn" type="button">Select Folder</button>
-              <span id="worlds-custom-path">None</span>
+              <button id="worlds-select-storage-folder-btn" type="button" data-i18n="worlds.selectFolder">Select Folder</button>
+              <span id="worlds-custom-path" data-i18n="common.none">None</span>
             </div>
           </div>
 
           <div class="mods-filter-item">
-            <label for="worlds-version-select">Minecraft Version:</label>
+            <label for="worlds-version-select" data-i18n="worlds.versionLabel">Minecraft Version:</label>
             <select id="worlds-version-select">
-              <option value="">All</option>
+              <option value="" data-i18n="common.all">All</option>
             </select>
           </div>
 
           <div class="mods-filter-item">
-            <label for="worlds-category-select">Category:</label>
+            <label for="worlds-category-select" data-i18n="worlds.categoryLabel">Category:</label>
             <select id="worlds-category-select">
-              <option value="">All</option>
+              <option value="" data-i18n="common.all">All</option>
             </select>
           </div>
 
           <div class="mods-filter-item">
-            <label for="worlds-sort-select">Sort:</label>
+            <label for="worlds-sort-select" data-i18n="worlds.sortLabel">Sort:</label>
             <select id="worlds-sort-select">
-              <option value="relevance">Relevance</option>
-              <option value="downloads">Downloads</option>
-              <option value="name">Name</option>
-              <option value="updated">Recently Updated</option>
+              <option value="relevance" data-i18n="worlds.sortRelevance">Relevance</option>
+              <option value="downloads" data-i18n="worlds.sortDownloads">Downloads</option>
+              <option value="name" data-i18n="worlds.sortName">Name</option>
+              <option value="updated" data-i18n="worlds.sortRecentlyUpdated">Recently Updated</option>
             </select>
           </div>
         </div>
@@ -534,18 +534,18 @@
         <section id="installed-worlds-section" class="info-box collapsible-section">
           <div class="versions-section-header">
             <div class="versions-section-header-top">
-              <h3 class="section-dropdown-trigger">Installed</h3>
+              <h3 class="section-dropdown-trigger" data-i18n="worlds.installedSection">Installed</h3>
               <div class="versions-section-header-actions">
                 <div class="section-bulk-actions">
-                  <button id="worlds-bulk-toggle-btn" class="mild" type="button" title="Toggle bulk select mode for installed worlds">Bulk Select</button>
-                  <button id="worlds-bulk-delete-btn" class="danger hidden" type="button" title="Delete selected installed worlds" disabled>Delete Selected (0)</button>
+                  <button id="worlds-bulk-toggle-btn" class="mild" type="button" data-i18n-title="worlds.bulkSelectTooltip" title="Toggle bulk select mode for installed worlds" data-i18n="common.bulkSelect">Bulk Select</button>
+                  <button id="worlds-bulk-delete-btn" class="danger hidden" type="button" data-i18n-title="worlds.bulkDeleteTooltip" title="Delete selected installed worlds" data-i18n="worlds.deleteSelected" disabled>Delete Selected (0)</button>
                 </div>
-                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle installed worlds section">
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" data-i18n-aria-label="worlds.toggleInstalledAria" aria-label="Toggle installed worlds section">
                   <span class="section-dropdown-indicator">v</span>
                 </span>
               </div>
             </div>
-            <span id="installed-worlds-subtitle" class="versions-section-subtitle">Worlds in the selected storage directory</span>
+            <span id="installed-worlds-subtitle" class="versions-section-subtitle" data-i18n="worlds.installedSubtitle">Worlds in the selected storage directory</span>
           </div>
           <div class="section-dropdown-body">
             <div id="installed-worlds-list" class="versions-list"></div>
@@ -555,21 +555,21 @@
         <section id="available-worlds-section" class="info-box collapsible-section">
           <div class="versions-section-header">
             <div class="versions-section-header-top">
-              <h3 class="section-dropdown-trigger">Available</h3>
+              <h3 class="section-dropdown-trigger" data-i18n="worlds.availableSection">Available</h3>
               <div class="versions-section-header-actions">
-                <button id="worlds-refresh-btn" type="button" title="Refresh world list">Refresh</button>
-                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" aria-label="Toggle available worlds section">
+                <button id="worlds-refresh-btn" type="button" data-i18n-title="worlds.refreshTooltip" title="Refresh world list" data-i18n="common.refresh">Refresh</button>
+                <span class="section-dropdown-toggle section-dropdown-trigger" tabindex="0" role="button" aria-expanded="true" data-i18n-aria-label="worlds.toggleAvailableAria" aria-label="Toggle available worlds section">
                   <span class="section-dropdown-indicator">v</span>
                 </span>
               </div>
             </div>
-            <span id="worlds-available-subtitle" class="versions-section-subtitle">Worlds from <span id="worlds-provider-display">CurseForge</span></span>
+            <span id="worlds-available-subtitle" class="versions-section-subtitle"><span data-i18n="worlds.availableSubtitlePrefix">Worlds from </span><span id="worlds-provider-display">CurseForge</span></span>
           </div>
           <div class="section-dropdown-body">
             <div id="available-worlds-list" class="versions-list"></div>
             <div id="worlds-loading" class="mods-loading hidden">
               <img src="assets/images/settings.gif" width="32" height="32" alt="Loading...">
-              <span>Loading...</span>
+              <span data-i18n="common.loading">Loading...</span>
             </div>
             <div id="worlds-pagination" class="mods-pagination"></div>
           </div>
@@ -580,166 +580,258 @@
     <!-- SETTINGS PAGE -->
     <div id="page-settings" class="page hidden">
       <div class="versions-header">
-        <h2 class="section-title"><img width="24" height="24" src="assets/images/settings.gif" alt=""/><span class="section-title-text">Settings</span></h2>
+        <h2 class="section-title"><img width="24" height="24" src="assets/images/settings.gif" alt=""/><span class="section-title-text" data-i18n="nav.settings">Settings</span></h2>
         <div class="versions-filter settings-top-filter">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Profiles keep separate launcher settings and account sessions.\n\nDefault is created automatically. Use the [+ Add new profile] to create and switch between profiles."/>
-          <label for="settings-profile-select">Profile:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.profile.tooltip" data-tooltip="Profiles keep separate launcher settings and account sessions.\n\nDefault is created automatically. Use the [+ Add new profile] to create and switch between profiles."/>
+          <label for="settings-profile-select" data-i18n="settings.profile.label">Profile:</label>
           <select id="settings-profile-select"></select>
-          <button id="settings-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" type="button" title="Rename active profile" aria-label="Rename profile">
+          <button id="settings-profile-edit-btn" class="icon-button profile-action-btn profile-edit-btn" type="button" data-i18n-title="settings.profile.renameTitle" title="Rename active profile" data-i18n-aria-label="settings.profile.renameAria" aria-label="Rename profile">
             <img id="settings-profile-edit-icon" src="assets/images/unfilled_pencil.png" alt="rename profile"/>
           </button>
-          <button id="settings-profile-delete-btn" class="icon-button profile-delete-btn" type="button" title="Delete active profile" aria-label="Delete profile">
+          <button id="settings-profile-delete-btn" class="icon-button profile-delete-btn" type="button" data-i18n-title="settings.profile.deleteTitle" title="Delete active profile" data-i18n-aria-label="settings.profile.deleteAria" aria-label="Delete profile">
             <img id="settings-profile-delete-icon" src="assets/images/unfilled_delete.png" alt="delete profile"/>
           </button>
         </div>
       </div>
 
       <br>
-      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true">Account <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
+      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true"><span data-i18n="settings.sections.account">Account</span> <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
       <div class="settings-dropdown-content">
         <br>
 
         <div class="row" id="username-row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Your in-game username (3-16 characters)"/>
-          <label><span class="invalid-indicator hidden" title="Username must be 3-16 characters long!">⚠ </span>Username:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.account.usernameTooltip" data-tooltip="Your in-game username (3-16 characters)"/>
+          <label><span class="invalid-indicator hidden" data-i18n-title="settings.account.usernameInvalidTitle" title="Username must be 3-16 characters long!">⚠ </span><span data-i18n="settings.account.username">Username:</span></label>
           <input type="text" id="settings-username" maxlength="16" size="15"/>
         </div>
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Local: This is the default, no custom skins can be set.\n\nHistolauncher: Personal account, your own custom skin customizeable from the website."/>
-          <label>Account Type:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.account.accountTypeTooltip" data-tooltip="Local: This is the default, no custom skins can be set.\n\nHistolauncher: Personal account, your own custom skin customizeable from the website.\n\nMicrosoft: Official Minecraft account login for online play."/>
+          <label data-i18n="settings.account.accountType">Account Type:</label>
           <select id="settings-account-type">
-            <option value="Local">Local</option>
-            <option value="Histolauncher">Histolauncher</option>
+            <option value="Local" data-i18n="settings.account.typeLocal">Local</option>
+            <option value="Histolauncher" data-i18n="settings.account.typeHistolauncher">Histolauncher</option>
+            <option value="Microsoft" data-i18n="settings.account.typeMicrosoft">Microsoft</option>
           </select>
-          <button id="connect-account-btn" class="primary" type="button" style="margin-left:12px; display:none;">Connect Account</button>
-          <button id="disconnect-account-btn" class="danger" type="button" style="margin-left:8px; display:none;">Disconnect</button>
+          <button id="connect-account-btn" class="primary" type="button" style="margin-left:12px; display:none;" data-i18n="settings.account.connect">Connect Account</button>
+          <button id="disconnect-account-btn" class="danger" type="button" style="margin-left:8px; display:none;" data-i18n="settings.account.disconnect">Disconnect</button>
         </div>
         <div class="row hidden" id="settings-account-settings-row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Open your Histolauncher account settings page inside the launcher."/>
-          <label>Account:</label>
-          <button id="settings-account-settings-btn" class="primary" type="button">Account Settings</button>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.account.accountSettingsTooltip" data-tooltip="Open your Histolauncher account settings page inside the launcher."/>
+          <label data-i18n="settings.account.accountLabel">Account:</label>
+          <button id="settings-account-settings-btn" class="primary" type="button" data-i18n="settings.account.accountSettings">Account Settings</button>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.account.playerPreviewTooltip" data-tooltip="Show the player preview with angled body and cape rendering when account textures are available."/>
+          <label data-i18n="settings.account.playerPreview">3D player preview:</label>
+          <input type="checkbox" id="settings-player-preview-3d"/>
         </div>
         <div class="row" id="settings-player-preview-row" style="display:none;">
           <div id="settings-player-preview-box" class="info-box">
-            <img id="settings-player-body-preview" src="assets/images/unknown.png" alt="Player preview" width="64" height="128"/>
-            <img id="settings-player-cape-preview" src="assets/images/unknown.png" alt="Cape preview" width="50" height="80"/>
+            <canvas id="settings-player-3d-canvas" width="220" height="320" style="display:none; cursor:grab; touch-action:none;" data-i18n-title="settings.account.playerRotateTitle" title="Click and drag to rotate"></canvas>
+            <img id="settings-player-body-preview" src="assets/images/unknown.png" alt="Player preview" data-i18n-alt="settings.account.playerPreviewBodyAlt" width="64" height="128"/>
+            <img id="settings-player-cape-preview" src="assets/images/unknown.png" alt="Cape preview" data-i18n-alt="settings.account.playerPreviewCapeAlt" width="50" height="80"/>
           </div>
         </div>
       </div>
 
       <br>
-      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true">Client <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
+      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true"><span data-i18n="settings.sections.appearance">Appearance</span> <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
       <div class="settings-dropdown-content">
         <br>
 
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Minimum RAM allocated to the game\n  - Must be a positive number\n  - Must be smaller than Maximum RAM\n\nExample format: 256, 256M, 2G, etc.\n\n(performance tip: allocate more RAM for better performance, also match it with maximum RAM for less frame drops)"/>
-          <label><span class="invalid-indicator hidden" title="RAM format: number with optional K, M, G, or T suffix (e.g., 2048M, 2G)">⚠ </span>Minimum RAM:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.appearance.themeTooltip" data-tooltip="Choose the launcher color theme."/>
+          <label for="settings-launcher-theme" data-i18n="settings.appearance.theme">Theme:</label>
+          <select id="settings-launcher-theme">
+            <option value="dark" data-i18n="settings.appearance.themes.dark">Dark</option>
+            <option value="light" data-i18n="settings.appearance.themes.light">Light</option>
+            <option value="dark-contrast" data-i18n="settings.appearance.themes.darkContrast">Dark Contrast</option>
+            <option value="light-contrast" data-i18n="settings.appearance.themes.lightContrast">Light Contrast</option>
+            <option value="chocolate-dark" data-i18n="settings.appearance.themes.chocolateDark">Chocolate (Dark)</option>
+            <option value="chocolate-light" data-i18n="settings.appearance.themes.chocolateLight">Chocolate (Light)</option>
+            <option value="strawberry-dark" data-i18n="settings.appearance.themes.strawberryDark">Strawberry (Dark)</option>
+            <option value="strawberry-light" data-i18n="settings.appearance.themes.strawberryLight">Strawberry (Light)</option>
+            <option value="blueberry-dark" data-i18n="settings.appearance.themes.blueberryDark">Blueberry (Dark)</option>
+            <option value="blueberry-light" data-i18n="settings.appearance.themes.blueberryLight">Blueberry (Light)</option>
+            <option value="leaf-dark" data-i18n="settings.appearance.themes.leafDark">Leaf (Dark)</option>
+            <option value="leaf-light" data-i18n="settings.appearance.themes.leafLight">Leaf (Light)</option>
+            <option value="aero-dark" data-i18n="settings.appearance.themes.aeroDark">Aero glass (Dark)</option>
+            <option value="aero-light" data-i18n="settings.appearance.themes.aeroLight">Aero glass (Light)</option>
+          </select>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.appearance.uiSizeTooltip" data-tooltip="Scale launcher text, controls, icons, and navigation."/>
+          <label for="settings-launcher-ui-size" data-i18n="settings.appearance.uiSize">Launcher UI size:</label>
+          <select id="settings-launcher-ui-size">
+            <option value="small" data-i18n="settings.appearance.uiSizes.small">Small</option>
+            <option value="normal" data-i18n="settings.appearance.uiSizes.normal" selected>Normal</option>
+            <option value="large" data-i18n="settings.appearance.uiSizes.large">Large</option>
+            <option value="extra-large" data-i18n="settings.appearance.uiSizes.extraLarge">Extra Large</option>
+          </select>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.appearance.languageTooltip" data-tooltip="Choose the launcher display language."/>
+          <label for="settings-launcher-language" data-i18n="settings.appearance.language">Language:</label>
+          <select id="settings-launcher-language">
+            <option value="en">English</option>
+          </select>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.appearance.densityTooltip" data-tooltip="Choose how much spacing the launcher uses."/>
+          <label for="settings-layout-density" data-i18n="settings.appearance.density">Layout density:</label>
+          <select id="settings-layout-density">
+            <option value="comfortable" data-i18n="settings.appearance.densities.comfortable">Comfortable</option>
+            <option value="compact" data-i18n="settings.appearance.densities.compact">Compact</option>
+          </select>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.appearance.compactSidebarTooltip" data-tooltip="Collapse the sidebar to icons only."/>
+          <label for="settings-compact-sidebar" data-i18n="settings.appearance.compactSidebar">Compact sidebar:</label>
+          <input type="checkbox" id="settings-compact-sidebar"/>
+        </div>
+      </div>
+
+      <br>
+      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true"><span data-i18n="settings.sections.client">Client</span> <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
+      <div class="settings-dropdown-content">
+        <br>
+
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.client.minRamTooltip" data-tooltip="Minimum RAM allocated to the game\n  - Must be a positive number\n  - Must be smaller than Maximum RAM\n\nExample format: 256, 256M, 2G, etc.\n\n(performance tip: allocate more RAM for better performance, also match it with maximum RAM for less frame drops)"/>
+          <label><span class="invalid-indicator hidden" data-i18n-title="settings.client.ramInvalidTitle" title="RAM format: number with optional K, M, G, or T suffix (e.g., 2048M, 2G)">⚠ </span><span data-i18n="settings.client.minRam">Minimum RAM:</span></label>
           <input type="text" id="settings-min-ram" placeholder="2048M" size="5"/>B
         </div>
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Maximum RAM allocated to the game\n  - Must be a positive number\n  - Must be greater than Minimum RAM\n  - Must be at least 1 byte\n\nExample format: 256, 256M, 2G, etc.\n\n(performance tip: allocate more RAM for better performance, also match it with minimum RAM for less frame drops)"/>
-          <label><span class="invalid-indicator hidden" id="max-ram-indicator">⚠ </span>Maximum RAM:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.client.maxRamTooltip" data-tooltip="Maximum RAM allocated to the game\n  - Must be a positive number\n  - Must be greater than Minimum RAM\n  - Must be at least 1 byte\n\nExample format: 256, 256M, 2G, etc.\n\n(performance tip: allocate more RAM for better performance, also match it with minimum RAM for less frame drops)"/>
+          <label><span class="invalid-indicator hidden" id="max-ram-indicator">⚠ </span><span data-i18n="settings.client.maxRam">Maximum RAM:</span></label>
           <input type="text" id="settings-max-ram" placeholder="4096M" size="5"/>B
         </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.client.resolutionTooltip" data-tooltip="Default game window size used for versions that support width and height launch arguments."/>
+          <label data-i18n="settings.client.resolution">Resolution:</label>
+          <input type="number" id="settings-resolution-width" min="1" max="99999" placeholder="854" size="5"/>
+          <span>x</span>
+          <input type="number" id="settings-resolution-height" min="1" max="99999" placeholder="480" size="5"/>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.client.fullscreenTooltip" data-tooltip="Launch supported versions in fullscreen by default."/>
+          <label data-i18n="settings.client.fullscreen">Fullscreen:</label>
+          <input type="checkbox" id="settings-game-fullscreen"/>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.client.demoModeTooltip" data-tooltip="Launch supported versions with Minecraft Demo Mode enabled."/>
+          <label data-i18n="settings.client.demoMode">Demo Mode:</label>
+          <input type="checkbox" id="settings-demo-mode"/>
+        </div>
         <div class="row storage-dir-row" id="settings-storage-row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Global: All game versions share the same data directory.\n\nVersion: Separate game data directory for each version, best used for testing or version sandboxing. (deleting the version also deletes the data)\n\nCustom: Use a folder you choose yourself. The folder must exist before launch."/>
-          <label><span class="invalid-indicator hidden" title="Select a valid custom storage folder before launching.">⚠ </span>Storage directory:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.client.storageDirTooltip" data-tooltip="Global: All game versions share the same data directory.\n\nVersion: Separate game data directory for each version, best used for testing or version sandboxing. (deleting the version also deletes the data)\n\nCustom: Use a folder you choose yourself. The folder must exist before launch."/>
+          <label><span class="invalid-indicator hidden" data-i18n-title="settings.client.storageInvalidTitle" title="Select a valid custom storage folder before launching.">⚠ </span><span data-i18n="settings.client.storageDir">Storage directory:</span></label>
           <select id="settings-storage-dir">
-            <option value="global">Global</option>
-            <option value="version">Version</option>
-            <option value="custom">Custom</option>
+            <option value="global" data-i18n="settings.client.storageGlobal">Global</option>
+            <option value="version" data-i18n="settings.client.storageVersion">Version</option>
+            <option value="custom" data-i18n="settings.client.storageCustom">Custom</option>
           </select>
           <div id="settings-storage-custom-controls" class="hidden">
-            <button id="settings-select-storage-folder-btn" type="button">Select folder</button>
-            <span id="settings-storage-path">None</span>
+            <button id="settings-select-storage-folder-btn" type="button" data-i18n="common.selectFolder">Select folder</button>
+            <span id="settings-storage-path" data-i18n="common.none">None</span>
           </div>
         </div>
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Extra JVM arguments appended to every launch command. Useful for performance tuning or debugging.\n\nExample: -XX:+UseG1GC -XX:MaxGCPauseMillis=50"/>
-          <label>Extra JVM arguments:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.client.extraJvmTooltip" data-tooltip="Extra JVM arguments appended to every launch command. Useful for performance tuning or debugging.\n\nExample: -XX:+UseG1GC -XX:MaxGCPauseMillis=50"/>
+          <label data-i18n="settings.client.extraJvm">Extra JVM arguments:</label>
           <input type="text" id="settings-extra-jvm-args" placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=50" size="46"/>
         </div>
       </div>
 
       <br>
-      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true">Launcher <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
+      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true"><span data-i18n="settings.sections.launcher">Launcher</span> <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
       <div class="settings-dropdown-content">
-        <p class="settings-advanced-warning">WARNING: These are advanced settings that can change the launcher's behavior in unexpected ways!</p>
+        <p class="settings-advanced-warning" data-i18n="settings.launcher.advancedWarning">WARNING: These are advanced settings that can change the launcher's behavior in unexpected ways!</p>
         <br>
 
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Choose which Java runtime to use for Minecraft launches.\n\nAuto inspects the version, tries the matching installed Java first, then climbs through detected Java versions until one works.\n\nDefault (Java PATH) always uses the Java command available on your system PATH."/>
-          <label>Java Runtime:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.launcher.javaRuntimeTooltip" data-tooltip="Choose which Java runtime to use for Minecraft launches.\n\nAuto inspects the version, tries the matching installed Java first, then climbs through detected Java versions until one works.\n\nDefault (Java PATH) always uses the Java command available on your system PATH."/>
+          <label data-i18n="settings.launcher.javaRuntime">Java Runtime:</label>
           <div id="settings-java-runtime-controls">
             <select id="settings-java-runtime"></select>
           </div>
         </div>
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Routes all launcher requests through a proxy server. (having an invalid URL will cause requests to fail, recommended to keep empty)"/>
-          <label>URL Proxy:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.launcher.urlProxyTooltip" data-tooltip="Routes all launcher requests through a proxy server. (having an invalid URL will cause requests to fail, recommended to keep empty)"/>
+          <label data-i18n="settings.launcher.urlProxy">URL Proxy:</label>
           <input type="text" id="settings-url-proxy" placeholder="https://yourproxy.com/?url=" size="40"/>
         </div>
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Downloads ONLY the required client & libraries (no sounds, no extra textures, recommended for slow connections and/or low storage)"/>
-          <label>Low-Data Mode:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.launcher.lowDataTooltip" data-tooltip="Downloads ONLY the required client & libraries (no sounds, no extra textures, recommended for slow connections and/or low storage)"/>
+          <label data-i18n="settings.launcher.lowData">Low-Data Mode:</label>
           <input type="checkbox" id="settings-low-data"/>
         </div>
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Uses aggressive parallel downloads (may cause issues, not recommended unless needed)"/>
-          <label>Fast Download (Experimental):</label>
-          <input type="checkbox" id="settings-fast-download"/>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.launcher.thirdPartyVersionsTooltip" data-tooltip="Show additional community-provided versions from Omniarchive in the Versions list."/>
+          <label data-i18n="settings.launcher.thirdPartyVersions">Show third-party versions:</label>
+          <input type="checkbox" id="settings-show-third-party-versions"/>
         </div>
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Show additional community-provided versions from Omniarchive in the Versions list."/>
-          <label>Show third-party versions:</label>
-          <input type="checkbox" id="settings-show-third-party-versions"/>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.launcher.discordStatusTooltip" data-tooltip="Show Discord Rich Presence while the launcher or game is running."/>
+          <label data-i18n="settings.launcher.discordStatus">Discord status:</label>
+          <input type="checkbox" id="settings-discord-rpc"/>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.launcher.desktopNotificationsTooltip" data-tooltip="Allow launcher desktop notifications."/>
+          <label data-i18n="settings.launcher.desktopNotifications">Desktop notifications:</label>
+          <input type="checkbox" id="settings-desktop-notifications"/>
         </div>
       </div>
 
       <br>
-      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true">Mods <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
+      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true"><span data-i18n="settings.sections.mods">Mods</span> <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
       <div class="settings-dropdown-content">
         <br>
 
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="When enabled, the mod-level 'Overwrite classes' option can be used for all supported mod loaders.\n\nWhen disabled, overwrite classes remains limited to legacy ModLoader behavior only."/>
-          <label>Allow overwrite classpath for all modloaders:</label>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.mods.overwriteClasspathTooltip" data-tooltip="When enabled, the mod-level 'Overwrite classes' option can be used for all supported mod loaders.\n\nWhen disabled, overwrite classes remains limited to legacy ModLoader behavior only."/>
+          <label data-i18n="settings.mods.overwriteClasspath">Allow overwrite classpath for all modloaders:</label>
           <input type="checkbox" id="settings-allow-override-classpath-all-modloaders"/>
         </div>
       </div>
 
       <br>
-      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true">Data & Storage <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
+      <h3 class="settings-dropdown-title" role="button" tabindex="0" aria-expanded="true"><span data-i18n="settings.sections.dataStorage">Data & Storage</span> <span class="dropdown-indicator" aria-hidden="true">⏷</span></h3>
       <div class="settings-dropdown-content">
         <br>
 
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Opens up Histolauncher's data folder (\`~/.histolauncher\`)"/>
-          <label>Data Folder:</label>
-          <button id="open-data-folder-btn" type="button">Open Data Folder</button>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.dataStorage.dataFolderTooltip" data-tooltip="Opens up Histolauncher's data folder (\`~/.histolauncher\`)"/>
+          <label data-i18n="settings.dataStorage.dataFolder">Data Folder:</label>
+          <button id="open-data-folder-btn" type="button" data-i18n="settings.dataStorage.openDataFolder">Open Data Folder</button>
         </div>
         <div class="row">
-          <img class="info-bubble" src="assets/images/info.png" alt="i" data-tooltip="Clears all log files of both clients and the launcher (helps free up disk space)"/>
-          <label>Logs:</label>
-          <button id="clear-logs-btn" class="danger" type="button">Clear Logs</button>
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.dataStorage.logsTooltip" data-tooltip="Clears all log files of both clients and the launcher (helps free up disk space)"/>
+          <label data-i18n="settings.dataStorage.logs">Logs:</label>
+          <button id="clear-logs-btn" class="danger" type="button" data-i18n="settings.dataStorage.clearLogs">Clear Logs</button>
+        </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.dataStorage.diagnosticsTooltip" data-tooltip="Builds a redacted launcher diagnostics report with system, Java, version, add-on, and recent log metadata for troubleshooting."/>
+          <label data-i18n="settings.dataStorage.diagnostics">Diagnostics:</label>
+          <button id="copy-diagnostics-btn" type="button" data-i18n="settings.dataStorage.copyDiagnostics">Copy Report</button>
+          <button id="save-diagnostics-btn" type="button" data-i18n="settings.dataStorage.saveDiagnostics">Save Report</button>
         </div>
       </div>
     </div>
 
     <!-- ABOUT PAGE -->
     <div id="page-about" class="page hidden">
-      <h2 class="section-title"><img width="24" height="24" src="assets/images/unknown.png" alt=""/><span class="section-title-text">About</span></h2>
+      <h2 class="section-title"><img width="24" height="24" src="assets/images/unknown.png" alt=""/><span class="section-title-text" data-i18n="nav.about">About</span></h2>
       <br>
 
       <p>
-        Histolauncher is a lightweight, community-driven launcher built to grow and help users play any versions of Minecraft they like. It provides a clean, modern interface for browsing and launching a massive library of Minecraft clients, all officially from Mojang!
+        <span data-i18n="about.intro">Histolauncher is a lightweight, community-driven launcher built to grow and help users play any versions of Minecraft they like. It provides a clean, modern interface for browsing and launching a massive library of Minecraft clients, all officially from Mojang!</span>
         <br><br>
-        The goal is simple: make it easy for anyone to play any Minecraft version offline without having to risk searching for 100% clean launcher. Everything is organized, searchable, and ready to download & launch with just a few clicks.
+        <span data-i18n="about.goal">The goal is simple: make it easy for anyone to play any Minecraft version offline without having to risk searching for 100% clean launcher. Everything is organized, searchable, and ready to download & launch with just a few clicks.</span>
         <br><br>
-        If you'd like to contribute, report issues, or help expand support for more versions, you're invited to join the project on GitHub: <a href="https://github.com/KerbalOfficial/Histolauncher/" target="_blank" rel="noopener noreferrer">Histolauncher GitHub</a>
+        <span data-i18n="about.contribute">If you'd like to contribute, report issues, or help expand support for more versions, you're invited to join the project on GitHub:</span> <a href="https://github.com/KerbalOfficial/Histolauncher/" target="_blank" rel="noopener noreferrer" data-i18n="about.githubLink">Histolauncher GitHub</a>
         <br><br>
-        Histolauncher is a passion project - built for easy access to Minecraft clients with offline-mode support. Enjoy playing Minecraft!
+        <span data-i18n="about.outro">Histolauncher is a passion project - built for easy access to Minecraft clients with offline-mode support. Enjoy playing Minecraft!</span>
       </p>
     </div>
 
@@ -755,6 +847,7 @@
     </div>
   </div>
 
+  <script src="assets/vendor/skinview3d.bundle.js"></script>
   <script type="module" src="app.js"></script>
 </body>
 </html>

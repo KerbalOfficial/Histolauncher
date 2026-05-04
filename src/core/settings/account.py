@@ -28,7 +28,7 @@ __all__ = [
 
 _TOKEN_HEADER = (
     b"# WARNING: DO NOT SHARE THIS TOKEN!\n"
-    b"# ANYONE THAT HAS HOLD OF IT CAN TAKE YOUR HISTOLAUNCHER ACCOUNT!\n\n"
+    b"# ANYONE THAT HAS HOLD OF IT CAN ACCESS YOUR LAUNCHER ACCOUNT SESSION!\n\n"
     b"# Keep this file secure and never share it with anyone!!!\n"
 )
 

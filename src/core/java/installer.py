@@ -137,12 +137,12 @@ def suggest_java_feature_version(required_major: int) -> int:
 
 def get_java_install_options() -> list[dict[str, Any]]:
     descriptions = {
-        8: "Minecraft oldest - 1.16.5",
-        11: "Compatibility for mods/tools",
-        16: "Minecraft 1.17 - 1.17.1",
-        17: "Minecraft 1.18 - 1.20.4",
-        21: "Minecraft 1.20.5 - 1.21.11",
-        25: "Minecraft 26.1 - latest",
+        8: "Minecraft | ≤ 1.16.5",
+        11: "etc.",
+        16: "Minecraft | 1.17 - 1.17.1",
+        17: "Minecraft | 1.18 - 1.20.4",
+        21: "Minecraft | 1.20.5 - 1.21.11",
+        25: "Minecraft | 26.1 ≥",
     }
     recommended = {8, 25}
     return [

@@ -9,8 +9,8 @@
 }
 
 *::-webkit-scrollbar-thumb {
-  background: var(--color-border-soft);
-  border: 2px solid var(--color-border-default);
+  background: var(--color-scrollbar-thumb);
+  border: 2px solid var(--color-scrollbar-thumb-border);
   background-clip: padding-box !important;
 }
 

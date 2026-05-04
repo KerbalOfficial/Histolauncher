@@ -34,7 +34,6 @@ def _fc_query_family(font_file: str) -> str:
             timeout=5,
         )
         if result.returncode == 0 and result.stdout.strip():
-            # fontconfig may return "Name,LocalisedName" — take the first token
             first_line = result.stdout.strip().split("\n")[0]
             family = first_line.split(",")[0].strip()
             if family:
@@ -64,7 +63,6 @@ def preinstall_linux_font(
     )
     dest = os.path.join(fonts_dir, os.path.basename(font_path))
 
-    # Fast path: we already copied the file on a previous run.
     if os.path.isfile(dest):
         detected = _fc_query_family(dest)
         if detected:
@@ -73,7 +71,6 @@ def preinstall_linux_font(
             print(colorize_log(f"[launcher] UI font already installed (family: '{detected}')"))
             return True
 
-    # Fast path: family is already known to fontconfig (e.g. system-wide install).
     try:
         result = subprocess.run(
             ["fc-list", f":family={family_name}"],
@@ -90,11 +87,9 @@ def preinstall_linux_font(
     except Exception:
         pass
 
-    # Install into user font directory and rebuild cache.
     try:
         os.makedirs(fonts_dir, exist_ok=True)
         shutil.copy2(font_path, dest)
-        # Rebuild only the user font dir (faster than fc-cache -f globally).
         subprocess.run(
             ["fc-cache", "-f", fonts_dir],
             capture_output=True,
@@ -182,6 +177,4 @@ def get_native_ui_font_family(root, fallbacks=("Segoe UI", "TkDefaultFont")):
     return remember_native_ui_font_family(fallbacks[0])
 
 
-# Keep a Tk-free reference accessible to tests (``tkinter`` is imported above
-# so module import itself remains side-effect free apart from font discovery).
 _TK_AVAILABLE = bool(tkinter)

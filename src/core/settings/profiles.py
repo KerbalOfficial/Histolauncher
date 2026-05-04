@@ -431,10 +431,17 @@ def delete_profile(profile_id: str) -> bool:
         meta["active"] = "default"
     _save_profiles_meta(meta)
 
-    for path in (_profile_settings_file(pid), _profile_token_file(pid)):
+    for path in (
+        _profile_settings_file(pid),
+        _profile_token_file(pid),
+        os.path.join(get_profiles_settings_dir(), "libraryskins", pid),
+        os.path.join(get_profiles_settings_dir(), "texturecache", pid),
+    ):
         try:
             if os.path.isfile(path):
                 os.remove(path)
+            elif os.path.isdir(path):
+                shutil.rmtree(path)
         except OSError:
             pass
     return True

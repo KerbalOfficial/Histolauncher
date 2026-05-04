@@ -7,6 +7,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import zlib
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,22 @@ def _build_unverified_context() -> ssl.SSLContext:
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
     return context
+
+
+def _decode_content_encoding(body: bytes, content_encoding: str | None) -> bytes:
+    encoding = str(content_encoding or "").strip().lower()
+    if not encoding:
+        return body
+
+    # Handle single or chained encodings (e.g. "gzip, deflate") in reverse order.
+    parts = [part.strip() for part in encoding.split(",") if part.strip()]
+    decoded = body
+    for part in reversed(parts):
+        if part == "gzip":
+            decoded = zlib.decompress(decoded, zlib.MAX_WBITS | 16)
+        elif part == "deflate":
+            decoded = zlib.decompress(decoded)
+    return decoded
 
 
 class HttpClient:
@@ -134,13 +151,22 @@ class HttpClient:
         last_error: BaseException | None = None
         last_status: int | None = None
         attempts = 0
+        used_insecure = False
+
+        merged_headers: dict[str, str] = {}
+        if headers:
+            merged_headers.update({str(k): str(v) for k, v in headers.items()})
+        merged_headers.setdefault("Accept-Encoding", "identity")
 
         for candidate, attempt in self._iter_attempts(url):
             attempts += 1
             tmp_path: Path | None = None
+            context: ssl.SSLContext | None = None
+            if used_insecure and candidate.lower().startswith("https://"):
+                context = _build_unverified_context()
             try:
-                req = self._build_request(candidate, headers)
-                with urllib.request.urlopen(req, timeout=effective_timeout) as resp:
+                req = self._build_request(candidate, merged_headers)
+                with urllib.request.urlopen(req, timeout=effective_timeout, context=context) as resp:
                     last_status = getattr(resp, "status", None)
                     total = int(resp.headers.get("Content-Length") or -1)
                     written = 0
@@ -162,6 +188,17 @@ class HttpClient:
                                 on_progress(written, total)
                     os.replace(tmp_path, dest)
                     return written
+            except ssl.SSLError as exc:
+                if tmp_path is not None:
+                    try:
+                        tmp_path.unlink(missing_ok=True)
+                    except OSError:
+                        pass
+                last_error = exc
+                if self._allow_insecure_fallback and not used_insecure:
+                    used_insecure = True
+                    continue
+                self._sleep_for_attempt(attempt)
             except Exception as exc:  # noqa: BLE001
                 if tmp_path is not None:
                     try:
@@ -207,7 +244,12 @@ class HttpClient:
                 req = self._build_request(candidate, headers)
                 with urllib.request.urlopen(req, timeout=effective_timeout, context=context) as resp:
                     last_status = getattr(resp, "status", None)
-                    return resp.read()
+                    raw = resp.read()
+                    try:
+                        return _decode_content_encoding(raw, resp.headers.get("Content-Encoding"))
+                    except (zlib.error, OSError):
+                        # If decoding fails, return raw bytes and let callers decide.
+                        return raw
             except ssl.SSLError as exc:
                 last_error = exc
                 if self._allow_insecure_fallback and not used_insecure:
@@ -232,7 +274,7 @@ class HttpClient:
         url: str,
         headers: Mapping[str, str] | None,
     ) -> urllib.request.Request:
-        merged: dict[str, str] = {"User-Agent": self._user_agent}
+        merged: dict[str, str] = {"User-Agent": self._user_agent, "Accept-Encoding": "gzip, deflate"}
         if headers:
             merged.update({str(k): str(v) for k, v in headers.items()})
         return urllib.request.Request(url, headers=merged)
