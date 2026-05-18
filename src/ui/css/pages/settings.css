@@ -10,6 +10,16 @@
   flex-wrap: wrap;
 }
 
+.row.auto-optimize-controlled-setting.auto-optimize-disabled-setting {
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.row.auto-optimize-controlled-setting.auto-optimize-disabled-setting input:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+}
+
 .row label {
   min-width: 90px;
   color: var(--color-text-muted);
@@ -242,4 +252,198 @@ select.invalid-setting {
 .row-invalid label,
 .home-info-error .tooltip-label {
   color: var(--color-error);
+}
+
+/* PLAYTIME SETTINGS SECTION */
+.settings-playtime-value {
+  color: var(--color-text-primary);
+  font-weight: bold;
+}
+
+.settings-playtime-empty {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 13px;
+  margin: 0 0 8px 0;
+}
+
+#settings-playtime-stats .row {
+  margin-bottom: 18px;
+}
+
+.playtime-detail-btn-row {
+  margin-top: 4px;
+  margin-bottom: 4px !important;
+}
+
+/* PLAYTIME DETAIL MODAL */
+.playtime-detail-dialog {
+  width: min(680px, 92vw);
+}
+
+.playtime-detail-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: min(500px, 80vw);
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.playtime-detail-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.playtime-detail-filter-row select {
+  background: var(--color-surface-input);
+  border: 1px solid var(--color-border-input);
+  color: var(--color-text-primary);
+  padding: 4px 8px;
+  font-size: 13px;
+  min-width: 140px;
+}
+
+.playtime-detail-list {
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.playtime-detail-empty {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-size: 13px;
+  margin: 4px 0;
+}
+
+.playtime-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.playtime-detail-table th {
+  text-align: left;
+  padding: 6px 10px;
+  color: var(--color-text-title);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-bottom: 2px solid var(--color-border-strong);
+  position: sticky;
+  top: 0;
+  background: var(--color-surface-card);
+  z-index: 1;
+  user-select: none;
+}
+
+.playtime-sort-th:hover {
+  background: var(--color-surface-card-hover);
+}
+
+.playtime-sort-th:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.playtime-detail-table thead tr:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
+}
+
+.playtime-sort-th.active {
+  color: var(--color-text-primary);
+}
+
+.sort-arrow {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.playtime-sort-th.active .sort-arrow {
+  opacity: 1;
+}
+
+.playtime-detail-table td {
+  padding: 7px 10px;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border-muted);
+  vertical-align: middle;
+}
+
+.playtime-detail-table tbody tr:hover td {
+  background: var(--color-surface-card-hover);
+}
+
+.playtime-detail-loader-badge {
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.playtime-detail-no-loader {
+  color: var(--color-text-faint);
+}
+
+.playtime-live-tr td {
+  background: var(--color-live-bg);
+  font-style: italic;
+}
+
+.playtime-live-indicator {
+  color: var(--color-live);
+  font-size: 11px;
+  animation: pt-blink 1.4s step-start infinite;
+}
+
+/* NOW PLAYING + TOTAL ROW */
+.playtime-detail-now-playing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--color-surface-code-inline);
+  border: 1px solid var(--color-border-muted);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.playtime-now-playing-dot {
+  color: var(--color-live);
+  font-size: 11px;
+  animation: pt-blink 1.4s step-start infinite;
+}
+
+@keyframes pt-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+
+.playtime-detail-total-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.playtime-detail-total-label {
+  color: var(--color-text-muted);
+}
+
+.playtime-detail-total-val {
+  color: var(--color-text-primary);
+  font-weight: bold;
+}
+
+.playtime-detail-trunc {
+  color: var(--color-text-faint);
+  font-size: 11px;
+  font-style: italic;
+  text-align: center;
+  margin: 0;
 }

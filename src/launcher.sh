@@ -86,8 +86,11 @@ install_python_packages() {
     else
         echo "Error: Could not detect a supported package manager."
         echo "Please install Python 3, Tkinter, venv, and pip manually."
+        unset PASSWD
         return 1
     fi
+
+    unset PASSWD
 }
 
 PYTHON_CMD=$(find_python)

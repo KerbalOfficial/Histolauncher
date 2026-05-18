@@ -11,6 +11,9 @@ from tkinter import ttk
 from core.subprocess_utils import no_window_kwargs
 from core.logger import colorize_log
 from launcher._constants import (
+    AERO_GLASS_ENABLED,
+    AERO_GLASS_TINT_ABGR,
+    AERO_GLASS_TRANSPARENT_KEY,
     BUTTON_STYLE_MAP,
     FOCUS_COLOR,
     ICO_PATH,
@@ -409,7 +412,7 @@ def install(package, *, display_name: str | None = None):
     root.title(title_text)
     root.geometry(f"{collapsed_size[0]}x{collapsed_size[1]}")
     root.resizable(False, False)
-    root.configure(bg="#000000")
+    root.configure(bg=AERO_GLASS_TRANSPARENT_KEY if AERO_GLASS_ENABLED else "#000000")
     try:
         root.attributes("-topmost", True)
     except Exception:
@@ -443,7 +446,9 @@ def install(package, *, display_name: str | None = None):
         thickness=12,
     )
 
-    outer = tkinter.Frame(root, bg=PANEL_BORDER_COLOR, padx=4, pady=4)
+    _outer_bg = AERO_GLASS_TRANSPARENT_KEY if AERO_GLASS_ENABLED else PANEL_BORDER_COLOR
+    _outer_pad = 12 if AERO_GLASS_ENABLED else 4
+    outer = tkinter.Frame(root, bg=_outer_bg, padx=_outer_pad, pady=_outer_pad)
     outer.pack(fill="both", expand=True)
 
     card = tkinter.Frame(outer, bg=PANEL_BG_COLOR)
@@ -621,6 +626,14 @@ def install(package, *, display_name: str | None = None):
     center_dialog_window(root, owner if not owns_owner else None)
     root.deiconify()
     root.lift()
+    if AERO_GLASS_ENABLED:
+        try:
+            root.update_idletasks()
+            root.wm_attributes("-transparentcolor", AERO_GLASS_TRANSPARENT_KEY)
+            from launcher.win32_glass import apply_acrylic_blur
+            apply_acrylic_blur(root, AERO_GLASS_TINT_ABGR)
+        except Exception:
+            pass
     try:
         root.wait_visibility()
     except Exception:

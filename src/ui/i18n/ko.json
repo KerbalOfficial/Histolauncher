@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "YYYY. MM. DD. HH:mm",
+  "am": "오전",
+  "pm": "오후",
   "nav": {
     "home": "홈",
     "versions": "버전",
     "worlds": "월드",
+    "screenshots": "스크린샷",
     "addons": "애드온",
     "settings": "설정",
-    "about": "정보"
+    "about": "정보",
+    "primaryNavAria": "기본 탐색"
   },
   "common": {
     "none": "없음",
     "unknown": "알 수 없음",
     "all": "모두",
+    "auto": "Auto",
     "defaultName": "기본",
     "loading": "불러오는 중...",
     "refresh": "새로고침",
@@ -70,6 +76,20 @@
     "playerModel": "플레이어 모델",
     "modelWide": "와이드",
     "modelSlim": "슬림",
+    "textureType": "텍스처 유형",
+    "textureDefault": "기본",
+    "textureLegacy": "레거시",
+    "armMirror": "팔 미러",
+    "legMirror": "다리 미러",
+    "mirrorRight": "오른쪽",
+    "mirrorLeft": "왼쪽",
+    "overlayToFirstLayer": "오버레이를 첫 번째 레이어로 적용",
+    "overlayHead": "머리",
+    "overlayBody": "재킷",
+    "overlayRightArm": "오른쪽 소매",
+    "overlayLeftArm": "왼쪽 소매",
+    "overlayRightLeg": "오른쪽 바지",
+    "overlayLeftLeg": "왼쪽 바지",
     "skinFile": "스킨 파일",
     "capeSelection": "망토",
     "skinPreviewAlt": "스킨 미리보기",
@@ -131,12 +151,16 @@
     "versionTooltip": "런처 버전",
     "refreshTooltip": "값 새로고침 (페이지를 새로고침하려면 Shift 키를 누르세요)",
     "refreshAria": "새로고침",
-    "profileTooltip": "Histolauncher 계정",
     "refreshAlt": "새로 고침",
-    "profileAlt": "프로필"
+    "profileAlt": "프로필",
+    "profileTooltip": "Histolauncher 계정"
   },
   "home": {
     "launchButton": "실행",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "메시지 닫기"
+    },
     "info": {
       "version": "버전",
       "noneSelected": "(선택 안 함)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "현재 다운로드 중인 버전입니다.",
     "availableSubtitle": "설치 가능한 버전",
     "deleteSelected": "선택 삭제 (0)",
+    "actionsMenuAria": "버전 작업",
     "profile": {
       "renameTooltip": "활성 버전 프로필 이름 변경",
       "renameAria": "버전 프로필 이름 변경",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "최소 RAM 재정의",
       "maximumRamOverride": "최대 RAM 재정의",
       "resolutionOverride": "해상도 재정의",
-      "javaRuntimePathOverride": "Java 런타임 경로 재정의",
+      "javaRuntimeOverride": "Java 런타임 경로 재정의",
       "extraJvmArgumentsOverride": "추가 JVM 인수 재정의",
       "versionImageFile": "버전 이미지 파일 (선택 사항, PNG/JPG)",
       "failedReadImageData": "이미지 데이터를 읽지 못했습니다",
@@ -356,6 +381,18 @@
       "successTitle": "내보내기 성공!",
       "successMessage": "파일이 저장되었습니다:<br><b>{filepath}</b><br><br>파일 크기<br><b>{size} MB</b>",
       "unexpectedError": "내보내는 중 오류가 발생했습니다:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "다운로드 순",
     "sortName": "이름 순",
     "sortRecentlyUpdated": "최근 업데이트 순",
+    "actionsMenuAria": "모드 작업",
     "profile": {
       "renameTooltip": "활성 애드온 프로필 이름 변경",
       "renameAria": "애드온 프로필 이름 변경",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "\"{file}\"의 모드 로더를 선택하세요:"
+      "selectLoaderForFile": "\"{file}\"의 모드 로더를 선택하세요:",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "설치됨",
@@ -554,6 +593,14 @@
       "unexpectedError": "예기치 않은 설치 오류",
       "unexpectedForAddon": "{addon}을(를) 설치하는 중 예기치 않은 오류가 발생했습니다."
     },
+    "dependencies": {
+      "title": "모드 의존성",
+      "checking": "의존성 확인 중...",
+      "prompt": "이 모드가 제대로 작동하려면 의존성이 필요합니다. 설치할 의존성을 선택하세요:",
+      "installSelected": "선택 항목 설치",
+      "installing": "의존성 설치 중...",
+      "required": "필수"
+    },
     "exportModpack": {
       "title": "모드팩 내보내기",
       "selectFormat": "내보낼 모드팩 형식을 선택하세요:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "{provider}의 월드",
     "deleteSelected": "선택 삭제 (0)",
     "deleteSelectedCount": "선택 삭제 ({count})",
+    "actionsMenuAria": "월드 작업",
     "importTooltip": ".zip 아카이브에서 월드 가져오기",
     "importAria": "월드 가져오기",
     "moreActionsTooltip": "추가 월드 작업",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "월드 에디터 불러오는 중...",
       "editWorldTitle": "월드 편집: {world}",
+      "failedNbtLoad": "월드 NBT 데이터를 불러오지 못했습니다.",
       "worldFallback": "월드",
       "thisWorld": "이 월드",
       "primaryPlayer": "기본 플레이어",
@@ -933,8 +982,7 @@
       "saving": "월드 에디터 변경 사항을 저장하는 중...",
       "failedSaveNbt": "월드 NBT 데이터를 저장하지 못했습니다.",
       "renameFailedAfterNbt": "NBT 데이터는 저장되었지만, 월드 폴더 이름 변경에 실패했습니다: {error}",
-      "iconFailedAfterSave": "월드 데이터는 저장되었지만 아이콘 교체에 실패했습니다: {error}",
-      "failedNbtLoad": "월드 NBT 데이터를 불러오지 못했습니다."
+      "iconFailedAfterSave": "월드 데이터는 저장되었지만 아이콘 교체에 실패했습니다: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "실행 중...",
     "launchingTimed": "실행 중... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Java 런타임 필요",
     "javaRequiredMessage": "호환되는 Java 런타임이 필요합니다.",
     "downloadJava": "Java 다운로드",
@@ -1022,6 +1077,76 @@
       "generic": "로더",
       "vanilla": "바닐라(Vanilla)",
       "none": "없음 (모드 로더 없음)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "이미지",
+    "imagesSubtitleDefault": "사용 가능한 저장소 디렉토리 전체의 이미지",
+    "imagesSubtitle": "{storage}에 이미지 {count}개",
+    "itemFallback": "스크린샷",
+    "refreshTooltip": "스크린샷 목록 새로고침",
+    "bulkSelectTooltip": "스크린샷 일괄 선택 모드 전환",
+    "bulkDeleteTooltip": "선택한 스크린샷 삭제",
+    "toggleImagesAria": "스크린샷 섹션 접기/펼치기",
+    "favoriteAlt": "즐겨찾기",
+    "list": {
+      "loading": "스크린샷 불러오는 중...",
+      "failedLoadInstalled": "스크린샷을 불러오지 못했습니다.",
+      "emptyInstalled": "스크린샷을 찾을 수 없습니다"
+    },
+    "actions": {
+      "openImage": "스크린샷 {name} 열기",
+      "closeImagePreview": "스크린샷 미리보기 닫기",
+      "toggleSelection": "스크린샷 {name} 선택 전환",
+      "toggleFavorite": "스크린샷 {name} 즐겨찾기 전환",
+      "renameImage": "스크린샷 {name} 이름 바꾸기",
+      "deleteImage": "스크린샷 {name} 삭제",
+      "saveAs": "다른 이름으로 저장",
+      "editImageButton": "열기"
+    },
+    "favorite": {
+      "saveFailedTitle": "즐겨찾기 저장 실패",
+      "saveFailed": "스크린샷 즐겨찾기를 저장하지 못했습니다: {error}"
+    },
+    "rename": {
+      "title": "스크린샷 이름 바꾸기",
+      "prompt": "이 스크린샷의 새 이름을 선택하세요.",
+      "keepExtension": "{extension} 파일 확장자는 그대로 유지됩니다.",
+      "invalidTitle": "잘못된 스크린샷 이름",
+      "invalidMessage": "스크린샷 이름을 입력하세요.",
+      "failedTitle": "이름 바꾸기 실패",
+      "failedMessage": "스크린샷 이름을 바꾸지 못했습니다."
+    },
+    "delete": {
+      "title": "스크린샷 삭제",
+      "confirmMessage": "{name}을(를) 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+      "failedTitle": "삭제 실패",
+      "failedMessage": "스크린샷을 삭제하지 못했습니다."
+    },
+    "edit": {
+      "failedTitle": "열기 실패",
+      "failedMessage": "스크린샷을 열지 못했습니다."
+    },
+    "saveAs": {
+      "failedTitle": "저장 실패",
+      "failedMessage": "스크린샷을 저장하지 못했습니다: {error}",
+      "fileTypeDescription": "이미지 파일",
+      "missingFile": "스크린샷 파일을 찾을 수 없습니다."
+    },
+    "bulkDelete": {
+      "title": "스크린샷 일괄 삭제",
+      "deleteSelectedCount": "선택 삭제 ({count})",
+      "noSelected": "먼저 하나 이상의 스크린샷을 선택하세요.",
+      "confirmMessage": "선택한 {count}개의 스크린샷을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.",
+      "deletingProgress": "스크린샷 삭제 중... ({current}/{total})",
+      "cancelling": "스크린샷 삭제 취소 중...",
+      "cancelledTitle": "일괄 삭제 취소됨",
+      "cancelledMessage": "취소 전까지 {deleted}개의 스크린샷이 삭제되었습니다.",
+      "cancelledWithFailures": "취소 전까지 {deleted}개의 스크린샷이 삭제되었습니다. {failures}개의 스크린샷 삭제에 실패했습니다.",
+      "completeTitle": "일괄 삭제 완료",
+      "completeMessage": "{deleted}개의 스크린샷을 삭제했습니다.",
+      "finishedWithErrorsTitle": "오류와 함께 일괄 삭제 완료",
+      "finishedWithErrorsMessage": "{deleted}개의 스크린샷을 삭제했습니다.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "클라이언트",
       "launcher": "런처",
       "mods": "모드",
-      "dataStorage": "데이터 & 저장소"
+      "dataStorage": "데이터 & 저장소",
+      "playtime": "플레이 시간"
+    },
+    "playtime": {
+      "noData": "아직 기록된 세션이 없습니다. 버전을 플레이하여 추적을 시작하세요!",
+      "total": "총 플레이 시간:",
+      "totalTooltip": "모든 세션의 총 플레이 시간.",
+      "sessions": "플레이 세션 수:",
+      "sessionsTooltip": "게임을 실행한 횟수.",
+      "mostPlayed": "가장 많이 플레이한 버전:",
+      "mostPlayedTooltip": "가장 많은 시간을 보낸 버전.",
+      "longest": "가장 긴 세션:",
+      "longestTooltip": "가장 긴 단일 플레이 세션.",
+      "average": "평균 세션:",
+      "averageTooltip": "모든 플레이 세션의 평균 시간.",
+      "moreDetails": "자세히 보기",
+      "detail": {
+        "title": "플레이 시간 세부 정보",
+        "allVersions": "전체",
+        "filterBy": "버전:",
+        "date": "날짜",
+        "version": "버전",
+        "duration": "시간",
+        "modloader": "Modloader",
+        "noSessions": "표시할 세션이 없습니다.",
+        "sortBy": "클릭하여 정렬",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "전체",
+        "noLoader": "없음",
+        "totalLabel": "합계:",
+        "nowLive": "라이브",
+        "truncatedNote": "전체 {total}개 세션 중 최근 {shown}개를 표시 중입니다."
+      }
     },
     "account": {
       "username": "사용자 이름:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Microsoft 열기",
         "failedLogin": "Microsoft 로그인에 실패했습니다."
       },
-      "playerPreviewTooltip": "계정 텍스처를 사용할 수 있을 때 몸을 기울이게 하거나 망토를 보여주는 방식으로 3D 플레이어 미리보기를 표시합니다.",
+      "playerPreviewTooltip": "플레이어 스킨과 망토를 3D 미리보기로 표시합니다.",
       "playerPreview": "3D 플레이어 미리보기:",
-      "playerRotateTitle": "클릭하고 드래그하여 회전할 수 있습니다.",
       "playerPreviewBodyAlt": "플레이어 미리보기",
-      "playerPreviewCapeAlt": "망토 미리보기"
+      "playerPreviewCapeAlt": "망토 미리보기",
+      "playerRotateTitle": "클릭하고 드래그하여 회전할 수 있습니다."
     },
     "appearance": {
       "theme": "테마:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "자동 최적화:",
+      "autoOptimizeTooltip": "Minecraft가 시작될 때마다 현재 장치 메모리에서 자동으로 시작 RAM과 JVM 인수를 선택합니다.",
+      "autoOptimizeLockedTitle": "수동으로 편집하려면 자동 최적화를 비활성화하세요.",
       "minRam": "최소 RAM:",
       "minRamTooltip": "게임에 할당될 최소 RAM\n  - 양수여야 합니다.\n  - 최대 RAM보다 작아야 합니다.\n\n입력 형식 예: 256, 256M, 2G 등\n\n(성능 팁: 원활한 구동을 위해 RAM을 넉넉히 할당하고, 프레임 드랍을 줄이기 위해 최대 RAM과 동일하게 설정하는 것이 좋습니다.)",
       "ramInvalidTitle": "RAM 입력 포맷: K, M, G, T 중 하나의 단위를 뒤에 붙여 쓸 수 있습니다. (예: 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "게임이나 런처가 열려있을 때 Discord Rich Presence를 통해 상태를 노출합니다.",
       "desktopNotifications": "데스크톱 알림:",
       "desktopNotificationsTooltip": "런처 데스크톱 푸시 알림을 허용합니다.",
+      "keyboardMouse": "키보드 마우스:",
+      "keyboardMouseTooltip": "런처 전반에 키보드로 제어하는 커서를 표시합니다.\n\n아직 실험적 기능이므로 많은 버그가 있을 수 있습니다!",
       "java": {
         "auto": "자동 (Auto)",
         "defaultPath": "기본 (Java PATH)",

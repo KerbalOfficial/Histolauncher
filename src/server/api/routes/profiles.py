@@ -36,6 +36,27 @@ __all__ = [
 ]
 
 
+def _rebuild_authlib_cache_for_active_profile(previous_settings: dict | None = None) -> dict:
+    current_settings = load_global_settings()
+    try:
+        from server import yggdrasil
+
+        previous_uuid = str((previous_settings or {}).get("uuid") or "").strip()
+        previous_username = str((previous_settings or {}).get("username") or "").strip()
+        if previous_uuid or previous_username:
+            yggdrasil.invalidate_texture_cache(previous_uuid, previous_username)
+
+        new_type = str((current_settings or {}).get("account_type") or "Local").strip().lower()
+        yggdrasil.prewarm_authlib_texture_properties(
+            target_uuid_hex=str((current_settings or {}).get("uuid") or "").strip() if new_type != "local" else "",
+            target_username=str((current_settings or {}).get("username") or "").strip(),
+            wait_seconds=0.0,
+        )
+    except Exception:
+        pass
+    return current_settings
+
+
 def api_profiles(data=None):
     try:
         return {
@@ -57,12 +78,17 @@ def api_profiles_create(data):
         if len(name) > 32:
             return {"ok": False, "error": "Profile name must be 1-32 characters"}
 
+        previous_profile_id = get_active_profile_id()
+        previous_settings = load_global_settings(previous_profile_id)
+
         profile = create_profile(name)
+        current_settings = _rebuild_authlib_cache_for_active_profile(previous_settings)
         return {
             "ok": True,
             "profile": profile,
             "profiles": list_profiles(),
             "active_profile": get_active_profile_id(),
+            "settings": current_settings,
         }
     except ValueError as e:
         return {"ok": False, "error": str(e)}
@@ -78,13 +104,18 @@ def api_profiles_switch(data):
         if not profile_id:
             return {"ok": False, "error": "profile_id is required"}
 
+        previous_profile_id = get_active_profile_id()
+        previous_settings = load_global_settings(previous_profile_id)
+
         if not set_active_profile(profile_id):
             return {"ok": False, "error": "Profile not found"}
+
+        current_settings = _rebuild_authlib_cache_for_active_profile(previous_settings)
 
         return {
             "ok": True,
             "active_profile": get_active_profile_id(),
-            "settings": load_global_settings(),
+            "settings": current_settings,
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}
@@ -98,17 +129,24 @@ def api_profiles_delete(data):
         if not profile_id:
             return {"ok": False, "error": "profile_id is required"}
 
+        previous_profile_id = get_active_profile_id()
+        previous_settings = load_global_settings(previous_profile_id)
+
         if not delete_profile(profile_id):
             return {
                 "ok": False,
                 "error": "Failed to delete profile (cannot delete Default or last profile)",
             }
 
-        return {
+        response: dict[str, object] = {
             "ok": True,
             "profiles": list_profiles(),
             "active_profile": get_active_profile_id(),
         }
+        if previous_profile_id != response["active_profile"]:
+            response["settings"] = _rebuild_authlib_cache_for_active_profile(previous_settings)
+
+        return response
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

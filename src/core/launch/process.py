@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import subprocess
 import sys
 import threading
@@ -13,6 +14,11 @@ from core.java import (
     JAVA_RUNTIME_MODE_PATH,
     detect_java_runtimes,
     get_path_java_executable,
+)
+from core.java.classfile_inspector import (
+    class_file_major_to_java_major,
+    detect_client_jar_java_major,
+    detect_java_major_requirement,
 )
 from core.launch.mods import _cleanup_copied_mods
 from core.launch.state import STATE
@@ -50,7 +56,64 @@ __all__ = [
 _SENSITIVE_COMMAND_FLAGS = frozenset({
     "--accesstoken",
     "--clienttoken",
+    "--session",
 })
+
+_LEGACY_NORMAL_EXIT_MIN_SECONDS = 20.0
+_LEGACY_CRASH_LOG_MARKERS = (
+    "exception in thread",
+    "java.lang.",
+    "traceback",
+    "fatal error",
+    "hs_err_pid",
+    "minecraft has crashed",
+    "unexpected error",
+    "at net.minecraft.",
+)
+
+
+def _is_legacy_version_identifier(version_identifier: str) -> bool:
+    raw_identifier = str(version_identifier or "").strip().lower()
+    category = raw_identifier.split("/", 1)[0].strip().lower()
+    legacy_tags = {"alpha", "beta", "classic", "indev", "infdev", "pre-classic", "preclassic"}
+    return (
+        category in legacy_tags
+        or (category.startswith("oa-") and any(tag in category for tag in legacy_tags))
+        or raw_identifier.startswith(("a", "b", "c0.", "c0_", "rd-", "indev", "infdev", "in-"))
+    )
+
+
+def _log_has_crash_markers(log_path: str) -> bool:
+    path = str(log_path or "").strip()
+    if not path or not os.path.isfile(path):
+        return False
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - 64 * 1024), os.SEEK_SET)
+            tail = f.read().decode("utf-8", "replace").lower()
+    except Exception:
+        return False
+    return any(marker in tail for marker in _LEGACY_CRASH_LOG_MARKERS)
+
+
+def _legacy_exit_looks_like_normal_close(snapshot: dict, exit_code) -> bool:
+    if exit_code in (0, None):
+        return True
+    version_identifier = str((snapshot or {}).get("version") or "")
+    if not _is_legacy_version_identifier(version_identifier):
+        return False
+    if exit_code == 1:
+        return True
+    try:
+        start_time = float((snapshot or {}).get("start_time") or 0)
+        end_time = float((snapshot or {}).get("end_time") or time.time())
+    except Exception:
+        start_time = 0.0
+        end_time = 0.0
+    elapsed = max(0.0, end_time - start_time)
+    return elapsed >= _LEGACY_NORMAL_EXIT_MIN_SECONDS and not _log_has_crash_markers(str((snapshot or {}).get("log_path") or ""))
 
 
 def _finalize_process_exit(process_id, exit_code=None):
@@ -88,6 +151,9 @@ def _finalize_process_exit(process_id, exit_code=None):
 
         snapshot = dict(proc_info)
 
+    if should_notify_crash and snapshot and _legacy_exit_looks_like_normal_close(snapshot, exit_code):
+        should_notify_crash = False
+
     if should_notify_crash and snapshot:
         try:
             version_identifier = str(snapshot.get("version") or "Minecraft").strip() or "Minecraft"
@@ -119,7 +185,26 @@ def _finalize_process_exit(process_id, exit_code=None):
         proc_info["cleanup_done"] = True
         if cleanup_files:
             proc_info["copied_mods"] = []
+
+        already_recorded = proc_info.get("playtime_recorded", False)
+        if not already_recorded:
+            proc_info["playtime_recorded"] = True
         snapshot = dict(proc_info)
+
+    if not already_recorded:
+        try:
+            from core.playtime.tracker import record_session
+            from core.settings import get_active_profile_id
+
+            record_session(
+                get_active_profile_id() or "default",
+                version_identifier=str(snapshot.get("version") or ""),
+                start_time=float(snapshot.get("start_time") or 0),
+                end_time=float(snapshot.get("end_time") or time.time()),
+                loader=snapshot.get("loader"),
+            )
+        except Exception as _pt_exc:
+            print(colorize_log(f"[playtime] record_session error: {_pt_exc}"))
 
     return snapshot
 
@@ -399,6 +484,21 @@ def _get_latest_log_path(version_dir):
         print(colorize_log(f"[_get_latest_log_path] Exception: {e}"))
         return None
 
+_AUTHLIB_NOISE_RE = re.compile(
+    r"\[authlib-injector\] \[ERROR\] Communication with the client broken"
+    r"|java\.net\.SocketException: Software caused connection abort: socket write error"
+    r"|java\.net\.SocketException: Broken pipe"
+    r"|java\.net\.SocketException: Connection reset"
+    r"|at java\.net\.SocketOutputStream\.(?:socketWrite0|socketWrite|write)\b"
+    r"|at moe\.yushi\.authlibinjector\.internal\.fi\.iki\.elonen\."
+)
+
+
+def _should_suppress_authlib_noise(line: str) -> bool:
+    if not line:
+        return False
+    return bool(_AUTHLIB_NOISE_RE.search(line))
+
 
 def _output_reader_thread(process, log_file, version_name):
     try:
@@ -408,6 +508,9 @@ def _output_reader_thread(process, log_file, version_name):
         for line in iter(process.stdout.readline, ''):
             if not line:
                 break
+
+            if _should_suppress_authlib_noise(line):
+                continue
 
             try:
                 log_file.write(line)
@@ -449,7 +552,7 @@ def _process_monitor_thread(process_id, process_obj):
 
 
 def _register_process(process_id, process_obj, version_identifier, log_file_path=None,
-                      copied_mods=None, start_time=None, notify_on_crash=True):
+                      copied_mods=None, start_time=None, notify_on_crash=True, loader=None):
     with STATE.process_lock:
         STATE.active_processes[process_id] = {
             "pid": process_obj.pid,
@@ -465,6 +568,7 @@ def _register_process(process_id, process_obj, version_identifier, log_file_path
             "cleanup_started": False,
             "cleanup_done": False,
             "end_time": None,
+            "loader": str(loader).strip().lower() if loader else None,
         }
 
     monitor = threading.Thread(
@@ -584,48 +688,24 @@ def _attach_copied_mods_to_process(process_id, copied_mods):
 
 
 def _class_file_major_to_java_major(class_major: int) -> int:
-    try:
-        major = int(class_major or 0)
-    except Exception:
-        return 0
-    if major < 45:
-        return 0
-    return major - 44
+    return class_file_major_to_java_major(class_major)
 
 
 def _detect_client_jar_java_major(version_dir: str) -> int:
-    import zipfile
-
-    client_jar = os.path.join(version_dir, "client.jar")
-    if not os.path.isfile(client_jar):
-        return 0
-
-    highest_class_major = 0
     try:
-        with zipfile.ZipFile(client_jar, "r") as jar:
-            for info in jar.infolist():
-                if info.is_dir() or not str(info.filename or "").endswith(".class"):
-                    continue
-                try:
-                    with jar.open(info, "r") as class_fp:
-                        header = class_fp.read(8)
-                    if len(header) < 8 or header[:4] != b"\xca\xfe\xba\xbe":
-                        continue
-                    class_major = int.from_bytes(header[6:8], "big")
-                    if class_major > highest_class_major:
-                        highest_class_major = class_major
-                except Exception:
-                    continue
+        return detect_client_jar_java_major(version_dir)
     except Exception as e:
         print(colorize_log(f"[launcher] Warning: Could not inspect client.jar Java target: {e}"))
         return 0
 
-    return _class_file_major_to_java_major(highest_class_major)
 
-
-def _resolve_java_launch_candidates(selected_java_setting: str, version_dir: str):
+def _resolve_java_launch_candidates(selected_java_setting: str, version_dir: str, extra_java_scan_paths=None):
     raw = str(selected_java_setting or "").strip()
-    target_java_major = _detect_client_jar_java_major(version_dir)
+    try:
+        target_java_major = detect_java_major_requirement(version_dir, extra_java_scan_paths)
+    except Exception as e:
+        print(colorize_log(f"[launcher] Warning: Could not inspect Java target from launch files: {e}"))
+        target_java_major = _detect_client_jar_java_major(version_dir)
     path_java = get_path_java_executable()
 
     force_runtime_refresh = raw == JAVA_RUNTIME_MODE_AUTO

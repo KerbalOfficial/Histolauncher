@@ -350,17 +350,62 @@ def save_addon_import_icon(addon_type: str, mod_slug: str, file_data: bytes, mod
     mod_dir = get_addon_dir(normalized_type, mod_slug, mod_loader=mod_loader)
     display_path = os.path.join(mod_dir, "display.png")
 
+    _MAX_ICON_BYTES = 4 * 1024 * 1024
+
     try:
         if normalized_type == "resourcepacks" and isinstance(file_data, (bytes, bytearray)) and file_data:
+            from core.zip_utils import (
+                ZipSecurityError,
+                _validate_archive_limits,
+            )
+            from core.constants import (
+                ZIP_MAX_ENTRIES,
+                ZIP_MAX_FILE_BYTES,
+                ZIP_MAX_TOTAL_BYTES,
+            )
+
             with zipfile.ZipFile(io.BytesIO(file_data), "r") as zf:
-                for name in zf.namelist():
-                    normalized_name = str(name or "").replace("\\", "/").strip("/")
+                try:
+                    _validate_archive_limits(
+                        zf,
+                        max_entries=ZIP_MAX_ENTRIES,
+                        max_single_file_size=ZIP_MAX_FILE_BYTES,
+                        max_total_uncompressed=ZIP_MAX_TOTAL_BYTES,
+                    )
+                except ZipSecurityError as exc:
+                    logger.warning(
+                        f"Rejecting unsafe resource pack icon archive for {mod_slug}: {exc}"
+                    )
+                    raise
+                for info in zf.infolist():
+                    normalized_name = str(info.filename or "").replace("\\", "/").strip("/")
                     if not normalized_name or normalized_name.endswith("/"):
                         continue
                     if os.path.basename(normalized_name).lower() != "pack.png":
                         continue
-                    with zf.open(name, "r") as src, open(display_path, "wb") as dst:
-                        shutil.copyfileobj(src, dst)
+                    if int(info.file_size or 0) > _MAX_ICON_BYTES:
+                        logger.warning(
+                            f"Skipping oversized pack.png ({info.file_size} bytes) in icon archive for {mod_slug}"
+                        )
+                        continue
+                    with zf.open(info, "r") as src, open(display_path, "wb") as dst:
+                        written = 0
+                        while True:
+                            chunk = src.read(64 * 1024)
+                            if not chunk:
+                                break
+                            written += len(chunk)
+                            if written > _MAX_ICON_BYTES:
+                                dst.close()
+                                try:
+                                    os.remove(display_path)
+                                except Exception:
+                                    pass
+                                logger.warning(
+                                    f"Aborting pack.png extraction for {mod_slug}: exceeded {_MAX_ICON_BYTES} bytes"
+                                )
+                                return False
+                            dst.write(chunk)
                     return True
     except Exception as e:
         logger.warning(f"Failed to extract imported {normalized_type} icon for {mod_slug}: {e}")

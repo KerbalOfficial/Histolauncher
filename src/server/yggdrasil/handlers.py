@@ -10,26 +10,29 @@ import uuid
 from urllib.parse import urlparse
 
 from core.logger import colorize_log
-from core.settings import _apply_url_proxy
+from core.settings import _apply_url_proxy, load_global_settings
 
 from server.yggdrasil.identity import (
     _ensure_uuid,
     _get_username_and_uuid,
-    _histolauncher_account_enabled,
     _normalize_uuid_hex,
     _uuid_hex_to_dashed,
 )
-from server.yggdrasil.state import STATE, SESSION_JOIN_TTL_SECONDS
 from server.yggdrasil.textures.local import (
     _has_local_skin_file,
     _resolve_local_cape_url,
 )
+from server.yggdrasil.state import STATE, SESSION_JOIN_TTL_SECONDS
 from server.yggdrasil.textures.metadata import _resolve_remote_texture_metadata
-from server.yggdrasil.textures.property import _get_skin_property_with_timeout
+from server.yggdrasil.textures.property import (
+    _get_skin_property_fast_fallback,
+    _schedule_skin_property_cache_refresh,
+)
 from server.yggdrasil.textures.resolver import _resolve_skin_model
 from server.yggdrasil.textures.urls import (
     _build_public_skin_url,
     _build_texture_property_cape_url,
+    _build_texture_property_skin_url,
     _cape_requires_minecraft_texture_host,
     _is_minecraft_texture_url,
 )
@@ -45,10 +48,24 @@ __all__ = [
 ]
 
 
-TEXTURE_PROPERTY_LOOKUP_TIMEOUT_SECONDS = 18.0
-
-
 OFFICIAL_SESSION_JOIN_URL = "https://sessionserver.mojang.com/session/minecraft/join"
+
+
+def _settings_profile_name_for_uuid(uuid_hex: str) -> str:
+    req_uuid = _normalize_uuid_hex(uuid_hex)
+    if not req_uuid:
+        return ""
+    try:
+        settings = load_global_settings() or {}
+        username = str(settings.get("username") or "").strip()
+        settings_uuid = _normalize_uuid_hex(settings.get("uuid"))
+        if settings_uuid and settings_uuid == req_uuid and username:
+            return username
+        if username and _normalize_uuid_hex(_ensure_uuid(username)) == req_uuid:
+            return username
+    except Exception:
+        pass
+    return ""
 
 
 def _resolve_microsoft_texture_metadata(identifier: str = "", username: str = "") -> dict | None:
@@ -177,37 +194,46 @@ def handle_session_get(path: str, port: int, require_signature: bool = True):
 
     raw_req_id = match.group(1)
     req_uuid = _normalize_uuid_hex(raw_req_id)
-    username, u_hex = _get_username_and_uuid()
 
     if not req_uuid:
         return 404, {"error": "Not Found"}
 
-    if req_uuid == "00000000000000000000000000000000":
-        req_uuid = u_hex
-
     query = urllib.parse.parse_qs(parsed.query or "")
     query_name = (query.get("username") or [""])[0].strip()
-    current_name = (username or "Player").strip() or "Player"
 
-    if req_uuid == u_hex:
+    if req_uuid == "00000000000000000000000000000000":
+        username, u_hex = _get_username_and_uuid()
+        req_uuid = u_hex
+        current_name = (username or "Player").strip() or "Player"
         profile_name = current_name
     else:
         cached_name = str(STATE.uuid_name_cache.get(req_uuid) or "").strip()
-        profile_name = query_name or cached_name
+        settings_name = _settings_profile_name_for_uuid(req_uuid)
+        if query_name or cached_name or settings_name:
+            profile_name = query_name or cached_name or settings_name
+            current_name = profile_name or "Player"
+        else:
+            current_name = "Player"
+            profile_name = ""
 
     if profile_name:
         STATE.uuid_name_cache[req_uuid] = profile_name
 
     props = []
-    skin_prop = _get_skin_property_with_timeout(
+    skin_prop = _get_skin_property_fast_fallback(
         port,
         target_uuid_hex=req_uuid,
         target_username=profile_name,
-        timeout_seconds=TEXTURE_PROPERTY_LOOKUP_TIMEOUT_SECONDS,
         require_signature=require_signature,
     )
     if skin_prop:
         props.append(skin_prop)
+    _schedule_skin_property_cache_refresh(
+        port,
+        target_uuid_hex=req_uuid,
+        target_username=profile_name,
+        require_signature=require_signature,
+    )
 
     signature_required = any(p.get("signature") for p in props)
 
@@ -228,7 +254,6 @@ def handle_session_get(path: str, port: int, require_signature: bool = True):
 def handle_services_profile_get(port: int):
     username, u_hex = _get_username_and_uuid()
     microsoft_enabled = _microsoft_account_enabled()
-    u_with_dashes = _uuid_hex_to_dashed(u_hex)
     remote_metadata = _resolve_remote_texture_metadata(u_hex, username)
     microsoft_metadata = _resolve_microsoft_texture_metadata(u_hex, username)
     skin_model = (
@@ -236,9 +261,7 @@ def handle_services_profile_get(port: int):
         or (microsoft_metadata or {}).get("model")
         or _resolve_skin_model(u_hex, username)
     )
-    cape_url = (remote_metadata or {}).get("cape") or (
-        None if microsoft_enabled else _resolve_local_cape_url(u_hex, username, port)
-    ) or (microsoft_metadata or {}).get("cape")
+    cape_url = (remote_metadata or {}).get("cape") or (microsoft_metadata or {}).get("cape")
     if (
         cape_url
         and port
@@ -250,30 +273,26 @@ def handle_services_profile_get(port: int):
         cape_url = (microsoft_metadata or {}).get("cape") or cape_url
 
     skin_url: str | None = None
-    if (not microsoft_enabled) and _has_local_skin_file(u_hex, username):
-        skin_url = _build_public_skin_url(u_with_dashes, port)
-    else:
-        skin_url = (remote_metadata or {}).get("skin")
-        microsoft_local_skin_id = str((microsoft_metadata or {}).get("local_skin_id") or "").strip()
-        microsoft_default_skin_id = str((microsoft_metadata or {}).get("default_skin_id") or "").strip()
-        if microsoft_local_skin_id and port and port > 0:
-            skin_url = _build_public_skin_url(microsoft_local_skin_id, port)
-            skin_model = (microsoft_metadata or {}).get("model") or skin_model
-        elif microsoft_default_skin_id and port and port > 0:
-            skin_url = _build_public_skin_url(microsoft_default_skin_id, port)
-            skin_model = (microsoft_metadata or {}).get("model") or skin_model
-        elif not skin_url:
-            skin_url = (microsoft_metadata or {}).get("skin")
-        if not skin_url and _histolauncher_account_enabled():
-            skin_url = _build_public_skin_url(u_with_dashes, port)
-        if (
-            skin_url
-            and port
-            and port > 0
-            and not microsoft_local_skin_id
-            and not microsoft_default_skin_id
-        ):
-            skin_url = _build_public_skin_url(u_with_dashes, port)
+    skin_url = (remote_metadata or {}).get("skin")
+    microsoft_local_skin_id = str((microsoft_metadata or {}).get("local_skin_id") or "").strip()
+    microsoft_default_skin_id = str((microsoft_metadata or {}).get("default_skin_id") or "").strip()
+    if microsoft_local_skin_id and port and port > 0:
+        skin_url = _build_public_skin_url(microsoft_local_skin_id, port)
+        skin_model = (microsoft_metadata or {}).get("model") or skin_model
+    elif microsoft_default_skin_id and port and port > 0:
+        skin_url = _build_public_skin_url(microsoft_default_skin_id, port)
+        skin_model = (microsoft_metadata or {}).get("model") or skin_model
+    elif not skin_url:
+        skin_url = (microsoft_metadata or {}).get("skin")
+
+    if not microsoft_enabled and port and port > 0:
+        if not skin_url and _has_local_skin_file(u_hex, username):
+            skin_url = _build_public_skin_url(_uuid_hex_to_dashed(u_hex), port)
+        if not cape_url:
+            cape_url = _resolve_local_cape_url(u_hex, username, port) or None
+
+    if skin_url and port and port > 0 and not microsoft_local_skin_id and not microsoft_default_skin_id:
+        skin_url = _build_texture_property_skin_url(skin_url, u_hex, username, port)
 
     cape_url = _build_texture_property_cape_url(cape_url, u_hex, username, port)
 
@@ -327,9 +346,15 @@ def handle_player_certificates():
 
         success, payload, error = get_microsoft_player_certificates()
     except Exception as exc:
+        # Log the full exception locally but do not echo internal details to
+        # the Minecraft client – the exception text can leak file paths,
+        # tokens, or library internals to log scrapers and crash reporters.
+        print(colorize_log(
+            f"[yggdrasil] Microsoft player certificate fetch failed: {exc}"
+        ))
         return 503, {
             "error": "ServiceUnavailableException",
-            "errorMessage": str(exc),
+            "errorMessage": "Could not fetch Minecraft player certificates.",
         }
 
     if success and payload:
@@ -367,6 +392,12 @@ def handle_session_join_post(path: str, body: str):
             "errorMessage": "Invalid profile",
         }
 
+    if _microsoft_account_enabled() and not _forward_microsoft_session_join(data):
+        return 503, {
+            "error": "ServiceUnavailableException",
+            "errorMessage": "Could not forward Microsoft session join to Mojang.",
+        }
+
     now = time.time()
     stale = [
         k
@@ -382,7 +413,6 @@ def handle_session_join_post(path: str, body: str):
         "at": now,
     }
     STATE.uuid_name_cache[current_uuid_hex] = (username or "Player").strip() or "Player"
-    _forward_microsoft_session_join(data)
     print(colorize_log(
         f"[yggdrasil] session join accepted: serverId={server_id}, uuid={current_uuid_hex}"
     ))
@@ -401,38 +431,41 @@ def handle_has_joined_get(path: str, port: int, require_signature: bool = True):
             "errorMessage": "Missing username/serverId",
         }
 
-    username, current_uuid_hex = _get_username_and_uuid()
-    current_name = (username or "Player").strip() or "Player"
-    current_uuid_hex = _normalize_uuid_hex(current_uuid_hex)
-
     joined = STATE.session_join_cache.get(server_id) or {}
     joined_uuid = _normalize_uuid_hex(joined.get("uuid"))
     joined_name = str(joined.get("name") or "").strip()
+    try:
+        joined_at = float(joined.get("at", 0) or 0)
+    except (TypeError, ValueError):
+        joined_at = 0
 
-    if joined_uuid and joined_name.lower() == username_q.lower():
-        out_uuid = joined_uuid
-        out_name = joined_name
-    elif current_uuid_hex and current_name.lower() == username_q.lower():
-        out_uuid = current_uuid_hex
-        out_name = current_name
-    else:
-        out_uuid = _normalize_uuid_hex(_ensure_uuid(username_q))
-        out_name = username_q
-        if not out_uuid:
-            return 204, None
+    if not joined_uuid or time.time() - joined_at > SESSION_JOIN_TTL_SECONDS:
+        STATE.session_join_cache.pop(server_id, None)
+        return 204, None
+
+    if joined_name and joined_name.lower() != username_q.lower():
+        return 204, None
+
+    out_uuid = joined_uuid
+    out_name = joined_name or username_q
 
     STATE.uuid_name_cache[out_uuid] = out_name
 
     props = []
-    skin_prop = _get_skin_property_with_timeout(
+    skin_prop = _get_skin_property_fast_fallback(
         port,
         target_uuid_hex=out_uuid,
         target_username=out_name,
-        timeout_seconds=TEXTURE_PROPERTY_LOOKUP_TIMEOUT_SECONDS,
         require_signature=require_signature,
     )
     if skin_prop:
         props.append(skin_prop)
+    _schedule_skin_property_cache_refresh(
+        port,
+        target_uuid_hex=out_uuid,
+        target_username=out_name,
+        require_signature=require_signature,
+    )
 
     signature_required = any(p.get("signature") for p in props)
     resp = {

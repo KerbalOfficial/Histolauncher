@@ -13,8 +13,10 @@ from core.world_manager._constants import (
 from core.world_manager.archive import (
     export_world_zip,
     import_world_zip_bytes,
+    import_world_zip_file,
     install_world_archive,
     scan_world_zip_bytes,
+    scan_world_zip_file,
 )
 from core.world_manager.curseforge import (
     get_world_detail_curseforge,
@@ -57,6 +59,7 @@ __all__ = [
     "get_world_files_curseforge",
     "get_world_nbt_editor",
     "import_world_zip_bytes",
+    "import_world_zip_file",
     "install_world_archive",
     "list_storage_options",
     "list_world_categories_curseforge",
@@ -66,6 +69,7 @@ __all__ = [
     "replace_world_icon",
     "resolve_storage_target",
     "scan_world_zip_bytes",
+    "scan_world_zip_file",
     "search_worlds_curseforge",
     "update_world",
     "update_world_advanced_nbt",

@@ -14,6 +14,7 @@ __all__ = [
     "_ensure_uuid",
     "_get_username_and_uuid",
     "_normalize_uuid_hex",
+    "_profile_matches_active_player",
     "_uuid_hex_to_dashed",
 ]
 
@@ -98,6 +99,31 @@ def _normalize_uuid_hex(value: str | None) -> str:
     except Exception:
         return ""
     return raw.lower()
+
+
+def _profile_matches_active_player(uuid_hex: str = "", username: str = "") -> bool:
+    target_uuid = _normalize_uuid_hex(uuid_hex)
+    target_name = str(username or "").strip().lower()
+
+    try:
+        active_username, active_uuid_hex = _get_username_and_uuid()
+    except Exception:
+        return False
+
+    active_uuid = _normalize_uuid_hex(active_uuid_hex)
+    active_name = str(active_username or "").strip().lower()
+
+    if target_uuid and active_uuid and target_uuid == active_uuid:
+        return True
+
+    if not target_name or not active_name or target_name != active_name:
+        return False
+
+    if not target_uuid:
+        return True
+
+    offline_uuid = _normalize_uuid_hex(_ensure_uuid(active_username))
+    return bool(offline_uuid and target_uuid == offline_uuid)
 
 
 def _uuid_hex_to_dashed(u_hex: str) -> str:

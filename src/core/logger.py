@@ -72,28 +72,48 @@ def _safe_print(message: object) -> None:
         stream.flush()
 
 
-def _setup_logging() -> logging.Logger:
-    logger = logging.getLogger("histolauncher")
-    if logger.handlers:
-        return logger
-
-    logger.setLevel(logging.DEBUG)
-
-    console_handler = SafeStreamHandler()
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(logging.Formatter("[%(name)s] %(levelname)s: %(message)s"))
-    logger.addHandler(console_handler)
-
+def _resolve_log_file() -> str | None:
+    session_log_file = os.environ.get("HISTOLAUNCHER_LAUNCHER_LOG_FILE")
+    if session_log_file:
+        return session_log_file
     try:
         from core.settings import get_base_dir  # noqa: PLC0415
 
-        logs_dir = os.path.join(get_base_dir(), "logs")
-        os.makedirs(logs_dir, exist_ok=True)
-
-        log_file = os.path.join(
-            logs_dir, f"histolauncher_{datetime.now().strftime('%Y-%m-%d')}.log"
+        return os.path.join(
+            get_base_dir(),
+            "logs",
+            "launcher",
+            f"histolauncher_{datetime.now().strftime('%Y-%m-%d')}.log",
         )
-        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+    except Exception:
+        return None
+
+
+def _ensure_file_handler(logger: logging.Logger, log_file: str | None) -> None:
+    if not log_file:
+        return
+    desired_path = os.path.abspath(log_file)
+    for handler in logger.handlers:
+        if (
+            getattr(handler, "_histolauncher_file_handler", False)
+            and os.path.abspath(getattr(handler, "baseFilename", "")) == desired_path
+        ):
+            return
+
+    for handler in list(logger.handlers):
+        if getattr(handler, "_histolauncher_file_handler", False):
+            logger.removeHandler(handler)
+            try:
+                handler.close()
+            except Exception:
+                pass
+
+    try:
+        logs_dir = os.path.dirname(desired_path)
+        if logs_dir:
+            os.makedirs(logs_dir, exist_ok=True)
+        file_handler = logging.FileHandler(desired_path, encoding="utf-8")
+        file_handler._histolauncher_file_handler = True
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(
             logging.Formatter(
@@ -105,6 +125,21 @@ def _setup_logging() -> logging.Logger:
     except Exception:
         pass
 
+
+def _setup_logging() -> logging.Logger:
+    logger = logging.getLogger("histolauncher")
+    logger.setLevel(logging.DEBUG)
+    logger.propagate = False
+
+    if not any(getattr(handler, "_histolauncher_console_handler", False) for handler in logger.handlers):
+        console_handler = SafeStreamHandler()
+        console_handler._histolauncher_console_handler = True
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(logging.Formatter("[%(name)s] %(levelname)s: %(message)s"))
+        logger.addHandler(console_handler)
+
+    _ensure_file_handler(logger, _resolve_log_file())
+
     return logger
 
 
@@ -113,8 +148,7 @@ _logger: logging.Logger | None = None
 
 def get_logger() -> logging.Logger:
     global _logger
-    if _logger is None:
-        _logger = _setup_logging()
+    _logger = _setup_logging()
     return _logger
 
 

@@ -34,18 +34,24 @@ import {
   updateScopeProfileEditButtonState,
 } from './profiles.js';
 import { setModsDeps } from './mods.js';
+import {
+  refreshScreenshotsStorageContext,
+  setAutoSaveSetting as setScreenshotsAutoSaveSetting,
+} from './screenshots.js';
 import { setAutoSaveSetting as setWorldsAutoSaveSetting } from './worlds.js';
 import { refreshWorldsStorageContext } from './worlds.js';
 import { updateSettingsValidationUI } from './launch.js';
 import {
   debug,
   refreshJavaRuntimeOptions,
+  setAutoOptimizeControlledRowsDisabled,
   showHistolauncherAccountSettingsModal,
   updateHomeInfo,
   updateSettingsAccountSettingsButtonVisibility,
   updateSettingsPlayerPreview,
 } from './home.js';
 import { showMicrosoftSkinEditorModal } from './skin-editor.js';
+import { syncKeyboardMouseFromSettings } from './keyboard-mouse.js';
 
 let javaRuntimeRefreshListenerBound = false;
 
@@ -124,6 +130,28 @@ const copyTextToClipboard = async (text) => {
     textarea.remove();
   }
   return copied;
+};
+
+const isAutoOptimizeEnabled = () => (
+  !Object.prototype.hasOwnProperty.call(state.settingsState, 'auto_optimize_launch_settings')
+  || isTruthySetting(state.settingsState.auto_optimize_launch_settings)
+);
+
+const syncAutoOptimizeControls = () => {
+  const enabled = isAutoOptimizeEnabled();
+  const autoOptimizeInput = getEl('settings-auto-optimize');
+  if (autoOptimizeInput) autoOptimizeInput.checked = enabled;
+
+  [
+    getEl('settings-min-ram'),
+    getEl('settings-max-ram'),
+    getEl('settings-extra-jvm-args'),
+  ].forEach((input) => {
+    if (!input) return;
+    input.disabled = enabled;
+    input.title = enabled ? t('settings.client.autoOptimizeLockedTitle') : '';
+  });
+  setAutoOptimizeControlledRowsDisabled(enabled);
 };
 
 const buildMicrosoftLoginContent = (deviceCode) => {
@@ -277,6 +305,9 @@ export const autoSaveSetting = (key, value) => {
   if (key === 'storage_directory' || key === 'custom_storage_directory') {
     syncStorageDirectoryUI();
   }
+  if (key === 'keyboard_mouse_enabled') {
+    syncKeyboardMouseFromSettings();
+  }
   updateHomeInfo();
   if (key === 'username' && isOnlineAccountType(state.settingsState.account_type)) {
     return Promise.resolve();
@@ -284,12 +315,14 @@ export const autoSaveSetting = (key, value) => {
   const savePromise = api('/api/settings', 'POST', settingsProfilePayload({ [key]: value }));
   if (refreshWorldsAfterSave) {
     savePromise.finally(() => {
+      refreshScreenshotsStorageContext();
       refreshWorldsStorageContext();
     });
   }
   return savePromise;
 };
 
+setScreenshotsAutoSaveSetting(autoSaveSetting);
 setWorldsAutoSaveSetting(autoSaveSetting);
 
 setModsDeps({
@@ -348,6 +381,7 @@ export const initSettingsInputs = () => {
   }
 
   const ramInputHandler = (key) => (e) => {
+    if (e.target.disabled) return;
     let v = e.target.value.toUpperCase();
     v = v.replace(/[^0-9KMGT]/gi, '').toUpperCase();
 
@@ -492,6 +526,7 @@ export const initSettingsInputs = () => {
           ...(res.settings || {}),
         };
         syncStorageDirectoryUI();
+        refreshScreenshotsStorageContext();
         refreshWorldsStorageContext();
         updateHomeInfo();
         updateSettingsValidationUI();
@@ -511,8 +546,22 @@ export const initSettingsInputs = () => {
   const extraJvmInput = getEl('settings-extra-jvm-args');
   if (extraJvmInput) {
     extraJvmInput.addEventListener('input', (e) => {
+      if (e.target.disabled) return;
       autoSaveSetting('extra_jvm_args', (e.target.value || '').trim());
     });
+  }
+
+  const autoOptimizeInput = getEl('settings-auto-optimize');
+  if (autoOptimizeInput) {
+    autoOptimizeInput.addEventListener('change', async (e) => {
+      const value = e.target.checked ? '1' : '0';
+      state.settingsState.auto_optimize_launch_settings = value;
+      syncAutoOptimizeControls();
+      updateHomeInfo();
+      updateSettingsValidationUI();
+      await api('/api/settings', 'POST', settingsProfilePayload({ auto_optimize_launch_settings: value }));
+    });
+    syncAutoOptimizeControls();
   }
 
   const javaRuntimeSelect = getEl('settings-java-runtime');
@@ -939,6 +988,13 @@ export const initSettingsInputs = () => {
   if (desktopNotificationsInput) {
     desktopNotificationsInput.addEventListener('change', (e) => {
       autoSaveSetting('desktop_notifications_enabled', e.target.checked ? '1' : '0');
+    });
+  }
+
+  const keyboardMouseInput = getEl('settings-keyboard-mouse');
+  if (keyboardMouseInput) {
+    keyboardMouseInput.addEventListener('change', (e) => {
+      autoSaveSetting('keyboard_mouse_enabled', e.target.checked ? '1' : '0');
     });
   }
 

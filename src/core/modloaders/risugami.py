@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import urllib.parse
 from typing import Any, Final
 
@@ -16,6 +17,7 @@ MODLOADER_MANIFEST_CACHE_KEY: Final[str] = "modloader_manifest"
 _manifest_cache: TTLCache[list[dict[str, Any]]] = register_cache(TTLCache())
 
 _stale_manifest: list[dict[str, Any]] | None = None
+_stale_manifest_lock = threading.Lock()
 
 
 def _normalize_manifest_entries(data: Any) -> list[dict[str, Any]]:
@@ -80,15 +82,18 @@ def _load_manifest() -> list[dict[str, Any]]:
         data = _http_get_json(RISUGAMI_MODLOADER_MANIFEST_URL)
     except RuntimeError as exc:
         print(colorize_log(f"[modloaders] Failed to fetch Risugami ModLoader manifest: {exc}"))
-        return _stale_manifest or []
+        with _stale_manifest_lock:
+            return list(_stale_manifest or [])
 
     entries = _normalize_manifest_entries(data)
     if not entries:
         print(colorize_log("[modloaders] Risugami ModLoader manifest was empty"))
-        return _stale_manifest or []
+        with _stale_manifest_lock:
+            return list(_stale_manifest or [])
 
     _manifest_cache.set(MODLOADER_MANIFEST_CACHE_KEY, entries)
-    _stale_manifest = entries
+    with _stale_manifest_lock:
+        _stale_manifest = entries
     print(
         colorize_log(
             f"[modloaders] Fetched {len(entries)} Risugami ModLoader manifest entries"

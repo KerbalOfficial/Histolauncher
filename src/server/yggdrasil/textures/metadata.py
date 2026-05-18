@@ -14,10 +14,12 @@ from server.yggdrasil.identity import (
     _active_account_scope,
     _ensure_uuid,
     _normalize_uuid_hex,
+    _profile_matches_active_player,
 )
 from server.yggdrasil.state import (
     STATE,
     TEXTURE_METADATA_CACHE_TTL_SECONDS,
+    HISTOLAUNCHER_TEXTURE_METADATA_TTL_SECONDS,
     TEXTURES_API_HOSTNAME,
 )
 from server.yggdrasil.textures.local import _persist_cached_skin_model
@@ -69,6 +71,7 @@ def _candidate_urls(raw_url: str) -> list[str]:
 
 
 def _request_json(raw_url: str, timeout_seconds: float = 1.2) -> dict | None:
+    _MAX_RESPONSE_BYTES = 1 * 1024 * 1024
     for probe_url in _candidate_urls(str(raw_url or "").strip()):
         try:
             req = urllib.request.Request(
@@ -79,14 +82,18 @@ def _request_json(raw_url: str, timeout_seconds: float = 1.2) -> dict | None:
                 },
             )
             with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
-                payload = resp.read().decode("utf-8", errors="replace")
+                raw = resp.read(_MAX_RESPONSE_BYTES + 1)
+            if len(raw) > _MAX_RESPONSE_BYTES:
+                continue
+            payload = raw.decode("utf-8", errors="replace")
             if not payload.strip():
                 return None
-            data = json.loads(payload)
-            return data if isinstance(data, dict) else None
-        except urllib.error.HTTPError as exc:
-            if exc.code in {204, 400, 403, 404}:
+            try:
+                data = json.loads(payload)
+            except json.JSONDecodeError:
                 continue
+            return data if isinstance(data, dict) else None
+        except urllib.error.HTTPError:
             continue
         except Exception:
             continue
@@ -181,17 +188,35 @@ def _fetch_official_texture_metadata(
     )
 
 
-def _merge_texture_metadata(primary: dict | None, fallback: dict | None) -> dict | None:
-    if not primary:
-        return fallback
-    if not fallback:
-        return primary
+def _texture_metadata_has_texture(metadata: dict | None) -> bool:
+    if not isinstance(metadata, dict):
+        return False
+    return bool(metadata.get("skin") or metadata.get("cape"))
 
-    return {
-        "skin": primary.get("skin") or fallback.get("skin"),
-        "cape": primary.get("cape") or fallback.get("cape"),
-        "model": primary.get("model") or fallback.get("model") or "classic",
-    }
+
+def _texture_metadata_is_authoritative(metadata: dict | None) -> bool:
+    return bool(isinstance(metadata, dict) and metadata.get("skin"))
+
+
+def _merge_texture_metadata(primary: dict | None, fallback: dict | None) -> dict | None:
+    if _texture_metadata_is_authoritative(primary):
+        return primary
+    if _texture_metadata_is_authoritative(fallback):
+        return fallback
+    if _texture_metadata_has_texture(primary):
+        return primary
+    if _texture_metadata_has_texture(fallback):
+        return fallback
+    return primary or fallback
+
+
+def _metadata_is_from_histolauncher(metadata: dict | None) -> bool:
+    if not isinstance(metadata, dict):
+        return False
+    skin_url = str(metadata.get("skin") or "").lower()
+    cape_url = str(metadata.get("cape") or "").lower()
+    hostname = TEXTURES_API_HOSTNAME.lower()
+    return hostname in skin_url or hostname in cape_url
 
 
 def _get_cached_texture_metadata(
@@ -267,34 +292,69 @@ def _resolve_remote_texture_metadata(
         return None
 
     metadata: dict | None = None
-    prefer_histolauncher_metadata = cache_scope == "histolauncher"
-    try:
-        if uuid_hex or username:
-            metadata = _fetch_official_texture_metadata(
-                uuid_hex=uuid_hex,
-                username=username,
-                timeout_seconds=timeout_seconds,
-            )
 
+    is_active_player = _profile_matches_active_player(uuid_hex, username)
+    prefer_histolauncher_metadata = (
+        cache_scope in {"local", "histolauncher"} and is_active_player
+    )
+
+    def _is_offline_uuid(u: str) -> bool:
+        clean = _normalize_uuid_hex(u)
+        return bool(clean) and clean[12] == "3"
+
+    skip_official = _is_offline_uuid(uuid_hex)
+
+    def _query_histolauncher() -> dict | None:
+        first_texture_response: dict | None = None
         for identifier in _collect_texture_identifiers(uuid_hex, username):
-            histolauncher_metadata = _fetch_remote_texture_metadata(
+            response = _fetch_remote_texture_metadata(
                 identifier, timeout_seconds=timeout_seconds
             )
-            if histolauncher_metadata is None:
-                continue
+            if first_texture_response is None and _texture_metadata_has_texture(response):
+                first_texture_response = response
+            if _texture_metadata_is_authoritative(response):
+                return response
+        return first_texture_response
 
-            if prefer_histolauncher_metadata:
-                metadata = _merge_texture_metadata(histolauncher_metadata, metadata)
-            else:
-                metadata = _merge_texture_metadata(metadata, histolauncher_metadata)
-            if uuid_hex:
-                _persist_cached_skin_model(
-                    uuid_hex, metadata.get("model") or "classic", username
-                )
-            break
+    def _query_official() -> dict | None:
+        if not (uuid_hex or username):
+            return None
+        return _fetch_official_texture_metadata(
+            uuid_hex=uuid_hex,
+            username=username,
+            timeout_seconds=timeout_seconds,
+        )
+
+    try:
+        if prefer_histolauncher_metadata or skip_official:
+            metadata = _query_histolauncher()
+            if not _texture_metadata_is_authoritative(metadata) and not skip_official:
+                official = _query_official()
+                metadata = _merge_texture_metadata(metadata, official)
+        else:
+            metadata = _query_official()
+            if not _texture_metadata_is_authoritative(metadata):
+                histolauncher = _query_histolauncher()
+                metadata = _merge_texture_metadata(metadata, histolauncher)
+
+        if uuid_hex and isinstance(metadata, dict):
+            _persist_cached_skin_model(
+                uuid_hex, metadata.get("model") or "classic", username
+            )
 
     finally:
-        _store_cached_texture_metadata(cache_key, metadata, now=time.time())
+        cache_at = time.time()
+        if not _texture_metadata_has_texture(metadata):
+            negative_ttl = 8.0
+            cache_at = cache_at - max(
+                0.0, float(TEXTURE_METADATA_CACHE_TTL_SECONDS) - negative_ttl
+            )
+        elif _metadata_is_from_histolauncher(metadata):
+            hl_ttl = float(HISTOLAUNCHER_TEXTURE_METADATA_TTL_SECONDS)
+            cache_at = cache_at - max(
+                0.0, float(TEXTURE_METADATA_CACHE_TTL_SECONDS) - hl_ttl
+            )
+        _store_cached_texture_metadata(cache_key, metadata, now=cache_at)
         with STATE.texture_metadata_lock:
             done = STATE.texture_metadata_inflight.pop(cache_key, None)
         if done:

@@ -5,6 +5,9 @@ import sys
 import tkinter
 
 from launcher._constants import (
+    AERO_GLASS_ENABLED,
+    AERO_GLASS_TINT_ABGR,
+    AERO_GLASS_TRANSPARENT_KEY,
     BUTTON_STYLE_MAP,
     DIALOG_KIND_STYLES,
     FOCUS_COLOR,
@@ -16,6 +19,7 @@ from launcher._constants import (
     INPUT_SELECTION_BG_COLOR,
     PANEL_BG_COLOR,
     PANEL_BORDER_COLOR,
+    SPLASH_BORDER_COLOR,
     TEXT_PRIMARY_COLOR,
     TEXT_SECONDARY_COLOR,
     TOPBAR_ACTIVE_COLOR,
@@ -224,9 +228,10 @@ def build_dropdown_selector(
         popup = popup_state["window"]
         popup_state["window"] = None
         cb = popup_state.pop("_configure_cb", None)
-        if cb is not None:
+        funcid = popup_state.pop("_configure_funcid", None)
+        if cb is not None and funcid:
             try:
-                dialog.unbind("<Configure>", None)
+                dialog.unbind("<Configure>", funcid)
             except Exception:
                 pass
         if popup is not None:
@@ -482,7 +487,9 @@ def build_dropdown_selector(
                 _close_menu()
 
         popup_state["_configure_cb"] = _on_dialog_configure
-        dialog.bind("<Configure>", _on_dialog_configure, add=True)
+        popup_state["_configure_funcid"] = dialog.bind(
+            "<Configure>", _on_dialog_configure, add="+"
+        )
         return "break"
 
     def _focus_in(_ev=None):
@@ -578,7 +585,7 @@ def show_custom_dialog(
         pass
     dialog.withdraw()
     dialog.title(title or "Histolauncher")
-    dialog.configure(bg="#000000")
+    dialog.configure(bg=AERO_GLASS_TRANSPARENT_KEY if AERO_GLASS_ENABLED else "#000000")
     dialog.resizable(False, False)
     dialog.attributes("-topmost", True)
     dialog.overrideredirect(True)
@@ -596,10 +603,13 @@ def show_custom_dialog(
     result = {"value": close_value}
     drag_state = {"x": 0, "y": 0}
 
-    outer = tkinter.Frame(dialog, bg=PANEL_BORDER_COLOR, padx=4, pady=4)
+    _outer_bg = SPLASH_BORDER_COLOR if AERO_GLASS_ENABLED else PANEL_BORDER_COLOR
+    _outer_pad = 4
+    _glass_bg = AERO_GLASS_TRANSPARENT_KEY if AERO_GLASS_ENABLED else PANEL_BG_COLOR
+    outer = tkinter.Frame(dialog, bg=_outer_bg, padx=_outer_pad, pady=_outer_pad)
     outer.pack(fill="both", expand=True)
 
-    card = tkinter.Frame(outer, bg=PANEL_BG_COLOR)
+    card = tkinter.Frame(outer, bg=_glass_bg)
     card.pack(fill="both", expand=True)
 
     topbar = tkinter.Frame(card, bg=TOPBAR_BG_COLOR, height=34)
@@ -657,10 +667,10 @@ def show_custom_dialog(
         draggable.bind("<ButtonPress-1>", start_drag)
         draggable.bind("<B1-Motion>", do_drag)
 
-    content = tkinter.Frame(card, bg=PANEL_BG_COLOR, padx=18, pady=18)
+    content = tkinter.Frame(card, bg=_glass_bg, padx=18, pady=18)
     content.pack(fill="both", expand=True)
 
-    body = tkinter.Frame(content, bg=PANEL_BG_COLOR)
+    body = tkinter.Frame(content, bg=_glass_bg)
     body.pack(fill="both", expand=True)
 
     icon_label = None
@@ -674,7 +684,7 @@ def show_custom_dialog(
         icon_label = tkinter.Label(
             body,
             text=style["icon"],
-            bg=PANEL_BG_COLOR,
+            bg=_glass_bg,
             fg=style["icon_color"],
             font=(ui_font, 26),
             anchor="n",
@@ -688,17 +698,17 @@ def show_custom_dialog(
             padx=icon_padx,
         )
 
-        text_wrap = tkinter.Frame(body, bg=PANEL_BG_COLOR)
+        text_wrap = tkinter.Frame(body, bg=_glass_bg)
         text_wrap.grid(row=0, column=text_column, sticky="nsew")
     else:
         body.grid_columnconfigure(0, weight=1)
-        text_wrap = tkinter.Frame(body, bg=PANEL_BG_COLOR)
+        text_wrap = tkinter.Frame(body, bg=_glass_bg)
         text_wrap.grid(row=0, column=0, sticky="nsew")
 
     title_label = tkinter.Label(
         text_wrap,
         text="",
-        bg=PANEL_BG_COLOR,
+        bg=_glass_bg,
         fg=TEXT_PRIMARY_COLOR,
         font=(ui_font, 14, "bold"),
         anchor=direction["anchor"],
@@ -710,7 +720,7 @@ def show_custom_dialog(
         text_wrap,
         text="",
         width=430,
-        bg=PANEL_BG_COLOR,
+        bg=_glass_bg,
         fg=TEXT_SECONDARY_COLOR,
         font=(ui_font, 11),
         justify=direction["justify"],
@@ -780,10 +790,10 @@ def show_custom_dialog(
 
     refresh_dialog_texts()
 
-    buttons_row = tkinter.Frame(content, bg=PANEL_BG_COLOR)
+    buttons_row = tkinter.Frame(content, bg=_glass_bg)
     buttons_row.pack(fill="x", pady=(16, 0))
 
-    buttons_wrap = tkinter.Frame(buttons_row, bg=PANEL_BG_COLOR)
+    buttons_wrap = tkinter.Frame(buttons_row, bg=_glass_bg)
     buttons_wrap.pack(anchor="center")
 
     def update_button_borders():
@@ -1001,6 +1011,14 @@ def show_custom_dialog(
 
     center_dialog_window(dialog, owner if not owns_owner else None)
     dialog.deiconify()
+    if AERO_GLASS_ENABLED:
+        try:
+            dialog.update_idletasks()
+            dialog.wm_attributes("-transparentcolor", AERO_GLASS_TRANSPARENT_KEY)
+            from launcher.win32_glass import apply_acrylic_blur
+            apply_acrylic_blur(dialog, AERO_GLASS_TINT_ABGR)
+        except Exception:
+            pass
     dialog.lift()
     try:
         dialog.wait_visibility()

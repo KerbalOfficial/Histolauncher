@@ -1,0 +1,32 @@
+.keyboard-mouse-cursor {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-focus);
+  background: color-mix(in srgb, var(--color-focus) 18%, transparent);
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 100000;
+  will-change: left, top;
+}
+
+.keyboard-mouse-cursor::after {
+  content: "";
+  position: absolute;
+  inset: 4px;
+  border: 1px solid color-mix(in srgb, var(--color-focus) 32%, rgba(255, 255, 255, 0.9));
+}
+
+.keyboard-mouse-cursor.active {
+  opacity: 1;
+  visibility: visible;
+}
+
+.keyboard-mouse-enabled .keyboard-mouse-target {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}

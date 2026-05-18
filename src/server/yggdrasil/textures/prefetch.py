@@ -2,18 +2,15 @@ from __future__ import annotations
 
 import os
 import time
-import urllib.parse
 import urllib.request
 
 from core.settings import _apply_url_proxy
 
 from server.yggdrasil.identity import (
     _get_username_and_uuid,
-    _histolauncher_account_enabled,
     _normalize_uuid_hex,
     _uuid_hex_to_dashed,
 )
-from server.yggdrasil.state import TEXTURES_API_HOSTNAME
 from server.yggdrasil.textures.local import (
     _persist_cached_skin_model,
     _remove_local_skin_model_metadata,
@@ -24,7 +21,6 @@ from server.yggdrasil.textures.resolver import (
     _resolve_skin_model,
     invalidate_texture_cache,
 )
-from server.yggdrasil.textures.urls import _collect_texture_identifiers
 
 
 __all__ = ["cache_textures", "refresh_textures"]
@@ -37,15 +33,13 @@ def cache_textures(
     timeout_seconds: float = 3.0,
 ) -> dict:
     out: dict[str, list] = {"skin": [], "cape": []}
-    if not probe_remote or not _histolauncher_account_enabled():
+    if not probe_remote:
         return out
 
     try:
         uname, cur_u_hex = _get_username_and_uuid()
         u_hex = _normalize_uuid_hex(uuid_hex) or _normalize_uuid_hex(cur_u_hex)
         profile_name = (username or uname or "").strip()
-
-        identifiers = _collect_texture_identifiers(u_hex or "", profile_name)
 
         base_dir = os.path.expanduser("~/.histolauncher")
         skins_dir = os.path.join(base_dir, "skins")
@@ -85,29 +79,20 @@ def cache_textures(
             return saved
 
         meta = _resolve_remote_texture_metadata(u_hex or "", profile_name)
+        if meta is None:
+            return out
 
         for ttype in ("skin", "cape"):
             urls: list[str] = []
-            if meta is not None:
-                remote_url = (meta or {}).get(ttype)
-                if remote_url:
-                    urls.append(remote_url)
-                else:
-                    removed = _remove_local_texture_files(u_hex or "", profile_name, ttype)
-                    out[ttype].extend(removed)
-                    if ttype == "skin":
-                        out[ttype].extend(_remove_local_skin_model_metadata(u_hex or ""))
-                    continue
+            remote_url = (meta or {}).get(ttype)
+            if remote_url:
+                urls.append(remote_url)
             else:
-                for ident in identifiers:
-                    if not ident:
-                        continue
-                    candidate = (
-                        f"https://{TEXTURES_API_HOSTNAME}/{ttype}/"
-                        f"{urllib.parse.quote(str(ident), safe='')}"
-                    )
-                    if candidate not in urls:
-                        urls.append(candidate)
+                removed = _remove_local_texture_files(u_hex or "", profile_name, ttype)
+                out[ttype].extend(removed)
+                if ttype == "skin":
+                    out[ttype].extend(_remove_local_skin_model_metadata(u_hex or ""))
+                continue
 
             for remote_url in urls:
                 try:
@@ -156,5 +141,15 @@ def refresh_textures(
         probe_remote=True,
         timeout_seconds=timeout_seconds,
     )
+    try:
+        from server.yggdrasil.textures.property import prewarm_authlib_texture_properties
+
+        prewarm_authlib_texture_properties(
+            target_uuid_hex=u_hex,
+            target_username=profile_name,
+            wait_seconds=0.0,
+        )
+    except Exception:
+        pass
     result["texture_revision"] = int(time.time() * 1000)
     return result

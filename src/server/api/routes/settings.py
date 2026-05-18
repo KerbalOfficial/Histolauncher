@@ -32,6 +32,7 @@ from server.api._helpers import (
     _sanitize_settings_payload,
     _write_data_ini_file,
 )
+from server.api.file_dialogs import open_native_directory_picker
 from server.api._validation import (
     _validate_category_string,
     _validate_version_string,
@@ -118,6 +119,8 @@ def api_settings(data):
     target_is_active = not target_profile_id or target_profile_id == active_profile_id
     current = load_global_settings(profile_arg)
     prev_type = (current.get("account_type") or "Local").strip()
+    prev_username = str(current.get("username") or "").strip()
+    prev_uuid = str(current.get("uuid") or "").strip()
 
     current.update(data)
     save_global_settings(current, profile_arg)
@@ -142,7 +145,31 @@ def api_settings(data):
         except Exception:
             pass
 
-    if target_is_active and current.get("account_type") == "Histolauncher":
+    identity_changed = False
+    if target_is_active:
+        new_username = str(current.get("username") or "").strip()
+        new_uuid = str(current.get("uuid") or "").strip()
+        target_uuid = new_uuid if new_type.lower() != "local" else ""
+        identity_changed = (
+            prev_type.lower() != new_type.lower()
+            or prev_username != new_username
+            or prev_uuid != new_uuid
+        )
+        if identity_changed:
+            try:
+                from server import yggdrasil
+
+                if prev_uuid or prev_username:
+                    yggdrasil.invalidate_texture_cache(prev_uuid, prev_username)
+                yggdrasil.prewarm_authlib_texture_properties(
+                    target_uuid_hex=target_uuid,
+                    target_username=new_username,
+                    wait_seconds=0.0,
+                )
+            except Exception:
+                pass
+
+    if target_is_active and identity_changed and current.get("account_type") == "Histolauncher":
         username = data.get("username") or current.get("username") or "(from session token)"
         uuid = data.get("uuid") or current.get("uuid") or "(from session token)"
         print(colorize_log(
@@ -427,31 +454,15 @@ def api_storage_directory_select(data):
     current_path = normalize_custom_storage_directory(
         data.get("current_path") or current_settings.get("custom_storage_directory")
     )
-    root = None
-
     try:
-        from tkinter import Tk
-        from tkinter.filedialog import askdirectory
-
-        root = Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-
-        initialdir = current_path if os.path.isdir(current_path) else os.path.expanduser("~")
-        selected_path = askdirectory(
-            initialdir=initialdir,
+        selected_path = open_native_directory_picker(
+            initialdir=current_path,
             title=t("native.fileDialogs.customStorageTitle"),
             mustexist=True,
         )
     except Exception as e:
         print(colorize_log(f"[api] Failed to open custom storage directory picker: {e}"))
         return {"ok": False, "error": f"Failed to open folder picker: {e}"}
-    finally:
-        try:
-            if root is not None:
-                root.destroy()
-        except Exception:
-            pass
 
     if not selected_path:
         return {"ok": False, "cancelled": True, "path": current_path}

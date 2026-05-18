@@ -10,6 +10,7 @@ __all__ = [
     "replace_pywebview_icon",
     "set_app_user_model_id",
     "extract_pywebview_hwnd",
+    "apply_hwnd_icon",
 ]
 
 
@@ -222,6 +223,37 @@ def _set_window_app_user_model_id(hwnd: int, app_id: str) -> None:
                 Commit(store)
         finally:
             Release(store)
+    except Exception:
+        pass
+
+
+def apply_hwnd_icon(hwnd: int) -> None:
+    if not sys.platform.startswith("win") or _user32 is None or not hwnd:
+        return
+
+    cx_big = _user32.GetSystemMetrics(_SM_CXICON) or 32
+    cy_big = _user32.GetSystemMetrics(_SM_CYICON) or 32
+    cx_sm = _user32.GetSystemMetrics(_SM_CXSMICON) or 16
+    cy_sm = _user32.GetSystemMetrics(_SM_CYSMICON) or 16
+
+    hicon_big = _user32.LoadImageW(
+        None, ICO_PATH, _IMAGE_ICON, cx_big, cy_big,
+        _LR_LOADFROMFILE | _LR_DEFAULTCOLOR,
+    )
+    hicon_sm = _user32.LoadImageW(
+        None, ICO_PATH, _IMAGE_ICON, cx_sm, cy_sm,
+        _LR_LOADFROMFILE | _LR_DEFAULTCOLOR,
+    )
+    if not hicon_big or not hicon_sm:
+        return
+
+    hwnd_c = ctypes.c_void_p(hwnd)
+    try:
+        _user32.SendMessageW(hwnd_c, _WM_SETICON, _ICON_SMALL, hicon_sm)
+        _user32.SendMessageW(hwnd_c, _WM_SETICON, _ICON_BIG, hicon_big)
+        if _SetClassLongPtr is not None:
+            _SetClassLongPtr(hwnd_c, _GCLP_HICON, hicon_big)
+            _SetClassLongPtr(hwnd_c, _GCLP_HICONSM, hicon_sm)
     except Exception:
         pass
 

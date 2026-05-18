@@ -2,10 +2,45 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import urlparse
 
 from core.logger import colorize_log
 from core.notifications import send_desktop_notification
 from core.settings import normalize_custom_storage_directory
+from server.api._constants import MAX_WORLDS_IMPORT_PAYLOAD
+from server.api.file_dialogs import (
+    open_native_file_picker,
+    remember_pending_import_file,
+    take_pending_import_file,
+    validate_selected_file,
+)
+
+
+_ALLOWED_WORLD_DOWNLOAD_HOSTS = (
+    "mediafilez.forgecdn.net",
+    "edge.forgecdn.net",
+    "media.forgecdn.net",
+    "files.forgecdn.net",
+)
+_ALLOWED_WORLD_DOWNLOAD_HOST_SUFFIXES = (
+    ".forgecdn.net",
+    ".curseforge.com",
+)
+
+
+def _is_allowed_world_download_url(url: str) -> bool:
+    try:
+        parsed = urlparse(str(url or ""))
+    except Exception:
+        return False
+    if parsed.scheme not in ("http", "https"):
+        return False
+    host = (parsed.hostname or "").lower().strip()
+    if not host:
+        return False
+    if host in _ALLOWED_WORLD_DOWNLOAD_HOSTS:
+        return True
+    return any(host.endswith(suffix) for suffix in _ALLOWED_WORLD_DOWNLOAD_HOST_SUFFIXES)
 
 
 __all__ = [
@@ -25,6 +60,7 @@ __all__ = [
     "api_worlds_versions",
     "api_worlds_install",
     "api_worlds_export",
+    "api_worlds_import_select",
     "api_worlds_import_scan",
     "api_worlds_import",
 ]
@@ -384,6 +420,9 @@ def api_worlds_install(data=None):
         if not download_url or not file_name:
             return {"ok": False, "error": "download_url and file_name are required"}
 
+        if not _is_allowed_world_download_url(download_url):
+            return {"ok": False, "error": "Refusing to download world from non-allowlisted host"}
+
         world_name = str(payload.get("world_name") or "").strip()
         world_slug = str(payload.get("world_slug") or "").strip()
         progress_key = _normalize_world_install_progress_key(
@@ -465,6 +504,42 @@ def api_worlds_export(data=None):
         return {"ok": False, "error": str(e)}
 
 
+def api_worlds_import_select(data=None):
+    try:
+        from core import world_manager
+
+        selected_path = open_native_file_picker(
+            title="Import World",
+            filetypes=[
+                ("World archive", "*.zip"),
+                ("All Files", "*.*"),
+            ],
+        )
+        selected = validate_selected_file(
+            selected_path,
+            allowed_extensions={".zip"},
+            max_size=MAX_WORLDS_IMPORT_PAYLOAD,
+            label="world archive",
+        )
+        if not selected.get("ok"):
+            return selected
+
+        scan_result = world_manager.scan_world_zip_file(selected.get("path") or "")
+        if not scan_result.get("ok"):
+            return scan_result
+
+        token = remember_pending_import_file("world", selected.get("path") or "")
+        scan_result.update({
+            "file_name": selected.get("file_name") or "",
+            "size_bytes": selected.get("size_bytes") or 0,
+            "import_token": token,
+        })
+        return scan_result
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to select world import file: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
 def api_worlds_import_scan(data=None):
     try:
         from core import world_manager
@@ -485,8 +560,15 @@ def api_worlds_import(data=None):
         from core import world_manager
 
         payload = data if isinstance(data, dict) else {}
+        import_token = str(payload.get("import_token") or "").strip()
+        zip_path = ""
+        if import_token:
+            zip_path = take_pending_import_file("world", import_token)
+            if not zip_path:
+                return {"ok": False, "error": "Selected world archive is no longer available."}
+
         zip_bytes = payload.get("zip_bytes")
-        if not isinstance(zip_bytes, (bytes, bytearray)) or not zip_bytes:
+        if not zip_path and (not isinstance(zip_bytes, (bytes, bytearray)) or not zip_bytes):
             return {"ok": False, "error": "Missing world zip payload."}
 
         storage_target = _normalize_world_storage_target(payload.get("storage_target"))
@@ -497,6 +579,14 @@ def api_worlds_import(data=None):
         if isinstance(raw_selected, list):
             selected_roots = [str(item or "").strip().strip("/") for item in raw_selected if item is not None]
             selected_roots = [item for item in selected_roots if item != ""] or selected_roots
+
+        if zip_path:
+            return world_manager.import_world_zip_file(
+                zip_path,
+                storage_target,
+                custom_path=custom_path,
+                selected_roots=selected_roots,
+            )
 
         return world_manager.import_world_zip_bytes(
             bytes(zip_bytes),

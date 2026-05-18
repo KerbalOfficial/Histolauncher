@@ -64,8 +64,8 @@ def _bootstrap() -> int:
         sys.path.insert(0, here)
 
     if sys.platform.startswith("linux"):
-        os.environ["PYWEBVIEW_GUI"] = "qt"
-        os.environ["QT_API"] = "pyqt6"
+        os.environ.setdefault("PYWEBVIEW_GUI", "qt")
+        os.environ.setdefault("QT_API", "pyqt6")
 
     if not _check_tkinter():
         try:

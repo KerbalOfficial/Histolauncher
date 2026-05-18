@@ -22,6 +22,7 @@ from core.settings import (
     validate_custom_storage_directory,
 )
 from core.version_manager import get_clients_dir, get_version_loaders, scan_categories
+from server.api.file_dialogs import save_native_file_picker
 from server.api.version_check import read_local_version
 
 
@@ -320,16 +321,9 @@ def _save_report_to_disk(report_text: str) -> tuple[bool, bool, str, str]:
     file_name = f"histolauncher-diagnostics-{_file_stamp()}.json"
     save_path = ""
     dialog_failed = False
-    root = None
 
     try:
-        from tkinter import Tk
-        from tkinter.filedialog import asksaveasfilename
-
-        root = Tk()
-        root.withdraw()
-        root.attributes("-topmost", True)
-        save_path = asksaveasfilename(
+        save_path = save_native_file_picker(
             initialfile=file_name,
             defaultextension=".json",
             filetypes=[("JSON", "*.json"), ("Text", "*.txt"), ("All Files", "*.*")],
@@ -339,12 +333,6 @@ def _save_report_to_disk(report_text: str) -> tuple[bool, bool, str, str]:
     except Exception as exc:
         dialog_failed = True
         print(colorize_log(f"[diagnostics] Save dialog unavailable, using fallback path: {exc}"))
-    finally:
-        try:
-            if root is not None:
-                root.destroy()
-        except Exception:
-            pass
 
     if not save_path and not dialog_failed:
         return False, True, "", ""

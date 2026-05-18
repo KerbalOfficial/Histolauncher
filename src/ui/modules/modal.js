@@ -84,7 +84,7 @@ export const sanitizeMessageBoxHtml = (html) => {
 
       if (
         (name === 'href' || name === 'src' || name === 'xlink:href' || name === 'formaction') &&
-        /^\s*javascript:/i.test(value)
+        /^\s*(?:javascript|data):/i.test(value)
       ) {
         el.removeAttribute(attr.name);
       }
@@ -138,21 +138,29 @@ export const hideMessageBox = () => {
   const restoreTarget = messageBoxRestoreFocusEl;
   messageBoxRestoreFocusEl = null;
 
-  const closeHook = activeMessageBoxState && typeof activeMessageBoxState.onClose === 'function'
-    ? activeMessageBoxState.onClose
+  const closingState = activeMessageBoxState;
+  const closingMode = activeMessageBoxMode;
+  const closeHook = closingState && typeof closingState.onClose === 'function'
+    ? closingState.onClose
     : null;
 
-  if (activeMessageBoxMode === 'activity') {
+  if (closingMode === 'activity') {
     activeActivityOverlay = null;
   }
-  activeMessageBoxMode = null;
-  activeMessageBoxState = null;
 
   if (closeHook) {
     try { closeHook(); } catch (e) { /* swallow cleanup errors */ }
   }
 
-  if (restoreTarget && typeof restoreTarget.focus === 'function' && restoreTarget.isConnected) {
+  if (activeMessageBoxState === closingState) {
+    activeMessageBoxMode = null;
+    activeMessageBoxState = null;
+  }
+
+  if (
+    overlay && overlay.classList.contains('hidden') &&
+    restoreTarget && typeof restoreTarget.focus === 'function' && restoreTarget.isConnected
+  ) {
     try {
       restoreTarget.focus();
     } catch (e) {
@@ -272,17 +280,14 @@ export const showMessageBox = ({
   boxTitle.textContent = title;
   toggleClass(boxTitle, 'hidden', !title);
 
-  // Handle custom content or regular message
   boxText.innerHTML = '';
 
   if (customContent && customContent instanceof Node) {
-    // If custom content is provided, use it instead of message text
     boxText.appendChild(customContent);
   } else if (typeof message === 'string' && message) {
     boxText.innerHTML = sanitizeMessageBoxHtml(message);
   }
 
-  // Add description if provided
   if (description) {
     const descEl = document.createElement('div');
     descEl.style.cssText = `

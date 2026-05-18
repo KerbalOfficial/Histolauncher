@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "YYYY-MM-DD HH:mm",
+  "am": "AM",
+  "pm": "PM",
   "nav": {
     "home": "Hem",
     "versions": "Versioner",
     "worlds": "Världar",
+    "screenshots": "Skärmdumpar",
     "addons": "Tillägg",
     "settings": "Inställningar",
-    "about": "Om"
+    "about": "Om",
+    "primaryNavAria": "Primär navigering"
   },
   "common": {
     "none": "Ingen",
     "unknown": "okänd",
     "all": "Alla",
+    "auto": "Auto",
     "defaultName": "Standard",
     "loading": "Laddar...",
     "refresh": "Uppdatera",
@@ -70,6 +76,20 @@
     "playerModel": "Spelarmodell",
     "modelWide": "Bred",
     "modelSlim": "Smal",
+    "textureType": "Texturtyp",
+    "textureDefault": "Standard",
+    "textureLegacy": "Klassisk",
+    "armMirror": "Spegla armar",
+    "legMirror": "Spegla ben",
+    "mirrorRight": "Höger",
+    "mirrorLeft": "Vänster",
+    "overlayToFirstLayer": "Applicera överlager på första lagret",
+    "overlayHead": "Huvud",
+    "overlayBody": "Jacka",
+    "overlayRightArm": "Höger ärm",
+    "overlayLeftArm": "Vänster ärm",
+    "overlayRightLeg": "Höger byxben",
+    "overlayLeftLeg": "Vänster byxben",
     "skinFile": "Skinfil",
     "capeSelection": "Cape",
     "skinPreviewAlt": "Skinförhandsvisning",
@@ -131,12 +151,16 @@
     "versionTooltip": "Launcher-version",
     "refreshTooltip": "Uppdatera värden (Håll in Shift för att ladda om sidan)",
     "refreshAria": "Uppdatera",
-    "profileTooltip": "Histolauncher-konto",
     "refreshAlt": "Uppdatera",
-    "profileAlt": "Profil"
+    "profileAlt": "Profil",
+    "profileTooltip": "Histolauncher-konto"
   },
   "home": {
     "launchButton": "Starta",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Stäng meddelande"
+    },
     "info": {
       "version": "Version",
       "noneSelected": "(ingen vald)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Versioner som för närvarande laddas ner.",
     "availableSubtitle": "Tillgängliga nedladdningsbara versioner",
     "deleteSelected": "Ta bort markerade (0)",
+    "actionsMenuAria": "Versionsåtgärder",
     "profile": {
       "renameTooltip": "Byt namn på aktiv versionsprofil",
       "renameAria": "Byt namn på versionsprofil",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Åsidosätt minsta RAM",
       "maximumRamOverride": "Åsidosätt högsta RAM",
       "resolutionOverride": "Åsidosätt upplösning",
-      "javaRuntimePathOverride": "Åsidosätt Java Runtime-sökväg",
+      "javaRuntimeOverride": "Åsidosätt Java Runtime-sökväg",
       "extraJvmArgumentsOverride": "Åsidosätt extra JVM-argument",
       "versionImageFile": "Versionsbild (valfritt, PNG/JPG)",
       "failedReadImageData": "Det gick inte att läsa bilddata",
@@ -356,6 +381,18 @@
       "successTitle": "Export slutförd!",
       "successMessage": "Filen sparades till:<br><b>{filepath}</b><br><br>Filstorlek<br><b>{size} MB</b>",
       "unexpectedError": "Ett fel uppstod under exporten:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Nedladdningar",
     "sortName": "Namn",
     "sortRecentlyUpdated": "Nyligen uppdaterad",
+    "actionsMenuAria": "Mod-åtgärder",
     "profile": {
       "renameTooltip": "Byt namn på aktiv tilläggsprofil",
       "renameAria": "Byt namn på tilläggsprofil",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Välj ModLoader för \"{file}\":"
+      "selectLoaderForFile": "Välj ModLoader för \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Installerad",
@@ -554,6 +593,14 @@
       "unexpectedError": "Oväntat installationsfel",
       "unexpectedForAddon": "Ett oväntat fel inträffade vid installation av {addon}."
     },
+    "dependencies": {
+      "title": "Modberoenden",
+      "checking": "Kontrollerar beroenden...",
+      "prompt": "Den här modden behöver beroenden för att fungera korrekt. Välj vilka beroenden du vill installera:",
+      "installSelected": "Installera valda",
+      "installing": "Installerar beroenden...",
+      "required": "Krävs"
+    },
     "exportModpack": {
       "title": "Exportera Modpack",
       "selectFormat": "Välj modpack-format att exportera:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Världar från {provider}",
     "deleteSelected": "Ta bort markerade (0)",
     "deleteSelectedCount": "Ta bort markerade ({count})",
+    "actionsMenuAria": "Världsåtgärder",
     "importTooltip": "Importera en värld från ett .zip-arkiv",
     "importAria": "Importera värld",
     "moreActionsTooltip": "Fler världsåtgärder",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Laddar världsredigerare...",
       "editWorldTitle": "Redigera Värld: {world}",
+      "failedNbtLoad": "Det gick inte att läsa in NBT-data för världen.",
       "worldFallback": "Värld",
       "thisWorld": "denna värld",
       "primaryPlayer": "Primär spelare",
@@ -933,8 +982,7 @@
       "saving": "Sparar världsredigerarens ändringar...",
       "failedSaveNbt": "Det gick inte att spara nbt-data för världen.",
       "renameFailedAfterNbt": "NBT-ändringar sparades, men omdöpning av världs-mappen misslyckades: {error}",
-      "iconFailedAfterSave": "Världs-data sparades, men ikonuppdateringen misslyckades: {error}",
-      "failedNbtLoad": "Det gick inte att läsa in NBT-data för världen."
+      "iconFailedAfterSave": "Världs-data sparades, men ikonuppdateringen misslyckades: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Startar...",
     "launchingTimed": "Startar... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Java Runtime Krävs",
     "javaRequiredMessage": "En kompatibel Java Runtime krävs.",
     "downloadJava": "Ladda ner Java",
@@ -1022,6 +1077,76 @@
       "generic": "Loader",
       "vanilla": "Vanilla",
       "none": "Ingen (ingen modloader)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Bilder",
+    "imagesSubtitleDefault": "Bilder i tillgängliga lagringskataloger",
+    "imagesSubtitle": "{count} bild(er) i {storage}",
+    "itemFallback": "Skärmdump",
+    "refreshTooltip": "Uppdatera listan med skärmdumpar",
+    "bulkSelectTooltip": "Växla massurvalläge för skärmdumpar",
+    "bulkDeleteTooltip": "Ta bort markerade skärmdumpar",
+    "toggleImagesAria": "Växla skärmdumpssektion",
+    "favoriteAlt": "favorit",
+    "list": {
+      "loading": "Laddar skärmdumpar...",
+      "failedLoadInstalled": "Det gick inte att läsa in skärmdumpar.",
+      "emptyInstalled": "Inga skärmdumpar hittades"
+    },
+    "actions": {
+      "openImage": "Öppna skärmdump {name}",
+      "closeImagePreview": "Stäng förhandsvisning av skärmdump",
+      "toggleSelection": "Växla val för skärmdump {name}",
+      "toggleFavorite": "Växla favorit för skärmdump {name}",
+      "renameImage": "Byt namn på skärmdump {name}",
+      "deleteImage": "Ta bort skärmdump {name}",
+      "saveAs": "Spara som",
+      "editImageButton": "Öppna"
+    },
+    "favorite": {
+      "saveFailedTitle": "Det gick inte att spara favorit",
+      "saveFailed": "Det gick inte att spara favoritskärmdumpar: {error}"
+    },
+    "rename": {
+      "title": "Byt namn på skärmdump",
+      "prompt": "Välj ett nytt namn för den här skärmdumpen.",
+      "keepExtension": "Filtillägget {extension} förblir detsamma.",
+      "invalidTitle": "Ogiltigt namn på skärmdump",
+      "invalidMessage": "Ange ett namn för skärmdumpen.",
+      "failedTitle": "Namnbyte misslyckades",
+      "failedMessage": "Det gick inte att byta namn på skärmdumpen."
+    },
+    "delete": {
+      "title": "Ta bort skärmdump",
+      "confirmMessage": "Ta bort {name}? Detta kan inte ångras.",
+      "failedTitle": "Borttagning misslyckades",
+      "failedMessage": "Det gick inte att ta bort skärmdumpen."
+    },
+    "edit": {
+      "failedTitle": "Öppning misslyckades",
+      "failedMessage": "Det gick inte att öppna skärmdumpen."
+    },
+    "saveAs": {
+      "failedTitle": "Sparning misslyckades",
+      "failedMessage": "Det gick inte att spara skärmdumpen: {error}",
+      "fileTypeDescription": "Bildfil",
+      "missingFile": "Skärmdumpsfilen kunde inte hittas."
+    },
+    "bulkDelete": {
+      "title": "Ta bort skärmdumpar",
+      "deleteSelectedCount": "Ta bort markerade ({count})",
+      "noSelected": "Välj minst en skärmdump först.",
+      "confirmMessage": "Ta bort {count} markerad(e) skärmdump(ar)? Detta kan inte ångras.",
+      "deletingProgress": "Tar bort skärmdumpar... ({current}/{total})",
+      "cancelling": "Avbryter borttagning av skärmdumpar...",
+      "cancelledTitle": "Massborttagning avbruten",
+      "cancelledMessage": "Tog bort {deleted} skärmdump(ar) innan avbrytning.",
+      "cancelledWithFailures": "Tog bort {deleted} skärmdump(ar) innan avbrytning. {failures} skärmdump(ar) misslyckades.",
+      "completeTitle": "Massborttagning slutförd",
+      "completeMessage": "Tog bort {deleted} skärmdump(ar).",
+      "finishedWithErrorsTitle": "Massborttagning avslutades med fel",
+      "finishedWithErrorsMessage": "Tog bort {deleted} skärmdump(ar).<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Klient",
       "launcher": "Launcher",
       "mods": "Moddar",
-      "dataStorage": "Data & Lagring"
+      "dataStorage": "Data & Lagring",
+      "playtime": "Speltid"
+    },
+    "playtime": {
+      "noData": "Inga sessioner har spelats in än. Spela en version för att börja spåra!",
+      "total": "Total speltid:",
+      "totalTooltip": "Total speltid för alla sessioner.",
+      "sessions": "Spelade sessioner:",
+      "sessionsTooltip": "Hur många gånger du startat ett spel.",
+      "mostPlayed": "Mest spelad version:",
+      "mostPlayedTooltip": "Den version du har spenderat mest tid i.",
+      "longest": "Längsta session:",
+      "longestTooltip": "Din längsta enskilda spelsession.",
+      "average": "Genomsnittlig session:",
+      "averageTooltip": "Genomsnittlig varaktighet för alla dina spelsessioner.",
+      "moreDetails": "Mer detaljer",
+      "detail": {
+        "title": "Speltidsdetaljer",
+        "allVersions": "Alla",
+        "filterBy": "Version:",
+        "date": "Datum",
+        "version": "Version",
+        "duration": "Varaktighet",
+        "modloader": "Modloader",
+        "noSessions": "Inga sessioner att visa.",
+        "sortBy": "Klicka för att sortera",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Alla",
+        "noLoader": "Ingen",
+        "totalLabel": "Totalt:",
+        "nowLive": "Live",
+        "truncatedNote": "Visar de {shown} senaste sessionerna av {total} totalt."
+      }
     },
     "account": {
       "username": "Användarnamn:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Öppna Microsoft",
         "failedLogin": "Microsoft-inloggningen misslyckades."
       },
-      "playerPreviewTooltip": "Visa förhandsvisning av spelaren i en liten 3D-modell (Kräver kontotexturer).",
+      "playerPreviewTooltip": "Visa din spelarskin och mantel i en 3D-förhandsgranskning.",
       "playerPreview": "Förhandsvisning av 3D-spelare:",
-      "playerRotateTitle": "Klicka och dra för att rotera",
       "playerPreviewBodyAlt": "Spelarförhandsvisning",
-      "playerPreviewCapeAlt": "Capeförhandsvisning"
+      "playerPreviewCapeAlt": "Capeförhandsvisning",
+      "playerRotateTitle": "Klicka och dra för att rotera"
     },
     "appearance": {
       "theme": "Tema:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Automatisk optimering:",
+      "autoOptimizeTooltip": "Väljer automatiskt start-RAM och JVM-argument från aktuellt enhetsminne varje gång Minecraft startar.",
+      "autoOptimizeLockedTitle": "Inaktivera Automatisk optimering för att redigera detta manuellt.",
       "minRam": "Minimum RAM:",
       "minRamTooltip": "Minimal mängd RAM tilldelat till spelet\n  - Måste vara ett positivt tal\n  - Måste vara mindre än Maximit RAM\n\nExempelformat: 256, 256M, 2G, o.s.v.\n\n(Prestanda-tips: Allokera mer RAM ger bättre prestanda, och matcha dem med maximalt RAM för färre frame-drops)",
       "ramInvalidTitle": "RAM-format: Använd siffror med valfri enhet för K, M, G, eller T (t.ex. 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Visar Discord Rich Presence medan launchern eller spelet körs.",
       "desktopNotifications": "Skrivbordsnotiser:",
       "desktopNotificationsTooltip": "Tillåt att launchern visar skrivbordsnotifikationer.",
+      "keyboardMouse": "Tangentbordsstyrd mus:",
+      "keyboardMouseTooltip": "Visar en tangentbordsstyrd markör i launchern.\n\nDetta är fortfarande experimentellt, förvänta dig många buggar!",
       "java": {
         "auto": "Auto",
         "defaultPath": "Standard (Java PATH)",

@@ -6,6 +6,7 @@ import { $$, getEl, bindKeyboardActivation } from './dom-utils.js';
 import { showMessageBox, showLoadingOverlay, hideLoadingOverlay } from './modal.js';
 import { unicodeList } from './config.js';
 import { t } from './i18n.js';
+import { escapeInfoHtml } from './string-utils.js';
 import {
   setVersionsBulkMode,
   updateVersionsBulkActionsUI,
@@ -88,16 +89,18 @@ export const initVersionsViewToggle = () => {
 };
 
 export const initCollapsibleSections = () => {
-  $$('.collapsible-section').forEach((section) => {
+  $$('.collapsible-section').forEach((section, index) => {
     const toggle = section.querySelector('.section-dropdown-toggle');
     const body = section.querySelector('.section-dropdown-body');
     const triggers = Array.from(section.querySelectorAll('.section-dropdown-trigger'));
 
-    if (!toggle || !body || toggle.dataset.dropdownBound === '1') {
+    if (!toggle || !body) {
       return;
     }
 
-    const setExpanded = (expanded) => {
+    const key = section.id || `collapsible-section-${index}`;
+
+    const setExpanded = (expanded, { persist = true } = {}) => {
       section.classList.toggle('collapsed', !expanded);
       toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
       triggers.forEach((trigger) => {
@@ -108,7 +111,16 @@ export const initCollapsibleSections = () => {
         indicator.textContent = expanded ? unicodeList.dropdown_open : unicodeList.dropdown_close;
       }
       body.classList.toggle('hidden', !expanded);
+      if (persist) state.collapsibleSectionExpanded[key] = !!expanded;
     };
+
+    const hasStoredState = Object.prototype.hasOwnProperty.call(state.collapsibleSectionExpanded, key);
+    const initialExpanded = hasStoredState ? !!state.collapsibleSectionExpanded[key] : true;
+
+    if (toggle.dataset.dropdownBound === '1') {
+      setExpanded(initialExpanded, { persist: false });
+      return;
+    }
 
     const handleToggle = () => {
       const expanded = toggle.getAttribute('aria-expanded') !== 'false';
@@ -121,7 +133,7 @@ export const initCollapsibleSections = () => {
     });
 
     toggle.dataset.dropdownBound = '1';
-    setExpanded(true);
+    setExpanded(initialExpanded, { persist: false });
   });
 };
 
@@ -158,59 +170,112 @@ export const handleExportVersions = async () => {
     };
 
     await new Promise((resolve) => {
-      const optionsHTML = `
-        <div class="export-version-modal">
-          <div class="export-version-target">
-            ${t('versions.export.exportingTarget', { target: `<b>${category}/${folder}</b>` })}
-          </div>
+      const wrap = document.createElement('div');
+      wrap.className = 'export-version-modal';
 
-          <div class="export-version-options">
-            <div class="export-version-options-title">${t('versions.export.includeOptions')}</div>
+      const target = document.createElement('div');
+      target.className = 'export-version-target';
+      const targetMarker = '__TARGET_VERSION__';
+      const targetText = t('versions.export.exportingTarget', { target: targetMarker });
+      const targetParts = targetText.split(targetMarker);
+      target.appendChild(document.createTextNode(targetParts[0] || ''));
+      const targetName = document.createElement('b');
+      targetName.textContent = `${category}/${folder}`;
+      target.appendChild(targetName);
+      target.appendChild(document.createTextNode(targetParts.slice(1).join(targetMarker)));
+      wrap.appendChild(target);
 
-            <label class="export-version-option-row">
-              <input type="checkbox" id="export-loaders" checked>
-              <span>${t('versions.export.includeLoaders')}</span>
-            </label>
+      const optionsWrap = document.createElement('div');
+      optionsWrap.className = 'export-version-options';
+      const optionsTitle = document.createElement('div');
+      optionsTitle.className = 'export-version-options-title';
+      optionsTitle.textContent = t('versions.export.includeOptions');
+      optionsWrap.appendChild(optionsTitle);
 
-            <label class="export-version-option-row">
-              <input type="checkbox" id="export-assets" checked>
-              <span>${t('versions.export.includeAssets')}</span>
-            </label>
+      const makeCheckboxRow = ({ id, checked, label }) => {
+        const row = document.createElement('label');
+        row.className = 'export-version-option-row';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.id = id;
+        input.checked = checked;
+        const text = document.createElement('span');
+        text.textContent = label;
+        row.appendChild(input);
+        row.appendChild(text);
+        optionsWrap.appendChild(row);
+        return input;
+      };
 
-            <label class="export-version-option-row">
-              <input type="checkbox" id="export-config">
-              <span>${t('versions.export.includeConfig')}</span>
-            </label>
-          </div>
+      const loadersInput = makeCheckboxRow({
+        id: 'export-loaders',
+        checked: true,
+        label: t('versions.export.includeLoaders'),
+      });
+      const assetsInput = makeCheckboxRow({
+        id: 'export-assets',
+        checked: true,
+        label: t('versions.export.includeAssets'),
+      });
+      const configInput = makeCheckboxRow({
+        id: 'export-config',
+        checked: false,
+        label: t('versions.export.includeConfig'),
+      });
+      wrap.appendChild(optionsWrap);
 
-          <div class="export-version-compression-wrap">
-            <label for="export-compression" class="export-version-options-title">${t('versions.export.compressionLevel')}</label>
+      const compressionWrap = document.createElement('div');
+      compressionWrap.className = 'export-version-compression-wrap';
+      const compressionLabel = document.createElement('label');
+      compressionLabel.htmlFor = 'export-compression';
+      compressionLabel.className = 'export-version-options-title';
+      compressionLabel.textContent = t('versions.export.compressionLevel');
 
-            <select id="export-compression" class="export-version-compression-select">
-              <option value="quick">${t('versions.export.compression.fast')}</option>
-              <option value="standard" selected>${t('versions.export.compression.regular')}</option>
-              <option value="full">${t('versions.export.compression.maximum')}</option>
-            </select>
+      const compressionSelect = document.createElement('select');
+      compressionSelect.id = 'export-compression';
+      compressionSelect.className = 'export-version-compression-select';
+      [
+        ['quick', t('versions.export.compression.fast')],
+        ['standard', t('versions.export.compression.regular')],
+        ['full', t('versions.export.compression.maximum')],
+      ].forEach(([value, label]) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        option.selected = value === 'standard';
+        compressionSelect.appendChild(option);
+      });
 
-            <div id="compression-hint" class="export-version-hint">
-              ${t('versions.export.compressionHint.standard')}
-            </div>
-          </div>
-        </div>
-      `;
+      const compressionHint = document.createElement('div');
+      compressionHint.id = 'compression-hint';
+      compressionHint.className = 'export-version-hint';
+      compressionHint.textContent = t('versions.export.compressionHint.standard');
+      compressionSelect.addEventListener('change', (e) => {
+        const hints = {
+          quick: t('versions.export.compressionHint.quick'),
+          standard: t('versions.export.compressionHint.standard'),
+          full: t('versions.export.compressionHint.full')
+        };
+        compressionHint.textContent = hints[e.target.value] || '';
+      });
+
+      compressionWrap.appendChild(compressionLabel);
+      compressionWrap.appendChild(compressionSelect);
+      compressionWrap.appendChild(compressionHint);
+      wrap.appendChild(compressionWrap);
 
       showMessageBox({
         title: t('versions.export.title'),
-        message: optionsHTML,
+        customContent: wrap,
         buttons: [
           {
             label: t('common.export'),
             classList: ['primary'],
             onClick: async () => {
-              exportOptions.include_loaders = document.getElementById('export-loaders').checked;
-              exportOptions.include_assets = document.getElementById('export-assets').checked;
-              exportOptions.include_config = document.getElementById('export-config').checked;
-              exportOptions.compression = document.getElementById('export-compression').value;
+              exportOptions.include_loaders = loadersInput.checked;
+              exportOptions.include_assets = assetsInput.checked;
+              exportOptions.include_config = configInput.checked;
+              exportOptions.compression = compressionSelect.value;
               resolve(true);
             }
           },
@@ -220,21 +285,6 @@ export const handleExportVersions = async () => {
           }
         ]
       });
-
-      setTimeout(() => {
-        const compressionSelect = document.getElementById('export-compression');
-        const hint = document.getElementById('compression-hint');
-        if (compressionSelect && hint) {
-          compressionSelect.addEventListener('change', (e) => {
-            const hints = {
-              quick: t('versions.export.compressionHint.quick'),
-              standard: t('versions.export.compressionHint.standard'),
-              full: t('versions.export.compressionHint.full')
-            };
-            hint.textContent = hints[e.target.value] || '';
-          });
-        }
-      }, 100);
     }).then(async (confirmed) => {
       if (!confirmed) return;
 
@@ -293,119 +343,72 @@ export const handleExportVersions = async () => {
   }
 };
 
-export const handleImportVersions = () => {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.hlvdf';
-  input.onchange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+export const handleImportVersions = async () => {
+  const operationId = createOperationId('version_import');
+  let cancelRequested = false;
 
-    try {
-      const filename = file.name;
+  showLoadingOverlay(t('versions.import.importing'), {
+    buttons: [
+      {
+        label: t('common.cancel'),
+        classList: ['danger'],
+        closeOnClick: false,
+        onClick: async (_values, controls) => {
+          if (cancelRequested) return;
+          cancelRequested = true;
+          controls.update({
+            message: t('versions.import.cancelling'),
+            buttons: [],
+          });
+          await requestOperationCancel(operationId);
+        },
+      },
+    ],
+  });
 
-      // Extract version name from filename - remove .hlvdf extension if present
-      const versionName = filename.endsWith('.hlvdf') ? filename.slice(0, -6) : filename;
+  try {
+    _deps.debug('Opening backend version import picker');
+    const result = await api('/api/versions/import-select', 'POST', {
+      operation_id: operationId,
+    });
 
-      if (!versionName || versionName.length === 0) {
-        hideLoadingOverlay();
+    hideLoadingOverlay();
 
+    if (!result || !result.ok) {
+      const resultError = result && result.error ? result.error : '';
+      if ((result && result.cancelled) || String(resultError).toLowerCase().includes('cancelled')) {
         showMessageBox({
-          title: 'Import Error',
-          message: 'Invalid filename. Please use a valid .hlvdf file.',
-          buttons: [{ label: 'OK' }]
+          title: t('versions.import.cancelledTitle'),
+          message: t('versions.import.cancelledMessage'),
+          buttons: [{ label: t('common.ok') }]
         });
         return;
       }
-
-      // Use FormData to send file directly (no base64 conversion needed)
-      const operationId = createOperationId('version_import');
-      let cancelRequested = false;
-      const formData = new FormData();
-      formData.append('version_name', versionName);
-      formData.append('zip_file', file); // The File object directly
-      formData.append('operation_id', operationId);
-
-      showLoadingOverlay('Importing version...', {
-        buttons: [
-          {
-            label: 'Cancel',
-            classList: ['danger'],
-            closeOnClick: false,
-            onClick: async (_values, controls) => {
-              if (cancelRequested) return;
-              cancelRequested = true;
-              controls.update({
-                message: 'Cancelling import...',
-                buttons: [],
-              });
-              await requestOperationCancel(operationId);
-            },
-          },
-        ],
-      });
-
-      // Send to backend using FormData (multipart/form-data encoding)
-      // The browser will handle streaming large files without converting to strings
-      _deps.debug('Sending import request with file size:', file.size);
-
-      try {
-        const response = await fetch('/api/versions/import', {
-          method: 'POST',
-          body: formData
-          // Note: Don't set Content-Type header - browser will set it with boundary
-        });
-
-        const result = await response.json();
-
-        hideLoadingOverlay();
-
-        if (!result.ok) {
-          if (result.cancelled || String(result.error || '').toLowerCase().includes('cancelled')) {
-            showMessageBox({
-              title: 'Import Cancelled',
-              message: 'You cancelled the import.',
-              buttons: [{ label: 'OK' }]
-            });
-            return;
-          }
-          showMessageBox({
-            title: 'Import Error',
-            message: result.error || 'Failed to import version',
-            buttons: [{ label: 'OK' }]
-          });
-          return;
-        }
-
-        showMessageBox({
-          title: 'Import Successful',
-          message: `Successfully imported version "${versionName}"<br><br>The version now appears in your Installed list with an IMPORTED badge.`,
-          buttons: [{ label: 'OK' }]
-        });
-
-        // Refresh the versions list
-        await _deps.init();
-      } catch (e) {
-        hideLoadingOverlay();
-
-        console.error('Import error:', e);
-        showMessageBox({
-          title: 'Import Error',
-          message: 'An error occurred during import: ' + e.message,
-          buttons: [{ label: 'OK' }]
-        });
-      }
-    } catch (e) {
-      hideLoadingOverlay();
-      console.error('Unexpected error during import:', e);
       showMessageBox({
-        title: 'Import Error',
-        message: 'An unexpected error occurred: ' + e.message,
-        buttons: [{ label: 'OK' }]
+        title: t('versions.import.errorTitle'),
+        message: resultError || t('versions.import.failed'),
+        buttons: [{ label: t('common.ok') }]
       });
+      return;
     }
-  };
-  input.click();
+
+    const versionName = result.folder || result.version_name || 'imported version';
+    showMessageBox({
+      title: t('versions.import.successTitle'),
+      message: t('versions.import.successMessage', { version: escapeInfoHtml(versionName) }),
+      buttons: [{ label: t('common.ok') }]
+    });
+
+    await _deps.init();
+  } catch (e) {
+    hideLoadingOverlay();
+    console.error('Import error:', e);
+    showMessageBox({
+      title: t('versions.import.errorTitle'),
+      message: t('versions.import.unexpectedError', { error: escapeInfoHtml(e.message) }),
+      buttons: [{ label: t('common.ok') }]
+    });
+  }
 };
 
 export const initVersionsExportImport = () => {

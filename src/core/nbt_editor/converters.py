@@ -34,6 +34,12 @@ def tag_value(compound: Any, key: str, default: Any = None) -> Any:
 
 
 def bool_value(value: Any) -> bool:
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"", "0", "false", "no", "off"}:
+            return False
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
     try:
         return bool(int(value))
     except Exception:
@@ -232,9 +238,9 @@ def nbt_from_json_safe(tag_type: int, value: Any, path: str = "value") -> Any:
         out = []
         for index, item in enumerate(value):
             parsed = int_value(item, None)
-            if parsed is None or parsed < 0 or parsed > 255:
-                raise ValueError(f"{path}[{index}] must be between 0 and 255.")
-            out.append(parsed)
+            if parsed is None or parsed < -128 or parsed > 255:
+                raise ValueError(f"{path}[{index}] must be a byte (-128..127 or 0..255).")
+            out.append(parsed & 0xFF)
         return bytes(out)
 
     if tag_type == TAG_INT_ARRAY:

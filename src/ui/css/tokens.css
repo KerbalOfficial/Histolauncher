@@ -60,6 +60,8 @@
   --color-success: #22c55e;
   --color-success-border: #12883d;
   --color-success-hover: #59e78d;
+  --color-live: #4ade80;
+  --color-live-bg: rgba(74, 222, 128, 0.07);
   --color-danger: #c52222;
   --color-danger-border: #771313;
   --color-danger-hover: #de4a4a;

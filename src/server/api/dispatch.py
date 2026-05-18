@@ -49,6 +49,7 @@ from server.api.routes.java import (
 )
 from server.api.routes.launch import (
     api_clear_logs,
+    api_crash_autofix,
     api_crash_log,
     api_game_window_visible,
     api_launch,
@@ -65,6 +66,7 @@ from server.api.routes.modpacks import (
     api_modpacks_delete,
     api_modpacks_export,
     api_modpacks_import,
+    api_modpacks_import_select,
     api_modpacks_import_progress,
     api_modpacks_installed,
     api_modpacks_set_mod_overwrite,
@@ -74,8 +76,10 @@ from server.api.routes.modpacks import (
 from server.api.routes.mods import (
     api_mods_archive_subfolders,
     api_mods_delete,
+    api_mods_dependencies,
     api_mods_detail,
     api_mods_import,
+    api_mods_import_select,
     api_mods_install,
     api_mods_installed,
     api_mods_move,
@@ -103,6 +107,13 @@ from server.api.routes.profiles import (
     api_profiles_versions_rename,
     api_profiles_versions_switch,
 )
+from server.api.routes.screenshots import (
+    api_screenshots_delete,
+    api_screenshots_installed,
+    api_screenshots_open,
+    api_screenshots_storage_options,
+    api_screenshots_update,
+)
 from server.api.routes.settings import (
     api_settings,
     api_storage_directory_select,
@@ -111,11 +122,14 @@ from server.api.routes.settings import (
 )
 from server.api.routes.versions import api_search, api_versions
 from server.api.routes.versions_io import api_export_versions, api_import_versions
+from server.api.routes.versions_io import api_import_versions_select
+from server.api.routes.playtime import api_playtime_stats, api_playtime_sessions
 from server.api.routes.worlds import (
     api_worlds_delete,
     api_worlds_detail,
     api_worlds_export,
     api_worlds_import,
+    api_worlds_import_select,
     api_worlds_import_scan,
     api_worlds_install,
     api_worlds_installed,
@@ -144,6 +158,16 @@ def _query_flag(path: str, name: str) -> bool:
     if not values:
         return False
     return str(values[-1]).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _query_value(path: str, name: str) -> str:
+    try:
+        values = parse_qs(urlparse(path).query or "").get(name) or []
+    except Exception:
+        return ""
+    if not values:
+        return ""
+    return str(values[-1] or "").strip()
 
 
 def handle_api_request(path: str, data: Any):
@@ -201,6 +225,7 @@ def handle_api_request(path: str, data: Any):
         "/api/search": api_search,
         "/api/launch": api_launch,
         "/api/crash-log": api_crash_log,
+        "/api/crash-autofix": api_crash_autofix,
         "/api/open-crash-log": api_open_crash_log,
         "/api/settings": api_settings,
         "/api/version/edit": api_version_edit,
@@ -221,8 +246,14 @@ def handle_api_request(path: str, data: Any):
         "/api/worlds/versions": api_worlds_versions,
         "/api/worlds/install": api_worlds_install,
         "/api/worlds/export": api_worlds_export,
+        "/api/worlds/import-select": api_worlds_import_select,
         "/api/worlds/import-scan": api_worlds_import_scan,
         "/api/worlds/import": api_worlds_import,
+        "/api/screenshots/storage-options": api_screenshots_storage_options,
+        "/api/screenshots/installed": api_screenshots_installed,
+        "/api/screenshots/update": api_screenshots_update,
+        "/api/screenshots/delete": api_screenshots_delete,
+        "/api/screenshots/open": api_screenshots_open,
         "/api/install": api_install,
         "/api/delete": api_delete_version,
         "/api/install-loader": api_install_loader,
@@ -230,12 +261,15 @@ def handle_api_request(path: str, data: Any):
         "/api/delete-corrupted-versions": api_delete_corrupted_versions,
         "/api/java-download": api_java_download,
         "/api/versions/export": api_export_versions,
+        "/api/versions/import-select": api_import_versions_select,
         "/api/versions/import": api_import_versions,
         "/api/addons/installed": api_mods_installed,
         "/api/addons/version-options": api_mods_version_options,
         "/api/mods/search": api_mods_search,
         "/api/mods/versions": api_mods_versions,
+        "/api/mods/dependencies": api_mods_dependencies,
         "/api/mods/install": api_mods_install,
+        "/api/mods/import-select": api_mods_import_select,
         "/api/mods/import": api_mods_import,
         "/api/mods/delete": api_mods_delete,
         "/api/mods/toggle": api_mods_toggle,
@@ -245,6 +279,7 @@ def handle_api_request(path: str, data: Any):
         "/api/mods/update-version-settings": api_mods_update_version_settings,
         "/api/mods/detail": api_mods_detail,
         "/api/modpacks/export": api_modpacks_export,
+        "/api/modpacks/import-select": api_modpacks_import_select,
         "/api/modpacks/import": api_modpacks_import,
         "/api/modpacks/toggle": api_modpacks_toggle,
         "/api/modpacks/toggle-mod": api_modpacks_toggle_mod,
@@ -252,6 +287,8 @@ def handle_api_request(path: str, data: Any):
         "/api/modpacks/delete": api_modpacks_delete,
         "/api/diagnostics/report": api_diagnostics_report,
         "/api/operations/cancel": api_operations_cancel,
+        "/api/playtime/stats": api_playtime_stats,
+        "/api/playtime/sessions": api_playtime_sessions,
     }
 
     PREFIX_HANDLERS = [
@@ -265,9 +302,7 @@ def handle_api_request(path: str, data: Any):
         ("/api/launch_status/", lambda _p: api_launch_status(_p[len("/api/launch_status/"):])),
         (
             "/api/modpacks/import/progress",
-            lambda _p: api_modpacks_import_progress(
-                path.split("id=")[1].split("&")[0] if "id=" in path else ""
-            ),
+            lambda _p: api_modpacks_import_progress(_query_value(path, "id")),
         ),
         (
             "/api/game_window_visible/",

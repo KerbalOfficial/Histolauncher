@@ -24,11 +24,14 @@ def apply_url_proxy(url: str) -> str:
     if not prefix:
         return raw_url
 
-    if raw_url.startswith(prefix):
+    if "{url}" not in prefix and "?" not in prefix and raw_url.startswith(prefix):
         return raw_url
 
     if "{url}" in prefix:
-        return prefix.replace("{url}", urllib.parse.quote(raw_url, safe=""))
+        encoded = urllib.parse.quote(raw_url, safe="")
+        if encoded and encoded in raw_url:
+            return raw_url
+        return prefix.replace("{url}", encoded)
 
     try:
         parsed_prefix = urllib.parse.urlsplit(prefix)

@@ -11,6 +11,7 @@ from core.nbt_editor import (
     TAG_FLOAT,
     TAG_INT,
     TAG_LONG,
+    TAG_SHORT,
     TAG_STRING,
     bool_value as _bool_value,
     compound_child as _compound_child,
@@ -179,10 +180,73 @@ def _parse_inventory_items(
     return [normalized_by_slot[slot] for slot in sorted(normalized_by_slot)]
 
 
+def _has_tag(compound: Any, key: str) -> bool:
+    return _compound_child(compound, key) is not None
+
+
+def _simple_world_features(data_value: Dict[str, Any], player_value: Any) -> Dict[str, bool]:
+    has_player = isinstance(player_value, dict)
+    uses_numeric_item_ids = _world_uses_numeric_item_ids(data_value, player_value)
+    return {
+        "has_level_name": _has_tag(data_value, "LevelName"),
+        "has_game_type": _has_tag(data_value, "GameType"),
+        "has_difficulty": _has_tag(data_value, "Difficulty"),
+        "has_allow_commands": _has_tag(data_value, "allowCommands"),
+        "has_hardcore": _has_tag(data_value, "hardcore"),
+        "has_day_time": _has_tag(data_value, "DayTime"),
+        "has_raining": _has_tag(data_value, "raining"),
+        "has_thundering": _has_tag(data_value, "thundering"),
+        "has_rain_time": _has_tag(data_value, "rainTime"),
+        "has_thunder_time": _has_tag(data_value, "thunderTime"),
+        "has_clear_weather_time": _has_tag(data_value, "clearWeatherTime"),
+        "has_player_game_mode": has_player and (_has_tag(player_value, "playerGameType") or _has_tag(data_value, "GameType")),
+        "has_health": has_player and _has_tag(player_value, "Health"),
+        "has_food_level": has_player and _has_tag(player_value, "foodLevel"),
+        "has_food_saturation": has_player and _has_tag(player_value, "foodSaturationLevel"),
+        "has_xp_level": has_player and _has_tag(player_value, "XpLevel"),
+        "has_xp_total": has_player and _has_tag(player_value, "XpTotal"),
+        "has_player_position": has_player and _has_tag(player_value, "Pos"),
+        "has_inventory": has_player and _has_tag(player_value, "Inventory"),
+        "has_selected_item_slot": has_player and _has_tag(player_value, "SelectedItemSlot"),
+        "has_ender_chest": has_player and _has_tag(player_value, "EnderItems"),
+        "uses_numeric_item_ids": uses_numeric_item_ids,
+    }
+
+
+def _world_uses_numeric_item_ids(data_value: Dict[str, Any], player_value: Any) -> bool:
+    if isinstance(player_value, dict):
+        for list_key in ("Inventory", "EnderItems"):
+            list_value = _list_tag_payload(player_value, list_key)
+            if not isinstance(list_value, dict):
+                continue
+            for entry in list_value.get("items", []) or []:
+                if not isinstance(entry, dict):
+                    continue
+                id_tag = _compound_child(entry, "id")
+                try:
+                    id_type = int((id_tag or {}).get("type", TAG_END) or TAG_END)
+                except Exception:
+                    id_type = TAG_END
+                if id_type in {TAG_BYTE, TAG_SHORT, TAG_INT, TAG_LONG}:
+                    return True
+                if id_type == TAG_STRING:
+                    return False
+
+    data_version = _int_value(_tag_value(data_value, "DataVersion", None), None)
+    if data_version is not None:
+        return data_version < 1451
+    version_value = _compound_tag_value(_compound_child(data_value, "Version"))
+    version_name = str(_tag_value(version_value, "Name", "") or "") if isinstance(version_value, dict) else ""
+    if version_name:
+        return not _version_at_least(version_name, "1.13")
+    return True
+
+
 def _simple_world_nbt_payload(root_tag: Dict[str, Any]) -> Dict[str, Any]:
     data_value = _ensure_compound_value(_ensure_root_value(root_tag), "Data")
     player_value = _compound_tag_value(_compound_child(data_value, "Player"))
     player_x, player_y, player_z = _position_from_player(player_value) if isinstance(player_value, dict) else (None, None, None)
+    features = _simple_world_features(data_value, player_value)
 
     return {
         "world_title": str(_tag_value(data_value, "LevelName", "") or ""),
@@ -201,6 +265,7 @@ def _simple_world_nbt_payload(root_tag: Dict[str, Any]) -> Dict[str, Any]:
         "spawn_y": _int_value(_tag_value(data_value, "SpawnY", 0), 0),
         "spawn_z": _int_value(_tag_value(data_value, "SpawnZ", 0), 0),
         "has_player_data": isinstance(player_value, dict),
+        "player_game_mode": _int_value(_tag_value(player_value, "playerGameType", _tag_value(data_value, "GameType", None)), None) if isinstance(player_value, dict) else None,
         "health": _float_value(_tag_value(player_value, "Health", None), None) if isinstance(player_value, dict) else None,
         "food_level": _int_value(_tag_value(player_value, "foodLevel", None), None) if isinstance(player_value, dict) else None,
         "food_saturation": _float_value(_tag_value(player_value, "foodSaturationLevel", None), None) if isinstance(player_value, dict) else None,
@@ -212,6 +277,7 @@ def _simple_world_nbt_payload(root_tag: Dict[str, Any]) -> Dict[str, Any]:
         "player_z": player_z,
         "inventory_items": _inventory_items_from_player(player_value) if isinstance(player_value, dict) else [],
         "ender_items": _ender_items_from_player(player_value) if isinstance(player_value, dict) else [],
+        "features": features,
     }
 
 
@@ -532,15 +598,17 @@ def update_world_simple_nbt(
     editor_context = _modernize_editor_root(loaded, player_id=player_id)
     root_tag = editor_context["root_tag"]
     current_simple = _simple_world_nbt_payload(root_tag)
+    features = current_simple.get("features") if isinstance(current_simple.get("features"), dict) else {}
 
     try:
-        game_mode = _parse_int_field(
+        game_mode = _parse_int_field(payload, "game_mode", "Game Mode", min_value=0, max_value=3, default=current_simple.get("game_mode", 0))
+        player_game_mode = _parse_int_field(
             payload,
-            "game_mode",
-            "Game Mode",
+            "player_game_mode",
+            "Player Game Mode",
             min_value=0,
             max_value=3,
-            default=current_simple.get("game_mode", 0),
+            default=current_simple.get("player_game_mode"),
         )
         difficulty = _parse_int_field(
             payload,
@@ -640,72 +708,86 @@ def update_world_simple_nbt(
 
     data_value = _ensure_compound_value(_ensure_root_value(root_tag), "Data")
 
-    _set_compound_tag(data_value, "GameType", TAG_INT, game_mode)
-    _set_compound_tag(data_value, "Difficulty", TAG_BYTE, difficulty)
-    _set_compound_tag(
-        data_value,
-        "allowCommands",
-        TAG_BYTE,
-        1 if _parse_bool_field(payload, "allow_commands", bool(current_simple.get("allow_commands"))) else 0,
-    )
-    _set_compound_tag(
-        data_value,
-        "hardcore",
-        TAG_BYTE,
-        1 if _parse_bool_field(payload, "hardcore", bool(current_simple.get("hardcore"))) else 0,
-    )
-    _set_compound_tag(data_value, "raining", TAG_BYTE, 1 if raining else 0)
-    _set_compound_tag(data_value, "thundering", TAG_BYTE, 1 if thundering else 0)
+    if features.get("has_game_type"):
+        _set_compound_tag(data_value, "GameType", TAG_INT, game_mode)
+    if features.get("has_difficulty"):
+        _set_compound_tag(data_value, "Difficulty", TAG_BYTE, difficulty)
+    if features.get("has_allow_commands"):
+        _set_compound_tag(
+            data_value,
+            "allowCommands",
+            TAG_BYTE,
+            1 if _parse_bool_field(payload, "allow_commands", bool(current_simple.get("allow_commands"))) else 0,
+        )
+    if features.get("has_hardcore"):
+        _set_compound_tag(
+            data_value,
+            "hardcore",
+            TAG_BYTE,
+            1 if _parse_bool_field(payload, "hardcore", bool(current_simple.get("hardcore"))) else 0,
+        )
+    if features.get("has_raining"):
+        _set_compound_tag(data_value, "raining", TAG_BYTE, 1 if raining else 0)
+    if features.get("has_thundering"):
+        _set_compound_tag(data_value, "thundering", TAG_BYTE, 1 if thundering else 0)
     _set_compound_tag(data_value, "Time", TAG_LONG, world_time or 0)
-    _set_compound_tag(data_value, "DayTime", TAG_LONG, day_time if day_time is not None else (world_time or 0))
-    _set_compound_tag(data_value, "rainTime", TAG_INT, rain_time or 0)
-    _set_compound_tag(data_value, "thunderTime", TAG_INT, thunder_time or 0)
-    _set_compound_tag(data_value, "clearWeatherTime", TAG_INT, clear_weather_time or 0)
+    if features.get("has_day_time"):
+        _set_compound_tag(data_value, "DayTime", TAG_LONG, day_time if day_time is not None else (world_time or 0))
+    if features.get("has_rain_time"):
+        _set_compound_tag(data_value, "rainTime", TAG_INT, rain_time or 0)
+    if features.get("has_thunder_time"):
+        _set_compound_tag(data_value, "thunderTime", TAG_INT, thunder_time or 0)
+    if features.get("has_clear_weather_time"):
+        _set_compound_tag(data_value, "clearWeatherTime", TAG_INT, clear_weather_time or 0)
     _set_compound_tag(data_value, "SpawnX", TAG_INT, spawn_x or 0)
     _set_compound_tag(data_value, "SpawnY", TAG_INT, spawn_y or 0)
     _set_compound_tag(data_value, "SpawnZ", TAG_INT, spawn_z or 0)
 
+    player_update_features = {
+        "player_game_mode": "has_player_game_mode",
+        "health": "has_health",
+        "food_level": "has_food_level",
+        "food_saturation": "has_food_saturation",
+        "xp_level": "has_xp_level",
+        "xp_total": "has_xp_total",
+        "selected_item_slot": "has_selected_item_slot",
+        "player_x": "has_player_position",
+        "player_y": "has_player_position",
+        "player_z": "has_player_position",
+        "inventory_items": "has_inventory",
+        "ender_items": "has_ender_chest",
+    }
     wants_player_updates = any(
-        key in payload
-        for key in {
-            "health",
-            "food_level",
-            "food_saturation",
-            "xp_level",
-            "xp_total",
-            "selected_item_slot",
-            "player_x",
-            "player_y",
-            "player_z",
-            "inventory_items",
-            "ender_items",
-        }
+        key in payload and features.get(feature_key)
+        for key, feature_key in player_update_features.items()
     )
     player_value = _compound_tag_value(_compound_child(data_value, "Player"))
     if wants_player_updates and player_value is None:
         player_value = _ensure_compound_value(data_value, "Player")
 
     if isinstance(player_value, dict):
-        if health is not None:
+        if features.get("has_player_game_mode") and player_game_mode is not None:
+            _set_compound_tag(player_value, "playerGameType", TAG_INT, player_game_mode)
+        if features.get("has_health") and health is not None:
             _set_compound_tag(player_value, "Health", TAG_FLOAT, health)
-        if food_level is not None:
+        if features.get("has_food_level") and food_level is not None:
             _set_compound_tag(player_value, "foodLevel", TAG_INT, food_level)
-        if food_saturation is not None:
+        if features.get("has_food_saturation") and food_saturation is not None:
             _set_compound_tag(player_value, "foodSaturationLevel", TAG_FLOAT, food_saturation)
-        if xp_level is not None:
+        if features.get("has_xp_level") and xp_level is not None:
             _set_compound_tag(player_value, "XpLevel", TAG_INT, xp_level)
-        if xp_total is not None:
+        if features.get("has_xp_total") and xp_total is not None:
             _set_compound_tag(player_value, "XpTotal", TAG_INT, xp_total)
-        if selected_item_slot is not None:
+        if features.get("has_selected_item_slot") and selected_item_slot is not None:
             _set_compound_tag(player_value, "SelectedItemSlot", TAG_INT, selected_item_slot)
-        if any(key in payload for key in {"player_x", "player_y", "player_z"}):
+        if features.get("has_player_position") and any(key in payload for key in {"player_x", "player_y", "player_z"}):
             resolved_player_x = player_x if player_x is not None else 0.0
             resolved_player_y = player_y if player_y is not None else 0.0
             resolved_player_z = player_z if player_z is not None else 0.0
             _set_player_position(player_value, resolved_player_x, resolved_player_y, resolved_player_z)
-        if inventory_items is not None:
+        if features.get("has_inventory") and inventory_items is not None:
             _set_player_inventory(player_value, inventory_items)
-        if ender_items is not None:
+        if features.get("has_ender_chest") and ender_items is not None:
             _set_player_ender_items(player_value, ender_items)
 
     save_ok, selected_player_id = _write_editor_root(loaded, root_tag, player_id=player_id)

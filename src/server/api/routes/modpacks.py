@@ -6,7 +6,12 @@ import shutil
 from core.logger import colorize_log
 from launcher.i18n import t
 
-from server.api._constants import VALID_MOD_LOADERS
+from server.api._constants import MAX_MODPACKS_IMPORT_PAYLOAD, VALID_MOD_LOADERS
+from server.api.file_dialogs import (
+    open_native_file_picker,
+    save_native_file_picker,
+    validate_selected_file,
+)
 from server.api._helpers import (
     _begin_operation,
     _clear_operation,
@@ -27,6 +32,7 @@ __all__ = [
     "api_modpacks_export",
     "api_modpacks_import_progress",
     "api_modpacks_import",
+    "api_modpacks_import_select",
     "api_modpacks_toggle_mod",
     "api_modpacks_set_mod_overwrite",
     "api_modpacks_toggle",
@@ -221,17 +227,10 @@ def api_modpacks_export(data):
 
                 save_path = ""
                 dialog_failed = False
-                root = None
 
                 try:
-                    from tkinter import Tk
-                    from tkinter.filedialog import asksaveasfilename
-
                     _raise_if_operation_cancelled(operation_id)
-                    root = Tk()
-                    root.withdraw()
-                    root.attributes("-topmost", True)
-                    save_path = asksaveasfilename(
+                    save_path = save_native_file_picker(
                         initialfile=file_name,
                         defaultextension=format_spec["extension"],
                         filetypes=[*format_spec["filetypes"], (t("native.fileDialogs.allFiles"), "*.*")],
@@ -244,12 +243,6 @@ def api_modpacks_export(data):
                         f"[api] Modpack save dialog unavailable, "
                         f"using fallback path: {dialog_err}"
                     ))
-                finally:
-                    try:
-                        if root is not None:
-                            root.destroy()
-                    except Exception:
-                        pass
 
                 if save_path and str(save_path).strip():
                     _raise_if_operation_cancelled(operation_id)
@@ -331,6 +324,56 @@ def api_modpacks_import_progress(import_id):
     return {"ok": False, "error": "Not found"}
 
 
+def api_modpacks_import_select(data):
+    operation_id = ""
+    progress_id = ""
+    try:
+        payload = data if isinstance(data, dict) else {}
+        operation_id = str(payload.get("operation_id") or payload.get("import_id") or "").strip()
+        progress_id = str(payload.get("import_id") or operation_id or "").strip()
+
+        selected_path = open_native_file_picker(
+            title=t(
+                "native.fileDialogs.openModpackImportTitle",
+                default="Import Modpack",
+            ),
+            filetypes=[
+                ("Modpack archives", "*.hlmp *.mrpack *.zip"),
+                (t("native.fileDialogs.allFiles"), "*.*"),
+            ],
+        )
+        selected = validate_selected_file(
+            selected_path,
+            allowed_extensions={".hlmp", ".mrpack", ".zip"},
+            max_size=MAX_MODPACKS_IMPORT_PAYLOAD,
+            label="modpack archive",
+        )
+        if not selected.get("ok"):
+            return selected
+
+        _raise_if_operation_cancelled(operation_id)
+
+        file_name = str(selected.get("file_name") or "")
+        extension = os.path.splitext(file_name)[1].lower()
+        source_format = "mrpack" if extension == ".mrpack" else ("hlmp" if extension == ".hlmp" else "zip")
+        return api_modpacks_import({
+            "archive_path": selected.get("path") or "",
+            "file_name": file_name,
+            "source_format": source_format,
+            "import_id": progress_id,
+            "operation_id": operation_id or progress_id,
+        })
+    except CancelledOperationError:
+        return {
+            "ok": False,
+            "cancelled": True,
+            "error": "Import cancelled by user",
+        }
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to select modpack import file: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
 def api_modpacks_import(data):
     operation_id = ""
     progress_id = ""
@@ -343,12 +386,21 @@ def api_modpacks_import(data):
         archive_data = data.get("hlmp_data")
         if archive_data is None:
             archive_data = data.get("modpack_data")
+        archive_path = str(data.get("archive_path") or "").strip()
 
-        if not isinstance(archive_data, (bytes, bytearray)) or len(archive_data) == 0:
+        if archive_path:
+            if not os.path.isfile(archive_path):
+                return {"ok": False, "error": "Selected modpack archive was not found"}
+        elif not isinstance(archive_data, (bytes, bytearray)) or len(archive_data) == 0:
             return {"ok": False, "error": "No modpack archive data"}
 
         file_name = str(data.get("file_name") or "").strip()
+        if not file_name and archive_path:
+            file_name = os.path.basename(archive_path)
         source_format = str(data.get("source_format") or "").strip().lower()
+        if not source_format and file_name:
+            extension = os.path.splitext(file_name)[1].lower()
+            source_format = "mrpack" if extension == ".mrpack" else ("hlmp" if extension == ".hlmp" else "zip")
         progress_id = str(data.get("import_id") or data.get("operation_id") or "").strip()
         operation_id = _begin_operation(data.get("operation_id") or progress_id)
 
@@ -360,8 +412,9 @@ def api_modpacks_import(data):
         if progress_id:
             STATE.import_progress[progress_id] = {"done": 0, "total": 1}
 
+        archive_input = archive_path if archive_path else bytes(archive_data)
         result = mod_manager.import_modpack(
-            bytes(archive_data),
+            archive_input,
             file_name=file_name,
             source_format=source_format,
             progress_callback=progress_callback,

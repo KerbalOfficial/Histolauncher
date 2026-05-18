@@ -19,6 +19,9 @@ from core.nbt_editor.tags import (
     TAG_STRING,
 )
 
+_MAX_NBT_DEPTH = 512
+_MAX_NBT_COLLECTION = 16 * 1024 * 1024
+
 
 class NbtReader:
     def __init__(self, data: bytes):
@@ -26,6 +29,8 @@ class NbtReader:
         self._pos = 0
 
     def _take(self, size: int) -> bytes:
+        if size < 0:
+            raise ValueError("NBT payload requested negative size")
         if self._pos + size > len(self._data):
             raise ValueError("NBT payload ended unexpectedly")
         chunk = self._data[self._pos:self._pos + size]
@@ -65,9 +70,20 @@ class NbtReader:
         if tag_type == TAG_END:
             return TAG_END, "", None
         name = self._string()
-        return tag_type, name, self.payload(tag_type)
+        return tag_type, name, self.payload(tag_type, depth=0)
 
-    def payload(self, tag_type: int) -> Any:
+    def _check_collection_size(self, size: int, per_item_bytes: int = 1) -> None:
+        if size < 0:
+            raise ValueError("NBT collection has negative size")
+        if size > _MAX_NBT_COLLECTION:
+            raise ValueError("NBT collection size exceeds limit")
+        remaining = len(self._data) - self._pos
+        if per_item_bytes > 0 and size > remaining // per_item_bytes + 1:
+            raise ValueError("NBT collection size exceeds remaining payload")
+
+    def payload(self, tag_type: int, depth: int = 0) -> Any:
+        if depth > _MAX_NBT_DEPTH:
+            raise ValueError("NBT nesting depth exceeds limit")
         if tag_type == TAG_BYTE:
             return self._i8()
         if tag_type == TAG_SHORT:
@@ -82,15 +98,18 @@ class NbtReader:
             return self._f64()
         if tag_type == TAG_BYTE_ARRAY:
             size = self._i32()
+            self._check_collection_size(size, per_item_bytes=1)
             return self._take(size)
         if tag_type == TAG_STRING:
             return self._string()
         if tag_type == TAG_LIST:
             item_type = self._u8()
             size = self._i32()
+            # For unknown sub-types use 1 byte as a conservative lower bound.
+            self._check_collection_size(size, per_item_bytes=1)
             return {
                 "list_type": item_type,
-                "items": [self.payload(item_type) for _ in range(size)],
+                "items": [self.payload(item_type, depth=depth + 1) for _ in range(size)],
             }
         if tag_type == TAG_COMPOUND:
             out = {}
@@ -101,14 +120,16 @@ class NbtReader:
                 inner_name = self._string()
                 out[inner_name] = {
                     "type": inner_type,
-                    "value": self.payload(inner_type),
+                    "value": self.payload(inner_type, depth=depth + 1),
                 }
             return out
         if tag_type == TAG_INT_ARRAY:
             size = self._i32()
+            self._check_collection_size(size, per_item_bytes=4)
             return [self._i32() for _ in range(size)]
         if tag_type == TAG_LONG_ARRAY:
             size = self._i32()
+            self._check_collection_size(size, per_item_bytes=8)
             return [self._i64() for _ in range(size)]
         raise ValueError(f"Unsupported NBT tag type: {tag_type}")
 

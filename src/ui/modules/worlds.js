@@ -5,6 +5,7 @@ import {
   $,
   getEl,
   bindKeyboardActivation,
+  openSharedImageLightbox,
   wireCardActionArrowNavigation,
   imageAttachErrorPlaceholder,
   isShiftDelete,
@@ -391,34 +392,17 @@ const sanitizeRemoteDetailHtml = (html) => {
     Array.from(el.attributes).forEach((attr) => {
       const name = String(attr.name || '').toLowerCase();
       const value = String(attr.value || '');
-      if (name.startsWith('on')) {
+      if (name.startsWith('on') || name === 'style') {
         el.removeAttribute(attr.name);
         return;
       }
-      if ((name === 'href' || name === 'src' || name === 'xlink:href') && /^\s*javascript:/i.test(value)) {
+      if ((name === 'href' || name === 'src' || name === 'xlink:href' || name === 'formaction') && /^\s*(?:javascript|data):/i.test(value)) {
         el.removeAttribute(attr.name);
       }
     });
   });
 
   return template.innerHTML;
-};
-
-const ensureScreenshotLightbox = () => {
-  let lightbox = document.getElementById('screenshot-lightbox');
-  if (lightbox) return lightbox;
-
-  lightbox = document.createElement('div');
-  lightbox.id = 'screenshot-lightbox';
-  lightbox.className = 'screenshot-lightbox';
-  const image = document.createElement('img');
-  image.className = 'screenshot-lightbox-img';
-  lightbox.appendChild(image);
-  lightbox.addEventListener('click', () => {
-    lightbox.classList.remove('active');
-  });
-  document.body.appendChild(lightbox);
-  return lightbox;
 };
 
 const updateWorldsWarning = (message = '') => {
@@ -991,62 +975,15 @@ const exportWorld = async (world) => {
   });
 };
 
-const _uploadWorldZip = async (file, endpoint, extraFields = {}) => {
-  const form = new FormData();
-  form.append('world_file', file, file.name || 'world.zip');
-  form.append('storage_target', worldsState.storageTarget || 'default');
-  form.append('custom_path', worldsState.customPath || '');
-  Object.keys(extraFields).forEach((key) => {
-    const value = extraFields[key];
-    if (value === null || value === undefined) return;
-    form.append(key, typeof value === 'string' ? value : JSON.stringify(value));
-  });
-
-  const response = await fetch(endpoint, { method: 'POST', body: form });
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(text || `HTTP ${response.status}`);
-  }
-  return response.json();
-};
-
 const importWorldFlow = async () => {
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.zip,application/zip';
-  input.style.display = 'none';
-  document.body.appendChild(input);
-
-  const fileSelected = await new Promise((resolve) => {
-    let resolved = false;
-    input.addEventListener('change', () => {
-      resolved = true;
-      resolve(input.files && input.files[0] ? input.files[0] : null);
-    });
-    // If the user dismisses the picker, focus returns without a change event.
-    window.addEventListener('focus', () => {
-      setTimeout(() => {
-        if (!resolved) resolve(null);
-      }, 400);
-    }, { once: true });
-    input.click();
-  });
-
-  document.body.removeChild(input);
-
-  if (!fileSelected) return;
-
-  const progressBox = showMessageBox({
-    title: t('worlds.import.title'),
-    message: t('worlds.import.scanning', { file: fileSelected.name }),
-    buttons: [],
-  });
-
   let scanRes = null;
   try {
-    scanRes = await _uploadWorldZip(fileSelected, '/api/worlds/import-scan');
+    scanRes = await api('/api/worlds/import-select', 'POST', {
+      storage_target: worldsState.storageTarget || 'default',
+      custom_path: worldsState.customPath || '',
+    });
   } catch (err) {
-    progressBox.update({
+    showMessageBox({
       title: t('worlds.import.failedTitle'),
       message: (err && err.message) || t('worlds.import.scanFailed'),
       buttons: [{ label: t('common.ok') }],
@@ -1054,8 +991,10 @@ const importWorldFlow = async () => {
     return;
   }
 
-  if (!scanRes || !scanRes.ok || !Array.isArray(scanRes.roots) || scanRes.roots.length === 0) {
-    progressBox.update({
+  if (scanRes && scanRes.cancelled) return;
+
+  if (!scanRes || !scanRes.ok || !scanRes.import_token || !Array.isArray(scanRes.roots) || scanRes.roots.length === 0) {
+    showMessageBox({
       title: t('worlds.import.failedTitle'),
       message: (scanRes && scanRes.error) || t('worlds.import.noWorldsFound'),
       buttons: [{ label: t('common.ok') }],
@@ -1064,6 +1003,13 @@ const importWorldFlow = async () => {
   }
 
   const roots = scanRes.roots;
+  const importToken = scanRes.import_token || '';
+  const selectedFileName = scanRes.file_name || 'world.zip';
+  const progressBox = showMessageBox({
+    title: t('worlds.import.title'),
+    message: t('worlds.import.scanning', { file: selectedFileName }),
+    buttons: [],
+  });
 
   const performImport = async (selectedRoots) => {
     progressBox.update({
@@ -1074,11 +1020,15 @@ const importWorldFlow = async () => {
 
     let importRes = null;
     try {
-      const extra = {};
+      const payload = {
+        import_token: importToken,
+        storage_target: worldsState.storageTarget || 'default',
+        custom_path: worldsState.customPath || '',
+      };
       if (selectedRoots && selectedRoots.length) {
-        extra.selected_roots = JSON.stringify(selectedRoots);
+        payload.selected_roots = selectedRoots;
       }
-      importRes = await _uploadWorldZip(fileSelected, '/api/worlds/import', extra);
+      importRes = await api('/api/worlds/import', 'POST', payload);
     } catch (err) {
       progressBox.update({
         title: t('worlds.import.failedTitle'),
@@ -1510,7 +1460,17 @@ const renderInstalledWorldDetailContent = (detail) => {
   title.textContent = detail.title || detail.world_id || t('worlds.editor.worldFallback');
   meta.appendChild(title);
 
-  const addRow = (...parts) => {
+  const sections = document.createElement('div');
+  sections.className = 'world-detail-sections';
+
+  const addSection = (heading, parts) => {
+    const section = document.createElement('div');
+    section.className = 'world-detail-section';
+    const headingEl = document.createElement('div');
+    headingEl.className = 'world-detail-section-title';
+    headingEl.textContent = heading;
+    section.appendChild(headingEl);
+
     const row = document.createElement('div');
     row.className = 'world-detail-meta-row';
     parts.filter(Boolean).forEach((text) => {
@@ -1518,27 +1478,28 @@ const renderInstalledWorldDetailContent = (detail) => {
       span.textContent = text;
       row.appendChild(span);
     });
-    if (row.childNodes.length) meta.appendChild(row);
+    section.appendChild(row);
+    sections.appendChild(section);
   };
 
-  addRow(
-    t('worlds.detail.worldIdValue', { value: detail.world_id || t('common.unknown') }),
-    t('worlds.detail.storageValue', { value: getWorldStorageLabel(detail.storage_label || worldsState.storageLabel) })
-  );
-  addRow(
-    t('worlds.detail.modifiedValue', { value: formatWorldDateTime(detail.modified_at) }),
-    t('worlds.detail.lastPlayedValue', { value: formatWorldDateTime(detail.last_played) })
-  );
-  addRow(
-    t('worlds.detail.sizeValue', { value: formatBytes(detail.size_bytes) || t('common.unknown') }),
-    t('worlds.detail.gameModeValue', { value: detail.game_mode || t('common.unknown') }),
-    t('worlds.detail.difficultyValue', { value: detail.difficulty || t('common.unknown') })
-  );
-  addRow(
+  addSection('Overview', [
     t('worlds.detail.versionValue', { value: detail.version_name || t('common.unknown') }),
+    t('worlds.detail.gameModeValue', { value: detail.game_mode || t('common.unknown') }),
+    t('worlds.detail.difficultyValue', { value: detail.difficulty || t('common.unknown') }),
+  ]);
+  addSection('Gameplay', [
     t('worlds.detail.cheatsValue', { value: detail.allow_commands ? t('worlds.detail.enabled') : t('worlds.detail.disabled') }),
-    t('worlds.detail.hardcoreValue', { value: detail.hardcore ? t('worlds.detail.yes') : t('worlds.detail.no') })
-  );
+    t('worlds.detail.hardcoreValue', { value: detail.hardcore ? t('worlds.detail.yes') : t('worlds.detail.no') }),
+    t('worlds.detail.lastPlayedValue', { value: formatWorldDateTime(detail.last_played) }),
+  ]);
+  addSection('Storage', [
+    t('worlds.detail.worldIdValue', { value: detail.world_id || t('common.unknown') }),
+    t('worlds.detail.storageValue', { value: getWorldStorageLabel(detail.storage_label || worldsState.storageLabel) }),
+    t('worlds.detail.sizeValue', { value: formatBytes(detail.size_bytes) || t('common.unknown') }),
+    t('worlds.detail.modifiedValue', { value: formatWorldDateTime(detail.modified_at) }),
+  ]);
+
+  meta.appendChild(sections);
 
   if (detail.path) {
     const note = document.createElement('div');
@@ -1555,6 +1516,15 @@ const renderInstalledWorldDetailContent = (detail) => {
 
 const createWorldEditorLoadingContent = (message) => {
   return createInlineLoadingState(message, { centered: true });
+};
+
+const setWorldEditorLoadingError = (container, message) => {
+  if (!container) return;
+  container.innerHTML = '';
+  const errorText = document.createElement('p');
+  errorText.style.color = 'var(--color-error)';
+  errorText.textContent = message || t('common.unknownError');
+  container.appendChild(errorText);
 };
 
 const setWorldEditorStatus = (statusEl, message = '', tone = '') => {
@@ -1954,6 +1924,27 @@ const worldEditorUsesModernItemFormat = (versionInfo, itemLists = []) => {
   });
 };
 
+const worldEditorUsesNumericItemIds = (versionInfo, itemLists = []) => {
+  let sawStringId = false;
+  for (const listValue of itemLists) {
+    const listPayload = isWorldEditorObject(listValue) ? listValue : null;
+    const entries = Array.isArray(listPayload && listPayload.items) ? listPayload.items : [];
+    for (const entry of entries) {
+      if (!isWorldEditorObject(entry)) continue;
+      const idType = getWorldEditorTagType(getWorldEditorTag(entry, 'id'), WORLD_NBT_TAGS.END);
+      if (WORLD_NBT_NUMERIC_TAGS.has(idType)) return true;
+      if (idType === WORLD_NBT_TAGS.STRING) sawStringId = true;
+    }
+  }
+  if (sawStringId) return false;
+  if (versionInfo && versionInfo.data_version !== null && versionInfo.data_version !== undefined) {
+    return worldEditorIntValue(versionInfo.data_version, 0) < 1451;
+  }
+  const normalizedVersion = normalizeWorldEditorMinecraftVersion(versionInfo && versionInfo.version_name);
+  if (normalizedVersion) return compareMinecraftVersionValues(normalizedVersion, '1.13') < 0;
+  return true;
+};
+
 const getWorldEditorWeatherDuration = (...values) => {
   for (const value of values) {
     const parsed = worldEditorIntValue(value, null);
@@ -2090,17 +2081,35 @@ const extractWorldSimpleStateFromRoot = (root) => {
   const supportsEnderChest = worldEditorSupportsMinecraftVersion(versionInfo, '1.3.1');
   const supportsOffhandSlot = worldEditorSupportsMinecraftVersion(versionInfo, '1.9');
   const usesModernItemFormat = worldEditorUsesModernItemFormat(versionInfo, [inventoryListValue, enderListValue]);
+  const usesNumericItemIds = worldEditorUsesNumericItemIds(versionInfo, [inventoryListValue, enderListValue]);
+  const dataHasTag = (key) => !!getWorldEditorTag(dataValue, key);
+  const playerHasTag = (key) => !!(playerValue && getWorldEditorTag(playerValue, key));
   const features = {
-    has_raining: !!getWorldEditorTag(dataValue, 'raining'),
-    has_thundering: !!getWorldEditorTag(dataValue, 'thundering'),
-    has_rain_time: !!getWorldEditorTag(dataValue, 'rainTime'),
-    has_thunder_time: !!getWorldEditorTag(dataValue, 'thunderTime'),
-    has_clear_weather_time: !!getWorldEditorTag(dataValue, 'clearWeatherTime'),
-    has_selected_item_slot: !!(playerValue && getWorldEditorTag(playerValue, 'SelectedItemSlot')),
-    has_ender_chest: !!(playerValue && getWorldEditorTag(playerValue, 'EnderItems')) || supportsEnderChest,
+    has_level_name: dataHasTag('LevelName'),
+    has_game_type: dataHasTag('GameType'),
+    has_difficulty: dataHasTag('Difficulty'),
+    has_allow_commands: dataHasTag('allowCommands'),
+    has_hardcore: dataHasTag('hardcore'),
+    has_day_time: dataHasTag('DayTime'),
+    has_raining: dataHasTag('raining'),
+    has_thundering: dataHasTag('thundering'),
+    has_rain_time: dataHasTag('rainTime'),
+    has_thunder_time: dataHasTag('thunderTime'),
+    has_clear_weather_time: dataHasTag('clearWeatherTime'),
+    has_player_game_mode: playerHasTag('playerGameType') || dataHasTag('GameType'),
+    has_health: playerHasTag('Health'),
+    has_food_level: playerHasTag('foodLevel'),
+    has_food_saturation: playerHasTag('foodSaturationLevel'),
+    has_xp_level: playerHasTag('XpLevel'),
+    has_xp_total: playerHasTag('XpTotal'),
+    has_player_position: playerHasTag('Pos'),
+    has_inventory: playerHasTag('Inventory') || !!playerValue,
+    has_selected_item_slot: playerHasTag('SelectedItemSlot'),
+    has_ender_chest: playerHasTag('EnderItems') || supportsEnderChest,
     has_offhand_slot: inventoryItems.some((item) => item.slot === -106) || supportsOffhandSlot,
     has_gamerules: gameRules.length > 0,
     uses_modern_item_format: usesModernItemFormat,
+    uses_numeric_item_ids: usesNumericItemIds,
   };
 
   return {
@@ -2123,6 +2132,9 @@ const extractWorldSimpleStateFromRoot = (root) => {
     spawn_y: worldEditorIntValue(getWorldEditorTagValue(dataValue, 'SpawnY', 0), 0),
     spawn_z: worldEditorIntValue(getWorldEditorTagValue(dataValue, 'SpawnZ', 0), 0),
     has_player_data: !!playerValue,
+    player_game_mode: playerValue
+      ? worldEditorIntValue(getWorldEditorTagValue(playerValue, 'playerGameType', getWorldEditorTagValue(dataValue, 'GameType', null)), null)
+      : null,
     health: playerValue ? worldEditorFloatValue(getWorldEditorTagValue(playerValue, 'Health', null), null) : null,
     food_level: playerValue ? worldEditorIntValue(getWorldEditorTagValue(playerValue, 'foodLevel', null), null) : null,
     food_saturation: playerValue
@@ -2143,18 +2155,22 @@ const extractWorldSimpleStateFromRoot = (root) => {
   };
 };
 
-const setWorldEditorItemList = (playerValue, listKey, items, { useModernItemFormat = false } = {}) => {
+const setWorldEditorItemList = (playerValue, listKey, items, { useModernItemFormat = false, useNumericItemIds = false } = {}) => {
   if (!isWorldEditorObject(playerValue)) return;
 
   const existingTag = getWorldEditorTag(playerValue, listKey);
   const existingBySlot = new Map();
   let listUsesModernItemFormat = !!useModernItemFormat;
+  let listUsesNumericItemIds = !!useNumericItemIds;
   if (existingTag && getWorldEditorTagType(existingTag) === WORLD_NBT_TAGS.LIST && isWorldEditorObject(existingTag.value)) {
     const currentItems = Array.isArray(existingTag.value.items) ? existingTag.value.items : [];
     currentItems.forEach((entry) => {
       if (!isWorldEditorObject(entry)) return;
       if (getWorldEditorTag(entry, 'count')) {
         listUsesModernItemFormat = true;
+      }
+      if (WORLD_NBT_NUMERIC_TAGS.has(getWorldEditorTagType(getWorldEditorTag(entry, 'id'), WORLD_NBT_TAGS.STRING))) {
+        listUsesNumericItemIds = true;
       }
       const slot = worldEditorIntValue(getWorldEditorTagValue(entry, 'Slot', null), null);
       if (slot === null) return;
@@ -2168,7 +2184,16 @@ const setWorldEditorItemList = (playerValue, listKey, items, { useModernItemForm
     let entry = existingBySlot.get(slot);
     if (!isWorldEditorObject(entry)) entry = {};
     setWorldEditorCompoundTag(entry, 'Slot', WORLD_NBT_TAGS.BYTE, slot);
-    setWorldEditorCompoundTag(entry, 'id', WORLD_NBT_TAGS.STRING, item && item.item_id ? item.item_id : '');
+    const existingIdType = getWorldEditorTagType(getWorldEditorTag(entry, 'id'), WORLD_NBT_TAGS.STRING);
+    const rawItemId = String(item && item.item_id ? item.item_id : '').trim();
+    const numericItemIdType = WORLD_NBT_NUMERIC_TAGS.has(existingIdType)
+      ? existingIdType
+      : (listUsesNumericItemIds ? WORLD_NBT_TAGS.SHORT : null);
+    if (numericItemIdType && /^-?\d+$/.test(rawItemId)) {
+      setWorldEditorCompoundTag(entry, 'id', numericItemIdType, parseInt(rawItemId, 10));
+    } else {
+      setWorldEditorCompoundTag(entry, 'id', WORLD_NBT_TAGS.STRING, rawItemId);
+    }
     const stackCount = worldEditorIntValue(item && item.count, 1) ?? 1;
     if (listUsesModernItemFormat || getWorldEditorTag(entry, 'count')) {
       setWorldEditorCompoundTag(entry, 'count', WORLD_NBT_TAGS.INT, stackCount);
@@ -2208,11 +2233,12 @@ const setWorldEditorPosition = (playerValue, xValue, yValue, zValue) => {
   };
 };
 
-const applyWorldEditorTitleToRoot = (root, title) => {
+const applyWorldEditorTitleToRoot = (root, title, { allowCreate = true } = {}) => {
   const trimmedTitle = String(title || '').trim();
   if (!trimmedTitle) return root;
   const rootValue = getWorldEditorRootValue(root);
   const dataValue = ensureWorldEditorCompoundValue(rootValue, 'Data');
+  if (!allowCreate && !getWorldEditorTag(dataValue, 'LevelName')) return root;
   setWorldEditorCompoundTag(dataValue, 'LevelName', WORLD_NBT_TAGS.STRING, trimmedTitle);
   return root;
 };
@@ -2234,11 +2260,19 @@ const applyWorldSimpleStateToRoot = (root, simpleState, worldTitle = '') => {
     ? 0
     : getWorldEditorWeatherDuration(simpleState.clear_weather_time);
 
-  applyWorldEditorTitleToRoot(root, worldTitle || simpleState.world_title);
-  setWorldEditorCompoundTag(dataValue, 'GameType', WORLD_NBT_TAGS.INT, simpleState.game_mode ?? 0);
-  setWorldEditorCompoundTag(dataValue, 'Difficulty', WORLD_NBT_TAGS.BYTE, simpleState.difficulty ?? 1);
-  setWorldEditorCompoundTag(dataValue, 'allowCommands', WORLD_NBT_TAGS.BYTE, simpleState.allow_commands ? 1 : 0);
-  setWorldEditorCompoundTag(dataValue, 'hardcore', WORLD_NBT_TAGS.BYTE, simpleState.hardcore ? 1 : 0);
+  applyWorldEditorTitleToRoot(root, worldTitle || simpleState.world_title, { allowCreate: !!features.has_level_name });
+  if (features.has_game_type) {
+    setWorldEditorCompoundTag(dataValue, 'GameType', WORLD_NBT_TAGS.INT, simpleState.game_mode ?? 0);
+  }
+  if (features.has_difficulty) {
+    setWorldEditorCompoundTag(dataValue, 'Difficulty', WORLD_NBT_TAGS.BYTE, simpleState.difficulty ?? 1);
+  }
+  if (features.has_allow_commands) {
+    setWorldEditorCompoundTag(dataValue, 'allowCommands', WORLD_NBT_TAGS.BYTE, simpleState.allow_commands ? 1 : 0);
+  }
+  if (features.has_hardcore) {
+    setWorldEditorCompoundTag(dataValue, 'hardcore', WORLD_NBT_TAGS.BYTE, simpleState.hardcore ? 1 : 0);
+  }
   if (features.has_raining) {
     setWorldEditorCompoundTag(dataValue, 'raining', WORLD_NBT_TAGS.BYTE, wantsRain ? 1 : 0);
   }
@@ -2246,12 +2280,14 @@ const applyWorldSimpleStateToRoot = (root, simpleState, worldTitle = '') => {
     setWorldEditorCompoundTag(dataValue, 'thundering', WORLD_NBT_TAGS.BYTE, wantsThunder ? 1 : 0);
   }
   setWorldEditorCompoundTag(dataValue, 'Time', WORLD_NBT_TAGS.LONG, simpleState.time ?? 0);
-  setWorldEditorCompoundTag(
-    dataValue,
-    'DayTime',
-    WORLD_NBT_TAGS.LONG,
-    simpleState.day_time ?? simpleState.time ?? 0
-  );
+  if (features.has_day_time) {
+    setWorldEditorCompoundTag(
+      dataValue,
+      'DayTime',
+      WORLD_NBT_TAGS.LONG,
+      simpleState.day_time ?? simpleState.time ?? 0
+    );
+  }
   if (features.has_rain_time) {
     setWorldEditorCompoundTag(dataValue, 'rainTime', WORLD_NBT_TAGS.INT, effectiveRainTime);
   }
@@ -2279,6 +2315,7 @@ const applyWorldSimpleStateToRoot = (root, simpleState, worldTitle = '') => {
     simpleState.food_saturation !== null ||
     simpleState.xp_level !== null ||
     simpleState.xp_total !== null ||
+    simpleState.player_game_mode !== null ||
     simpleState.selected_item_slot !== null ||
     simpleState.player_x !== null ||
     simpleState.player_y !== null ||
@@ -2291,13 +2328,16 @@ const applyWorldSimpleStateToRoot = (root, simpleState, worldTitle = '') => {
     : getWorldEditorCompoundValue(dataValue, 'Player');
 
   if (playerValue) {
-    if (simpleState.health !== null) {
+    if (features.has_player_game_mode && simpleState.player_game_mode !== null) {
+      setWorldEditorCompoundTag(playerValue, 'playerGameType', WORLD_NBT_TAGS.INT, simpleState.player_game_mode);
+    }
+    if (features.has_health && simpleState.health !== null) {
       setWorldEditorCompoundTag(playerValue, 'Health', WORLD_NBT_TAGS.FLOAT, simpleState.health);
     }
-    if (simpleState.food_level !== null) {
+    if (features.has_food_level && simpleState.food_level !== null) {
       setWorldEditorCompoundTag(playerValue, 'foodLevel', WORLD_NBT_TAGS.INT, simpleState.food_level);
     }
-    if (simpleState.food_saturation !== null) {
+    if (features.has_food_saturation && simpleState.food_saturation !== null) {
       setWorldEditorCompoundTag(
         playerValue,
         'foodSaturationLevel',
@@ -2305,13 +2345,13 @@ const applyWorldSimpleStateToRoot = (root, simpleState, worldTitle = '') => {
         simpleState.food_saturation
       );
     }
-    if (simpleState.xp_level !== null) {
+    if (features.has_xp_level && simpleState.xp_level !== null) {
       setWorldEditorCompoundTag(playerValue, 'XpLevel', WORLD_NBT_TAGS.INT, simpleState.xp_level);
     }
-    if (simpleState.xp_total !== null) {
+    if (features.has_xp_total && simpleState.xp_total !== null) {
       setWorldEditorCompoundTag(playerValue, 'XpTotal', WORLD_NBT_TAGS.INT, simpleState.xp_total);
     }
-    if (simpleState.selected_item_slot !== null) {
+    if (features.has_selected_item_slot && simpleState.selected_item_slot !== null) {
       setWorldEditorCompoundTag(
         playerValue,
         'SelectedItemSlot',
@@ -2320,20 +2360,23 @@ const applyWorldSimpleStateToRoot = (root, simpleState, worldTitle = '') => {
       );
     }
     if (
+      features.has_player_position &&
       simpleState.player_x !== null &&
       simpleState.player_y !== null &&
       simpleState.player_z !== null
     ) {
       setWorldEditorPosition(playerValue, simpleState.player_x, simpleState.player_y, simpleState.player_z);
     }
-    if (Array.isArray(simpleState.inventory_items)) {
+    if (features.has_inventory && Array.isArray(simpleState.inventory_items)) {
       setWorldEditorItemList(playerValue, 'Inventory', simpleState.inventory_items, {
         useModernItemFormat: !!features.uses_modern_item_format,
+        useNumericItemIds: !!features.uses_numeric_item_ids,
       });
     }
     if (features.has_ender_chest && Array.isArray(simpleState.ender_items)) {
       setWorldEditorItemList(playerValue, 'EnderItems', simpleState.ender_items, {
         useModernItemFormat: !!features.uses_modern_item_format,
+        useNumericItemIds: !!features.uses_numeric_item_ids,
       });
     }
   }
@@ -2975,11 +3018,17 @@ const getWorldSimpleGlobalSnapshot = (simple) => {
     spawn_z: source.spawn_z ?? 0,
     game_rules: cloneWorldSimpleGameRules(source.game_rules),
     features: {
+      has_level_name: !!(source.features && source.features.has_level_name),
+      has_game_type: !!(source.features && source.features.has_game_type),
       has_raining: !!(source.features && source.features.has_raining),
       has_thundering: !!(source.features && source.features.has_thundering),
       has_rain_time: !!(source.features && source.features.has_rain_time),
       has_thunder_time: !!(source.features && source.features.has_thunder_time),
       has_clear_weather_time: !!(source.features && source.features.has_clear_weather_time),
+      has_day_time: !!(source.features && source.features.has_day_time),
+      has_difficulty: !!(source.features && source.features.has_difficulty),
+      has_allow_commands: !!(source.features && source.features.has_allow_commands),
+      has_hardcore: !!(source.features && source.features.has_hardcore),
       has_gamerules: !!(source.features && source.features.has_gamerules),
     },
   };
@@ -2989,6 +3038,7 @@ const getWorldSimplePlayerSnapshot = (simple) => {
   const source = cloneWorldSimpleState(simple);
   return {
     has_player_data: !!source.has_player_data,
+    player_game_mode: source.player_game_mode ?? null,
     health: source.health ?? null,
     food_level: source.food_level ?? null,
     food_saturation: source.food_saturation ?? null,
@@ -3001,10 +3051,19 @@ const getWorldSimplePlayerSnapshot = (simple) => {
     inventory_items: cloneWorldSimpleItems(source.inventory_items),
     ender_items: cloneWorldSimpleItems(source.ender_items),
     features: {
+      has_player_game_mode: !!(source.features && source.features.has_player_game_mode),
+      has_health: !!(source.features && source.features.has_health),
+      has_food_level: !!(source.features && source.features.has_food_level),
+      has_food_saturation: !!(source.features && source.features.has_food_saturation),
+      has_xp_level: !!(source.features && source.features.has_xp_level),
+      has_xp_total: !!(source.features && source.features.has_xp_total),
+      has_player_position: !!(source.features && source.features.has_player_position),
+      has_inventory: !!(source.features && source.features.has_inventory),
       has_selected_item_slot: !!(source.features && source.features.has_selected_item_slot),
       has_ender_chest: !!(source.features && source.features.has_ender_chest),
       has_offhand_slot: !!(source.features && source.features.has_offhand_slot),
       uses_modern_item_format: !!(source.features && source.features.uses_modern_item_format),
+      uses_numeric_item_ids: !!(source.features && source.features.uses_numeric_item_ids),
     },
   };
 };
@@ -3032,11 +3091,17 @@ const applyWorldSimpleGlobalSnapshot = (targetState, snapshot) => {
 
   const snapshotFeatures = isWorldEditorObject(snapshot.features) ? snapshot.features : {};
   [
+    'has_level_name',
+    'has_game_type',
     'has_raining',
     'has_thundering',
     'has_rain_time',
     'has_thunder_time',
     'has_clear_weather_time',
+    'has_day_time',
+    'has_difficulty',
+    'has_allow_commands',
+    'has_hardcore',
     'has_gamerules',
   ].forEach((key) => {
     if (Object.prototype.hasOwnProperty.call(snapshotFeatures, key)) {
@@ -3051,6 +3116,7 @@ const applyWorldSimplePlayerSnapshot = (targetState, snapshot) => {
   if (!isWorldEditorObject(targetState) || !isWorldEditorObject(snapshot)) return targetState;
 
   targetState.has_player_data = !!snapshot.has_player_data;
+  targetState.player_game_mode = snapshot.player_game_mode ?? null;
   targetState.health = snapshot.health ?? null;
   targetState.food_level = snapshot.food_level ?? null;
   targetState.food_saturation = snapshot.food_saturation ?? null;
@@ -3066,10 +3132,19 @@ const applyWorldSimplePlayerSnapshot = (targetState, snapshot) => {
 
   const snapshotFeatures = isWorldEditorObject(snapshot.features) ? snapshot.features : {};
   [
+    'has_player_game_mode',
+    'has_health',
+    'has_food_level',
+    'has_food_saturation',
+    'has_xp_level',
+    'has_xp_total',
+    'has_player_position',
+    'has_inventory',
     'has_selected_item_slot',
     'has_ender_chest',
     'has_offhand_slot',
     'uses_modern_item_format',
+    'uses_numeric_item_ids',
   ].forEach((key) => {
     if (Object.prototype.hasOwnProperty.call(snapshotFeatures, key)) {
       targetState.features[key] = !!snapshotFeatures[key];
@@ -3092,20 +3167,16 @@ const collectWorldSimpleGlobalState = ({
 }) => {
   const nextState = getWorldSimpleGlobalSnapshot(baseSimple);
 
-  nextState.game_mode = parseWorldEditorIntegerField(refs.gameModeSelect.value, 'Game Mode', {
-    min: 0,
-    max: 3,
-    defaultValue: 0,
-    allowEmpty: false,
-  });
-  nextState.difficulty = parseWorldEditorIntegerField(refs.difficultySelect.value, 'Difficulty', {
-    min: 0,
-    max: 3,
-    defaultValue: 1,
-    allowEmpty: false,
-  });
-  nextState.allow_commands = !!refs.allowCommandsInput.checked;
-  nextState.hardcore = !!refs.hardcoreInput.checked;
+  nextState.difficulty = refs.difficultySelect
+    ? parseWorldEditorIntegerField(refs.difficultySelect.value, 'Difficulty', {
+        min: 0,
+        max: 3,
+        defaultValue: 1,
+        allowEmpty: false,
+      })
+    : (baseSimple.difficulty ?? 1);
+  nextState.allow_commands = refs.allowCommandsInput ? !!refs.allowCommandsInput.checked : !!baseSimple.allow_commands;
+  nextState.hardcore = refs.hardcoreInput ? !!refs.hardcoreInput.checked : !!baseSimple.hardcore;
   nextState.raining = refs.rainingInput ? !!refs.rainingInput.checked : !!baseSimple.raining;
   nextState.thundering = refs.thunderingInput ? !!refs.thunderingInput.checked : !!baseSimple.thundering;
   if (nextState.thundering) nextState.raining = true;
@@ -3175,31 +3246,49 @@ const collectWorldSimplePlayerState = ({
 }) => {
   const nextState = getWorldSimplePlayerSnapshot(baseSimple);
 
-  nextState.health = parseWorldEditorFloatField(refs.healthInput.value, 'Health', {
-    min: 0,
-    defaultValue: baseSimple.health,
-  });
-  nextState.food_level = parseWorldEditorIntegerField(refs.foodLevelInput.value, 'Food Level', {
-    min: 0,
-    defaultValue: baseSimple.food_level,
-  });
-  nextState.food_saturation = parseWorldEditorFloatField(refs.foodSaturationInput.value, 'Food Saturation', {
-    min: 0,
-    defaultValue: baseSimple.food_saturation,
-  });
-  nextState.xp_level = parseWorldEditorIntegerField(refs.xpLevelInput.value, 'XP Level', {
-    min: 0,
-    defaultValue: baseSimple.xp_level,
-  });
-  nextState.xp_total = parseWorldEditorIntegerField(refs.xpTotalInput.value, 'XP Total', {
-    min: 0,
-    defaultValue: baseSimple.xp_total,
-  });
+  nextState.player_game_mode = refs.playerGameModeSelect
+    ? parseWorldEditorIntegerField(refs.playerGameModeSelect.value, 'Game Mode', {
+        min: 0,
+        max: 3,
+        defaultValue: baseSimple.player_game_mode ?? baseSimple.game_mode ?? 0,
+        allowEmpty: false,
+      })
+    : (baseSimple.player_game_mode ?? null);
+  nextState.health = refs.healthInput
+    ? parseWorldEditorFloatField(refs.healthInput.value, 'Health', {
+        min: 0,
+        defaultValue: baseSimple.health,
+      })
+    : (baseSimple.health ?? null);
+  nextState.food_level = refs.foodLevelInput
+    ? parseWorldEditorIntegerField(refs.foodLevelInput.value, 'Food Level', {
+        min: 0,
+        defaultValue: baseSimple.food_level,
+      })
+    : (baseSimple.food_level ?? null);
+  nextState.food_saturation = refs.foodSaturationInput
+    ? parseWorldEditorFloatField(refs.foodSaturationInput.value, 'Food Saturation', {
+        min: 0,
+        defaultValue: baseSimple.food_saturation,
+      })
+    : (baseSimple.food_saturation ?? null);
+  nextState.xp_level = refs.xpLevelInput
+    ? parseWorldEditorIntegerField(refs.xpLevelInput.value, 'XP Level', {
+        min: 0,
+        defaultValue: baseSimple.xp_level,
+      })
+    : (baseSimple.xp_level ?? null);
+  nextState.xp_total = refs.xpTotalInput
+    ? parseWorldEditorIntegerField(refs.xpTotalInput.value, 'XP Total', {
+        min: 0,
+        defaultValue: baseSimple.xp_total,
+      })
+    : (baseSimple.xp_total ?? null);
 
-  const selectedHotbarSlot = refs.selectedHotbarControl.getValue();
-  nextState.selected_item_slot = selectedHotbarSlot === null
-    ? (baseSimple.selected_item_slot ?? null)
-    : (selectedHotbarSlot - 1);
+  const selectedHotbarSlot = refs.selectedHotbarControl ? refs.selectedHotbarControl.getValue() : null;
+  nextState.selected_item_slot = refs.selectedHotbarControl
+    ? (selectedHotbarSlot === null ? (baseSimple.selected_item_slot ?? null) : (selectedHotbarSlot - 1))
+    : (baseSimple.selected_item_slot ?? null);
 
   const rawPlayerX = String(refs.playerXInput.value || '').trim();
   const rawPlayerY = String(refs.playerYInput.value || '').trim();
@@ -3221,11 +3310,13 @@ const collectWorldSimplePlayerState = ({
     defaultValue: hasAnyPlayerPosition ? positionDefaults.z : baseSimple.player_z,
   });
 
-  nextState.inventory_items = normalizeWorldEditorInventoryItems(refs.inventorySection.getItems(), {
-    itemLabel: 'Inventory item',
-    minSlot: -128,
-    maxSlot: 127,
-  });
+  nextState.inventory_items = refs.inventorySection
+    ? normalizeWorldEditorInventoryItems(refs.inventorySection.getItems(), {
+        itemLabel: 'Inventory item',
+        minSlot: -128,
+        maxSlot: 127,
+      })
+    : cloneWorldSimpleItems(baseSimple.inventory_items);
   nextState.ender_items = refs.enderChestSection
     ? normalizeWorldEditorInventoryItems(refs.enderChestSection.getItems(), {
         itemLabel: 'Ender chest item',
@@ -3235,6 +3326,7 @@ const collectWorldSimplePlayerState = ({
 
   nextState.has_player_data =
     !!baseSimple.has_player_data ||
+    nextState.player_game_mode !== null ||
     nextState.health !== null ||
     nextState.food_level !== null ||
     nextState.food_saturation !== null ||
@@ -3324,24 +3416,54 @@ const buildWorldSimplePlayerEditor = (simple, playerMeta = {}) => {
   content.appendChild(playerIntro);
 
   const playerSection = createWorldEditorSection(t('worlds.editor.player.stats'), t('worlds.editor.player.statsDescription'));
-  const healthInput = createWorldEditorNumberInput(simple.health ?? '', { step: '0.5', min: 0 });
-  const foodLevelInput = createWorldEditorNumberInput(simple.food_level ?? '', { min: 0 });
-  const foodSaturationInput = createWorldEditorNumberInput(simple.food_saturation ?? '', { step: '0.5', min: 0 });
-  const xpLevelInput = createWorldEditorNumberInput(simple.xp_level ?? '', { min: 0 });
-  const xpTotalInput = createWorldEditorNumberInput(simple.xp_total ?? '', { min: 0 });
-  const selectedHotbarControl = createWorldEditorHotbarSelector(simple.selected_item_slot ?? null);
-  [
-    createWorldEditorField(t('worlds.editor.player.health'), healthInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.health, hintText: t('worlds.editor.player.fullHealthHint') }),
-    createWorldEditorField(t('worlds.editor.player.foodLevel'), foodLevelInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.foodLevel, hintText: t('worlds.editor.player.fullHungerHint') }),
-    createWorldEditorField(t('worlds.editor.player.foodSaturation'), foodSaturationInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.foodSaturation }),
-    createWorldEditorField(t('worlds.editor.player.xpLevel'), xpLevelInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.xpLevel }),
-    createWorldEditorField(t('worlds.editor.player.xpTotal'), xpTotalInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.xpTotal }),
-    createWorldEditorField(t('worlds.editor.selectedHotbarSlot'), selectedHotbarControl.element, {
+  let playerGameModeSelect = null;
+  let healthInput = null;
+  let foodLevelInput = null;
+  let foodSaturationInput = null;
+  let xpLevelInput = null;
+  let xpTotalInput = null;
+  let selectedHotbarControl = null;
+  const playerFields = [];
+  if (features.has_player_game_mode) {
+    playerGameModeSelect = createWorldEditorSelect([
+      { value: 0, label: t('worlds.editor.gameModes.survival') },
+      { value: 1, label: t('worlds.editor.gameModes.creative') },
+      { value: 2, label: t('worlds.editor.gameModes.adventure') },
+      { value: 3, label: t('worlds.editor.gameModes.spectator') },
+    ], simple.player_game_mode ?? simple.game_mode ?? 0);
+    playerFields.push(createWorldEditorField(t('worlds.editor.gameMode'), playerGameModeSelect, { tooltipText: WORLD_SIMPLE_TOOLTIPS.gameMode }));
+  }
+  if (features.has_health) {
+    healthInput = createWorldEditorNumberInput(simple.health ?? '', { step: '0.5', min: 0 });
+    playerFields.push(createWorldEditorField(t('worlds.editor.player.health'), healthInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.health, hintText: t('worlds.editor.player.fullHealthHint') }));
+  }
+  if (features.has_food_level) {
+    foodLevelInput = createWorldEditorNumberInput(simple.food_level ?? '', { min: 0 });
+    playerFields.push(createWorldEditorField(t('worlds.editor.player.foodLevel'), foodLevelInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.foodLevel, hintText: t('worlds.editor.player.fullHungerHint') }));
+  }
+  if (features.has_food_saturation) {
+    foodSaturationInput = createWorldEditorNumberInput(simple.food_saturation ?? '', { step: '0.5', min: 0 });
+    playerFields.push(createWorldEditorField(t('worlds.editor.player.foodSaturation'), foodSaturationInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.foodSaturation }));
+  }
+  if (features.has_xp_level) {
+    xpLevelInput = createWorldEditorNumberInput(simple.xp_level ?? '', { min: 0 });
+    playerFields.push(createWorldEditorField(t('worlds.editor.player.xpLevel'), xpLevelInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.xpLevel }));
+  }
+  if (features.has_xp_total) {
+    xpTotalInput = createWorldEditorNumberInput(simple.xp_total ?? '', { min: 0 });
+    playerFields.push(createWorldEditorField(t('worlds.editor.player.xpTotal'), xpTotalInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.xpTotal }));
+  }
+  if (features.has_selected_item_slot) {
+    selectedHotbarControl = createWorldEditorHotbarSelector(simple.selected_item_slot ?? null);
+    playerFields.push(createWorldEditorField(t('worlds.editor.selectedHotbarSlot'), selectedHotbarControl.element, {
       tooltipText: WORLD_SIMPLE_TOOLTIPS.hotbarSlot,
       hintText: t('worlds.editor.player.hotbarHint'),
-    }),
-  ].forEach((field) => playerSection.body.appendChild(field));
-  content.appendChild(playerSection.section);
+    }));
+  }
+  playerFields.forEach((field) => playerSection.body.appendChild(field));
+  if (playerFields.length > 0) {
+    content.appendChild(playerSection.section);
+  }
 
   const playerPositionSection = createWorldEditorSection(t('worlds.editor.player.position'), t('worlds.editor.player.positionDescription'));
   const playerXInput = createWorldEditorNumberInput(simple.player_x ?? '', { step: '0.1' });
@@ -3363,27 +3485,30 @@ const buildWorldSimplePlayerEditor = (simple, playerMeta = {}) => {
   ].forEach((field) => playerPositionSection.body.appendChild(field));
   content.appendChild(playerPositionSection.section);
 
-  const inventorySection = createWorldEditorInventorySection({
-    title: t('worlds.editor.inventoryLayout'),
-    description: t('worlds.editor.inventoryLayoutDescription'),
-    items: simple.inventory_items,
-    addButtonLabel: t('worlds.editor.addInventoryItem'),
-    slotPlaceholder: 'Slot',
-    itemPlaceholder: 'minecraft:stone',
-    slotTooltip: WORLD_SIMPLE_TOOLTIPS.inventorySlot,
-    itemTooltip: WORLD_SIMPLE_TOOLTIPS.inventoryItem,
-    countTooltip: WORLD_SIMPLE_TOOLTIPS.inventoryCount,
-    slotMax: 255,
-    createSlotControl: (value) => createWorldEditorSlotPickerInput({
-      value,
-      min: -128,
-      max: 127,
-      placeholder: 'Slot',
-      pickerType: 'player-inventory',
-      showOffhandSlot: !!features.has_offhand_slot,
-    }),
-  });
-  content.appendChild(inventorySection.section);
+  let inventorySection = null;
+  if (features.has_inventory) {
+    inventorySection = createWorldEditorInventorySection({
+      title: t('worlds.editor.inventoryLayout'),
+      description: t('worlds.editor.inventoryLayoutDescription'),
+      items: simple.inventory_items,
+      addButtonLabel: t('worlds.editor.addInventoryItem'),
+      slotPlaceholder: 'Slot',
+      itemPlaceholder: features.uses_numeric_item_ids ? '1' : 'minecraft:stone',
+      slotTooltip: WORLD_SIMPLE_TOOLTIPS.inventorySlot,
+      itemTooltip: WORLD_SIMPLE_TOOLTIPS.inventoryItem,
+      countTooltip: WORLD_SIMPLE_TOOLTIPS.inventoryCount,
+      slotMax: 255,
+      createSlotControl: (value) => createWorldEditorSlotPickerInput({
+        value,
+        min: -128,
+        max: 127,
+        placeholder: 'Slot',
+        pickerType: 'player-inventory',
+        showOffhandSlot: !!features.has_offhand_slot,
+      }),
+    });
+    content.appendChild(inventorySection.section);
+  }
 
   let enderChestSection = null;
   if (features.has_ender_chest) {
@@ -3393,7 +3518,7 @@ const buildWorldSimplePlayerEditor = (simple, playerMeta = {}) => {
       items: simple.ender_items,
       addButtonLabel: t('worlds.editor.addEnderChestItem'),
       slotPlaceholder: '0-26',
-      itemPlaceholder: 'minecraft:diamond_block',
+      itemPlaceholder: features.uses_numeric_item_ids ? '57' : 'minecraft:diamond_block',
       slotTooltip: WORLD_SIMPLE_TOOLTIPS.enderSlot,
       itemTooltip: WORLD_SIMPLE_TOOLTIPS.enderItem,
       countTooltip: WORLD_SIMPLE_TOOLTIPS.enderCount,
@@ -3414,6 +3539,7 @@ const buildWorldSimplePlayerEditor = (simple, playerMeta = {}) => {
     getState: () => collectWorldSimplePlayerState({
       baseSimple: simple,
       refs: {
+        playerGameModeSelect,
         healthInput,
         foodLevelInput,
         foodSaturationInput,
@@ -3448,31 +3574,35 @@ const buildWorldSimpleEditorView = (simple, detail) => {
     t('worlds.editor.worldRules'),
     t('worlds.editor.editingWorld', { world: detail.title || detail.world_id || t('worlds.editor.thisWorld') })
   );
-  const gameModeSelect = createWorldEditorSelect([
-    { value: 0, label: t('worlds.editor.gameModes.survival') },
-    { value: 1, label: t('worlds.editor.gameModes.creative') },
-    { value: 2, label: t('worlds.editor.gameModes.adventure') },
-    { value: 3, label: t('worlds.editor.gameModes.spectator') },
-  ], simple.game_mode ?? 0);
-  const difficultySelect = createWorldEditorSelect([
-    { value: 0, label: t('worlds.editor.difficulties.peaceful') },
-    { value: 1, label: t('worlds.editor.difficulties.easy') },
-    { value: 2, label: t('worlds.editor.difficulties.normal') },
-    { value: 3, label: t('worlds.editor.difficulties.hard') },
-  ], simple.difficulty ?? 1);
-  const allowCommandsInput = document.createElement('input');
-  allowCommandsInput.type = 'checkbox';
-  allowCommandsInput.checked = !!simple.allow_commands;
-  const hardcoreInput = document.createElement('input');
-  hardcoreInput.type = 'checkbox';
-  hardcoreInput.checked = !!simple.hardcore;
-  [
-    createWorldEditorField(t('worlds.editor.gameMode'), gameModeSelect, { tooltipText: WORLD_SIMPLE_TOOLTIPS.gameMode }),
-    createWorldEditorField(t('worlds.editor.difficulty'), difficultySelect, { tooltipText: WORLD_SIMPLE_TOOLTIPS.difficulty }),
-    createWorldEditorCheckboxField(t('worlds.editor.allowCommands'), allowCommandsInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.allowCommands }),
-    createWorldEditorCheckboxField(t('worlds.editor.hardcore'), hardcoreInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.hardcore }),
-  ].forEach((field) => gameSection.body.appendChild(field));
-  content.appendChild(gameSection.section);
+  let difficultySelect = null;
+  let allowCommandsInput = null;
+  let hardcoreInput = null;
+  const gameFields = [];
+  if (features.has_difficulty) {
+    difficultySelect = createWorldEditorSelect([
+      { value: 0, label: t('worlds.editor.difficulties.peaceful') },
+      { value: 1, label: t('worlds.editor.difficulties.easy') },
+      { value: 2, label: t('worlds.editor.difficulties.normal') },
+      { value: 3, label: t('worlds.editor.difficulties.hard') },
+    ], simple.difficulty ?? 1);
+    gameFields.push(createWorldEditorField(t('worlds.editor.difficulty'), difficultySelect, { tooltipText: WORLD_SIMPLE_TOOLTIPS.difficulty }));
+  }
+  if (features.has_allow_commands) {
+    allowCommandsInput = document.createElement('input');
+    allowCommandsInput.type = 'checkbox';
+    allowCommandsInput.checked = !!simple.allow_commands;
+    gameFields.push(createWorldEditorCheckboxField(t('worlds.editor.allowCommands'), allowCommandsInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.allowCommands }));
+  }
+  if (features.has_hardcore) {
+    hardcoreInput = document.createElement('input');
+    hardcoreInput.type = 'checkbox';
+    hardcoreInput.checked = !!simple.hardcore;
+    gameFields.push(createWorldEditorCheckboxField(t('worlds.editor.hardcore'), hardcoreInput, { tooltipText: WORLD_SIMPLE_TOOLTIPS.hardcore }));
+  }
+  gameFields.forEach((field) => gameSection.body.appendChild(field));
+  if (gameFields.length > 0) {
+    content.appendChild(gameSection.section);
+  }
 
   const spawnSection = createWorldEditorSection(t('worlds.editor.spawnPosition'), t('worlds.editor.spawnPositionDescription'));
   const spawnXInput = createWorldEditorNumberInput(simple.spawn_x ?? 0);
@@ -3643,7 +3773,6 @@ const buildWorldSimpleEditorView = (simple, detail) => {
       global: collectWorldSimpleGlobalState({
         baseSimple: simple,
         refs: {
-          gameModeSelect,
           difficultySelect,
           allowCommandsInput,
           hardcoreInput,
@@ -3803,7 +3932,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
     });
 
     if (!result || !result.ok) {
-      loading.innerHTML = `<p style="color:var(--color-error);">${(result && result.error) || t('worlds.editor.failedNbtLoad')}</p>`;
+      setWorldEditorLoadingError(loading, (result && result.error) || t('worlds.editor.failedNbtLoad'));
       return;
     }
 
@@ -4037,7 +4166,9 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
       if (!typedTitle || typedTitle === editorState.syncedTitle) {
         if (parsedTitle) titleInput.value = parsedTitle;
       } else {
-        applyWorldEditorTitleToRoot(rootToUse, typedTitle);
+        applyWorldEditorTitleToRoot(rootToUse, typedTitle, {
+          allowCreate: !!(parsedSimple.features && parsedSimple.features.has_level_name),
+        });
       }
 
       updatePrimaryRecordFromRoot(rootToUse);
@@ -4193,7 +4324,9 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
               || String(editorState.detail.title || editorState.currentWorldId || '').trim();
             const requestedWorldId = String(worldIdInput.value || '').trim() || editorState.currentWorldId;
 
-            applyWorldEditorTitleToRoot(editorState.nbtRoot, requestedTitle);
+            applyWorldEditorTitleToRoot(editorState.nbtRoot, requestedTitle, {
+              allowCreate: !!(editorState.simple && editorState.simple.features && editorState.simple.features.has_level_name),
+            });
             updatePrimaryRecordFromRoot(editorState.nbtRoot);
             syncSharedWorldStateAcrossPlayers(requestedTitle);
 
@@ -4287,7 +4420,7 @@ const openWorldNbtEditor = async (world, initialTab = 'simple', options = {}) =>
 
     renderActiveTab();
   } catch (err) {
-    loading.innerHTML = `<p style="color:var(--color-error);">${err.message || err}</p>`;
+    setWorldEditorLoadingError(loading, err.message || String(err));
   }
 };
 
@@ -4335,7 +4468,7 @@ const showInstalledWorldDetailModal = async (world) => {
       world_id: world.world_id,
     });
     if (!detail || !detail.ok) {
-      loading.innerHTML = `<p style="color:var(--color-error);">${(detail && detail.error) || t('worlds.detail.failedLoadDetails')}</p>`;
+      setWorldEditorLoadingError(loading, (detail && detail.error) || t('worlds.detail.failedLoadDetails'));
       return;
     }
     controls.update({
@@ -4438,14 +4571,21 @@ const showAvailableWorldDetailModal = async (world) => {
         if (!url) return;
         const img = document.createElement('img');
         img.src = url;
+        img.alt = '';
         img.className = 'mod-detail-screenshot';
         img.onerror = () => { img.style.display = 'none'; };
         img.title = t('mods.detail.clickToEnlarge');
-        img.addEventListener('click', () => {
-          const lightbox = ensureScreenshotLightbox();
-          const lightboxImg = lightbox.querySelector('img');
-          if (lightboxImg) lightboxImg.src = url;
-          lightbox.classList.add('active');
+        bindKeyboardActivation(img, {
+          ariaLabel: t('mods.detail.clickToEnlarge'),
+        });
+        img.addEventListener('click', (event) => {
+          openSharedImageLightbox({
+            src: url,
+            alt: t('mods.detail.screenshots'),
+            restoreFocusEl: img,
+            closeAriaLabel: t('screenshots.actions.closeImagePreview'),
+            showKeyboardCursor: event.detail === 0,
+          });
         });
         row.appendChild(img);
       });

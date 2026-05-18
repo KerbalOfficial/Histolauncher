@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD-MM-YYYY HH:mm",
+  "am": "AM",
+  "pm": "PM",
   "nav": {
-    "home": "Starten",
+    "home": "Startpagina",
     "versions": "Versies",
     "worlds": "Werelden",
+    "screenshots": "Schermafbeeldingen",
     "addons": "Add-ons",
     "settings": "Instellingen",
-    "about": "Over"
+    "about": "Over",
+    "primaryNavAria": "Primaire navigatie"
   },
   "common": {
     "none": "Geen",
     "unknown": "onbekend",
     "all": "Alles",
+    "auto": "Auto",
     "defaultName": "Standaard",
     "loading": "Laden...",
     "refresh": "Vernieuwen",
@@ -70,6 +76,20 @@
     "playerModel": "Spelermodel",
     "modelWide": "Breed",
     "modelSlim": "Smal",
+    "textureType": "Textuurtype",
+    "textureDefault": "Standaard",
+    "textureLegacy": "Oud",
+    "armMirror": "Armen spiegelen",
+    "legMirror": "Benen spiegelen",
+    "mirrorRight": "Rechts",
+    "mirrorLeft": "Links",
+    "overlayToFirstLayer": "Overlay op eerste laag toepassen",
+    "overlayHead": "Hoofd",
+    "overlayBody": "Jas",
+    "overlayRightArm": "Rechtermouw",
+    "overlayLeftArm": "Linkermouw",
+    "overlayRightLeg": "Rechter broekspijp",
+    "overlayLeftLeg": "Linker broekspijp",
     "skinFile": "Skinbestand",
     "capeSelection": "Cape",
     "skinPreviewAlt": "Skinvoorbeeld",
@@ -131,12 +151,16 @@
     "versionTooltip": "Launcherversie",
     "refreshTooltip": "Waarden vernieuwen (houd Shift ingedrukt om de pagina te verversen)",
     "refreshAria": "Vernieuwen",
-    "profileTooltip": "Histolauncher-account",
     "refreshAlt": "Vernieuwen",
-    "profileAlt": "Profiel"
+    "profileAlt": "Profiel",
+    "profileTooltip": "Histolauncher-account"
   },
   "home": {
     "launchButton": "Starten",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Bericht sluiten"
+    },
     "info": {
       "version": "Versie",
       "noneSelected": "(niets geselecteerd)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Versies die momenteel worden gedownload.",
     "availableSubtitle": "Beschikbare installeerbare versies",
     "deleteSelected": "Geselecteerde verwijderen (0)",
+    "actionsMenuAria": "Versieacties",
     "profile": {
       "renameTooltip": "Actief versiesprofiel hernoemen",
       "renameAria": "Versiesprofiel hernoemen",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Minimum RAM overschrijven",
       "maximumRamOverride": "Maximum RAM overschrijven",
       "resolutionOverride": "Resolutie overschrijven",
-      "javaRuntimePathOverride": "Java-runtimepad overschrijven",
+      "javaRuntimeOverride": "Java-runtimepad overschrijven",
       "extraJvmArgumentsOverride": "Extra JVM-argumenten overschrijven",
       "versionImageFile": "Versieafbeelding (optioneel, PNG/JPG)",
       "failedReadImageData": "Afbeeldingsgegevens lezen mislukt",
@@ -356,6 +381,18 @@
       "successTitle": "Export geslaagd!",
       "successMessage": "Bestand opgeslagen in:<br><b>{filepath}</b><br><br>Bestandsgrootte<br><b>{size} MB</b>",
       "unexpectedError": "Er is een fout opgetreden tijdens het exporteren:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Downloads",
     "sortName": "Naam",
     "sortRecentlyUpdated": "Recent bijgewerkt",
+    "actionsMenuAria": "Mod-acties",
     "profile": {
       "renameTooltip": "Actief add-onsprofiel hernoemen",
       "renameAria": "Add-onsprofiel hernoemen",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Selecteer de modloader voor \"{file}\":"
+      "selectLoaderForFile": "Selecteer de modloader voor \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Geïnstalleerd",
@@ -554,6 +593,14 @@
       "unexpectedError": "Onverwachte installatiefout",
       "unexpectedForAddon": "Er is een onverwachte fout opgetreden bij het installeren van {addon}."
     },
+    "dependencies": {
+      "title": "Mod-afhankelijkheden",
+      "checking": "Afhankelijkheden controleren...",
+      "prompt": "Deze mod heeft afhankelijkheden nodig om goed te werken. Kies welke je wilt installeren:",
+      "installSelected": "Geselecteerde installeren",
+      "installing": "Afhankelijkheden installeren...",
+      "required": "Vereist"
+    },
     "exportModpack": {
       "title": "Modpack exporteren",
       "selectFormat": "Selecteer het modpackformaat om te exporteren:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Werelden van {provider}",
     "deleteSelected": "Geselecteerde verwijderen (0)",
     "deleteSelectedCount": "Geselecteerde verwijderen ({count})",
+    "actionsMenuAria": "Wereldacties",
     "importTooltip": "Een wereld importeren uit een .zip-archief",
     "importAria": "Wereld importeren",
     "moreActionsTooltip": "Meer wereldacties",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Wereldeditor laden...",
       "editWorldTitle": "Wereld bewerken: {world}",
+      "failedNbtLoad": "Laden van NBT-gegevens van de wereld is mislukt.",
       "worldFallback": "Wereld",
       "thisWorld": "deze wereld",
       "primaryPlayer": "Primaire speler",
@@ -933,8 +982,7 @@
       "saving": "Wijzigingen in de wereldeditor opslaan...",
       "failedSaveNbt": "Wereld-NBT-gegevens opslaan mislukt.",
       "renameFailedAfterNbt": "NBT-wijzigingen zijn opgeslagen, maar het hernoemen van de wereldmap is mislukt: {error}",
-      "iconFailedAfterSave": "Wereldgegevens zijn opgeslagen, maar het bijwerken van het pictogram is mislukt: {error}",
-      "failedNbtLoad": "Laden van NBT-gegevens van de wereld is mislukt."
+      "iconFailedAfterSave": "Wereldgegevens zijn opgeslagen, maar het bijwerken van het pictogram is mislukt: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Starten...",
     "launchingTimed": "Starten... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Java-runtime vereist",
     "javaRequiredMessage": "Er is een compatibele Java-runtime vereist.",
     "downloadJava": "Java downloaden",
@@ -1022,6 +1077,76 @@
       "generic": "Loader",
       "vanilla": "Vanilla",
       "none": "Geen (geen modloader)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Afbeeldingen",
+    "imagesSubtitleDefault": "Afbeeldingen in beschikbare opslagmappen",
+    "imagesSubtitle": "{count} afbeelding(en) in {storage}",
+    "itemFallback": "Schermafbeelding",
+    "refreshTooltip": "Lijst met schermafbeeldingen vernieuwen",
+    "bulkSelectTooltip": "Bulkselectiemodus voor schermafbeeldingen in-/uitschakelen",
+    "bulkDeleteTooltip": "Geselecteerde schermafbeeldingen verwijderen",
+    "toggleImagesAria": "Sectie schermafbeeldingen in-/uitklappen",
+    "favoriteAlt": "favoriet",
+    "list": {
+      "loading": "Schermafbeeldingen laden...",
+      "failedLoadInstalled": "Schermafbeeldingen konden niet worden geladen.",
+      "emptyInstalled": "Geen schermafbeeldingen gevonden"
+    },
+    "actions": {
+      "openImage": "Schermafbeelding {name} openen",
+      "closeImagePreview": "Voorvertoning schermafbeelding sluiten",
+      "toggleSelection": "Selectie voor schermafbeelding {name} in-/uitschakelen",
+      "toggleFavorite": "Favoriet voor schermafbeelding {name} in-/uitschakelen",
+      "renameImage": "Schermafbeelding {name} hernoemen",
+      "deleteImage": "Schermafbeelding {name} verwijderen",
+      "saveAs": "Opslaan als",
+      "editImageButton": "Openen"
+    },
+    "favorite": {
+      "saveFailedTitle": "Favoriet opslaan mislukt",
+      "saveFailed": "Favorieten voor schermafbeeldingen konden niet worden opgeslagen: {error}"
+    },
+    "rename": {
+      "title": "Schermafbeelding hernoemen",
+      "prompt": "Kies een nieuwe naam voor deze schermafbeelding.",
+      "keepExtension": "De bestandsextensie {extension} blijft hetzelfde.",
+      "invalidTitle": "Ongeldige naam voor schermafbeelding",
+      "invalidMessage": "Voer een naam in voor de schermafbeelding.",
+      "failedTitle": "Hernoemen mislukt",
+      "failedMessage": "Schermafbeelding kon niet worden hernoemd."
+    },
+    "delete": {
+      "title": "Schermafbeelding verwijderen",
+      "confirmMessage": "{name} verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "failedTitle": "Verwijderen mislukt",
+      "failedMessage": "Schermafbeelding kon niet worden verwijderd."
+    },
+    "edit": {
+      "failedTitle": "Openen mislukt",
+      "failedMessage": "Schermafbeelding kon niet worden geopend."
+    },
+    "saveAs": {
+      "failedTitle": "Opslaan mislukt",
+      "failedMessage": "Schermafbeelding kon niet worden opgeslagen: {error}",
+      "fileTypeDescription": "Afbeeldingsbestand",
+      "missingFile": "Het bestand van de schermafbeelding kon niet worden gevonden."
+    },
+    "bulkDelete": {
+      "title": "Schermafbeeldingen verwijderen",
+      "deleteSelectedCount": "Selectie verwijderen ({count})",
+      "noSelected": "Selecteer eerst minimaal één schermafbeelding.",
+      "confirmMessage": "{count} geselecteerde schermafbeelding(en) verwijderen? Dit kan niet ongedaan worden gemaakt.",
+      "deletingProgress": "Schermafbeeldingen verwijderen... ({current}/{total})",
+      "cancelling": "Verwijdering van schermafbeeldingen annuleren...",
+      "cancelledTitle": "Bulkverwijdering geannuleerd",
+      "cancelledMessage": "{deleted} schermafbeelding(en) verwijderd voor het annuleren.",
+      "cancelledWithFailures": "{deleted} schermafbeelding(en) verwijderd voor het annuleren. {failures} schermafbeelding(en) mislukt.",
+      "completeTitle": "Bulkverwijdering voltooid",
+      "completeMessage": "{deleted} schermafbeelding(en) verwijderd.",
+      "finishedWithErrorsTitle": "Bulkverwijdering voltooid met fouten",
+      "finishedWithErrorsMessage": "{deleted} schermafbeelding(en) verwijderd.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Client",
       "launcher": "Launcher",
       "mods": "Mods",
-      "dataStorage": "Gegevens & opslag"
+      "dataStorage": "Gegevens & opslag",
+      "playtime": "Speeltijd"
+    },
+    "playtime": {
+      "noData": "Nog geen sessies opgenomen. Speel een versie om te beginnen met bijhouden!",
+      "total": "Totale speeltijd:",
+      "totalTooltip": "Totale speeltijd over alle sessies.",
+      "sessions": "Gespeelde sessies:",
+      "sessionsTooltip": "Hoe vaak je een spel hebt gestart.",
+      "mostPlayed": "Meest gespeelde versie:",
+      "mostPlayedTooltip": "De versie waaraan je de meeste tijd hebt besteed.",
+      "longest": "Langste sessie:",
+      "longestTooltip": "Je langste individuele speelsessie.",
+      "average": "Gemiddelde sessie:",
+      "averageTooltip": "Gemiddelde duur van al je speelsessies.",
+      "moreDetails": "Meer details",
+      "detail": {
+        "title": "Speeltijddetails",
+        "allVersions": "Alle",
+        "filterBy": "Versie:",
+        "date": "Datum",
+        "version": "Versie",
+        "duration": "Duur",
+        "modloader": "Modloader",
+        "noSessions": "Geen sessies om weer te geven.",
+        "sortBy": "Klik om te sorteren",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Alle",
+        "noLoader": "Geen",
+        "totalLabel": "Totaal:",
+        "nowLive": "Live",
+        "truncatedNote": "De {shown} meest recente sessies van {total} in totaal worden weergegeven."
+      }
     },
     "account": {
       "username": "Gebruikersnaam:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Microsoft openen",
         "failedLogin": "Microsoft-aanmelding mislukt."
       },
-      "playerPreviewTooltip": "Toon de 3D-spelervoorbeeldweergave met een schuin lichaam en cape-rendering wanneer accounttexturen beschikbaar zijn.",
+      "playerPreviewTooltip": "Toon je speler-skin en mantel in een 3D-voorbeeld.",
       "playerPreview": "3D-spelervoorbeeld:",
-      "playerRotateTitle": "Klik en sleep om te draaien",
       "playerPreviewBodyAlt": "Spelervoorbeeld",
-      "playerPreviewCapeAlt": "Cape-voorbeeld"
+      "playerPreviewCapeAlt": "Cape-voorbeeld",
+      "playerRotateTitle": "Klik en sleep om te draaien"
     },
     "appearance": {
       "theme": "Thema:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Automatische optimalisatie:",
+      "autoOptimizeTooltip": "Kiest automatisch het start-RAM en JVM-argumenten op basis van het huidige apparaatgeheugen elke keer dat Minecraft start.",
+      "autoOptimizeLockedTitle": "Schakel Automatische optimalisatie uit om dit handmatig te bewerken.",
       "minRam": "Minimum RAM:",
       "minRamTooltip": "Minimum RAM toegewezen aan de game\n  - Moet een positief getal zijn\n  - Moet kleiner zijn dan Maximum RAM\n\nVoorbeeldformaat: 256, 256M, 2G, enz.\n\n(prestatietip: wijs meer RAM toe voor betere prestaties en laat het ook overeenkomen met maximum RAM voor minder framedrops)",
       "ramInvalidTitle": "RAM-formaat: getal met optioneel K-, M-, G- of T-achtervoegsel (bijv. 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Toon Discord Rich Presence terwijl de launcher of de game draait.",
       "desktopNotifications": "Desktopmeldingen:",
       "desktopNotificationsTooltip": "Sta desktopmeldingen van de launcher toe.",
+      "keyboardMouse": "Toetsenbordmuis:",
+      "keyboardMouseTooltip": "Toont een cursor die via het toetsenbord wordt bestuurd in de launcher.\n\nDit is nog experimenteel, verwacht veel bugs!",
       "java": {
         "auto": "Auto",
         "defaultPath": "Standaard (Java PATH)",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import platform
 import re
@@ -30,7 +31,7 @@ __all__ = [
 
 
 ADOPTIUM_API_BASE: Final[str] = "https://api.adoptium.net/v3"
-JAVA_INSTALLABLE_FEATURE_VERSIONS: Final[tuple[int, ...]] = (8, 11, 16, 17, 21, 25)
+JAVA_INSTALLABLE_FEATURE_VERSIONS: Final[tuple[int, ...]] = (8, 11, 16, 17, 21, 25, 26)
 
 
 class JavaInstallEnvironment(TypedDict):
@@ -52,6 +53,8 @@ class JavaInstallerAsset:
     url: str
     file_name: str
     size: int
+    sha256: str
+    checksum_url: str
     kind: str
     release_name: str
 
@@ -143,6 +146,7 @@ def get_java_install_options() -> list[dict[str, Any]]:
         17: "Minecraft | 1.18 - 1.20.4",
         21: "Minecraft | 1.20.5 - 1.21.11",
         25: "Minecraft | 26.1 ≥",
+        26: "etc.",
     }
     recommended = {8, 25}
     return [
@@ -191,6 +195,8 @@ def _download_entries(asset: dict[str, Any]) -> list[dict[str, Any]]:
                 "url": link,
                 "name": str(item.get("name") or os.path.basename(urlsplit(link).path)),
                 "size": int(item.get("size") or 0),
+                "sha256": str(item.get("checksum") or item.get("sha256") or "").strip().lower(),
+                "checksum_url": str(item.get("checksum_link") or item.get("checksum_url") or "").strip(),
             }
         )
     return entries
@@ -246,6 +252,8 @@ def _select_asset_download(
         url=url,
         file_name=file_name,
         size=int(entry.get("size") or 0),
+        sha256=str(entry.get("sha256") or "").strip().lower(),
+        checksum_url=str(entry.get("checksum_url") or "").strip(),
         kind=str(entry.get("kind") or "package"),
         release_name=str(asset.get("release_name") or ""),
     )
@@ -276,7 +284,7 @@ def resolve_java_installer_asset(feature_version: int) -> JavaInstallerAsset:
     if not env["supported"]:
         raise RuntimeError(env["error"] or "This system is not supported")
 
-    client = HttpClient(allow_insecure_fallback=True)
+    client = HttpClient()
     errors: list[str] = []
     for candidate_version in _feature_version_candidates(requested):
         for image_type in ("jre", "jdk"):
@@ -305,6 +313,45 @@ def resolve_java_installer_asset(feature_version: int) -> JavaInstallerAsset:
 
 def _download_directory() -> Path:
     return Path(tempfile.gettempdir()) / "Histolauncher" / "Java"
+
+
+def _normalize_sha256(value: str) -> str:
+    digest = str(value or "").strip().lower()
+    return digest if re.fullmatch(r"[0-9a-f]{64}", digest) else ""
+
+
+def _extract_sha256_from_text(value: str) -> str:
+    match = re.search(r"\b[0-9a-fA-F]{64}\b", str(value or ""))
+    return _normalize_sha256(match.group(0) if match else "")
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _resolve_asset_sha256(asset: JavaInstallerAsset) -> str:
+    direct = _normalize_sha256(asset.sha256)
+    if direct:
+        return direct
+    if asset.checksum_url:
+        checksum_text = HttpClient().get_text(asset.checksum_url)
+        return _extract_sha256_from_text(checksum_text)
+    return ""
+
+
+def _downloaded_java_file_matches(path: Path, asset: JavaInstallerAsset, expected_sha256: str) -> bool:
+    try:
+        if not path.is_file() or path.stat().st_size <= 0:
+            return False
+        if asset.size > 0 and path.stat().st_size != asset.size:
+            return False
+        return _file_sha256(path).lower() == expected_sha256.lower()
+    except OSError:
+        return False
 
 
 def _managed_java_directory() -> Path:
@@ -348,21 +395,46 @@ def _assert_inside_directory(base_dir: Path, target: Path) -> None:
 
 def _safe_extract_tar(archive_path: Path, destination: Path) -> None:
     with tarfile.open(archive_path) as archive:
-        members = archive.getmembers()
-        for member in members:
+        symlinks: list[tuple[Path, str, Path]] = []
+        for member in archive.getmembers():
             target = destination / member.name
             _assert_inside_directory(destination, target)
-            if member.issym() or member.islnk():
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            if member.isfile():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source = archive.extractfile(member)
+                if source is None:
+                    raise RuntimeError(f"Archive contains an unreadable file: {member.name}")
+                with source, target.open("wb") as output:
+                    shutil.copyfileobj(source, output, length=1024 * 1024)
+                if member.mode:
+                    try:
+                        target.chmod(member.mode & 0o777)
+                    except OSError:
+                        pass
+                continue
+            if member.issym():
                 link_name = member.linkname or ""
                 if os.path.isabs(link_name):
                     raise RuntimeError(f"Archive contains an unsafe link: {member.name}")
-                link_target = (
-                    target.parent / link_name
-                    if member.issym()
-                    else destination / link_name
-                )
+                link_target = target.parent / link_name
                 _assert_inside_directory(destination, link_target)
-        archive.extractall(destination)
+                symlinks.append((target, link_name, link_target))
+                continue
+            if member.islnk():
+                raise RuntimeError(f"Archive contains an unsupported hard link: {member.name}")
+            raise RuntimeError(f"Archive contains an unsupported special file: {member.name}")
+
+        for target, link_name, link_target in symlinks:
+            if target.exists() or target.is_symlink():
+                raise RuntimeError(f"Archive link conflicts with another entry: {target}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                os.symlink(link_name, target, target_is_directory=link_target.is_dir())
+            except (AttributeError, NotImplementedError, OSError) as exc:
+                raise RuntimeError(f"Archive contains a symlink that could not be created safely: {target}") from exc
 
 
 def _safe_extract_zip(archive_path: Path, destination: Path) -> None:
@@ -457,23 +529,38 @@ def install_downloaded_java_package(download_info: dict[str, Any]) -> dict[str, 
 
 def download_java_installer(feature_version: int) -> dict[str, Any]:
     asset = resolve_java_installer_asset(feature_version)
+    expected_sha256 = _resolve_asset_sha256(asset)
+    if not expected_sha256:
+        raise RuntimeError("Temurin download metadata did not include a SHA-256 checksum.")
+
     dest_dir = _download_directory()
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest_path = dest_dir / asset.file_name
 
     reused = False
-    if dest_path.is_file() and dest_path.stat().st_size > 0:
-        if asset.size <= 0 or dest_path.stat().st_size == asset.size:
-            reused = True
+    if _downloaded_java_file_matches(dest_path, asset, expected_sha256):
+        reused = True
+    elif dest_path.exists():
+        try:
+            dest_path.unlink()
+        except OSError:
+            pass
 
     if not reused:
-        HttpClient(allow_insecure_fallback=True).stream_to(asset.url, dest_path)
+        HttpClient().stream_to(asset.url, dest_path)
+        if not _downloaded_java_file_matches(dest_path, asset, expected_sha256):
+            try:
+                dest_path.unlink()
+            except OSError:
+                pass
+            raise RuntimeError("Downloaded Java package failed SHA-256 verification.")
 
     data = asdict(asset)
     data.update(
         {
             "path": str(dest_path),
             "reused": reused,
+            "sha256": expected_sha256,
         }
     )
     return data
@@ -493,24 +580,35 @@ def open_java_installer_file(path: str) -> tuple[bool, str]:
             startfile(target)
             return True, ""
         if system == "darwin":
-            subprocess.Popen(
+            result = subprocess.run(
                 ["open", target],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                timeout=5,
                 **no_window_kwargs(),
             )
+            if result.returncode != 0:
+                msg = (result.stderr or b"").decode("utf-8", "replace").strip()
+                return False, msg or f"`open` exited with status {result.returncode}."
             return True, ""
 
         opener = shutil.which("xdg-open") or shutil.which("gio")
         if not opener:
             return False, "No file opener was found. Open the downloaded Java file manually."
         command = [opener, "open", target] if os.path.basename(opener) == "gio" else [opener, target]
-        subprocess.Popen(
-            command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            **no_window_kwargs(),
-        )
+        try:
+            result = subprocess.run(
+                command,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                timeout=5,
+                **no_window_kwargs(),
+            )
+        except subprocess.TimeoutExpired:
+            return True, ""
+        if result.returncode != 0:
+            msg = (result.stderr or b"").decode("utf-8", "replace").strip()
+            return False, msg or f"{os.path.basename(opener)} exited with status {result.returncode}."
         return True, ""
     except Exception as exc:
         return False, str(exc)

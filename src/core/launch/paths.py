@@ -11,7 +11,7 @@ from core.settings import (
 )
 
 __all__ = [
-    "_ensure_neoforge_early_window_disabled",
+    "_restore_neoforge_early_window",
     "_extract_mc_version_string",
     "_load_data_ini",
     "_read_version_data_ini",
@@ -130,65 +130,54 @@ def _load_data_ini(version_dir):
     return meta
 
 
-def _ensure_neoforge_early_window_disabled(game_dir: str) -> None:
+def _restore_neoforge_early_window(game_dir: str) -> None:
     if not game_dir:
         return
 
-    config_dir = os.path.join(game_dir, "config")
-    config_path = os.path.join(config_dir, "fml.toml")
-    target_key = "earlyWindowControl"
-    target_line = f"{target_key} = false"
-    comment_line = (
+    config_path = os.path.join(game_dir, "config", "fml.toml")
+    if not os.path.isfile(config_path):
+        return
+
+    forced_line = "earlyWindowControl = false"
+    our_comment = (
         "# Shows an early loading screen for mod loading which improves the user "
         "experience with early feedback about mod loading."
     )
 
     try:
-        os.makedirs(config_dir, exist_ok=True)
-    except Exception:
+        with open(config_path, "r", encoding="utf-8", errors="replace") as f:
+            lines = f.read().splitlines()
+    except Exception as e:
+        print(colorize_log(f"[launcher] Warning: Could not read NeoForge config file: {e}"))
         return
 
-    lines: list[str] = []
+    new_lines: list[str] = []
     changed = False
-    found = False
-
-    if os.path.isfile(config_path):
-        try:
-            with open(config_path, "r", encoding="utf-8", errors="replace") as f:
-                lines = f.read().splitlines()
-        except Exception as e:
-            print(colorize_log(f"[launcher] Warning: Could not read NeoForge config file: {e}"))
-            return
-
-        for idx, line in enumerate(lines):
-            stripped = line.strip()
-            if not stripped.startswith(target_key):
-                continue
-            found = True
-            if stripped != target_line:
-                lines[idx] = target_line
-                changed = True
-            break
-
-        if not found:
-            if lines and lines[-1].strip():
-                lines.append("")
-            lines.append(comment_line)
-            lines.append(target_line)
+    for line in lines:
+        if line.strip() == forced_line:
             changed = True
-    else:
-        lines = [comment_line, target_line]
-        changed = True
+            if new_lines and new_lines[-1].strip() == our_comment:
+                new_lines.pop()
+            if new_lines and not new_lines[-1].strip():
+                new_lines.pop()
+            continue
+        new_lines.append(line)
 
     if not changed:
         return
 
     tmp_path = config_path + ".tmp"
     try:
+        content = "\n".join(new_lines)
+        if new_lines:
+            content += "\n"
         with open(tmp_path, "w", encoding="utf-8", errors="replace", newline="\n") as f:
-            f.write("\n".join(lines) + "\n")
+            f.write(content)
         os.replace(tmp_path, config_path)
-        print(colorize_log("[launcher] Applied NeoForge workaround: earlyWindowControl=false"))
+        print(colorize_log(
+            "[launcher] Restored NeoForge early loading screen "
+            "(removed launcher-forced earlyWindowControl=false)"
+        ))
     except Exception as e:
         try:
             if os.path.exists(tmp_path):

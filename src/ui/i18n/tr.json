@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD.MM.YYYY HH:mm",
+  "am": "ÖÖ",
+  "pm": "ÖS",
   "nav": {
     "home": "Ana Sayfa",
     "versions": "Sürümler",
     "worlds": "Dünyalar",
+    "screenshots": "Ekran Görüntüleri",
     "addons": "Eklentiler",
     "settings": "Ayarlar",
-    "about": "Hakkında"
+    "about": "Hakkında",
+    "primaryNavAria": "Ana gezinme"
   },
   "common": {
     "none": "Yok",
     "unknown": "bilinmiyor",
     "all": "Tümü",
+    "auto": "Auto",
     "defaultName": "Varsayılan",
     "loading": "Yükleniyor...",
     "refresh": "Yenile",
@@ -70,6 +76,20 @@
     "playerModel": "Oyuncu modeli",
     "modelWide": "Geniş",
     "modelSlim": "İnce",
+    "textureType": "Doku türü",
+    "textureDefault": "Varsayılan",
+    "textureLegacy": "Eski",
+    "armMirror": "Kol aynalama",
+    "legMirror": "Bacak aynalama",
+    "mirrorRight": "Sağ",
+    "mirrorLeft": "Sol",
+    "overlayToFirstLayer": "Üst katmanı ilk katmana uygula",
+    "overlayHead": "Baş",
+    "overlayBody": "Ceket",
+    "overlayRightArm": "Sağ kol",
+    "overlayLeftArm": "Sol kol",
+    "overlayRightLeg": "Sağ pantolon",
+    "overlayLeftLeg": "Sol pantolon",
     "skinFile": "Skin dosyası",
     "capeSelection": "Pelerin",
     "skinPreviewAlt": "Skin önizlemesi",
@@ -131,12 +151,16 @@
     "versionTooltip": "Başlatıcı sürümü",
     "refreshTooltip": "Değerleri yenile (sayfayı yenilemek için Shift'e basılı tutun)",
     "refreshAria": "Yenile",
-    "profileTooltip": "Histolauncher Hesabı",
     "refreshAlt": "Yenile",
-    "profileAlt": "Profil"
+    "profileAlt": "Profil",
+    "profileTooltip": "Histolauncher Hesabı"
   },
   "home": {
     "launchButton": "Başlat",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Mesajı kapat"
+    },
     "info": {
       "version": "Sürüm",
       "noneSelected": "(seçilmedi)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Şu anda indirilen sürümler.",
     "availableSubtitle": "Yüklenebilir sürümler",
     "deleteSelected": "Seçileni Sil (0)",
+    "actionsMenuAria": "Sürüm eylemleri",
     "profile": {
       "renameTooltip": "Etkin sürümler profilini yeniden adlandır",
       "renameAria": "Sürümler profilini yeniden adlandır",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Minimum RAM geçersiz kılma",
       "maximumRamOverride": "Maksimum RAM geçersiz kılma",
       "resolutionOverride": "Çözünürlük geçersiz kılma",
-      "javaRuntimePathOverride": "Java çalışma zamanı yolu geçersiz kılma",
+      "javaRuntimeOverride": "Java çalışma zamanı yolu geçersiz kılma",
       "extraJvmArgumentsOverride": "Ek JVM argümanları geçersiz kılma",
       "versionImageFile": "Sürüm görsel dosyası (isteğe bağlı, PNG/JPG)",
       "failedReadImageData": "Görsel verisi okunamadı",
@@ -356,6 +381,18 @@
       "successTitle": "Dışa Aktarma Başarılı!",
       "successMessage": "Dosya şuraya kaydedildi:<br><b>{filepath}</b><br><br>Dosya boyutu<br><b>{size} MB</b>",
       "unexpectedError": "Dışa aktarma sırasında bir hata oluştu:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "İndirmeler",
     "sortName": "Ad",
     "sortRecentlyUpdated": "Son Güncellenen",
+    "actionsMenuAria": "Mod eylemleri",
     "profile": {
       "renameTooltip": "Etkin eklentiler profilini yeniden adlandır",
       "renameAria": "Eklentiler profilini yeniden adlandır",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "\"{file}\" için mod yükleyicisini seçin:"
+      "selectLoaderForFile": "\"{file}\" için mod yükleyicisini seçin:",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Yüklü",
@@ -554,6 +593,14 @@
       "unexpectedError": "Beklenmeyen yükleme hatası",
       "unexpectedForAddon": "{addon} yüklenirken beklenmeyen bir hata oluştu."
     },
+    "dependencies": {
+      "title": "Mod bağımlılıkları",
+      "checking": "Bağımlılıklar kontrol ediliyor...",
+      "prompt": "Bu modun düzgün çalışması için bağımlılıklara ihtiyacı var. Yüklemek istediklerini seç:",
+      "installSelected": "Seçilenleri yükle",
+      "installing": "Bağımlılıklar yükleniyor...",
+      "required": "Gerekli"
+    },
     "exportModpack": {
       "title": "Mod Paketini Dışa Aktar",
       "selectFormat": "Dışa aktarılacak mod paketi biçimini seçin:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "{provider} kaynağından dünyalar",
     "deleteSelected": "Seçileni Sil (0)",
     "deleteSelectedCount": "Seçileni Sil ({count})",
+    "actionsMenuAria": "Dünya eylemleri",
     "importTooltip": "Bir .zip arşivinden dünya içe aktar",
     "importAria": "Dünya içe aktar",
     "moreActionsTooltip": "Diğer dünya işlemleri",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Dünya düzenleyici yükleniyor...",
       "editWorldTitle": "Dünyayı Düzenle: {world}",
+      "failedNbtLoad": "Dünya NBT verileri yüklenemedi.",
       "worldFallback": "Dünya",
       "thisWorld": "bu dünya",
       "primaryPlayer": "Birincil Oyuncu",
@@ -933,8 +982,7 @@
       "saving": "Dünya düzenleyici değişiklikleri kaydediliyor...",
       "failedSaveNbt": "Dünya NBT verisi kaydedilemedi.",
       "renameFailedAfterNbt": "NBT değişiklikleri kaydedildi, ancak dünya klasörünün yeniden adlandırılması başarısız oldu: {error}",
-      "iconFailedAfterSave": "Dünya verisi kaydedildi, ancak simge güncellemesi başarısız oldu: {error}",
-      "failedNbtLoad": "Dünya NBT verileri yüklenemedi."
+      "iconFailedAfterSave": "Dünya verisi kaydedildi, ancak simge güncellemesi başarısız oldu: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Başlatılıyor...",
     "launchingTimed": "Başlatılıyor... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Java Çalışma Zamanı Gerekli",
     "javaRequiredMessage": "Uyumlu bir Java çalışma zamanı gerekiyor.",
     "downloadJava": "Java İndir",
@@ -1022,6 +1077,76 @@
       "generic": "Yükleyici",
       "vanilla": "Vanilla",
       "none": "Yok (mod yükleyicisi yok)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Görseller",
+    "imagesSubtitleDefault": "Mevcut depolama dizinlerindeki görseller",
+    "imagesSubtitle": "{storage} konumunda {count} görsel",
+    "itemFallback": "Ekran görüntüsü",
+    "refreshTooltip": "Ekran görüntüsü listesini yenile",
+    "bulkSelectTooltip": "Ekran görüntüleri için toplu seçim modunu aç/kapat",
+    "bulkDeleteTooltip": "Seçili ekran görüntülerini sil",
+    "toggleImagesAria": "Ekran görüntüleri bölümünü aç/kapat",
+    "favoriteAlt": "favori",
+    "list": {
+      "loading": "Ekran görüntüleri yükleniyor...",
+      "failedLoadInstalled": "Ekran görüntüleri yüklenemedi.",
+      "emptyInstalled": "Ekran görüntüsü bulunamadı"
+    },
+    "actions": {
+      "openImage": "{name} ekran görüntüsünü aç",
+      "closeImagePreview": "Ekran görüntüsü önizlemesini kapat",
+      "toggleSelection": "{name} ekran görüntüsü seçimini aç/kapat",
+      "toggleFavorite": "{name} ekran görüntüsü favorisini aç/kapat",
+      "renameImage": "{name} ekran görüntüsünü yeniden adlandır",
+      "deleteImage": "{name} ekran görüntüsünü sil",
+      "saveAs": "Farklı Kaydet",
+      "editImageButton": "Aç"
+    },
+    "favorite": {
+      "saveFailedTitle": "Favori Kaydedilemedi",
+      "saveFailed": "Ekran görüntüsü favorileri kaydedilemedi: {error}"
+    },
+    "rename": {
+      "title": "Ekran Görüntüsünü Yeniden Adlandır",
+      "prompt": "Bu ekran görüntüsü için yeni bir ad seçin.",
+      "keepExtension": "{extension} dosya uzantısı değişmez.",
+      "invalidTitle": "Geçersiz Ekran Görüntüsü Adı",
+      "invalidMessage": "Ekran görüntüsü için bir ad girin.",
+      "failedTitle": "Yeniden Adlandırma Başarısız",
+      "failedMessage": "Ekran görüntüsü yeniden adlandırılamadı."
+    },
+    "delete": {
+      "title": "Ekran Görüntüsünü Sil",
+      "confirmMessage": "{name} silinsin mi? Bu işlem geri alınamaz.",
+      "failedTitle": "Silme Başarısız",
+      "failedMessage": "Ekran görüntüsü silinemedi."
+    },
+    "edit": {
+      "failedTitle": "Açma Başarısız",
+      "failedMessage": "Ekran görüntüsü açılamadı."
+    },
+    "saveAs": {
+      "failedTitle": "Kaydetme Başarısız",
+      "failedMessage": "Ekran görüntüsü kaydedilemedi: {error}",
+      "fileTypeDescription": "Resim dosyası",
+      "missingFile": "Ekran görüntüsü dosyası çözümlenemedi."
+    },
+    "bulkDelete": {
+      "title": "Ekran Görüntülerini Sil",
+      "deleteSelectedCount": "Seçilileri Sil ({count})",
+      "noSelected": "Önce en az bir ekran görüntüsü seçin.",
+      "confirmMessage": "Seçili {count} ekran görüntüsü silinsin mi? Bu işlem geri alınamaz.",
+      "deletingProgress": "Ekran görüntüleri siliniyor... ({current}/{total})",
+      "cancelling": "Ekran görüntüsü silme işlemi iptal ediliyor...",
+      "cancelledTitle": "Toplu Silme İptal Edildi",
+      "cancelledMessage": "İptal edilmeden önce {deleted} ekran görüntüsü silindi.",
+      "cancelledWithFailures": "İptal edilmeden önce {deleted} ekran görüntüsü silindi. {failures} ekran görüntüsü başarısız oldu.",
+      "completeTitle": "Toplu Silme Tamamlandı",
+      "completeMessage": "{deleted} ekran görüntüsü silindi.",
+      "finishedWithErrorsTitle": "Toplu Silme Hatalarla Tamamlandı",
+      "finishedWithErrorsMessage": "{deleted} ekran görüntüsü silindi.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "İstemci",
       "launcher": "Başlatıcı",
       "mods": "Modlar",
-      "dataStorage": "Veri ve Depolama"
+      "dataStorage": "Veri ve Depolama",
+      "playtime": "Oyun süresi"
+    },
+    "playtime": {
+      "noData": "Henüz oturum kaydedilmedi. Takibi başlatmak için bir sürüm oyna!",
+      "total": "Toplam oyun süresi:",
+      "totalTooltip": "Tüm oturumlardaki toplam oyun süresi.",
+      "sessions": "Oynanan oturumlar:",
+      "sessionsTooltip": "Oyunu kaç kez başlattığın.",
+      "mostPlayed": "En çok oynanan sürüm:",
+      "mostPlayedTooltip": "En fazla zaman harcadığın sürüm.",
+      "longest": "En uzun oturum:",
+      "longestTooltip": "En uzun tek oyun oturumun.",
+      "average": "Ortalama oturum:",
+      "averageTooltip": "Tüm oyun oturumlarının ortalama süresi.",
+      "moreDetails": "Daha fazla ayrıntı",
+      "detail": {
+        "title": "Oyun Süresi Ayrıntıları",
+        "allVersions": "Tümü",
+        "filterBy": "Sürüm:",
+        "date": "Tarih",
+        "version": "Sürüm",
+        "duration": "Süre",
+        "modloader": "Modloader",
+        "noSessions": "Gösterilecek oturum yok.",
+        "sortBy": "Sıralamak için tıkla",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Tümü",
+        "noLoader": "Yok",
+        "totalLabel": "Toplam:",
+        "nowLive": "Canlı",
+        "truncatedNote": "Toplam {total} oturumdan en son {shown} tanesi gösteriliyor."
+      }
     },
     "account": {
       "username": "Kullanıcı adı:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Microsoft'u Aç",
         "failedLogin": "Microsoft girişi başarısız."
       },
-      "playerPreviewTooltip": "Hesap dokuları kullanılabilir olduğunda açılı gövde ve pelerin gösterimiyle oyuncu önizlemesini göster.",
+      "playerPreviewTooltip": "Oyuncu skinini ve pelerini 3D önizlemede gösterir.",
       "playerPreview": "3B oyuncu önizlemesi:",
-      "playerRotateTitle": "Döndürmek için tıklayıp sürükleyin",
       "playerPreviewBodyAlt": "Oyuncu önizlemesi",
-      "playerPreviewCapeAlt": "Pelerin önizlemesi"
+      "playerPreviewCapeAlt": "Pelerin önizlemesi",
+      "playerRotateTitle": "Döndürmek için tıklayıp sürükleyin"
     },
     "appearance": {
       "theme": "Tema:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Otomatik Optimizasyon:",
+      "autoOptimizeTooltip": "Minecraft her başladığında mevcut cihaz belleğinden otomatik olarak başlatma RAM'ini ve JVM bağımsız değişkenlerini seçer.",
+      "autoOptimizeLockedTitle": "Manuel düzenlemek için Otomatik Optimizasyonu devre dışı bırakın.",
       "minRam": "Minimum RAM:",
       "minRamTooltip": "Oyuna ayrılan minimum RAM\n  - Pozitif bir sayı olmalıdır\n  - Maksimum RAM'den küçük olmalıdır\n\nÖrnek biçim: 256, 256M, 2G vb.\n\n(performans ipucu: daha iyi performans için daha fazla RAM ayırın ve daha az kare düşüşü için maksimum RAM ile eşleştirin)",
       "ramInvalidTitle": "RAM biçimi: isteğe bağlı K, M, G veya T ekiyle sayı (örn. 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Başlatıcı veya oyun çalışırken Discord Rich Presence'ı göster.",
       "desktopNotifications": "Masaüstü bildirimleri:",
       "desktopNotificationsTooltip": "Başlatıcının masaüstü bildirimlerine izin ver.",
+      "keyboardMouse": "Klavye faresi:",
+      "keyboardMouseTooltip": "Launcher genelinde klavye kontrollü bir imleç gösterir.\n\nBu hâlâ deneyseldir, birçok hatayla karşılaşabilirsiniz!",
       "java": {
         "auto": "Otomatik",
         "defaultPath": "Varsayılan (Java PATH)",

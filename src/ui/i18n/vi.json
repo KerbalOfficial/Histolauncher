@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD/MM/YYYY HH:mm",
+  "am": "SA",
+  "pm": "CH",
   "nav": {
     "home": "Trang chủ",
     "versions": "Phiên bản",
     "worlds": "Thế giới",
+    "screenshots": "Ảnh chụp màn hình",
     "addons": "Tiện ích",
     "settings": "Cài đặt",
-    "about": "Giới thiệu"
+    "about": "Giới thiệu",
+    "primaryNavAria": "Điều hướng chính"
   },
   "common": {
     "none": "Không có",
     "unknown": "không rõ",
     "all": "Tất cả",
+    "auto": "Auto",
     "defaultName": "Mặc định",
     "loading": "Đang tải...",
     "refresh": "Làm mới",
@@ -70,6 +76,20 @@
     "playerModel": "Mô hình người chơi",
     "modelWide": "Rộng",
     "modelSlim": "Mảnh",
+    "textureType": "Loại kết cấu",
+    "textureDefault": "Mặc định",
+    "textureLegacy": "Cũ",
+    "armMirror": "Đối xứng tay",
+    "legMirror": "Đối xứng chân",
+    "mirrorRight": "Phải",
+    "mirrorLeft": "Trái",
+    "overlayToFirstLayer": "Áp dụng lớp phủ vào lớp đầu tiên",
+    "overlayHead": "Đầu",
+    "overlayBody": "Áo khoác",
+    "overlayRightArm": "Tay áo phải",
+    "overlayLeftArm": "Tay áo trái",
+    "overlayRightLeg": "Ống quần phải",
+    "overlayLeftLeg": "Ống quần trái",
     "skinFile": "Tệp skin",
     "capeSelection": "Áo choàng",
     "skinPreviewAlt": "Xem trước skin",
@@ -131,12 +151,16 @@
     "versionTooltip": "Phiên bản launcher",
     "refreshTooltip": "Làm mới dữ liệu (Giữ Shift để làm mới trang)",
     "refreshAria": "Làm mới",
-    "profileTooltip": "Tài khoản Histolauncher",
     "refreshAlt": "Làm mới",
-    "profileAlt": "Hồ sơ"
+    "profileAlt": "Hồ sơ",
+    "profileTooltip": "Tài khoản Histolauncher"
   },
   "home": {
     "launchButton": "Khởi chạy",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Đóng thông báo"
+    },
     "info": {
       "version": "Phiên bản",
       "noneSelected": "(chưa chọn)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Các phiên bản hiện đang được tải xuống.",
     "availableSubtitle": "Các phiên bản có thể cài đặt",
     "deleteSelected": "Xóa mục đã chọn (0)",
+    "actionsMenuAria": "Hành động phiên bản",
     "profile": {
       "renameTooltip": "Đổi tên hồ sơ phiên bản đang hoạt động",
       "renameAria": "Đổi tên hồ sơ phiên bản",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Ghi đè RAM tối thiểu",
       "maximumRamOverride": "Ghi đè RAM tối đa",
       "resolutionOverride": "Ghi đè độ phân giải",
-      "javaRuntimePathOverride": "Ghi đè đường dẫn Java runtime",
+      "javaRuntimeOverride": "Ghi đè đường dẫn Java runtime",
       "extraJvmArgumentsOverride": "Ghi đè tham số JVM bổ sung",
       "versionImageFile": "Tệp ảnh phiên bản (tùy chọn, PNG/JPG)",
       "failedReadImageData": "Không thể đọc dữ liệu ảnh",
@@ -356,6 +381,18 @@
       "successTitle": "Xuất thành công!",
       "successMessage": "Tệp đã được lưu tại:<br><b>{filepath}</b><br><br>Kích thước tệp<br><b>{size} MB</b>",
       "unexpectedError": "Đã xảy ra lỗi trong khi xuất:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Lượt tải",
     "sortName": "Tên",
     "sortRecentlyUpdated": "Mới cập nhật",
+    "actionsMenuAria": "Hành động mod",
     "profile": {
       "renameTooltip": "Đổi tên hồ sơ tiện ích đang hoạt động",
       "renameAria": "Đổi tên hồ sơ tiện ích",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Chọn mod loader cho \"{file}\":"
+      "selectLoaderForFile": "Chọn mod loader cho \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Đã cài đặt",
@@ -554,6 +593,14 @@
       "unexpectedError": "Lỗi cài đặt không mong muốn",
       "unexpectedForAddon": "Đã xảy ra lỗi không mong muốn khi cài {addon}."
     },
+    "dependencies": {
+      "title": "Phụ thuộc của mod",
+      "checking": "Đang kiểm tra phụ thuộc...",
+      "prompt": "Mod này cần các phụ thuộc để hoạt động đúng. Chọn phụ thuộc bạn muốn cài đặt:",
+      "installSelected": "Cài đặt mục đã chọn",
+      "installing": "Đang cài đặt phụ thuộc...",
+      "required": "Bắt buộc"
+    },
     "exportModpack": {
       "title": "Xuất modpack",
       "selectFormat": "Chọn định dạng modpack để xuất:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Thế giới từ {provider}",
     "deleteSelected": "Xóa mục đã chọn (0)",
     "deleteSelectedCount": "Xóa mục đã chọn ({count})",
+    "actionsMenuAria": "Hành động thế giới",
     "importTooltip": "Nhập thế giới từ tệp .zip",
     "importAria": "Nhập thế giới",
     "moreActionsTooltip": "Thêm thao tác với thế giới",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Đang tải trình chỉnh sửa thế giới...",
       "editWorldTitle": "Chỉnh sửa thế giới: {world}",
+      "failedNbtLoad": "Không thể tải dữ liệu NBT của thế giới.",
       "worldFallback": "Thế giới",
       "thisWorld": "thế giới này",
       "primaryPlayer": "Người chơi chính",
@@ -933,8 +982,7 @@
       "saving": "Đang lưu thay đổi trong trình chỉnh sửa thế giới...",
       "failedSaveNbt": "Không thể lưu dữ liệu NBT của thế giới.",
       "renameFailedAfterNbt": "Các thay đổi NBT đã được lưu, nhưng đổi tên thư mục thế giới thất bại: {error}",
-      "iconFailedAfterSave": "Dữ liệu thế giới đã được lưu, nhưng cập nhật biểu tượng thất bại: {error}",
-      "failedNbtLoad": "Không thể tải dữ liệu NBT của thế giới."
+      "iconFailedAfterSave": "Dữ liệu thế giới đã được lưu, nhưng cập nhật biểu tượng thất bại: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Đang khởi chạy...",
     "launchingTimed": "Đang khởi chạy... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Yêu cầu Java Runtime",
     "javaRequiredMessage": "Cần có Java runtime tương thích.",
     "downloadJava": "Tải Java",
@@ -1022,6 +1077,76 @@
       "generic": "Loader",
       "vanilla": "Vanilla",
       "none": "Không có (không dùng mod loader)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Hình ảnh",
+    "imagesSubtitleDefault": "Hình ảnh trong các thư mục lưu trữ khả dụng",
+    "imagesSubtitle": "{count} hình ảnh trong {storage}",
+    "itemFallback": "Ảnh chụp màn hình",
+    "refreshTooltip": "Làm mới danh sách ảnh chụp màn hình",
+    "bulkSelectTooltip": "Bật/tắt chế độ chọn hàng loạt cho ảnh chụp màn hình",
+    "bulkDeleteTooltip": "Xóa các ảnh chụp màn hình đã chọn",
+    "toggleImagesAria": "Bật/tắt phần ảnh chụp màn hình",
+    "favoriteAlt": "yêu thích",
+    "list": {
+      "loading": "Đang tải ảnh chụp màn hình...",
+      "failedLoadInstalled": "Không thể tải ảnh chụp màn hình.",
+      "emptyInstalled": "Không tìm thấy ảnh chụp màn hình nào"
+    },
+    "actions": {
+      "openImage": "Mở ảnh chụp màn hình {name}",
+      "closeImagePreview": "Đóng xem trước ảnh chụp màn hình",
+      "toggleSelection": "Bật/tắt lựa chọn cho ảnh chụp màn hình {name}",
+      "toggleFavorite": "Bật/tắt yêu thích cho ảnh chụp màn hình {name}",
+      "renameImage": "Đổi tên ảnh chụp màn hình {name}",
+      "deleteImage": "Xóa ảnh chụp màn hình {name}",
+      "saveAs": "Lưu thành",
+      "editImageButton": "Mở"
+    },
+    "favorite": {
+      "saveFailedTitle": "Lưu yêu thích thất bại",
+      "saveFailed": "Không thể lưu yêu thích ảnh chụp màn hình: {error}"
+    },
+    "rename": {
+      "title": "Đổi tên ảnh chụp màn hình",
+      "prompt": "Chọn tên mới cho ảnh chụp màn hình này.",
+      "keepExtension": "Phần mở rộng tệp {extension} sẽ giữ nguyên.",
+      "invalidTitle": "Tên ảnh chụp màn hình không hợp lệ",
+      "invalidMessage": "Nhập tên cho ảnh chụp màn hình.",
+      "failedTitle": "Đổi tên thất bại",
+      "failedMessage": "Không thể đổi tên ảnh chụp màn hình."
+    },
+    "delete": {
+      "title": "Xóa ảnh chụp màn hình",
+      "confirmMessage": "Xóa {name}? Thao tác này không thể hoàn tác.",
+      "failedTitle": "Xóa thất bại",
+      "failedMessage": "Không thể xóa ảnh chụp màn hình."
+    },
+    "edit": {
+      "failedTitle": "Mở thất bại",
+      "failedMessage": "Không thể mở ảnh chụp màn hình."
+    },
+    "saveAs": {
+      "failedTitle": "Lưu thất bại",
+      "failedMessage": "Không thể lưu ảnh chụp màn hình: {error}",
+      "fileTypeDescription": "Tệp hình ảnh",
+      "missingFile": "Không thể xác định tệp ảnh chụp màn hình."
+    },
+    "bulkDelete": {
+      "title": "Xóa hàng loạt ảnh chụp màn hình",
+      "deleteSelectedCount": "Xóa mục đã chọn ({count})",
+      "noSelected": "Trước tiên hãy chọn ít nhất một ảnh chụp màn hình.",
+      "confirmMessage": "Xóa {count} ảnh chụp màn hình đã chọn? Thao tác này không thể hoàn tác.",
+      "deletingProgress": "Đang xóa ảnh chụp màn hình... ({current}/{total})",
+      "cancelling": "Đang hủy xóa ảnh chụp màn hình...",
+      "cancelledTitle": "Đã hủy xóa hàng loạt",
+      "cancelledMessage": "Đã xóa {deleted} ảnh chụp màn hình trước khi hủy.",
+      "cancelledWithFailures": "Đã xóa {deleted} ảnh chụp màn hình trước khi hủy. {failures} ảnh chụp màn hình bị lỗi.",
+      "completeTitle": "Hoàn tất xóa hàng loạt",
+      "completeMessage": "Đã xóa {deleted} ảnh chụp màn hình.",
+      "finishedWithErrorsTitle": "Xóa hàng loạt hoàn tất nhưng có lỗi",
+      "finishedWithErrorsMessage": "Đã xóa {deleted} ảnh chụp màn hình.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Client",
       "launcher": "Launcher",
       "mods": "Mods",
-      "dataStorage": "Dữ liệu & lưu trữ"
+      "dataStorage": "Dữ liệu & lưu trữ",
+      "playtime": "Thời gian chơi"
+    },
+    "playtime": {
+      "noData": "Chưa có phiên nào được ghi lại. Hãy chơi một phiên bản để bắt đầu theo dõi!",
+      "total": "Tổng thời gian chơi:",
+      "totalTooltip": "Tổng thời gian chơi trong tất cả các phiên.",
+      "sessions": "Số phiên đã chơi:",
+      "sessionsTooltip": "Số lần bạn đã khởi động game.",
+      "mostPlayed": "Phiên bản chơi nhiều nhất:",
+      "mostPlayedTooltip": "Phiên bản bạn đã dành nhiều thời gian nhất.",
+      "longest": "Phiên dài nhất:",
+      "longestTooltip": "Phiên chơi đơn dài nhất của bạn.",
+      "average": "Phiên trung bình:",
+      "averageTooltip": "Thời lượng trung bình của tất cả các phiên chơi của bạn.",
+      "moreDetails": "Xem thêm chi tiết",
+      "detail": {
+        "title": "Chi tiết thời gian chơi",
+        "allVersions": "Tất cả",
+        "filterBy": "Phiên bản:",
+        "date": "Ngày",
+        "version": "Phiên bản",
+        "duration": "Thời lượng",
+        "modloader": "Modloader",
+        "noSessions": "Không có phiên nào để hiển thị.",
+        "sortBy": "Nhấp để sắp xếp",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Tất cả",
+        "noLoader": "Không có",
+        "totalLabel": "Tổng:",
+        "nowLive": "Trực tiếp",
+        "truncatedNote": "Hiển thị {shown} phiên gần nhất trong tổng số {total} phiên."
+      }
     },
     "account": {
       "username": "Tên người dùng:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Mở Microsoft",
         "failedLogin": "Đăng nhập Microsoft thất bại."
       },
-      "playerPreviewTooltip": "Hiển thị xem trước người chơi 3D với thân nghiêng và cape khi texture tài khoản khả dụng.",
+      "playerPreviewTooltip": "Hiển thị skin và áo choàng của người chơi trong bản xem trước 3D.",
       "playerPreview": "Xem trước người chơi 3D:",
-      "playerRotateTitle": "Nhấn và kéo để xoay",
       "playerPreviewBodyAlt": "Xem trước người chơi",
-      "playerPreviewCapeAlt": "Xem trước áo choàng"
+      "playerPreviewCapeAlt": "Xem trước áo choàng",
+      "playerRotateTitle": "Nhấn và kéo để xoay"
     },
     "appearance": {
       "theme": "Giao diện:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Tối ưu hóa tự động:",
+      "autoOptimizeTooltip": "Tự động chọn RAM khởi chạy và các đối số JVM từ bộ nhớ thiết bị hiện tại mỗi khi Minecraft khởi động.",
+      "autoOptimizeLockedTitle": "Tắt Tối ưu hóa tự động để chỉnh sửa thủ công.",
       "minRam": "RAM tối thiểu:",
       "minRamTooltip": "RAM tối thiểu cấp cho game\n  - Phải là số dương\n  - Phải nhỏ hơn RAM tối đa\n\nVí dụ: 256, 256M, 2G, v.v.\n\n(mẹo hiệu năng: cấp nhiều RAM hơn để game mượt hơn, đồng thời đặt bằng RAM tối đa để giảm tụt khung hình)",
       "ramInvalidTitle": "Định dạng RAM: số kèm hậu tố K, M, G hoặc T nếu cần (ví dụ: 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Hiển thị Discord Rich Presence khi launcher hoặc game đang chạy.",
       "desktopNotifications": "Thông báo desktop:",
       "desktopNotificationsTooltip": "Cho phép launcher gửi thông báo desktop.",
+      "keyboardMouse": "Chuột bàn phím:",
+      "keyboardMouseTooltip": "Hiển thị con trỏ điều khiển bằng bàn phím trong toàn bộ launcher.\n\nTính năng này vẫn đang thử nghiệm, có thể còn nhiều lỗi!",
       "java": {
         "auto": "Tự động",
         "defaultPath": "Mặc định (Java PATH)",

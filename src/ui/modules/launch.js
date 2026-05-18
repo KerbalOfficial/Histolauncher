@@ -12,11 +12,11 @@ import {
 import { LOADER_UI_ORDER, getLoaderUi, unicodeList } from './config.js';
 import { initTooltips } from './tooltips.js';
 import { installJavaRuntime } from './java-installer.js';
-import { escapeInfoHtml } from './string-utils.js';
+import { escapeInfoHtml, sanitizeGlobalMessageHtml } from './string-utils.js';
 import { t } from './i18n.js';
 
 const _deps = {};
-for (const k of ['debug', 'getCustomStorageDirectoryError', 'getCustomStorageDirectoryPath', 'normalizeStorageDirectoryMode', 'refreshCustomStorageDirectoryValidation', 'updateHomeInfo']) {
+for (const k of ['debug', 'getCustomStorageDirectoryError', 'getCustomStorageDirectoryPath', 'normalizeStorageDirectoryMode', 'refreshCustomStorageDirectoryValidation', 'updateHomeInfo', 'updatePlaytimeStats']) {
   Object.defineProperty(_deps, k, {
     configurable: true,
     enumerable: true,
@@ -39,23 +39,41 @@ export const setLaunchDeps = (deps) => {
 
 export const validateRAMFormat = (ramStr) => {
   if (!ramStr || !ramStr.trim()) return false;
-  // Match: digits only, or digits followed by single character (K, M, G, T)
-  const match = ramStr.trim().match(/^(\d+)([KMGT])?$/i);
+  const match = ramStr.trim().match(/^(\d+)([KMGT])$/i);
   return !!match;
 };
 
 export const parseRAMValue = (ramStr) => {
-  const match = ramStr.trim().match(/^(\d+)([KMGT])?$/i);
+  const match = ramStr.trim().match(/^(\d+)([KMGT])$/i);
   if (!match) return null;
 
   const value = parseInt(match[1], 10);
-  const unit = match[2] ? match[2].toUpperCase() : '';
+  const unit = match[2].toUpperCase();
 
   if (unit === 'K') return value;
   if (unit === 'M') return value * 1024;
   if (unit === 'G') return value * 1024 * 1024;
   if (unit === 'T') return value * 1024 * 1024 * 1024;
-  return value;
+  return null;
+};
+
+const isTruthySetting = (value) => String(value || '').trim().toLowerCase() === '1'
+  || String(value || '').trim().toLowerCase() === 'true'
+  || String(value || '').trim().toLowerCase() === 'yes'
+  || String(value || '').trim().toLowerCase() === 'on';
+
+const isAutoOptimizeEnabled = () => (
+  !Object.prototype.hasOwnProperty.call(state.settingsState, 'auto_optimize_launch_settings')
+  || isTruthySetting(state.settingsState.auto_optimize_launch_settings)
+);
+
+const shouldPromptServerAddressForVersion = (meta, category, folder) => {
+  const categoryKey = String(category || meta?.category || '').trim().toLowerCase();
+  const folderKey = String(folder || meta?.folder || '').trim().toLowerCase();
+  return categoryKey.includes('classic')
+    || folderKey.startsWith('c0.')
+    || folderKey.startsWith('c0_')
+    || folderKey.startsWith('classic');
 };
 
 export const validateSettings = () => {
@@ -67,42 +85,44 @@ export const validateSettings = () => {
     errors.username = true;
   }
 
-  // Validate RAM values
-  const minRamStr = (getEl('settings-min-ram')?.value || '').trim();
-  const maxRamStr = (getEl('settings-max-ram')?.value || '').trim();
+  if (!isAutoOptimizeEnabled()) {
+    // Validate RAM values
+    const minRamStr = (getEl('settings-min-ram')?.value || '').trim();
+    const maxRamStr = (getEl('settings-max-ram')?.value || '').trim();
 
-  // Minimum RAM must not be empty
-  if (!minRamStr) {
-    errors.min_ram = true;
-  } else if (!validateRAMFormat(minRamStr)) {
-    errors.min_ram = true;
-  } else {
-    // Check if min RAM is >= 0
-    const minVal = parseRAMValue(minRamStr);
-    if (minVal < 0) {
+    // Minimum RAM must not be empty
+    if (!minRamStr) {
       errors.min_ram = true;
+    } else if (!validateRAMFormat(minRamStr)) {
+      errors.min_ram = true;
+    } else {
+      // Check if min RAM is >= 0
+      const minVal = parseRAMValue(minRamStr);
+      if (minVal < 0) {
+        errors.min_ram = true;
+      }
     }
-  }
 
-  // Maximum RAM must not be empty
-  if (!maxRamStr) {
-    errors.max_ram = true;
-  } else if (!validateRAMFormat(maxRamStr)) {
-    errors.max_ram = true;
-  } else {
-    // Check if max RAM is >= 1
-    const maxVal = parseRAMValue(maxRamStr);
-    if (maxVal < 1) {
+    // Maximum RAM must not be empty
+    if (!maxRamStr) {
       errors.max_ram = true;
+    } else if (!validateRAMFormat(maxRamStr)) {
+      errors.max_ram = true;
+    } else {
+      // Check if max RAM is >= 1
+      const maxVal = parseRAMValue(maxRamStr);
+      if (maxVal < 1) {
+        errors.max_ram = true;
+      }
     }
-  }
 
-  // Check if max RAM is less than min RAM
-  if (minRamStr && maxRamStr && validateRAMFormat(minRamStr) && validateRAMFormat(maxRamStr)) {
-    const minVal = parseRAMValue(minRamStr);
-    const maxVal = parseRAMValue(maxRamStr);
-    if (minVal > maxVal) {
-      errors.max_ram = true;
+    // Check if max RAM is less than min RAM
+    if (minRamStr && maxRamStr && validateRAMFormat(minRamStr) && validateRAMFormat(maxRamStr)) {
+      const minVal = parseRAMValue(minRamStr);
+      const maxVal = parseRAMValue(maxRamStr);
+      if (minVal > maxVal) {
+        errors.max_ram = true;
+      }
     }
   }
 
@@ -317,6 +337,31 @@ export const initLaunchButton = () => {
       console.warn('Failed to check loaders:', err);
     }
 
+    const serverInput = shouldPromptServerAddressForVersion(meta, category, folder)
+      ? await promptServerAddress()
+      : '';
+    let serverHost = '';
+    let serverPort = 25565;
+    let serverMppass = '';
+    if (serverInput) {
+      let serverAddressPart = serverInput.trim();
+      const slashIdx = serverAddressPart.indexOf('/');
+      if (slashIdx >= 0) {
+        serverMppass = serverAddressPart.slice(slashIdx + 1).trim();
+        serverAddressPart = serverAddressPart.slice(0, slashIdx).trim();
+      }
+      const colonIdx = serverAddressPart.lastIndexOf(':');
+      if (colonIdx > 0) {
+        serverHost = serverAddressPart.slice(0, colonIdx).trim();
+        const parsedPort = parseInt(serverAddressPart.slice(colonIdx + 1), 10);
+        serverPort = Number.isFinite(parsedPort) && parsedPort > 0 && parsedPort <= 65535
+          ? parsedPort
+          : 25565;
+      } else {
+        serverHost = serverAddressPart.trim();
+      }
+    }
+
     showLoadingOverlay(t('launch.launching'), {
       image: 'assets/images/nether_block.gif',
       boxClassList: ['activity-box'],
@@ -328,26 +373,42 @@ export const initLaunchButton = () => {
       launchData.loader = selectedLoader.type;
       launchData.loader_version = selectedLoader.version;
     }
+    if (serverHost) {
+      launchData.server_address = serverHost;
+      launchData.server_port = serverPort;
+      if (serverMppass) launchData.server_mppass = serverMppass;
+    }
 
-    const res = await api('/api/launch', 'POST', launchData);
+    let res = null;
+    try {
+      res = await api('/api/launch', 'POST', launchData);
+    } catch (err) {
+      console.error('[Launch] Failed to start Minecraft:', err);
+      hideLoadingOverlay();
+      const message = err && err.message ? err.message : t('common.unknownError');
+      setText('status', t('launch.status.failedToLaunch', { message }));
+      return;
+    }
 
-    if (!res.ok) {
-      if (res.message && res.message.includes('\n')) {
-        setHTML('status', res.message.replace(/\n/g, '<br>'));
+    if (!res || !res.ok) {
+      const failureRes = res || {};
+      const message = failureRes.message || failureRes.error || t('common.unknownError');
+      if (String(message).includes('\n')) {
+        setHTML('status', sanitizeGlobalMessageHtml(String(message).replace(/\n/g, '<br>')));
       } else {
-        setText('status', res.message);
+        setText('status', message);
       }
       hideLoadingOverlay();
       const javaDownloadMajor = Number.parseInt(
-        String(res.java_download_major || res.java_required_major || ''),
+        String(failureRes.java_download_major || failureRes.java_required_major || ''),
         10,
       ) || 0;
-      if (res.log_path) {
-        await showCrashDialog(null, res.log_path, res.message || '');
+      if (failureRes.log_path) {
+        await showCrashDialog(null, failureRes.log_path, message || '', `${launchData.category}/${launchData.folder}`);
       } else if (javaDownloadMajor > 0) {
         showMessageBox({
           title: t('launch.javaRequiredTitle'),
-          message: String(res.message || t('launch.javaRequiredMessage')).replace(/\n/g, '<br>'),
+          message: String(message || t('launch.javaRequiredMessage')).replace(/\n/g, '<br>'),
           buttons: [
             {
               label: t('launch.downloadJava'),
@@ -364,10 +425,44 @@ export const initLaunchButton = () => {
     const processId = res.process_id;
     let pollAttempts = 0;
     const maxPollAttempts = 600;
+    let windowVisibilityPollAttempts = 0;
+    const maxWindowVisibilityPollAttempts = 600;
     let overlayClosedByWindow = false;
+    let launchPollingFinished = false;
+    let gameStatusTimer = null;
+    let windowVisibilityTimer = null;
+
+    const stopLaunchPolling = () => {
+      launchPollingFinished = true;
+      if (gameStatusTimer) {
+        clearTimeout(gameStatusTimer);
+        gameStatusTimer = null;
+      }
+      if (windowVisibilityTimer) {
+        clearTimeout(windowVisibilityTimer);
+        windowVisibilityTimer = null;
+      }
+    };
+
+    const scheduleGameStatusPoll = (delayMs) => {
+      if (launchPollingFinished) return;
+      gameStatusTimer = setTimeout(() => {
+        gameStatusTimer = null;
+        pollGameStatus();
+      }, delayMs);
+    };
+
+    const scheduleWindowVisibilityPoll = (delayMs) => {
+      if (launchPollingFinished || overlayClosedByWindow) return;
+      windowVisibilityTimer = setTimeout(() => {
+        windowVisibilityTimer = null;
+        pollWindowVisibility();
+      }, delayMs);
+    };
 
     const pollWindowVisibility = async () => {
-      if (overlayClosedByWindow) return;
+      if (launchPollingFinished || overlayClosedByWindow) return;
+      windowVisibilityPollAttempts++;
 
       try {
         const windowRes = await api(`/api/game_window_visible/${processId}`);
@@ -384,12 +479,16 @@ export const initLaunchButton = () => {
         _deps.debug('[Window] Could not check visibility (normal if not on Windows):', err.message);
       }
 
-      if (pollAttempts < maxPollAttempts && !overlayClosedByWindow) {
-        setTimeout(pollWindowVisibility, 2000);
+      if (windowVisibilityPollAttempts < maxWindowVisibilityPollAttempts && !overlayClosedByWindow) {
+        scheduleWindowVisibilityPoll(2000);
+      } else {
+        _deps.debug('[Window] Max visibility polling attempts reached');
       }
     };
 
     const pollGameStatus = async () => {
+      if (launchPollingFinished) return;
+
       try {
         const statusRes = await api(`/api/launch_status/${processId}`);
         _deps.debug(`[Polling] Attempt ${pollAttempts}, Response:`, statusRes);
@@ -407,9 +506,10 @@ export const initLaunchButton = () => {
           }
 
           if (pollAttempts < maxPollAttempts) {
-            setTimeout(pollGameStatus, 1000);
+            scheduleGameStatusPoll(1000);
           } else {
             console.warn('[Polling] Max polling attempts reached');
+            stopLaunchPolling();
             hideLoadingOverlay();
             setText('status', '');
           }
@@ -418,23 +518,26 @@ export const initLaunchButton = () => {
 
         // Game has exited or crashed
         _deps.debug('[Polling] Game has exited with status:', statusRes.status);
+        stopLaunchPolling();
         hideLoadingOverlay();
+        _deps.updatePlaytimeStats();
 
         if (statusRes.ok) {
           setText('status', '');
         } else {
           setText('status', t('launch.status.minecraftCrashedExit', { exitCode: statusRes.exit_code || t('common.unknown') }));
           if (statusRes.log_path) {
-            await showCrashDialog(processId, statusRes.log_path);
+            await showCrashDialog(processId, statusRes.log_path, '', `${launchData.category}/${launchData.folder}`);
           }
         }
       } catch (err) {
         console.error('[Polling] Error polling game status:', err);
         pollAttempts++;
         if (pollAttempts < maxPollAttempts) {
-          setTimeout(pollGameStatus, 1000);
+          scheduleGameStatusPoll(1000);
         } else {
           console.warn('[Polling] Max polling attempts reached after error');
+          stopLaunchPolling();
           hideLoadingOverlay();
           setText('status', '');
         }
@@ -442,19 +545,18 @@ export const initLaunchButton = () => {
     };
 
     setText('status', t('launch.launching'));
-    setTimeout(() => {
-      pollGameStatus();
-      pollWindowVisibility();
-    }, 2000);
+    scheduleGameStatusPoll(2000);
+    scheduleWindowVisibilityPoll(2000);
   });
 };
 
 
-export const showCrashDialog = async (processId, logPath, contextMessage = '') => {
+export const showCrashDialog = async (processId, logPath, contextMessage = '', versionId = '') => {
   _deps.debug(`[showCrashDialog] Minecraft crashed. logPath: ${logPath}`);
 
   let crashDetails = '';
   let javaDownloadMajor = 0;
+  let autoFix = [];
   const contextText = String(contextMessage || '').trim();
   if (contextText) {
     crashDetails += `<br><br>${escapeInfoHtml(contextText).replace(/\n/g, '<br>')}`;
@@ -474,13 +576,18 @@ export const showCrashDialog = async (processId, logPath, contextMessage = '') =
             crashDetails += `<i>${analysis.details}</i>`;
           }
           if (analysis.suggestion) {
-            crashDetails += `<br><br><b>Suggestion:</b> ${analysis.suggestion}`;
+            crashDetails += `<br><br><b>What to do:</b> ${analysis.suggestion}`;
           }
           if (analysis.error_type === 'JavaVersionMismatch') {
             javaDownloadMajor = Number.parseInt(
               String(analysis.download_java_major || analysis.required_java_major || ''),
               10,
             ) || 0;
+          }
+          if (Array.isArray(analysis.auto_fix_options) && analysis.auto_fix_options.length) {
+            autoFix = analysis.auto_fix_options;
+          } else if (analysis.auto_fix && analysis.auto_fix.action) {
+            autoFix = [analysis.auto_fix];
           }
         }
       }
@@ -495,6 +602,49 @@ export const showCrashDialog = async (processId, logPath, contextMessage = '') =
       onClick: () => viewCrashLogs(processId, logPath),
     },
   ];
+
+  if (autoFix.length > 0) {
+    const [fixCategory, fixFolder] = versionId && versionId.includes('/')
+      ? versionId.split('/', 2)
+      : ['', ''];
+    for (const fix of autoFix) {
+      const fixAction = fix.action;
+      const fixLabel = fix.label || 'Auto-fix';
+      buttons.push({
+        label: fixLabel,
+        classList: ['important'],
+        onClick: async () => {
+          try {
+            const fixRes = await api('/api/crash-autofix', 'POST', {
+              action: fixAction,
+              ...(fix.bad_arg ? { bad_arg: fix.bad_arg } : {}),
+              category: fixCategory || undefined,
+              folder: fixFolder || undefined,
+            });
+            if (fixRes.ok) {
+              showMessageBox({
+                title: 'Done!',
+                message: fixRes.message || 'The fix was applied. Relaunch the game to see if it helps.',
+                buttons: [{
+                  label: t('common.ok'),
+                  classList: ['primary'],
+                  onClick: () => getEl('refresh-btn')?.click(),
+                }],
+              });
+            } else {
+              showMessageBox({
+                title: 'Auto-fix failed',
+                message: `Could not apply the fix: ${fixRes.error || 'unknown error'}`,
+                buttons: [{ label: t('common.ok'), classList: ['primary'], onClick: () => {} }],
+              });
+            }
+          } catch (err) {
+            console.error('Auto-fix error:', err);
+          }
+        },
+      });
+    }
+  }
 
   if (javaDownloadMajor > 0) {
     buttons.push({
@@ -583,6 +733,61 @@ export const getFileName = (path) => {
   if (!path) return '';
   return path.split(/[\\/]/).pop();
 };
+
+const promptServerAddress = () => new Promise((resolve) => {
+  let resolved = false;
+  let controls = null;
+
+  const safeResolve = (value) => {
+    if (resolved) return;
+    resolved = true;
+    resolve(value);
+    try { controls?.close?.(); } catch (e) { /* ignore */ }
+  };
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'padding:4px 0;';
+
+  const hint = document.createElement('div');
+  hint.style.cssText = 'color:var(--color-text-muted);font-size:13px;margin-bottom:12px;line-height:1.4;';
+  hint.textContent = t('launch.serverPrompt.message');
+  wrap.appendChild(hint);
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = t('launch.serverPrompt.placeholder');
+  input.autocomplete = 'off';
+  input.spellcheck = false;
+  input.style.cssText = 'width:100%;box-sizing:border-box;padding:8px 10px;font-size:13px;';
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      safeResolve(input.value.trim());
+    }
+  });
+  wrap.appendChild(input);
+
+  controls = showMessageBox({
+    title: t('launch.serverPrompt.title'),
+    customContent: wrap,
+    buttons: [
+      {
+        label: t('launch.serverPrompt.goButton'),
+        classList: ['important'],
+        closeOnClick: false,
+        onClick: () => safeResolve(input.value.trim()),
+      },
+      {
+        label: t('launch.serverPrompt.skipButton'),
+        closeOnClick: false,
+        onClick: () => safeResolve(''),
+      },
+    ],
+    onClose: () => safeResolve(''),
+  });
+
+  setTimeout(() => { try { input.focus(); } catch (e) { /* ignore */ } }, 50);
+});
 
 export const promptLoaderSelection = (installed) => {
   return new Promise((resolve) => {
@@ -686,4 +891,3 @@ export const promptLoaderSelection = (installed) => {
     });
   });
 };
-

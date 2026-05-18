@@ -1,6 +1,7 @@
 // ui/modules/install.js
 
 import { state } from './state.js';
+import { api } from './api.js';
 import {
   INSTALL_POLL_MS_ACTIVE,
   INSTALL_POLL_MS_PAUSED,
@@ -37,6 +38,8 @@ export const setInstallDeps = (deps) => {
 
 // ---------------- Install handling ----------------
 
+const _installInFlight = new Set();
+
 export const startInstallForFolder = async (folder, category, fullDownloadMode, options = {}) => {
   if (!folder || typeof folder !== 'string' || folder.trim().length === 0) {
     console.error('startInstallForFolder: missing folder');
@@ -49,6 +52,11 @@ export const startInstallForFolder = async (folder, category, fullDownloadMode, 
   const fullFlag = !!fullDownloadMode;
   const forceRedownload = !!(options && options.forceRedownload);
   const baseKey = `${category.toLowerCase()}/${folder}`;
+  if (_installInFlight.has(baseKey)) {
+    console.warn('startInstallForFolder: install already in flight for', baseKey);
+    return null;
+  }
+  _installInFlight.add(baseKey);
   const extraFlags = forceRedownload ? { force_redownload: true, redownload: true } : {};
 
   const payloads = [
@@ -59,45 +67,49 @@ export const startInstallForFolder = async (folder, category, fullDownloadMode, 
     baseKey,
   ];
 
-  for (const payload of payloads) {
-    try {
-      const res = await fetch('/api/install', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      let json;
+  try {
+    for (const payload of payloads) {
       try {
-        json = await res.json();
+        const res = await fetch('/api/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        let json;
+        try {
+          json = await res.json();
+        } catch (e) {
+          const txt = await res.text().catch(() => '<no body>');
+          console.error('install response not JSON:', res.status, txt);
+          continue;
+        }
+
+        if (json && json.started) {
+          return json.version || baseKey;
+        }
+        if (json && json.error) {
+          console.warn(
+            'install attempt returned error:',
+            json.error,
+            'payload:',
+            payload
+          );
+          continue;
+        }
+        if (json && typeof json === 'object' && json.version) {
+          return json.version;
+        }
       } catch (e) {
-        const txt = await res.text().catch(() => '<no body>');
-        console.error('install response not JSON:', res.status, txt);
-        continue;
+        console.warn('install start failed for payload', payload, e);
       }
-
-      if (json && json.started) {
-        return json.version || baseKey;
-      }
-      if (json && json.error) {
-        console.warn(
-          'install attempt returned error:',
-          json.error,
-          'payload:',
-          payload
-        );
-        continue;
-      }
-      if (json && typeof json === 'object' && json.version) {
-        return json.version;
-      }
-    } catch (e) {
-      console.warn('install start failed for payload', payload, e);
     }
-  }
 
-  console.error('install start failed: all payload attempts returned errors');
-  return null;
+    console.error('install start failed: all payload attempts returned errors');
+    return null;
+  } finally {
+    _installInFlight.delete(baseKey);
+  }
 };
 
 export const cancelInstallForVersionKey = async (versionKeyEncoded) => {
@@ -136,8 +148,7 @@ export const cancelInstallForVersionKey = async (versionKeyEncoded) => {
       delete state.activeInstallPollers[versionKeyEncoded];
     }
 
-    // Rehydrate from backend so cards move to correct sections immediately.
-    await _deps.init();
+    await refreshVersionsAfterTerminalInstall();
   } catch (e) {
     console.warn('cancel failed', e);
   }
@@ -178,7 +189,11 @@ export const handleInstallClick = async (v, card, installBtn, fullDownloadMode, 
       installBtn.textContent = t('common.error');
       setTimeout(() => {
           const isLowDataMode = state.settingsState.low_data_mode === "1";
-        installBtn.textContent = getDownloadButtonLabel({ forceRedownload, isLowDataMode, fullDownload: true });
+        installBtn.textContent = getDownloadButtonLabel({
+          forceRedownload,
+          isLowDataMode,
+          fullDownload: fullDownloadMode,
+        });
       }, 1500);
       return;
   }
@@ -196,7 +211,12 @@ export const handleInstallClick = async (v, card, installBtn, fullDownloadMode, 
   if (!rawVersionKey) {
     card.classList.remove('installing');
     installBtn.disabled = false;
-    installBtn.textContent = getDownloadButtonLabel({ forceRedownload });
+    const isLowDataMode = state.settingsState.low_data_mode === "1";
+    installBtn.textContent = getDownloadButtonLabel({
+      forceRedownload,
+      isLowDataMode,
+      fullDownload: fullDownloadMode,
+    });
     return;
   }
 
@@ -341,148 +361,252 @@ export const startPollingForInstall = (versionKeyEncoded, vMeta) => {
   if (!versionKeyEncoded) return;
   if (state.activeInstallPollers[versionKeyEncoded]) return;
 
-  state.activeInstallPollers[versionKeyEncoded] = true; // placeholder
+  let eventSource = null;
+  let fallbackTimer = null;
+  let stopped = false;
+  let failedFallbackPolls = 0;
+  let unknownFallbackPolls = 0;
+  const maxFallbackPollFailures = 5;
+
+  const clearFallbackTimer = () => {
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = null;
+    }
+  };
+
+  const cleanup = () => {
+    stopped = true;
+    clearFallbackTimer();
+    if (eventSource) {
+      eventSource.close();
+      eventSource = null;
+    }
+    if (state.activeInstallPollers[versionKeyEncoded] === cleanup) {
+      delete state.activeInstallPollers[versionKeyEncoded];
+    }
+  };
+
+  const markProgressLost = async (message = t('common.unknownError')) => {
+    const currentVMeta = findVersionByInstallKey(versionKeyEncoded);
+    if (!currentVMeta) {
+      cleanup();
+      return;
+    }
+
+    const text = t('versions.install.failedWithMessage', { message });
+    const pct = Number(currentVMeta._progressOverall || 0);
+    updateVersionInListByKey(versionKeyEncoded, (x) => ({
+      ...x,
+      installing: false,
+      _installKey: null,
+      _progressOverall: pct,
+      _progressText: text,
+    }));
+    updateCardProgressUI(currentVMeta, pct, text, {
+      keepInstalling: false,
+      statusLabel: t('common.error'),
+    });
+    cleanup();
+    await refreshVersionsAfterTerminalInstall();
+  };
+
+  const applyInstallStatus = async (payload) => {
+    const s = payload && typeof payload === 'object' ? payload : {};
+    const status = String(s.status || '').toLowerCase();
+    const pct = s.overall_percent || 0;
+    const bytesDone = s.bytes_done || 0;
+    const bytesTotal = s.bytes_total || 0;
+
+    const mbDone = bytesDone / (1024 * 1024);
+    const mbTotal = bytesTotal / (1024 * 1024);
+
+    let text = '';
+    let keepPolling = true;
+
+    const currentVMeta = findVersionByInstallKey(versionKeyEncoded);
+    if (!currentVMeta) {
+      cleanup();
+      return false;
+    }
+
+    const previousPct = Number(currentVMeta._progressOverall || 0);
+    const previousTotal = Number(currentVMeta._progressBytesTotal || 0);
+    let stablePct = Number(pct || 0);
+    if (bytesTotal <= previousTotal) {
+      stablePct = Math.max(previousPct, stablePct);
+    }
+
+    if (!status || status === 'unknown') {
+      return true;
+    }
+
+    if (status === 'downloading' || status === 'installing' || status === 'running' || status === 'starting') {
+      currentVMeta.paused = false;
+      const wholePct = Math.round(stablePct);
+      const roundedMbDone = Math.round(mbDone);
+      const roundedMbTotal = Math.round(mbTotal);
+      text =
+        bytesTotal > 0
+          ? `${wholePct}% (${roundedMbDone} MB / ${roundedMbTotal} MB)`
+          : bytesDone > 0
+          ? `${wholePct}% (${roundedMbDone} MB)`
+          : `${wholePct}%`;
+
+      updateVersionInListByKey(versionKeyEncoded, (x) => ({
+        ...x,
+        paused: false,
+        _progressText: text,
+        _progressOverall: stablePct,
+        _progressBytesTotal: bytesTotal,
+      }));
+
+      updateCardProgressUI(currentVMeta, stablePct, text, {
+        paused: false,
+        statusLabel: t('versions.status.installing'),
+        keepInstalling: true,
+      });
+    } else if (status === 'installed') {
+      text = t('versions.status.installed');
+      keepPolling = false;
+      updateVersionInListByKey(versionKeyEncoded, (x) => ({
+        ...x,
+        installed: true,
+        installing: false,
+        _installKey: null,
+        _progressOverall: 100,
+        _progressText: t('versions.status.installed'),
+      }));
+    } else if (status === 'failed') {
+      text = t('versions.install.failedWithMessage', { message: s.message || t('common.unknownError') });
+      keepPolling = false;
+
+      updateVersionInListByKey(versionKeyEncoded, (x) => ({
+        ...x,
+        installing: false,
+        _installKey: null,
+        _progressOverall: pct,
+        _progressText: text,
+      }));
+    } else if (status === 'cancelled') {
+      text = t('versions.install.cancelled');
+      keepPolling = false;
+
+      updateVersionInListByKey(versionKeyEncoded, (x) => ({
+        ...x,
+        installing: false,
+        _installKey: null,
+        _progressOverall: pct,
+        _progressText: text,
+      }));
+    } else if (status === 'paused') {
+      text = t('versions.install.paused');
+
+      updateVersionInListByKey(versionKeyEncoded, (x) => ({
+        ...x,
+        paused: true,
+        _progressText: t('versions.install.paused'),
+        _progressOverall: pct,
+      }));
+
+      updateCardProgressUI(currentVMeta, pct, t('versions.install.paused'), {
+        paused: true,
+        statusLabel: t('versions.status.paused').toUpperCase(),
+        pausedColor: '#facc15',
+        keepInstalling: true,
+      });
+    }
+
+    const renderPct = status === 'installed' ? 100 : stablePct;
+    if (status !== 'downloading' && status !== 'installing' && status !== 'starting' && status !== 'paused') {
+      updateCardProgressUI(currentVMeta, renderPct, text, {
+        keepInstalling: keepPolling,
+      });
+    }
+
+    if (!keepPolling) {
+      cleanup();
+      if (status === 'installed' || status === 'failed' || status === 'cancelled') {
+        await refreshVersionsAfterTerminalInstall();
+      }
+      return false;
+    }
+
+    return true;
+  };
+
+  const scheduleFallbackPoll = (delayMs) => {
+    if (stopped) return;
+    clearFallbackTimer();
+    fallbackTimer = setTimeout(() => {
+      fallbackTimer = null;
+      pollStatusFallback();
+    }, delayMs);
+  };
+
+  const pollStatusFallback = async () => {
+    if (stopped) return;
+
+    try {
+      const statusPayload = await api(`/api/status/${versionKeyEncoded}`);
+      failedFallbackPolls = 0;
+
+      const status = String((statusPayload && statusPayload.status) || '').toLowerCase();
+      if (status === 'unknown') {
+        unknownFallbackPolls++;
+        if (unknownFallbackPolls >= maxFallbackPollFailures) {
+          await markProgressLost(t('common.unknownError'));
+          return;
+        }
+      } else {
+        unknownFallbackPolls = 0;
+      }
+
+      const keepPolling = await applyInstallStatus(statusPayload);
+      if (!keepPolling || stopped) return;
+
+      scheduleFallbackPoll(status === 'paused' ? INSTALL_POLL_MS_PAUSED : INSTALL_POLL_MS_ACTIVE);
+    } catch (err) {
+      failedFallbackPolls++;
+      console.warn('install status fallback failed', err);
+
+      if (failedFallbackPolls >= maxFallbackPollFailures) {
+        await markProgressLost(err && err.message ? err.message : t('common.unknownError'));
+        return;
+      }
+
+      const backoff = Math.min(
+        INSTALL_POLL_MS_BACKOFF_BASE * (2 ** (failedFallbackPolls - 1)),
+        INSTALL_POLL_MS_BACKOFF_MAX,
+      );
+      scheduleFallbackPoll(backoff);
+    }
+  };
 
   const startStream = () => {
-    const eventSource = new EventSource(`/api/stream/install/${versionKeyEncoded}`);
-
-    const cleanup = () => {
-      eventSource.close();
-      delete state.activeInstallPollers[versionKeyEncoded];
-    };
-    state.activeInstallPollers[versionKeyEncoded] = cleanup; // store cleanup func
+    eventSource = new EventSource(`/api/stream/install/${versionKeyEncoded}`);
 
     eventSource.onmessage = async (event) => {
       try {
         const s = JSON.parse(event.data);
         if (!s) return;
-
-        const status = s.status;
-
-        const pct = s.overall_percent || 0;
-        const bytesDone = s.bytes_done || 0;
-        const bytesTotal = s.bytes_total || 0;
-
-        const mbDone = bytesDone / (1024 * 1024);
-        const mbTotal = bytesTotal / (1024 * 1024);
-
-        let text = '';
-        let keepPolling = true;
-
-        const currentVMeta = findVersionByInstallKey(versionKeyEncoded);
-        if (!currentVMeta) {
-          cleanup();
-          return;
-        }
-
-        const previousPct = Number(currentVMeta._progressOverall || 0);
-        const previousTotal = Number(currentVMeta._progressBytesTotal || 0);
-        let stablePct = Number(pct || 0);
-        if (bytesTotal <= previousTotal) {
-          stablePct = Math.max(previousPct, stablePct);
-        }
-
-        if (status === 'downloading' || status === 'installing' || status === 'running' || status === 'starting') {
-          currentVMeta.paused = false;
-          const wholePct = Math.round(stablePct);
-          const roundedMbDone = Math.round(mbDone);
-          const roundedMbTotal = Math.round(mbTotal);
-          text =
-            bytesTotal > 0
-              ? `${wholePct}% (${roundedMbDone} MB / ${roundedMbTotal} MB)`
-              : bytesDone > 0
-              ? `${wholePct}% (${roundedMbDone} MB)`
-              : `${wholePct}%`;
-
-          updateVersionInListByKey(versionKeyEncoded, (x) => ({
-            ...x,
-            paused: false,
-            _progressText: text,
-            _progressOverall: stablePct,
-            _progressBytesTotal: bytesTotal,
-          }));
-
-          updateCardProgressUI(currentVMeta, stablePct, text, {
-            paused: false,
-            statusLabel: t('versions.status.installing'),
-            keepInstalling: true,
-          });
-
-        } else if (status === 'installed') {
-          text = t('versions.status.installed');
-          keepPolling = false;
-          updateVersionInListByKey(versionKeyEncoded, (x) => ({
-            ...x,
-            installed: true,
-            installing: false,
-            _installKey: null,
-            _progressOverall: 100,
-            _progressText: t('versions.status.installed'),
-          }));
-        } else if (status === 'failed') {
-          text = t('versions.install.failedWithMessage', { message: s.message || t('common.unknownError') });
-          keepPolling = false;
-
-          updateVersionInListByKey(versionKeyEncoded, (x) => ({
-            ...x,
-            installing: false,
-            _installKey: null,
-            _progressOverall: pct,
-            _progressText: text,
-          }));
-        } else if (status === 'cancelled') {
-          text = t('versions.install.cancelled');
-          keepPolling = false;
-
-          updateVersionInListByKey(versionKeyEncoded, (x) => ({
-            ...x,
-            installing: false,
-            _installKey: null,
-            _progressOverall: pct,
-            _progressText: text,
-          }));
-        } else if (status === 'paused') {
-          text = t('versions.install.paused');
-
-          updateVersionInListByKey(versionKeyEncoded, (x) => ({
-            ...x,
-            paused: true,
-            _progressText: t('versions.install.paused'),
-            _progressOverall: pct,
-          }));
-
-          updateCardProgressUI(currentVMeta, pct, t('versions.install.paused'), {
-            paused: true,
-            statusLabel: t('versions.status.paused').toUpperCase(),
-            pausedColor: '#facc15',
-            keepInstalling: true,
-          });
-
-          keepPolling = true;
-        }
-
-        const renderPct = status === 'installed' ? 100 : stablePct;
-        if (status !== 'downloading' && status !== 'starting' && status !== 'paused') {
-          updateCardProgressUI(currentVMeta, renderPct, text, {
-            keepInstalling: keepPolling,
-          });
-        }
-
-        if (!keepPolling) {
-          cleanup();
-          if (status === 'installed' || status === 'failed' || status === 'cancelled') {
-            await refreshVersionsAfterTerminalInstall();
-          }
-        }
+        await applyInstallStatus(s);
       } catch (error) {
         console.warn('install stream update failed', error);
       }
     };
 
-    eventSource.onerror = (e) => {
-      // Stream error handling
+    eventSource.onerror = (error) => {
+      if (stopped) return;
+      console.warn('install progress stream disconnected; falling back to status polling', error);
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+      }
+      scheduleFallbackPoll(INSTALL_POLL_MS_BACKOFF_BASE);
     };
   };
 
+  state.activeInstallPollers[versionKeyEncoded] = cleanup;
   startStream();
 };

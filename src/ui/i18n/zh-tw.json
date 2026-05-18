@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "YYYY/MM/DD HH:mm",
+  "am": "上午",
+  "pm": "下午",
   "nav": {
     "home": "首頁",
     "versions": "版本",
     "worlds": "世界",
+    "screenshots": "螢幕截圖",
     "addons": "附加元件",
     "settings": "設定",
-    "about": "關於"
+    "about": "關於",
+    "primaryNavAria": "主導航"
   },
   "common": {
     "none": "無",
     "unknown": "未知",
     "all": "全部",
+    "auto": "Auto",
     "defaultName": "預設",
     "loading": "載入中...",
     "refresh": "重新整理",
@@ -70,6 +76,20 @@
     "playerModel": "玩家模型",
     "modelWide": "寬",
     "modelSlim": "細",
+    "textureType": "紋理類型",
+    "textureDefault": "預設",
+    "textureLegacy": "舊版",
+    "armMirror": "手臂鏡像",
+    "legMirror": "腿部鏡像",
+    "mirrorRight": "右",
+    "mirrorLeft": "左",
+    "overlayToFirstLayer": "將外層套用到第一層",
+    "overlayHead": "頭部",
+    "overlayBody": "外套",
+    "overlayRightArm": "右袖",
+    "overlayLeftArm": "左袖",
+    "overlayRightLeg": "右褲管",
+    "overlayLeftLeg": "左褲管",
     "skinFile": "皮膚檔案",
     "capeSelection": "披風",
     "skinPreviewAlt": "皮膚預覽",
@@ -131,12 +151,16 @@
     "versionTooltip": "啟動器版本",
     "refreshTooltip": "重新整理數值 (按住 Shift 可重新整理頁面)",
     "refreshAria": "重新整理",
-    "profileTooltip": "Histolauncher 帳號",
     "refreshAlt": "重新整理",
-    "profileAlt": "個人檔案"
+    "profileAlt": "個人檔案",
+    "profileTooltip": "Histolauncher 帳號"
   },
   "home": {
     "launchButton": "啟動",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "關閉訊息"
+    },
     "info": {
       "version": "版本",
       "noneSelected": "(未選擇)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "目前正在下載的版本。",
     "availableSubtitle": "可安裝的版本",
     "deleteSelected": "刪除所選 (0)",
+    "actionsMenuAria": "版本操作",
     "profile": {
       "renameTooltip": "重新命名使用中的版本設定檔",
       "renameAria": "重新命名版本設定檔",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "最小記憶體覆寫",
       "maximumRamOverride": "最大記憶體覆寫",
       "resolutionOverride": "解析度覆寫",
-      "javaRuntimePathOverride": "Java 執行環境路徑覆寫",
+      "javaRuntimeOverride": "Java 執行環境路徑覆寫",
       "extraJvmArgumentsOverride": "額外 JVM 參數覆寫",
       "versionImageFile": "版本圖片檔案 (選填，PNG/JPG)",
       "failedReadImageData": "無法讀取圖片資料",
@@ -356,6 +381,18 @@
       "successTitle": "匯出成功！",
       "successMessage": "檔案已儲存至：<br><b>{filepath}</b><br><br>檔案大小<br><b>{size} MB</b>",
       "unexpectedError": "匯出期間發生錯誤：<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "下載數",
     "sortName": "名稱",
     "sortRecentlyUpdated": "最近更新",
+    "actionsMenuAria": "Mod 操作",
     "profile": {
       "renameTooltip": "重新命名使用中的附加元件設定檔",
       "renameAria": "重新命名附加元件設定檔",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "為 \"{file}\" 選擇模組載入器："
+      "selectLoaderForFile": "為 \"{file}\" 選擇模組載入器：",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "已安裝",
@@ -554,6 +593,14 @@
       "unexpectedError": "非預期的安裝錯誤",
       "unexpectedForAddon": "安裝 {addon} 時發生非預期的錯誤。"
     },
+    "dependencies": {
+      "title": "模組相依項",
+      "checking": "正在檢查相依項...",
+      "prompt": "此模組需要相依項才能正常運作。請選擇要安裝的相依項：",
+      "installSelected": "安裝所選項目",
+      "installing": "正在安裝相依項...",
+      "required": "必要"
+    },
     "exportModpack": {
       "title": "匯出整合包",
       "selectFormat": "選擇要匯出的整合包格式：",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "來自 {provider} 的世界",
     "deleteSelected": "刪除所選 (0)",
     "deleteSelectedCount": "刪除所選 ({count})",
+    "actionsMenuAria": "世界操作",
     "importTooltip": "從 .zip 壓縮檔匯入世界",
     "importAria": "匯入世界",
     "moreActionsTooltip": "更多世界選項",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "載入世界編輯器中...",
       "editWorldTitle": "編輯世界：{world}",
+      "failedNbtLoad": "無法載入世界 NBT 資料。",
       "worldFallback": "世界",
       "thisWorld": "這個世界",
       "primaryPlayer": "主要玩家",
@@ -933,8 +982,7 @@
       "saving": "正在儲存世界編輯器的變更...",
       "failedSaveNbt": "世界 NBT 資料儲存失敗。",
       "renameFailedAfterNbt": "NBT 變更已儲存，但世界資料夾重新命名時失敗：{error}",
-      "iconFailedAfterSave": "世界資料已儲存，但圖示更新時失敗：{error}",
-      "failedNbtLoad": "無法載入世界 NBT 資料。"
+      "iconFailedAfterSave": "世界資料已儲存，但圖示更新時失敗：{error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "啟動中...",
     "launchingTimed": "啟動中... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "需要 Java 執行環境",
     "javaRequiredMessage": "啟動此版本需要相容的 Java 執行環境。",
     "downloadJava": "下載 Java",
@@ -1022,6 +1077,76 @@
       "generic": "載入器",
       "vanilla": "原版 (Vanilla)",
       "none": "無 (不使用模組載入器)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "圖片",
+    "imagesSubtitleDefault": "可用儲存目錄中的所有圖片",
+    "imagesSubtitle": "共 {count} 張圖片，位於 {storage}",
+    "itemFallback": "螢幕截圖",
+    "refreshTooltip": "重新整理螢幕截圖清單",
+    "bulkSelectTooltip": "切換螢幕截圖的批次選取模式",
+    "bulkDeleteTooltip": "刪除所選螢幕截圖",
+    "toggleImagesAria": "切換螢幕截圖區塊",
+    "favoriteAlt": "我的最愛",
+    "list": {
+      "loading": "正在載入螢幕截圖...",
+      "failedLoadInstalled": "無法載入螢幕截圖。",
+      "emptyInstalled": "找不到螢幕截圖"
+    },
+    "actions": {
+      "openImage": "開啟螢幕截圖 {name}",
+      "closeImagePreview": "關閉螢幕截圖預覽",
+      "toggleSelection": "切換螢幕截圖 {name} 的選取狀態",
+      "toggleFavorite": "切換螢幕截圖 {name} 的我的最愛狀態",
+      "renameImage": "重新命名螢幕截圖 {name}",
+      "deleteImage": "刪除螢幕截圖 {name}",
+      "saveAs": "另存新檔",
+      "editImageButton": "開啟"
+    },
+    "favorite": {
+      "saveFailedTitle": "我的最愛儲存失敗",
+      "saveFailed": "無法儲存螢幕截圖的我的最愛：{error}"
+    },
+    "rename": {
+      "title": "重新命名螢幕截圖",
+      "prompt": "為此螢幕截圖選擇新的名稱。",
+      "keepExtension": "{extension} 檔案副檔名會保持不變。",
+      "invalidTitle": "無效的螢幕截圖名稱",
+      "invalidMessage": "請輸入螢幕截圖名稱。",
+      "failedTitle": "重新命名失敗",
+      "failedMessage": "無法重新命名螢幕截圖。"
+    },
+    "delete": {
+      "title": "刪除螢幕截圖",
+      "confirmMessage": "確定要刪除 {name} 嗎？此操作無法復原！",
+      "failedTitle": "刪除失敗",
+      "failedMessage": "刪除螢幕截圖失敗。"
+    },
+    "edit": {
+      "failedTitle": "開啟失敗",
+      "failedMessage": "無法開啟螢幕截圖。"
+    },
+    "saveAs": {
+      "failedTitle": "儲存失敗",
+      "failedMessage": "無法儲存螢幕截圖：{error}",
+      "fileTypeDescription": "圖片檔案",
+      "missingFile": "無法解析螢幕截圖檔案。"
+    },
+    "bulkDelete": {
+      "title": "批次刪除螢幕截圖",
+      "deleteSelectedCount": "刪除所選 ({count})",
+      "noSelected": "請先選擇至少一張螢幕截圖。",
+      "confirmMessage": "確定刪除選取的 {count} 張螢幕截圖？此操作無法復原！",
+      "deletingProgress": "正在刪除螢幕截圖... ({current}/{total})",
+      "cancelling": "正在取消螢幕截圖刪除...",
+      "cancelledTitle": "批次刪除已取消",
+      "cancelledMessage": "在取消前已刪除 {deleted} 張螢幕截圖。",
+      "cancelledWithFailures": "在取消前已刪除 {deleted} 張螢幕截圖。有 {failures} 張螢幕截圖刪除失敗。",
+      "completeTitle": "批次刪除完成",
+      "completeMessage": "已刪除 {deleted} 張螢幕截圖。",
+      "finishedWithErrorsTitle": "批次刪除完成但發生錯誤",
+      "finishedWithErrorsMessage": "已刪除 {deleted} 張螢幕截圖。<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "遊戲客戶端",
       "launcher": "啟動器",
       "mods": "模組",
-      "dataStorage": "資料與儲存"
+      "dataStorage": "資料與儲存",
+      "playtime": "遊戲時間"
+    },
+    "playtime": {
+      "noData": "尚未記錄任何會話。開始遊玩一個版本以開始追蹤！",
+      "total": "總遊戲時間：",
+      "totalTooltip": "所有會話的總遊戲時間。",
+      "sessions": "遊戲次數：",
+      "sessionsTooltip": "您啟動遊戲的次數。",
+      "mostPlayed": "最常玩的版本：",
+      "mostPlayedTooltip": "您花費最多時間的版本。",
+      "longest": "最長會話：",
+      "longestTooltip": "您單次最長的遊戲會話。",
+      "average": "平均會話：",
+      "averageTooltip": "您所有遊戲會話的平均時長。",
+      "moreDetails": "更多詳情",
+      "detail": {
+        "title": "遊戲時間詳情",
+        "allVersions": "全部",
+        "filterBy": "版本：",
+        "date": "日期",
+        "version": "版本",
+        "duration": "時長",
+        "modloader": "模組載入器",
+        "noSessions": "沒有會話可顯示。",
+        "sortBy": "點擊排序",
+        "loaderFilterBy": "模組載入器：",
+        "allModloaders": "全部",
+        "noLoader": "無",
+        "totalLabel": "合計：",
+        "nowLive": "即時",
+        "truncatedNote": "顯示最近 {shown} 筆會話，共 {total} 筆。"
+      }
     },
     "account": {
       "username": "使用者名稱：",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "開啟 Microsoft",
         "failedLogin": "Microsoft 登入失敗。"
       },
-      "playerPreviewTooltip": "若帳號材質可用，會以斜角視圖顯示玩家模型與披風預覽。",
+      "playerPreviewTooltip": "在3D預覽中顯示您的玩家皮膚和披風。",
       "playerPreview": "3D 玩家預覽：",
-      "playerRotateTitle": "按住並拖曳即可旋轉",
       "playerPreviewBodyAlt": "玩家預覽",
-      "playerPreviewCapeAlt": "披風預覽"
+      "playerPreviewCapeAlt": "披風預覽",
+      "playerRotateTitle": "按住並拖曳即可旋轉"
     },
     "appearance": {
       "theme": "主題：",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "自動優化:",
+      "autoOptimizeTooltip": "每次 Minecraft 啟動時，自動根據目前裝置記憶體選擇啟動 RAM 和 JVM 參數。",
+      "autoOptimizeLockedTitle": "停用自動優化以手動編輯此項。",
       "minRam": "最小記憶體：",
       "minRamTooltip": "分配給遊戲的最小記憶體。\n  - 必須為正數\n  - 必須小於最大記憶體\n\n格式範例：256、256M、2G 等。\n\n效能提示：適度增加記憶體通常有助於改善表現，也建議與最大記憶體搭配調整，以減少畫面掉幀。",
       "ramInvalidTitle": "記憶體格式：數字後可選擇加上 K、M、G 或 T 單位，例如 2048M、2G",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "在啟動器或遊戲執行時顯示 Discord Rich Presence。",
       "desktopNotifications": "桌面通知：",
       "desktopNotificationsTooltip": "允許啟動器顯示桌面通知。",
+      "keyboardMouse": "鍵盤滑鼠：",
+      "keyboardMouseTooltip": "在啟動器中顯示由鍵盤控制的游標。\n\n此功能仍為實驗性功能，可能會有許多錯誤！",
       "java": {
         "auto": "自動",
         "defaultPath": "預設 (Java PATH)",

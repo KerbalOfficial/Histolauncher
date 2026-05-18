@@ -7,6 +7,7 @@ import {
   toggleClass,
   imageAttachErrorPlaceholder,
 } from './dom-utils.js';
+import { showPlaytimeDetailModal } from './playtime-detail-modal.js';
 import {
   JAVA_RUNTIME_AUTO,
   JAVA_RUNTIME_INSTALL_OPTION,
@@ -92,8 +93,10 @@ const normalizeAccountType = (value) => {
 const isOnlineAccountType = (value) => normalizeAccountType(value) !== 'Local';
 
 const normalizeSkinModel = (value) => {
-  const model = String(value || '').trim().toLowerCase();
-  return model === 'slim' ? 'slim' : 'classic';
+  const model = String(value || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  return ['slim', 'alex', 'narrow', 'thin', 'slimarm', 'slimarms', '3px', '3pixel', '3pixels'].includes(model)
+    ? 'slim'
+    : 'classic';
 };
 
 const skinViewerModel = (model) => normalizeSkinModel(model) === 'slim' ? 'slim' : 'default';
@@ -431,7 +434,6 @@ export const updateSettingsPlayerPreview = () => {
   const idOrName = state.settingsState.uuid || state.settingsState.username;
   const previewMode = state.settingsState.player_preview_mode === '3d' ? '3d' : '2d';
   const hasActiveCape = (() => {
-    if (acctType !== 'Microsoft') return true;
     const activeCape = state.settingsState.active_cape;
     if (!activeCape) return false;
     if (typeof activeCape === 'string') return String(activeCape).trim().length > 0;
@@ -508,17 +510,12 @@ export const updateSettingsPlayerPreview = () => {
     return;
   }
 
-  try {
-    const skinImg = new Image();
-    skinImg.crossOrigin = 'anonymous';
-    skinImg.onload = () => {
-      if (requestId !== state.settingsPreviewRequestId) return;
+  (async () => {
+    const [skinImg, capeImg] = await Promise.all([probeImage(skinUrl), probeImage(capeUrl)]);
+    if (requestId !== state.settingsPreviewRequestId) return;
+
+    if (isValidSkinTexture(skinImg)) {
       try {
-        if (!isValidSkinTexture(skinImg)) {
-          hidePreviewImage(bodyPreviewImg);
-          syncPreviewRowVisibility();
-          return;
-        }
         bodyPreviewImg.width = 64;
         bodyPreviewImg.height = 128;
         const dataUrl = renderPlayerBodyPreview(skinImg, 4, activeSkinModel);
@@ -531,37 +528,12 @@ export const updateSettingsPlayerPreview = () => {
         console.warn('Failed rendering body preview:', err);
         hidePreviewImage(bodyPreviewImg);
       }
-      syncPreviewRowVisibility();
-    };
-    skinImg.onerror = () => {
-      if (requestId !== state.settingsPreviewRequestId) return;
+    } else {
       hidePreviewImage(bodyPreviewImg);
-      syncPreviewRowVisibility();
-    };
-    skinImg.src = skinUrl;
-  } catch (err) {
-    console.warn('Error loading skin for preview:', err);
-    hidePreviewImage(bodyPreviewImg);
-    syncPreviewRowVisibility();
-  }
+    }
 
-  if (!capeUrl) {
-    hidePreviewImage(capePreviewImg);
-    syncPreviewRowVisibility();
-    return;
-  }
-
-  try {
-    const capeImg = new Image();
-    capeImg.crossOrigin = 'anonymous';
-    capeImg.onload = () => {
-      if (requestId !== state.settingsPreviewRequestId) return;
+    if (isValidCapeTexture(capeImg)) {
       try {
-        if (!isValidCapeTexture(capeImg)) {
-          hidePreviewImage(capePreviewImg);
-          syncPreviewRowVisibility();
-          return;
-        }
         capePreviewImg.width = 50;
         capePreviewImg.height = 80;
         const dataUrl = renderPlayerCapePreview(capeImg);
@@ -574,19 +546,18 @@ export const updateSettingsPlayerPreview = () => {
         console.warn('Failed rendering cape preview:', err);
         hidePreviewImage(capePreviewImg);
       }
-      syncPreviewRowVisibility();
-    };
-    capeImg.onerror = () => {
-      if (requestId !== state.settingsPreviewRequestId) return;
+    } else {
       hidePreviewImage(capePreviewImg);
-      syncPreviewRowVisibility();
-    };
-    capeImg.src = capeUrl;
-  } catch (err) {
-    console.warn('Error loading cape for preview:', err);
+    }
+
+    syncPreviewRowVisibility();
+  })().catch((err) => {
+    if (requestId !== state.settingsPreviewRequestId) return;
+    console.warn('Error loading textures for preview:', err);
+    hidePreviewImage(bodyPreviewImg);
     hidePreviewImage(capePreviewImg);
     syncPreviewRowVisibility();
-  }
+  });
 }
 
 export const updateSettingsAccountSettingsButtonVisibility = () => {
@@ -772,10 +743,22 @@ export const refreshHomeGlobalMessage = async () => {
   }
 };
 
+const isAutoOptimizeEnabled = () => (
+  !Object.prototype.hasOwnProperty.call(state.settingsState, 'auto_optimize_launch_settings')
+  || isTruthySetting(state.settingsState.auto_optimize_launch_settings)
+);
+
+export const setAutoOptimizeControlledRowsDisabled = (disabled) => {
+  document.querySelectorAll('.auto-optimize-controlled-setting').forEach((row) => {
+    row.classList.toggle('auto-optimize-disabled-setting', disabled);
+  });
+};
+
 export const updateHomeInfo = () => {
   const errors = validateSettings();
   const username = state.settingsState.username || 'Player';
   const acctType = normalizeAccountType(state.settingsState.account_type);
+  const autoOptimizeEnabled = isAutoOptimizeEnabled();
 
   // Username error message
   let usernameTooltip = '';
@@ -792,7 +775,7 @@ export const updateHomeInfo = () => {
 
   // RAM error message
   let ramTooltip = '';
-  if (errors.min_ram || errors.max_ram) {
+  if (!autoOptimizeEnabled && (errors.min_ram || errors.max_ram)) {
     const minRamStr = (state.settingsState.min_ram || '').toUpperCase();
     const maxRamStr = (state.settingsState.max_ram || '').toUpperCase();
 
@@ -832,11 +815,17 @@ export const updateHomeInfo = () => {
   setHTML('info-username', usernameHTML);
 
   // RAM row
-  const minRam = (state.settingsState.min_ram || '2048M').toUpperCase();
-  const maxRam = (state.settingsState.max_ram || '4096M').toUpperCase();
-  const ramHTML = errors.min_ram || errors.max_ram
-    ? makeInfoRowErrorHTML(t('home.info.ramLimit'), `${minRam}B - ${maxRam}B`, null, ramTooltip)
-    : makeInfoRowHTML('assets/images/settings.gif', t('home.info.ramLimit'), `${minRam}B - ${maxRam}B`);
+  const versionMinRamRaw = selectedVData ? String(selectedVData.raw && selectedVData.raw.launch_min_ram || '').trim() : '';
+  const versionMaxRamRaw = selectedVData ? String(selectedVData.raw && selectedVData.raw.launch_max_ram || '').trim() : '';
+  const hasRamOverride = !!(versionMinRamRaw || versionMaxRamRaw);
+  const minRam = (hasRamOverride && versionMinRamRaw ? versionMinRamRaw : (state.settingsState.min_ram || '2048M')).toUpperCase();
+  const maxRam = (hasRamOverride && versionMaxRamRaw ? versionMaxRamRaw : (state.settingsState.max_ram || '4096M')).toUpperCase();
+  const ramParens = hasRamOverride ? t('home.info.storage.overridden') : null;
+  const ramHTML = (!hasRamOverride && autoOptimizeEnabled)
+    ? makeInfoRowHTML('assets/images/settings.gif', t('home.info.ramLimit'), t('common.auto'))
+    : (errors.min_ram || errors.max_ram
+      ? makeInfoRowErrorHTML(t('home.info.ramLimit'), `${minRam}B - ${maxRam}B`, ramParens, ramTooltip)
+      : makeInfoRowHTML('assets/images/settings.gif', t('home.info.ramLimit'), `${minRam}B - ${maxRam}B`, ramParens));
   setHTML('info-ram', ramHTML);
 
   // Storage directory row
@@ -885,7 +874,10 @@ export const updateHomeInfo = () => {
   setHTML('info-storage-dir', storageHTML);
 
   // Java runtime row
-  const rawJavaPath = String(state.settingsState.java_path || '').trim();
+  const versionJavaPathRaw = selectedVData ? String(selectedVData.raw && selectedVData.raw.launch_java_path || '').trim() : '';
+  const hasJavaOverride = !!versionJavaPathRaw;
+  const rawJavaPath = hasJavaOverride ? versionJavaPathRaw : String(state.settingsState.java_path || '').trim();
+  const javaRuntimeParens = hasJavaOverride ? t('home.info.storage.overridden') : null;
 
   const formatJavaRuntimeShort = (rt) => {
     const label = String((rt && rt.label) || '').trim();
@@ -923,7 +915,7 @@ export const updateHomeInfo = () => {
       }
     }
   }
-  const javaRuntimeHTML = makeInfoRowHTML('assets/images/java_icon.png', t('home.info.javaRuntime'), javaRuntimeValue);
+  const javaRuntimeHTML = makeInfoRowHTML('assets/images/java_icon.png', t('home.info.javaRuntime'), javaRuntimeValue, javaRuntimeParens);
   setHTML('info-java-runtime', javaRuntimeHTML);
 
   // --- Version panel: image + details ---
@@ -951,7 +943,7 @@ export const updateHomeInfo = () => {
 
     if (vData) {
       if (infoCategoryEl) {
-        infoCategoryEl.innerHTML = makeInfoRowHTML('assets/images/library.png', t('home.info.category'), vData.category);
+        infoCategoryEl.innerHTML = makeInfoRowHTML('assets/images/chest.png', t('home.info.category'), vData.category);
         infoCategoryEl.classList.remove('hidden');
       }
 
@@ -1042,6 +1034,82 @@ export const updateHomeInfo = () => {
   }
 };
 
+// ---- Home page live play-status SSE ----
+let _homeLiveEs = null;
+
+export const startHomeLiveStream = () => {
+  if (_homeLiveEs) { _homeLiveEs.close(); _homeLiveEs = null; }
+  try {
+    const es = new EventSource('/api/stream/playtime-live');
+    _homeLiveEs = es;
+    es.onmessage = (event) => {
+      let data;
+      try { data = JSON.parse(event.data); } catch (_) { return; }
+      const el = document.getElementById('home-live-status');
+      const text = document.getElementById('home-live-text');
+      if (!el || !text) return;
+      if (data.playing) {
+        const loaderPart = data.loader ? ` · ${data.loader}` : '';
+        text.textContent = `${data.version}${loaderPart} — ${data.elapsed_formatted}`;
+        el.classList.remove('hidden');
+      } else {
+        el.classList.add('hidden');
+      }
+    };
+    es.onerror = () => { if (_homeLiveEs === es) _homeLiveEs = null; };
+  } catch (_) { /* EventSource not supported */ }
+};
+
+export const stopHomeLiveStream = () => {
+  if (_homeLiveEs) { _homeLiveEs.close(); _homeLiveEs = null; }
+  const el = document.getElementById('home-live-status');
+  if (el) el.classList.add('hidden');
+};
+
+export const updatePlaytimeStats = async () => {
+  const emptyEl = document.getElementById('settings-playtime-empty');
+  const statsEl = document.getElementById('settings-playtime-stats');
+  if (!emptyEl || !statsEl) return;
+
+  try {
+    const res = await api('/api/playtime/stats', 'POST', {});
+
+    if (!res || !res.ok || !res.stats || !res.stats.has_data) {
+      emptyEl.classList.remove('hidden');
+      statsEl.classList.add('hidden');
+      return;
+    }
+
+    const s = res.stats;
+
+    const set = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+
+    set('playtime-stat-total', s.total_duration_formatted);
+    set('playtime-stat-sessions', String(s.total_sessions));
+    set('playtime-stat-most-played', s.most_played_version
+      ? `${s.most_played_version} (${s.most_played_version_formatted})`
+      : '—');
+    set('playtime-stat-longest', s.longest_session_formatted);
+    set('playtime-stat-average', s.average_session_formatted);
+
+    emptyEl.classList.add('hidden');
+    statsEl.classList.remove('hidden');
+
+    const detailBtn = document.getElementById('playtime-details-btn');
+    if (detailBtn && !detailBtn.dataset.ptDetailBound) {
+      detailBtn.dataset.ptDetailBound = '1';
+      detailBtn.addEventListener('click', () => showPlaytimeDetailModal());
+    }
+  } catch (err) {
+    console.warn('[updatePlaytimeStats] Error:', err);
+    emptyEl.classList.remove('hidden');
+    statsEl.classList.add('hidden');
+  }
+};
+
 export const initSettings = async (data, profilePayload = null) => {
   if (profilePayload && Array.isArray(profilePayload.profiles)) {
     applyProfilesState(profilePayload.profiles, profilePayload.active_profile);
@@ -1058,6 +1126,10 @@ export const initSettings = async (data, profilePayload = null) => {
 
   state.settingsState.favorite_versions = normalizeFavoriteVersions(
     state.settingsState.favorite_versions
+  );
+
+  state.settingsState.favorite_screenshots = normalizeFavoriteVersions(
+    state.settingsState.favorite_screenshots
   );
 
   state.settingsState.account_type = normalizeAccountType(state.settingsState.account_type);
@@ -1126,6 +1198,16 @@ export const initSettings = async (data, profilePayload = null) => {
   const maxRamInput = getEl('settings-max-ram');
   if (maxRamInput) maxRamInput.value = state.settingsState.max_ram || '4096M';
 
+  const autoOptimizeEnabled = isAutoOptimizeEnabled();
+  const autoOptimizeInput = getEl('settings-auto-optimize');
+  if (autoOptimizeInput) autoOptimizeInput.checked = autoOptimizeEnabled;
+  [minRamInput, maxRamInput, getEl('settings-extra-jvm-args')].forEach((input) => {
+    if (!input) return;
+    input.disabled = autoOptimizeEnabled;
+    input.title = autoOptimizeEnabled ? t('settings.client.autoOptimizeLockedTitle') : '';
+  });
+  setAutoOptimizeControlledRowsDisabled(autoOptimizeEnabled);
+
   const resolutionWidthInput = getEl('settings-resolution-width');
   if (resolutionWidthInput) resolutionWidthInput.value = state.settingsState.game_resolution_width || '854';
 
@@ -1153,7 +1235,13 @@ export const initSettings = async (data, profilePayload = null) => {
   if (uiSizeSelect) uiSizeSelect.value = launcherUiSize;
 
   const languageSelect = getEl('settings-launcher-language');
-  if (languageSelect) languageSelect.value = state.settingsState.launcher_language || 'en';
+  if (languageSelect) {
+    const storedLanguage = state.settingsState.launcher_language || 'en';
+    const availableLanguages = Array.from(languageSelect.options).map((option) => option.value);
+    languageSelect.value = availableLanguages.includes(storedLanguage)
+      ? storedLanguage
+      : (availableLanguages.includes('en') ? 'en' : (availableLanguages[0] || ''));
+  }
 
   const densitySelect = getEl('settings-layout-density');
   if (densitySelect) densitySelect.value = state.settingsState.layout_density === 'compact' ? 'compact' : 'comfortable';
@@ -1195,6 +1283,9 @@ export const initSettings = async (data, profilePayload = null) => {
 
   const desktopNotificationsEl = getEl('settings-desktop-notifications');
   if (desktopNotificationsEl) desktopNotificationsEl.checked = !('desktop_notifications_enabled' in state.settingsState) || isTruthySetting(state.settingsState.desktop_notifications_enabled);
+
+  const keyboardMouseEl = getEl('settings-keyboard-mouse');
+  if (keyboardMouseEl) keyboardMouseEl.checked = isTruthySetting(state.settingsState.keyboard_mouse_enabled);
 
   const allowAllOverrideClasspathEl = getEl('settings-allow-override-classpath-all-modloaders');
   if (allowAllOverrideClasspathEl) {

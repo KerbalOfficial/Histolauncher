@@ -179,7 +179,8 @@ export const populateLanguageSelect = async () => {
 
   const selected = requestedLanguage;
   select.innerHTML = '';
-  getLanguageEntries().forEach((entry) => {
+  const entries = getLanguageEntries();
+  entries.forEach((entry) => {
     const code = safeLanguageCode(entry.code);
     const option = document.createElement('option');
     option.value = code;
@@ -190,12 +191,11 @@ export const populateLanguageSelect = async () => {
     select.appendChild(option);
   });
 
-  if (!languageEntryFor(selected)) {
-    const fallback = languageEntryFor(DEFAULT_LANGUAGE);
-    if (fallback) select.value = DEFAULT_LANGUAGE;
-  } else {
-    select.value = selected;
-  }
+  const availableCodes = Array.from(select.options).map((option) => option.value);
+  const nextValue = availableCodes.includes(selected)
+    ? selected
+    : (availableCodes.includes(DEFAULT_LANGUAGE) ? DEFAULT_LANGUAGE : (availableCodes[0] || ''));
+  if (nextValue) select.value = nextValue;
 };
 
 export const setLauncherLanguage = async (value = DEFAULT_LANGUAGE) => {

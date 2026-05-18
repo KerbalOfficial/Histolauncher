@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import gzip
+import io
 import logging
 import os
 import zlib
@@ -12,6 +13,43 @@ from core.nbt_editor.writer import NbtWriter
 
 
 logger = logging.getLogger(__name__)
+
+_MAX_NBT_DECOMPRESSED_BYTES = 64 * 1024 * 1024
+_DECOMPRESS_CHUNK = 64 * 1024
+
+
+def _bounded_gzip_decompress(raw: bytes) -> bytes:
+    out = bytearray()
+    with gzip.GzipFile(fileobj=io.BytesIO(raw), mode="rb") as gz:
+        while True:
+            chunk = gz.read(_DECOMPRESS_CHUNK)
+            if not chunk:
+                break
+            out.extend(chunk)
+            if len(out) > _MAX_NBT_DECOMPRESSED_BYTES:
+                raise ValueError("NBT gzip payload exceeds decompression limit")
+    return bytes(out)
+
+
+def _bounded_zlib_decompress(raw: bytes) -> bytes:
+    decompressor = zlib.decompressobj()
+    out = bytearray()
+    pos = 0
+    while pos < len(raw):
+        chunk = decompressor.decompress(raw[pos:pos + _DECOMPRESS_CHUNK], _DECOMPRESS_CHUNK)
+        pos += _DECOMPRESS_CHUNK
+        out.extend(chunk)
+        if len(out) > _MAX_NBT_DECOMPRESSED_BYTES:
+            raise ValueError("NBT zlib payload exceeds decompression limit")
+        while decompressor.unconsumed_tail:
+            chunk = decompressor.decompress(decompressor.unconsumed_tail, _DECOMPRESS_CHUNK)
+            out.extend(chunk)
+            if len(out) > _MAX_NBT_DECOMPRESSED_BYTES:
+                raise ValueError("NBT zlib payload exceeds decompression limit")
+    out.extend(decompressor.flush())
+    if len(out) > _MAX_NBT_DECOMPRESSED_BYTES:
+        raise ValueError("NBT zlib payload exceeds decompression limit")
+    return bytes(out)
 
 
 def read_nbt_file(path: str) -> Tuple[Optional[Dict[str, Any]], str]:
@@ -25,11 +63,11 @@ def read_nbt_file(path: str) -> Tuple[Optional[Dict[str, Any]], str]:
     payload = raw
     try:
         if raw[:2] == b"\x1f\x8b":
-            payload = gzip.decompress(raw)
+            payload = _bounded_gzip_decompress(raw)
             compression = "gzip"
         else:
             try:
-                payload = zlib.decompress(raw)
+                payload = _bounded_zlib_decompress(raw)
                 compression = "zlib"
             except Exception:
                 payload = raw
@@ -50,6 +88,7 @@ def read_nbt_file(path: str) -> Tuple[Optional[Dict[str, Any]], str]:
 
 
 def write_nbt_file(path: str, nbt_root: Dict[str, Any], compression: str) -> bool:
+    tmp_path = path + ".tmp"
     try:
         writer = NbtWriter()
         payload = writer.named_tag(
@@ -64,13 +103,17 @@ def write_nbt_file(path: str, nbt_root: Dict[str, Any], compression: str) -> boo
         else:
             data = payload
 
-        tmp_path = path + ".tmp"
         with open(tmp_path, "wb") as f:
             f.write(data)
         os.replace(tmp_path, path)
         return True
     except Exception as exc:
         logger.error(f"Failed to write NBT file {path}: {exc}")
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
         return False
 
 

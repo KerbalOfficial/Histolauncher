@@ -267,7 +267,21 @@ def _get_loader_version(version_dir: str, loader_type: str) -> str:
     loaders_dir = os.path.join(version_dir, "loaders", loader_type.lower())
     if not os.path.isdir(loaders_dir):
         return ""
-    versions = [d for d in os.listdir(loaders_dir) if os.path.isdir(os.path.join(loaders_dir, d))]
+
+    def has_runtime_jar(path: str) -> bool:
+        try:
+            for _root, _dirs, files in os.walk(path):
+                if any(str(file_name).lower().endswith(".jar") for file_name in files):
+                    return True
+        except OSError:
+            return False
+        return False
+
+    versions = [
+        d for d in os.listdir(loaders_dir)
+        if os.path.isdir(os.path.join(loaders_dir, d))
+        and has_runtime_jar(os.path.join(loaders_dir, d))
+    ]
     if not versions:
         return ""
     versions.sort(key=_parse_version)

@@ -14,6 +14,14 @@ import zipfile
 from typing import Any
 
 from core.logger import get_logger
+from core.skin_legacy import (
+    convert_skin_to_legacy_format,
+    merge_skin_overlay_into_base,
+    normalize_skin_limb_mirror,
+    normalize_skin_overlay_parts,
+    normalize_skin_overlay_parts_for_texture_type,
+    normalize_skin_texture_type,
+)
 from core.settings import (
     _apply_url_proxy,
     get_active_profile_id,
@@ -1125,12 +1133,11 @@ def _active_texture_entries(entries: Any) -> list[dict[str, Any]]:
 def _texture_model(entry: dict[str, Any] | None) -> str:
     if not isinstance(entry, dict):
         return "classic"
-    variant = str(entry.get("variant") or "").strip().lower()
+    variant = _normalize_library_skin_variant(entry.get("variant"))
     if variant == "slim":
         return "slim"
     metadata = entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {}
-    model = str(metadata.get("model") or "").strip().lower()
-    return "slim" if model == "slim" else "classic"
+    return _normalize_library_skin_variant(metadata.get("model"))
 
 
 def _texture_hash_from_url(url: Any) -> str:
@@ -1256,10 +1263,12 @@ def remove_microsoft_texture_cache(identifier: Any, texture_type: str) -> None:
 
 
 def _normalize_library_skin_variant(value: Any) -> str:
-    model = str(value or "classic").strip().lower()
-    if model in {"wide", "default"}:
+    model = re.sub(r"[\s_-]+", "", str(value or "classic").strip().lower())
+    if model in {"slim", "alex", "narrow", "thin", "slimarm", "slimarms", "3px", "3pixel", "3pixels"}:
+        return "slim"
+    if model in {"wide", "default", "steve", "classic", "4px", "4pixel", "4pixels"}:
         return "classic"
-    return "slim" if model == "slim" else "classic"
+    return "classic"
 
 
 def _default_skin_id(key: Any) -> str:
@@ -1327,12 +1336,100 @@ def _png_dimensions_from_bytes(payload: bytes | None) -> tuple[int, int] | None:
         return None
 
 
+def _png_dimensions_from_path(path: str) -> tuple[int, int] | None:
+    if not path:
+        return None
+    try:
+        with open(path, "rb") as f:
+            return _png_dimensions_from_bytes(f.read(24))
+    except Exception:
+        return None
+
+
+def _skin_entry_dimensions(entry_id: str) -> tuple[int, int] | None:
+    return _png_dimensions_from_path(_ensure_local_skin_path(entry_id))
+
+
+def _source_height_from_dimensions(dimensions: tuple[int, int] | None) -> int | None:
+    if not dimensions:
+        return None
+    return int(dimensions[1])
+
+
+def _normalize_legacy_texture_type_for_entry(
+    value: Any,
+    *,
+    dimensions: tuple[int, int] | None = None,
+    overlay_parts: Any = None,
+) -> str:
+    source_height = _source_height_from_dimensions(dimensions)
+    if source_height == 64 and not str(value or "").strip() and normalize_skin_overlay_parts(overlay_parts):
+        return "legacy"
+    return normalize_skin_texture_type(value, source_height=source_height)
+
+
+def _normalize_overlay_parts_for_entry(
+    value: Any,
+    *,
+    texture_type: Any = None,
+    dimensions: tuple[int, int] | None = None,
+    arm_mirror: Any = "right",
+    leg_mirror: Any = "right",
+) -> list[str]:
+    return normalize_skin_overlay_parts_for_texture_type(
+        value,
+        texture_type=texture_type,
+        source_height=_source_height_from_dimensions(dimensions),
+        arm_mirror=arm_mirror,
+        leg_mirror=leg_mirror,
+    )
+
+
 def _is_allowed_skin_dimensions(payload: bytes | None) -> bool:
     dimensions = _png_dimensions_from_bytes(payload)
     if not dimensions:
         return False
     width, height = dimensions
     return (width, height) in {(64, 64), (64, 32)}
+
+
+def _apply_skin_upload_settings(
+    payload: bytes,
+    *,
+    texture_type: Any = None,
+    overlay_parts: Any = None,
+    arm_mirror: Any = "right",
+    leg_mirror: Any = "right",
+) -> bytes:
+    data = bytes(payload or b"")
+    dimensions = _png_dimensions_from_bytes(data)
+    clean_texture_type = normalize_skin_texture_type(
+        texture_type,
+        source_height=_source_height_from_dimensions(dimensions),
+    )
+    clean_arm_mirror = normalize_skin_limb_mirror(arm_mirror)
+    clean_leg_mirror = normalize_skin_limb_mirror(leg_mirror)
+    clean_overlay_parts = _normalize_overlay_parts_for_entry(
+        overlay_parts,
+        texture_type=clean_texture_type,
+        dimensions=dimensions,
+        arm_mirror=clean_arm_mirror,
+        leg_mirror=clean_leg_mirror,
+    )
+    if not data:
+        return data
+    if clean_texture_type == "legacy":
+        return convert_skin_to_legacy_format(
+            data,
+            overlay_parts=clean_overlay_parts,
+            arm_mirror=clean_arm_mirror,
+            leg_mirror=clean_leg_mirror,
+        )
+    if clean_overlay_parts:
+        data = merge_skin_overlay_into_base(data, overlay_parts=clean_overlay_parts)
+    if clean_texture_type != "legacy":
+        return data
+    return data
 
 
 def _is_valid_default_skin_payload(payload: bytes | None) -> bool:
@@ -1374,7 +1471,17 @@ def _read_default_skin_from_zip(zf: zipfile.ZipFile, key: Any, variant: Any) -> 
     if not asset_path:
         return None
     try:
-        payload = zf.read(asset_path)
+
+        try:
+            info = zf.getinfo(asset_path)
+        except KeyError:
+            return None
+        if int(info.file_size or 0) > MAX_SKIN_UPLOAD_BYTES:
+            return None
+        with zf.open(info, "r") as src:
+            payload = src.read(MAX_SKIN_UPLOAD_BYTES + 1)
+        if len(payload) > MAX_SKIN_UPLOAD_BYTES:
+            return None
     except Exception:
         return None
     return payload if _is_valid_default_skin_payload(payload) else None
@@ -1404,8 +1511,16 @@ def _cache_default_skins_from_jar(path: str) -> bool:
 def _candidate_default_skin_jars() -> list[str]:
     candidates: list[str] = []
 
-    def add(path: str | None) -> None:
+    def add(path: str | None, root: str | None = None) -> None:
         value = str(path or "").strip()
+        if root:
+            try:
+                root_real = os.path.normcase(os.path.realpath(root))
+                value_real = os.path.normcase(os.path.realpath(value))
+                if os.path.commonpath([root_real, value_real]) != root_real:
+                    return
+            except (OSError, ValueError):
+                return
         if value and value not in candidates and os.path.isfile(value):
             candidates.append(value)
 
@@ -1423,14 +1538,14 @@ def _candidate_default_skin_jars() -> list[str]:
     if versions_root:
         if selected:
             selected_parts = [part for part in selected.split("/") if part]
-            add(os.path.join(versions_root, *selected_parts, "client.jar"))
+            add(os.path.join(versions_root, *selected_parts, "client.jar"), versions_root)
             if len(selected_parts) == 1:
                 for category in ("vanilla", "release", "snapshot", "modded", "custom"):
-                    add(os.path.join(versions_root, category, selected_parts[0], "client.jar"))
+                    add(os.path.join(versions_root, category, selected_parts[0], "client.jar"), versions_root)
         try:
             for root, _dirs, files in os.walk(versions_root):
                 if "client.jar" in files:
-                    add(os.path.join(root, "client.jar"))
+                    add(os.path.join(root, "client.jar"), versions_root)
                 if len(candidates) >= 12:
                     break
         except Exception:
@@ -1440,8 +1555,8 @@ def _candidate_default_skin_jars() -> list[str]:
         vanilla_versions = os.path.join(get_default_minecraft_dir(), "versions")
         if os.path.isdir(vanilla_versions):
             for name in sorted(os.listdir(vanilla_versions), reverse=True):
-                add(os.path.join(vanilla_versions, name, f"{name}.jar"))
-                add(os.path.join(vanilla_versions, name, "client.jar"))
+                add(os.path.join(vanilla_versions, name, f"{name}.jar"), vanilla_versions)
+                add(os.path.join(vanilla_versions, name, "client.jar"), vanilla_versions)
                 if len(candidates) >= 24:
                     break
     except Exception:
@@ -1744,11 +1859,32 @@ def _clean_skin_library_entry(entry: Any) -> dict[str, Any] | None:
     file_sha256 = str(entry.get("file_sha256") or "").strip().lower()
     if not re.match(r"^[a-f0-9]{64}$", file_sha256):
         file_sha256 = ""
+    dimensions = _skin_entry_dimensions(entry_id)
+    clean_legacy_arm_mirror = normalize_skin_limb_mirror(entry.get("legacy_arm_mirror"))
+    clean_legacy_leg_mirror = normalize_skin_limb_mirror(entry.get("legacy_leg_mirror"))
+    texture_type = _normalize_legacy_texture_type_for_entry(
+        entry.get("texture_type") or entry.get("legacy_texture_type"),
+        dimensions=dimensions,
+        overlay_parts=entry.get("legacy_overlay_parts"),
+    )
+    legacy_overlay_parts = _normalize_overlay_parts_for_entry(
+        entry.get("legacy_overlay_parts"),
+        texture_type=texture_type,
+        dimensions=dimensions,
+        arm_mirror=clean_legacy_arm_mirror,
+        leg_mirror=clean_legacy_leg_mirror,
+    )
     return {
         "id": entry_id,
         "name": name or "Skin",
         "variant": _normalize_library_skin_variant(entry.get("variant") or entry.get("model")),
         "cape_id": _normalize_library_cape_id(entry.get("cape_id") or entry.get("capeId")),
+        "texture_type": texture_type,
+        "legacy_overlay_parts": legacy_overlay_parts,
+        "legacy_arm_mirror": clean_legacy_arm_mirror,
+        "legacy_leg_mirror": clean_legacy_leg_mirror,
+        "texture_width": int(dimensions[0]) if dimensions else 0,
+        "texture_height": int(dimensions[1]) if dimensions else 0,
         "favorite": _coerce_bool(entry.get("favorite")),
         "file_name": file_name,
         "minecraft_texture_hash": minecraft_texture_hash,
@@ -1786,11 +1922,21 @@ def _skin_library_entries_from_disk(profile_id: str | None = None) -> list[dict[
             updated_at = int(os.path.getmtime(path))
         except OSError:
             updated_at = 0
+        dimensions = _png_dimensions_from_path(path)
         entries.append({
             "id": entry_id,
             "name": "Skin",
             "variant": "classic",
             "cape_id": "",
+            "texture_type": normalize_skin_texture_type(
+                None,
+                source_height=_source_height_from_dimensions(dimensions),
+            ),
+            "legacy_overlay_parts": [],
+            "legacy_arm_mirror": "right",
+            "legacy_leg_mirror": "right",
+            "texture_width": int(dimensions[0]) if dimensions else 0,
+            "texture_height": int(dimensions[1]) if dimensions else 0,
             "favorite": False,
             "file_name": f"{entry_id}.png",
             "minecraft_texture_hash": "",
@@ -2040,6 +2186,10 @@ def _upsert_skin_library_entry(
     minecraft_texture_hash: str | None = "",
     cape_id: Any = None,
     favorite: Any = None,
+    texture_type: Any = None,
+    legacy_overlay_parts: Any = None,
+    legacy_arm_mirror: Any = None,
+    legacy_leg_mirror: Any = None,
     set_active: bool = True,
 ) -> dict[str, Any]:
     existing = _find_skin_library_entry(payload, skin_id)
@@ -2079,6 +2229,25 @@ def _upsert_skin_library_entry(
         else str((existing or {}).get("cape_id") or "")
     )
     saved_skin_bytes = _read_local_skin_bytes(entry_id)
+    dimensions = _png_dimensions_from_bytes(saved_skin_bytes)
+    clean_texture_type = _normalize_legacy_texture_type_for_entry(
+        texture_type if texture_type is not None else (existing or {}).get("texture_type"),
+        dimensions=dimensions,
+        overlay_parts=legacy_overlay_parts if legacy_overlay_parts is not None else (existing or {}).get("legacy_overlay_parts"),
+    )
+    clean_legacy_arm_mirror = normalize_skin_limb_mirror(
+        legacy_arm_mirror if legacy_arm_mirror is not None else (existing or {}).get("legacy_arm_mirror")
+    )
+    clean_legacy_leg_mirror = normalize_skin_limb_mirror(
+        legacy_leg_mirror if legacy_leg_mirror is not None else (existing or {}).get("legacy_leg_mirror")
+    )
+    clean_legacy_overlay_parts = _normalize_overlay_parts_for_entry(
+        legacy_overlay_parts if legacy_overlay_parts is not None else (existing or {}).get("legacy_overlay_parts"),
+        texture_type=clean_texture_type,
+        dimensions=dimensions,
+        arm_mirror=clean_legacy_arm_mirror,
+        leg_mirror=clean_legacy_leg_mirror,
+    )
     file_sha256 = _sha256_hex(saved_skin_bytes) if saved_skin_bytes else str((existing or {}).get("file_sha256") or "")
 
     entry = {
@@ -2086,6 +2255,12 @@ def _upsert_skin_library_entry(
         "name": (str(display_name or "").strip() or (existing or {}).get("name") or os.path.splitext(safe_file_name)[0] or "Skin")[:80],
         "variant": _normalize_library_skin_variant(variant or (existing or {}).get("variant")),
         "cape_id": clean_cape_id,
+        "texture_type": clean_texture_type,
+        "legacy_overlay_parts": clean_legacy_overlay_parts,
+        "legacy_arm_mirror": clean_legacy_arm_mirror,
+        "legacy_leg_mirror": clean_legacy_leg_mirror,
+        "texture_width": int(dimensions[0]) if dimensions else 0,
+        "texture_height": int(dimensions[1]) if dimensions else 0,
         "favorite": _coerce_bool(favorite) if favorite is not None else _coerce_bool((existing or {}).get("favorite")),
         "file_name": safe_file_name,
         "minecraft_texture_hash": clean_minecraft_texture_hash,
@@ -2308,6 +2483,12 @@ def _normalize_texture_profile(
             "active": local_active,
             "variant": entry.get("variant") or "classic",
             "cape_id": entry.get("cape_id") or "",
+            "texture_type": entry.get("texture_type") or "default",
+            "legacy_overlay_parts": normalize_skin_overlay_parts(entry.get("legacy_overlay_parts")),
+            "legacy_arm_mirror": normalize_skin_limb_mirror(entry.get("legacy_arm_mirror")),
+            "legacy_leg_mirror": normalize_skin_limb_mirror(entry.get("legacy_leg_mirror")),
+            "texture_width": int(entry.get("texture_width") or 0),
+            "texture_height": int(entry.get("texture_height") or 0),
             "favorite": _coerce_bool(entry.get("favorite")) or entry["id"] in favorite_skin_ids,
             "local": True,
             "source": "Histolauncher",
@@ -2472,6 +2653,10 @@ def save_microsoft_local_skin(
     display_name: str = "",
     library_id: str = "",
     cape_id: Any = None,
+    texture_type: Any = None,
+    legacy_overlay_parts: Any = None,
+    legacy_arm_mirror: Any = None,
+    legacy_leg_mirror: Any = None,
 ) -> dict[str, Any]:
     payload_data = _load_token_payload()
     if not payload_data:
@@ -2504,22 +2689,78 @@ def save_microsoft_local_skin(
     account = _require_microsoft_texture_account()
     clean_library_id = _normalize_local_skin_id(library_id)
     existing = _find_skin_library_entry(payload_data, clean_library_id)
+    active_local_skin_id = _normalize_local_skin_id(payload_data.get("active_local_skin_id"))
+    profile = payload_data.get("profile") if isinstance(payload_data.get("profile"), dict) else {}
+    remote_active_entry = next(iter(_active_texture_entries(profile.get("skins"))), None)
+    remote_active_skin_hash = _texture_hash_from_url((remote_active_entry or {}).get("url"))
+    existing_texture_hash = str((existing or {}).get("minecraft_texture_hash") or "").strip().lower()
+    was_active_local_skin = bool(
+        existing
+        and clean_library_id
+        and (
+            clean_library_id == active_local_skin_id
+            or (
+                not active_local_skin_id
+                and existing_texture_hash
+                and remote_active_skin_hash
+                and existing_texture_hash == remote_active_skin_hash
+            )
+        )
+    )
     clean_skin_bytes = _validate_local_skin_bytes(skin_bytes)
+    source_dimensions = _png_dimensions_from_bytes(clean_skin_bytes) if clean_skin_bytes is not None else _skin_entry_dimensions(clean_library_id)
+    clean_texture_type = _normalize_legacy_texture_type_for_entry(
+        texture_type if texture_type is not None else (existing or {}).get("texture_type"),
+        dimensions=source_dimensions,
+        overlay_parts=legacy_overlay_parts if legacy_overlay_parts is not None else (existing or {}).get("legacy_overlay_parts"),
+    )
+    clean_legacy_arm_mirror = normalize_skin_limb_mirror(
+        legacy_arm_mirror if legacy_arm_mirror is not None else (existing or {}).get("legacy_arm_mirror")
+    )
+    clean_legacy_leg_mirror = normalize_skin_limb_mirror(
+        legacy_leg_mirror if legacy_leg_mirror is not None else (existing or {}).get("legacy_leg_mirror")
+    )
+    clean_legacy_overlay_parts = _normalize_overlay_parts_for_entry(
+        legacy_overlay_parts if legacy_overlay_parts is not None else (existing or {}).get("legacy_overlay_parts"),
+        texture_type=clean_texture_type,
+        dimensions=source_dimensions,
+        arm_mirror=clean_legacy_arm_mirror,
+        leg_mirror=clean_legacy_leg_mirror,
+    )
+    legacy_settings_changed = bool(existing) and (
+        clean_texture_type != str((existing or {}).get("texture_type") or "default")
+        or clean_legacy_overlay_parts != normalize_skin_overlay_parts((existing or {}).get("legacy_overlay_parts"))
+        or clean_legacy_arm_mirror != normalize_skin_limb_mirror((existing or {}).get("legacy_arm_mirror"))
+        or clean_legacy_leg_mirror != normalize_skin_limb_mirror((existing or {}).get("legacy_leg_mirror"))
+    )
 
-    _upsert_skin_library_entry(
+    saved_entry = _upsert_skin_library_entry(
         payload_data,
         skin_id=clean_library_id if existing else "",
         skin_bytes=clean_skin_bytes,
         variant=variant,
         file_name=file_name,
         display_name=display_name,
-        minecraft_texture_hash=None if clean_skin_bytes is not None else "",
+        minecraft_texture_hash=None if clean_skin_bytes is not None or legacy_settings_changed else "",
         cape_id=cape_id,
+        texture_type=clean_texture_type,
+        legacy_overlay_parts=clean_legacy_overlay_parts,
+        legacy_arm_mirror=clean_legacy_arm_mirror,
+        legacy_leg_mirror=clean_legacy_leg_mirror,
         set_active=False,
     )
-    _clear_active_local_skin(payload_data)
+    if was_active_local_skin:
+        _set_active_local_skin(payload_data, saved_entry.get("id") or clean_library_id, cape_id=cape_id)
+    else:
+        _clear_active_local_skin(payload_data)
     _clear_active_default_skin(payload_data)
     _save_token_payload(payload_data)
+    if was_active_local_skin:
+        return activate_microsoft_skin(
+            saved_entry.get("id") or clean_library_id,
+            variant=variant,
+            cape_id=cape_id,
+        )
     return _texture_profile_from_payload(payload_data, account)
 
 
@@ -2603,14 +2844,42 @@ def upload_microsoft_skin(
     display_name: str = "",
     library_id: str = "",
     cape_id: Any = None,
+    texture_type: Any = None,
+    legacy_overlay_parts: Any = None,
+    legacy_arm_mirror: Any = None,
+    legacy_leg_mirror: Any = None,
 ) -> dict[str, Any]:
-    payload = bytes(skin_bytes or b"")
-    if not payload:
+    source_payload = bytes(skin_bytes or b"")
+    if not source_payload:
         raise MicrosoftAuthError("Choose a skin PNG before saving.")
-    if len(payload) > MAX_SKIN_UPLOAD_BYTES:
+    if len(source_payload) > MAX_SKIN_UPLOAD_BYTES:
         raise MicrosoftAuthError("Skin file is too large. Choose a PNG under 2 MB.")
-    if not payload.startswith(b"\x89PNG\r\n\x1a\n"):
+    if not source_payload.startswith(b"\x89PNG\r\n\x1a\n"):
         raise MicrosoftAuthError("Skin file must be a PNG image.")
+    source_dimensions = _png_dimensions_from_bytes(source_payload)
+    clean_texture_type = _normalize_legacy_texture_type_for_entry(
+        texture_type,
+        dimensions=source_dimensions,
+        overlay_parts=legacy_overlay_parts,
+    )
+    overlay_parts = (
+        _normalize_overlay_parts_for_entry(
+            legacy_overlay_parts,
+            texture_type=clean_texture_type,
+            dimensions=source_dimensions,
+            arm_mirror=legacy_arm_mirror,
+            leg_mirror=legacy_leg_mirror,
+        )
+    )
+    clean_legacy_arm_mirror = normalize_skin_limb_mirror(legacy_arm_mirror)
+    clean_legacy_leg_mirror = normalize_skin_limb_mirror(legacy_leg_mirror)
+    payload = _apply_skin_upload_settings(
+        source_payload,
+        texture_type=clean_texture_type,
+        overlay_parts=overlay_parts,
+        arm_mirror=clean_legacy_arm_mirror,
+        leg_mirror=clean_legacy_leg_mirror,
+    )
     if not _is_allowed_skin_dimensions(payload):
         raise MicrosoftAuthError("Skin resolution must be exactly 64x64 or 64x32.")
 
@@ -2653,17 +2922,25 @@ def upload_microsoft_skin(
     _sync_skin_library_payload(payload_data)
     if active_entry and display_name:
         _remember_texture_alias(payload_data, "skins", active_entry, display_name)
-    _upsert_skin_library_entry(
+    saved_entry = _upsert_skin_library_entry(
         payload_data,
         skin_id=library_id,
-        skin_bytes=payload,
+        skin_bytes=source_payload,
         variant=model,
         file_name=safe_file_name,
         display_name=display_name,
         minecraft_texture_hash=active_texture_hash if active_texture_hash else None,
         cape_id=cape_id,
+        texture_type=clean_texture_type,
+        legacy_overlay_parts=overlay_parts,
+        legacy_arm_mirror=clean_legacy_arm_mirror,
+        legacy_leg_mirror=clean_legacy_leg_mirror,
     )
-    _clear_active_local_skin(payload_data)
+    clean_library_id = _normalize_local_skin_id((saved_entry or {}).get("id") or library_id)
+    if clean_library_id:
+        _set_active_local_skin(payload_data, clean_library_id, cape_id=cape_id)
+    else:
+        _clear_active_local_skin(payload_data)
     _clear_active_default_skin(payload_data)
     _save_token_payload(payload_data)
 
@@ -2696,11 +2973,6 @@ def _commit_profile_response(
     *,
     fallback_to_cached: bool = True,
 ) -> dict[str, Any] | None:
-    """Persist a profile JSON returned from a skin/cape mutation response.
-
-    Returns a normalized texture profile or ``None`` when the response did not
-    include a usable profile body.
-    """
     profile = _profile_response_payload(data)
     payload_data = _load_token_payload()
     if not payload_data:
@@ -2953,18 +3225,36 @@ def activate_microsoft_skin(skin_id: str, *, display_name: str = "", variant: st
         local_texture_hash = str(local_entry.get("minecraft_texture_hash") or "").strip().lower()
         remote_entry = _remote_skin_entry_for_texture_hash(profile, local_texture_hash)
         remote_skin_id = _remote_skin_entry_id(remote_entry)
-        if remote_skin_id:
+        local_dimensions = _skin_entry_dimensions(clean_id)
+        local_texture_type = _normalize_legacy_texture_type_for_entry(
+            local_entry.get("texture_type"),
+            dimensions=local_dimensions,
+            overlay_parts=local_entry.get("legacy_overlay_parts"),
+        )
+        local_legacy_overlay_parts = normalize_skin_overlay_parts(local_entry.get("legacy_overlay_parts"))
+        local_legacy_arm_mirror = normalize_skin_limb_mirror(local_entry.get("legacy_arm_mirror"))
+        local_legacy_leg_mirror = normalize_skin_limb_mirror(local_entry.get("legacy_leg_mirror"))
+        local_legacy_overlay_parts = _normalize_overlay_parts_for_entry(
+            local_entry.get("legacy_overlay_parts"),
+            texture_type=local_texture_type,
+            dimensions=local_dimensions,
+            arm_mirror=local_legacy_arm_mirror,
+            leg_mirror=local_legacy_leg_mirror,
+        )
+        if remote_skin_id and local_texture_type != "legacy":
             try:
                 texture_profile = _select_microsoft_skin_by_id(account, remote_skin_id, allow_missing=True)
             except Exception:
                 return _activate_cached_local_skin()
             if texture_profile:
+                _set_active_local_skin(payload_data, clean_id, cape_id=effective_cape_id)
+                _save_token_payload(payload_data)
                 if effective_cape_id is not None:
                     try:
-                        return _apply_microsoft_cape_selection(account, effective_cape_id)
+                        _apply_microsoft_cape_selection(account, effective_cape_id)
                     except Exception:
                         return _activate_cached_local_skin()
-                return texture_profile
+                return _texture_profile_from_payload(payload_data, account)
 
         path = _ensure_local_skin_path(clean_id)
         try:
@@ -2972,12 +3262,12 @@ def activate_microsoft_skin(skin_id: str, *, display_name: str = "", variant: st
                 local_skin_bytes = f.read()
         except Exception as e:
             raise MicrosoftAuthError("Could not read the saved skin from the launcher library.") from e
-        if profile and _active_profile_skin_matches_bytes(profile, _sha256_hex(local_skin_bytes)):
+        if profile and local_texture_type != "legacy" and _active_profile_skin_matches_bytes(profile, _sha256_hex(local_skin_bytes)):
             active_entry = next(iter(_active_texture_entries(profile.get("skins"))), None)
             active_texture_hash = _texture_hash_from_url((active_entry or {}).get("url"))
             if active_texture_hash:
                 _update_skin_library_entry(payload_data, clean_id, {"minecraft_texture_hash": active_texture_hash})
-                _clear_active_local_skin(payload_data)
+                _set_active_local_skin(payload_data, clean_id, cape_id=effective_cape_id)
                 _save_token_payload(payload_data)
             if effective_cape_id is not None:
                 try:
@@ -2993,6 +3283,10 @@ def activate_microsoft_skin(skin_id: str, *, display_name: str = "", variant: st
                 display_name=display_name or str(local_entry.get("name") or "Skin"),
                 library_id=clean_id,
                 cape_id=effective_cape_id,
+                texture_type=local_texture_type,
+                legacy_overlay_parts=local_legacy_overlay_parts,
+                legacy_arm_mirror=local_legacy_arm_mirror,
+                legacy_leg_mirror=local_legacy_leg_mirror,
             )
         except Exception:
             return _activate_cached_local_skin()
@@ -3095,7 +3389,7 @@ def _matching_microsoft_payload(identifier: str = "", username: str = "") -> dic
     return payload if isinstance(payload, dict) else None
 
 
-def resolve_microsoft_texture_metadata(identifier: str = "", username: str = "") -> dict[str, str | None] | None:
+def resolve_microsoft_texture_metadata(identifier: str = "", username: str = "") -> dict[str, Any] | None:
     payload = _matching_microsoft_payload(identifier, username)
     if not payload:
         return None
@@ -3134,11 +3428,37 @@ def resolve_microsoft_texture_metadata(identifier: str = "", username: str = "")
     cape_url = _normalize_minecraft_texture_url((cape_entry or {}).get("url"))
     if not local_skin and not default_skin and not skin_url and not cape_url:
         return None
+    local_dimensions = None
+    if local_skin:
+        local_dimensions = (
+            int((local_skin or {}).get("texture_width") or 0),
+            int((local_skin or {}).get("texture_height") or 0),
+        )
+    local_texture_type = _normalize_legacy_texture_type_for_entry(
+        (local_skin or {}).get("texture_type"),
+        dimensions=local_dimensions,
+        overlay_parts=(local_skin or {}).get("legacy_overlay_parts"),
+    ) if local_skin else ""
+    local_legacy_arm_mirror = normalize_skin_limb_mirror((local_skin or {}).get("legacy_arm_mirror"))
+    local_legacy_leg_mirror = normalize_skin_limb_mirror((local_skin or {}).get("legacy_leg_mirror"))
+    local_legacy_overlay_parts = _normalize_overlay_parts_for_entry(
+        (local_skin or {}).get("legacy_overlay_parts"),
+        texture_type=local_texture_type,
+        dimensions=local_dimensions,
+        arm_mirror=local_legacy_arm_mirror,
+        leg_mirror=local_legacy_leg_mirror,
+    ) if local_skin else []
     return {
         "skin": skin_url,
         "cape": cape_url,
         "model": str((local_skin or default_skin or {}).get("variant") or "") or _texture_model(skin_entry),
         "local_skin_id": str((local_skin or {}).get("id") or ""),
+        "texture_type": local_texture_type,
+        "legacy_overlay_parts": local_legacy_overlay_parts,
+        "legacy_arm_mirror": local_legacy_arm_mirror,
+        "legacy_leg_mirror": local_legacy_leg_mirror,
+        "texture_width": int((local_skin or {}).get("texture_width") or 0),
+        "texture_height": int((local_skin or {}).get("texture_height") or 0),
         "default_skin_id": str((default_skin or {}).get("texture_id") or ""),
     }
 

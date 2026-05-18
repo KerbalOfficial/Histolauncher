@@ -17,6 +17,7 @@ from core.mod_manager._constants import (
     REQUEST_RETRY_DELAY,
     REQUEST_TIMEOUT,
     _MODRINTH_CACHE,
+    _MODRINTH_CACHE_LOCK,
     logger,
 )
 from core.mod_manager._validation import _normalize_download_url
@@ -28,16 +29,18 @@ from core.mod_manager._validation import _normalize_download_url
 
 
 def _modrinth_cache_get(key: str) -> Optional[Any]:
-    entry = _MODRINTH_CACHE.get(key)
-    if entry and time.monotonic() < entry["expires"]:
-        return entry["data"]
-    if entry:
-        del _MODRINTH_CACHE[key]
-    return None
+    with _MODRINTH_CACHE_LOCK:
+        entry = _MODRINTH_CACHE.get(key)
+        if entry and time.monotonic() < entry["expires"]:
+            return entry["data"]
+        if entry:
+            del _MODRINTH_CACHE[key]
+        return None
 
 
 def _modrinth_cache_set(key: str, data: Any, ttl: float) -> None:
-    _MODRINTH_CACHE[key] = {"data": data, "expires": time.monotonic() + ttl}
+    with _MODRINTH_CACHE_LOCK:
+        _MODRINTH_CACHE[key] = {"data": data, "expires": time.monotonic() + ttl}
 
 
 # ---------------------------------------------------------------------------

@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD/MM/YYYY HH:mm",
+  "am": "AM",
+  "pm": "PM",
   "nav": {
     "home": "Beranda",
     "versions": "Versi",
     "worlds": "Dunia",
+    "screenshots": "Tangkapan layar",
     "addons": "Add-on",
     "settings": "Pengaturan",
-    "about": "Tentang"
+    "about": "Tentang",
+    "primaryNavAria": "Navigasi utama"
   },
   "common": {
     "none": "Tidak Ada",
     "unknown": "tidak diketahui",
     "all": "Semua",
+    "auto": "Auto",
     "defaultName": "Default",
     "loading": "Memuat...",
     "refresh": "Segarkan",
@@ -70,6 +76,20 @@
     "playerModel": "Model pemain",
     "modelWide": "Lebar",
     "modelSlim": "Ramping",
+    "textureType": "Jenis tekstur",
+    "textureDefault": "Bawaan",
+    "textureLegacy": "Lama",
+    "armMirror": "Cermin lengan",
+    "legMirror": "Cermin kaki",
+    "mirrorRight": "Kanan",
+    "mirrorLeft": "Kiri",
+    "overlayToFirstLayer": "Terapkan overlay ke lapisan pertama",
+    "overlayHead": "Kepala",
+    "overlayBody": "Jaket",
+    "overlayRightArm": "Lengan kanan",
+    "overlayLeftArm": "Lengan kiri",
+    "overlayRightLeg": "Celana kanan",
+    "overlayLeftLeg": "Celana kiri",
     "skinFile": "Berkas skin",
     "capeSelection": "Cape",
     "skinPreviewAlt": "Pratinjau skin",
@@ -131,12 +151,16 @@
     "versionTooltip": "Versi launcher",
     "refreshTooltip": "Segarkan nilai (Tahan shift untuk muat ulang halaman)",
     "refreshAria": "Segarkan",
-    "profileTooltip": "Akun Histolauncher",
     "refreshAlt": "Segarkan",
-    "profileAlt": "Profil"
+    "profileAlt": "Profil",
+    "profileTooltip": "Akun Histolauncher"
   },
   "home": {
     "launchButton": "Mulai",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Tutup pesan"
+    },
     "info": {
       "version": "Versi",
       "noneSelected": "(belum dipilih)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Versi yang sedang diunduh.",
     "availableSubtitle": "Versi yang tersedia untuk dipasang",
     "deleteSelected": "Hapus Terpilih (0)",
+    "actionsMenuAria": "Tindakan versi",
     "profile": {
       "renameTooltip": "Ganti nama profil versi aktif",
       "renameAria": "Ganti nama profil versi",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Ganti RAM minimum",
       "maximumRamOverride": "Ganti RAM maksimum",
       "resolutionOverride": "Ganti resolusi",
-      "javaRuntimePathOverride": "Ganti jalur Java runtime",
+      "javaRuntimeOverride": "Ganti jalur Java runtime",
       "extraJvmArgumentsOverride": "Ganti argumen JVM tambahan",
       "versionImageFile": "File gambar versi (opsional, PNG/JPG)",
       "failedReadImageData": "Gagal membaca data gambar",
@@ -356,6 +381,18 @@
       "successTitle": "Ekspor Berhasil!",
       "successMessage": "File disimpan ke:<br><b>{filepath}</b><br><br>Ukuran file<br><b>{size} MB</b>",
       "unexpectedError": "Terjadi kesalahan saat ekspor:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Unduhan",
     "sortName": "Nama",
     "sortRecentlyUpdated": "Baru Diperbarui",
+    "actionsMenuAria": "Tindakan mod",
     "profile": {
       "renameTooltip": "Ganti nama profil add-on aktif",
       "renameAria": "Ganti nama profil add-on",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Pilih mod loader untuk \"{file}\":"
+      "selectLoaderForFile": "Pilih mod loader untuk \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Terpasang",
@@ -554,6 +593,14 @@
       "unexpectedError": "Kesalahan pemasangan tidak terduga",
       "unexpectedForAddon": "Terjadi kesalahan tak terduga saat memasang {addon}."
     },
+    "dependencies": {
+      "title": "Dependensi mod",
+      "checking": "Memeriksa dependensi...",
+      "prompt": "Mod ini membutuhkan dependensi agar berfungsi dengan benar. Pilih dependensi yang ingin dipasang:",
+      "installSelected": "Pasang yang dipilih",
+      "installing": "Memasang dependensi...",
+      "required": "Wajib"
+    },
     "exportModpack": {
       "title": "Ekspor Modpack",
       "selectFormat": "Pilih format modpack yang akan diekspor:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Dunia dari {provider}",
     "deleteSelected": "Hapus Terpilih (0)",
     "deleteSelectedCount": "Hapus Terpilih ({count})",
+    "actionsMenuAria": "Tindakan dunia",
     "importTooltip": "Impor dunia dari arsip .zip",
     "importAria": "Impor dunia",
     "moreActionsTooltip": "Tindakan dunia lainnya",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Memuat editor dunia...",
       "editWorldTitle": "Edit Dunia: {world}",
+      "failedNbtLoad": "Gagal memuat data NBT dunia.",
       "worldFallback": "Dunia",
       "thisWorld": "dunia ini",
       "primaryPlayer": "Pemain Utama",
@@ -933,8 +982,7 @@
       "saving": "Menyimpan perubahan editor dunia...",
       "failedSaveNbt": "Gagal menyimpan data NBT dunia.",
       "renameFailedAfterNbt": "Perubahan NBT berhasil disimpan, tetapi penggantian nama folder dunia gagal: {error}",
-      "iconFailedAfterSave": "Data dunia berhasil disimpan, tetapi pembaruan ikon gagal: {error}",
-      "failedNbtLoad": "Gagal memuat data NBT dunia."
+      "iconFailedAfterSave": "Data dunia berhasil disimpan, tetapi pembaruan ikon gagal: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Meluncurkan...",
     "launchingTimed": "Meluncurkan... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Java Runtime Diperlukan",
     "javaRequiredMessage": "Java runtime yang kompatibel diperlukan.",
     "downloadJava": "Unduh Java",
@@ -1022,6 +1077,76 @@
       "generic": "Loader",
       "vanilla": "Vanilla",
       "none": "Tidak ada (tanpa mod loader)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Gambar",
+    "imagesSubtitleDefault": "Gambar di seluruh direktori penyimpanan yang tersedia",
+    "imagesSubtitle": "{count} gambar di {storage}",
+    "itemFallback": "Tangkapan layar",
+    "refreshTooltip": "Segarkan daftar tangkapan layar",
+    "bulkSelectTooltip": "Aktifkan mode pilih massal untuk tangkapan layar",
+    "bulkDeleteTooltip": "Hapus tangkapan layar yang dipilih",
+    "toggleImagesAria": "Tampilkan/sembunyikan bagian tangkapan layar",
+    "favoriteAlt": "favorit",
+    "list": {
+      "loading": "Memuat tangkapan layar...",
+      "failedLoadInstalled": "Gagal memuat tangkapan layar.",
+      "emptyInstalled": "Tangkapan layar tidak ditemukan"
+    },
+    "actions": {
+      "openImage": "Buka tangkapan layar {name}",
+      "closeImagePreview": "Tutup pratinjau tangkapan layar",
+      "toggleSelection": "Alihkan pilihan untuk tangkapan layar {name}",
+      "toggleFavorite": "Alihkan favorit untuk tangkapan layar {name}",
+      "renameImage": "Ubah nama tangkapan layar {name}",
+      "deleteImage": "Hapus tangkapan layar {name}",
+      "saveAs": "Simpan Sebagai",
+      "editImageButton": "Buka"
+    },
+    "favorite": {
+      "saveFailedTitle": "Gagal Menyimpan Favorit",
+      "saveFailed": "Gagal menyimpan favorit tangkapan layar: {error}"
+    },
+    "rename": {
+      "title": "Ubah Nama Tangkapan Layar",
+      "prompt": "Pilih nama baru untuk tangkapan layar ini.",
+      "keepExtension": "Ekstensi file {extension} tetap sama.",
+      "invalidTitle": "Nama Tangkapan Layar Tidak Valid",
+      "invalidMessage": "Masukkan nama untuk tangkapan layar.",
+      "failedTitle": "Gagal Mengubah Nama",
+      "failedMessage": "Gagal mengubah nama tangkapan layar."
+    },
+    "delete": {
+      "title": "Hapus Tangkapan Layar",
+      "confirmMessage": "Hapus {name}? Tindakan ini tidak dapat dibatalkan.",
+      "failedTitle": "Gagal Menghapus",
+      "failedMessage": "Gagal menghapus tangkapan layar."
+    },
+    "edit": {
+      "failedTitle": "Gagal Membuka",
+      "failedMessage": "Gagal membuka tangkapan layar."
+    },
+    "saveAs": {
+      "failedTitle": "Gagal Menyimpan",
+      "failedMessage": "Gagal menyimpan tangkapan layar: {error}",
+      "fileTypeDescription": "File gambar",
+      "missingFile": "File tangkapan layar tidak dapat ditemukan."
+    },
+    "bulkDelete": {
+      "title": "Hapus Massal Tangkapan Layar",
+      "deleteSelectedCount": "Hapus Terpilih ({count})",
+      "noSelected": "Pilih setidaknya satu tangkapan layar terlebih dahulu.",
+      "confirmMessage": "Hapus {count} tangkapan layar yang dipilih? Tindakan ini tidak dapat dibatalkan.",
+      "deletingProgress": "Menghapus tangkapan layar... ({current}/{total})",
+      "cancelling": "Membatalkan penghapusan tangkapan layar...",
+      "cancelledTitle": "Hapus Massal Dibatalkan",
+      "cancelledMessage": "Menghapus {deleted} tangkapan layar sebelum dibatalkan.",
+      "cancelledWithFailures": "Menghapus {deleted} tangkapan layar sebelum dibatalkan. {failures} tangkapan layar gagal.",
+      "completeTitle": "Hapus Massal Selesai",
+      "completeMessage": "Menghapus {deleted} tangkapan layar.",
+      "finishedWithErrorsTitle": "Hapus Massal Selesai Dengan Kesalahan",
+      "finishedWithErrorsMessage": "Menghapus {deleted} tangkapan layar.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Klien",
       "launcher": "Launcher",
       "mods": "Mod",
-      "dataStorage": "Data & Penyimpanan"
+      "dataStorage": "Data & Penyimpanan",
+      "playtime": "Waktu bermain"
+    },
+    "playtime": {
+      "noData": "Belum ada sesi yang tercatat. Mainkan versi untuk mulai melacak!",
+      "total": "Total waktu bermain:",
+      "totalTooltip": "Total waktu bermain di semua sesi.",
+      "sessions": "Sesi dimainkan:",
+      "sessionsTooltip": "Berapa kali kamu meluncurkan game.",
+      "mostPlayed": "Versi paling sering dimainkan:",
+      "mostPlayedTooltip": "Versi yang paling banyak kamu mainkan.",
+      "longest": "Sesi terlama:",
+      "longestTooltip": "Sesi bermain tunggal terlama kamu.",
+      "average": "Sesi rata-rata:",
+      "averageTooltip": "Durasi rata-rata semua sesi bermain kamu.",
+      "moreDetails": "Lebih lanjut",
+      "detail": {
+        "title": "Detail Waktu Bermain",
+        "allVersions": "Semua",
+        "filterBy": "Versi:",
+        "date": "Tanggal",
+        "version": "Versi",
+        "duration": "Durasi",
+        "modloader": "Modloader",
+        "noSessions": "Tidak ada sesi yang ditampilkan.",
+        "sortBy": "Klik untuk mengurutkan",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Semua",
+        "noLoader": "Tidak ada",
+        "totalLabel": "Total:",
+        "nowLive": "Langsung",
+        "truncatedNote": "Menampilkan {shown} sesi terbaru dari total {total}."
+      }
     },
     "account": {
       "username": "Nama pengguna:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Buka Microsoft",
         "failedLogin": "Login Microsoft gagal."
       },
-      "playerPreviewTooltip": "Tampilkan pratinjau pemain dengan rendering tubuh miring dan jubah saat tekstur akun tersedia.",
+      "playerPreviewTooltip": "Tampilkan skin dan jubah pemain dalam pratinjau 3D.",
       "playerPreview": "Pratinjau pemain 3D:",
-      "playerRotateTitle": "Klik dan seret untuk memutar",
       "playerPreviewBodyAlt": "Pratinjau pemain",
-      "playerPreviewCapeAlt": "Pratinjau cape"
+      "playerPreviewCapeAlt": "Pratinjau cape",
+      "playerRotateTitle": "Klik dan seret untuk memutar"
     },
     "appearance": {
       "theme": "Tema:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Optimasi Otomatis:",
+      "autoOptimizeTooltip": "Secara otomatis memilih RAM peluncuran dan argumen JVM dari memori perangkat saat ini setiap kali Minecraft dimulai.",
+      "autoOptimizeLockedTitle": "Nonaktifkan Optimasi Otomatis untuk mengeditnya secara manual.",
       "minRam": "RAM Minimum:",
       "minRamTooltip": "RAM minimum yang dialokasikan untuk permainan\n  - Harus berupa angka positif\n  - Harus lebih kecil dari RAM Maksimum\n\nFormat contoh: 256, 256M, 2G, dll.\n\n(tips performa: alokasikan lebih banyak RAM untuk performa lebih baik, sesuaikan juga dengan RAM maksimum untuk mengurangi frame drop)",
       "ramInvalidTitle": "Format RAM: angka dengan akhiran K, M, G, atau T opsional (mis., 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Tampilkan Discord Rich Presence saat launcher atau game berjalan.",
       "desktopNotifications": "Notifikasi desktop:",
       "desktopNotificationsTooltip": "Izinkan notifikasi desktop launcher.",
+      "keyboardMouse": "Mouse Keyboard:",
+      "keyboardMouseTooltip": "Menampilkan kursor yang dikendalikan dengan keyboard di seluruh launcher.\n\nFitur ini masih eksperimental, kemungkinan masih banyak bug!",
       "java": {
         "auto": "Otomatis",
         "defaultPath": "Default (Java PATH)",

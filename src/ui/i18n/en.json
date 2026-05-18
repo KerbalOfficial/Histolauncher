@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "MM/DD/YYYY hh:mm A",
+  "am": "AM",
+  "pm": "PM",
   "nav": {
     "home": "Home",
     "versions": "Versions",
     "worlds": "Worlds",
+    "screenshots": "Screenshots",
     "addons": "Addons",
     "settings": "Settings",
-    "about": "About"
+    "about": "About",
+    "primaryNavAria": "Primary navigation"
   },
   "common": {
     "none": "None",
     "unknown": "unknown",
     "all": "All",
+    "auto": "Auto",
     "defaultName": "Default",
     "loading": "Loading...",
     "refresh": "Refresh",
@@ -70,6 +76,20 @@
     "playerModel": "Player model",
     "modelWide": "Wide",
     "modelSlim": "Slim",
+    "textureType": "Texture type",
+    "textureDefault": "Default",
+    "textureLegacy": "Legacy",
+    "armMirror": "Arm mirror",
+    "legMirror": "Leg mirror",
+    "mirrorRight": "Right",
+    "mirrorLeft": "Left",
+    "overlayToFirstLayer": "Overlay to first layer",
+    "overlayHead": "Head",
+    "overlayBody": "Jacket",
+    "overlayRightArm": "Right sleeve",
+    "overlayLeftArm": "Left sleeve",
+    "overlayRightLeg": "Right pants",
+    "overlayLeftLeg": "Left pants",
     "skinFile": "Skin file",
     "capeSelection": "Cape",
     "skinPreviewAlt": "Skin preview",
@@ -137,6 +157,10 @@
   },
   "home": {
     "launchButton": "Launch",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Dismiss message"
+    },
     "info": {
       "version": "Version",
       "noneSelected": "(none selected)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Versions that are currently being downloaded.",
     "availableSubtitle": "Available installable versions",
     "deleteSelected": "Delete Selected (0)",
+    "actionsMenuAria": "Version actions",
     "profile": {
       "renameTooltip": "Rename active versions profile",
       "renameAria": "Rename versions profile",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Minimum RAM override",
       "maximumRamOverride": "Maximum RAM override",
       "resolutionOverride": "Resolution override",
-      "javaRuntimePathOverride": "Java runtime path override",
+      "javaRuntimeOverride": "Java runtime override",
       "extraJvmArgumentsOverride": "Extra JVM arguments override",
       "versionImageFile": "Version image file (optional, PNG/JPG)",
       "failedReadImageData": "Failed to read image data",
@@ -356,6 +381,18 @@
       "successTitle": "Export Successful!",
       "successMessage": "File saved to:<br><b>{filepath}</b><br><br>File size<br><b>{size} MB</b>",
       "unexpectedError": "An error occurred during export:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Downloads",
     "sortName": "Name",
     "sortRecentlyUpdated": "Recently Updated",
+    "actionsMenuAria": "Mod actions",
     "profile": {
       "renameTooltip": "Rename active addons profile",
       "renameAria": "Rename addons profile",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Select the mod loader for \"{file}\":"
+      "selectLoaderForFile": "Select the mod loader for \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Installed",
@@ -554,6 +593,14 @@
       "unexpectedError": "Unexpected install error",
       "unexpectedForAddon": "An unexpected error occurred while installing the {addon}."
     },
+    "dependencies": {
+      "title": "Install Dependencies",
+      "checking": "Checking dependencies...",
+      "prompt": "This mod has dependencies to work properly. Pick which dependencies you want to install:",
+      "installSelected": "Install selected",
+      "installing": "Installing dependencies...",
+      "required": "Required"
+    },
     "exportModpack": {
       "title": "Export Modpack",
       "selectFormat": "Select the modpack format to export:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Worlds from {provider}",
     "deleteSelected": "Delete Selected (0)",
     "deleteSelectedCount": "Delete Selected ({count})",
+    "actionsMenuAria": "World actions",
     "importTooltip": "Import a world from a .zip archive",
     "importAria": "Import world",
     "moreActionsTooltip": "More world actions",
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Launching...",
     "launchingTimed": "Launching... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Java Runtime Required",
     "javaRequiredMessage": "A compatible Java runtime is required.",
     "downloadJava": "Download Java",
@@ -1022,6 +1077,76 @@
       "generic": "Loader",
       "vanilla": "Vanilla",
       "none": "None (no mod loader)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Images",
+    "imagesSubtitleDefault": "Images across available storage directories",
+    "imagesSubtitle": "{count} image(s) in {storage}",
+    "itemFallback": "Screenshot",
+    "refreshTooltip": "Refresh screenshot list",
+    "bulkSelectTooltip": "Toggle bulk select mode for screenshots",
+    "bulkDeleteTooltip": "Delete selected screenshots",
+    "toggleImagesAria": "Toggle screenshots section",
+    "favoriteAlt": "favorite",
+    "list": {
+      "loading": "Loading screenshots...",
+      "failedLoadInstalled": "Failed to load screenshots.",
+      "emptyInstalled": "No screenshots found"
+    },
+    "actions": {
+      "openImage": "Open screenshot {name}",
+      "closeImagePreview": "Close screenshot preview",
+      "toggleSelection": "Toggle selection for screenshot {name}",
+      "toggleFavorite": "Toggle favorite for screenshot {name}",
+      "renameImage": "Rename screenshot {name}",
+      "deleteImage": "Delete screenshot {name}",
+      "saveAs": "Save As",
+      "editImageButton": "Open"
+    },
+    "favorite": {
+      "saveFailedTitle": "Favorite Save Failed",
+      "saveFailed": "Failed to save screenshot favorites: {error}"
+    },
+    "rename": {
+      "title": "Rename Screenshot",
+      "prompt": "Choose a new name for this screenshot.",
+      "keepExtension": "The {extension} file extension stays the same.",
+      "invalidTitle": "Invalid Screenshot Name",
+      "invalidMessage": "Enter a name for the screenshot.",
+      "failedTitle": "Rename Failed",
+      "failedMessage": "Failed to rename screenshot."
+    },
+    "delete": {
+      "title": "Delete Screenshot",
+      "confirmMessage": "Delete {name}? This cannot be undone.",
+      "failedTitle": "Delete Failed",
+      "failedMessage": "Failed to delete screenshot."
+    },
+    "edit": {
+      "failedTitle": "Open Failed",
+      "failedMessage": "Failed to open the screenshot."
+    },
+    "saveAs": {
+      "failedTitle": "Save Failed",
+      "failedMessage": "Failed to save screenshot: {error}",
+      "fileTypeDescription": "Image file",
+      "missingFile": "The screenshot file could not be resolved."
+    },
+    "bulkDelete": {
+      "title": "Delete Screenshots",
+      "deleteSelectedCount": "Delete Selected ({count})",
+      "noSelected": "Select at least one screenshot first.",
+      "confirmMessage": "Delete {count} selected screenshot(s)? This cannot be undone.",
+      "deletingProgress": "Deleting screenshots... ({current}/{total})",
+      "cancelling": "Cancelling screenshot deletion...",
+      "cancelledTitle": "Bulk Delete Cancelled",
+      "cancelledMessage": "Deleted {deleted} screenshot(s) before cancelling.",
+      "cancelledWithFailures": "Deleted {deleted} screenshot(s) before cancelling. {failures} screenshot(s) failed.",
+      "completeTitle": "Bulk Delete Complete",
+      "completeMessage": "Deleted {deleted} screenshot(s).",
+      "finishedWithErrorsTitle": "Bulk Delete Finished With Errors",
+      "finishedWithErrorsMessage": "Deleted {deleted} screenshot(s).<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Client",
       "launcher": "Launcher",
       "mods": "Mods",
-      "dataStorage": "Data & Storage"
+      "dataStorage": "Data & Storage",
+      "playtime": "Playtime"
+    },
+    "playtime": {
+      "noData": "No sessions recorded yet. Play a version to start tracking!",
+      "total": "Total playtime:",
+      "totalTooltip": "Total playtime across all sessions.",
+      "sessions": "Sessions played:",
+      "sessionsTooltip": "How many times you launched a game.",
+      "mostPlayed": "Most played version:",
+      "mostPlayedTooltip": "The version you have spent the most time in.",
+      "longest": "Longest session:",
+      "longestTooltip": "Your longest single play session.",
+      "average": "Average session:",
+      "averageTooltip": "Average duration of all your play sessions.",
+      "moreDetails": "More details",
+      "detail": {
+        "title": "Playtime Details",
+        "allVersions": "All",
+        "filterBy": "Version:",
+        "date": "Date",
+        "version": "Version",
+        "duration": "Duration",
+        "modloader": "Modloader",
+        "noSessions": "No sessions to display.",
+        "sortBy": "Click to sort",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "All",
+        "noLoader": "None",
+        "totalLabel": "Total:",
+        "nowLive": "Live",
+        "truncatedNote": "Showing the {shown} most recent sessions of {total} total."
+      }
     },
     "account": {
       "username": "Username:",
@@ -1113,7 +1270,7 @@
         "openMicrosoft": "Open Microsoft",
         "failedLogin": "Microsoft login failed."
       },
-      "playerPreviewTooltip": "Show the player preview with angled body and cape rendering when account textures are available.",
+      "playerPreviewTooltip": "Show your player skin and cape in a 3D preview.",
       "playerPreview": "3D player preview:",
       "playerPreviewBodyAlt": "Player preview",
       "playerPreviewCapeAlt": "Cape preview",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Auto Optimize:",
+      "autoOptimizeTooltip": "Automatically chooses launch RAM and JVM arguments from current device memory whenever Minecraft starts.",
+      "autoOptimizeLockedTitle": "Disable Auto Optimize to edit this manually.",
       "minRam": "Minimum RAM:",
       "minRamTooltip": "Minimum RAM allocated to the game\n  - Must be a positive number\n  - Must be smaller than Maximum RAM\n\nExample format: 256, 256M, 2G, etc.\n\n(performance tip: allocate more RAM for better performance, also match it with maximum RAM for less frame drops)",
       "ramInvalidTitle": "RAM format: number with optional K, M, G, or T suffix (e.g., 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Show Discord Rich Presence while the launcher or game is running.",
       "desktopNotifications": "Desktop notifications:",
       "desktopNotificationsTooltip": "Allow launcher desktop notifications.",
+      "keyboardMouse": "Keyboard mouse:",
+      "keyboardMouseTooltip": "Shows a keyboard-controlled cursor across the launcher.\n\nThis is still experimental, expect many bugs!",
       "java": {
         "auto": "Auto",
         "defaultPath": "Default (Java PATH)",

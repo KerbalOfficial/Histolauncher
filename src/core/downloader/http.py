@@ -295,8 +295,12 @@ class HttpClient:
                                     expected_size=expected_size,
                                 )
                                 return
+                            except HashMismatch:
+                                _safe_remove(tmp_path)
+                                raise
                             except Exception as inner:  # noqa: BLE001
                                 last_error = inner
+                                _safe_remove(tmp_path)
                         self._backoff(attempt)
                     except HashMismatch:
                         # Hash mismatch is terminal for this URL; clean up.

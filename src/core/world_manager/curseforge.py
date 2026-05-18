@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from typing import Any, Dict, List, Optional
 
 import re
@@ -10,6 +11,7 @@ from core.world_manager._constants import CURSEFORGE_WORLD_CLASS_ID
 
 
 _WORLD_CATEGORY_CACHE: Dict[str, Any] = {"names": [], "lookup": {}, "loaded": False}
+_WORLD_CATEGORY_CACHE_LOCK = threading.Lock()
 
 
 def _normalize_world_category_lookup_value(value: Any) -> str:
@@ -24,15 +26,17 @@ def _normalize_world_sort(value: Any) -> str:
 
 
 def _get_world_category_lookup(api_key: str = None) -> tuple[List[str], Dict[str, int]]:
-    if _WORLD_CATEGORY_CACHE.get("loaded"):
-        return list(_WORLD_CATEGORY_CACHE.get("names") or []), dict(_WORLD_CATEGORY_CACHE.get("lookup") or {})
+    with _WORLD_CATEGORY_CACHE_LOCK:
+        if _WORLD_CATEGORY_CACHE.get("loaded"):
+            return list(_WORLD_CATEGORY_CACHE.get("names") or []), dict(_WORLD_CATEGORY_CACHE.get("lookup") or {})
 
     response = mod_manager._curseforge_request("/categories", {
         "gameId": mod_manager.CURSEFORGE_MINECRAFT_GAME_ID,
         "classId": CURSEFORGE_WORLD_CLASS_ID,
     }, api_key)
     if not response or "data" not in response:
-        _WORLD_CATEGORY_CACHE.update({"names": [], "lookup": {}, "loaded": True})
+        with _WORLD_CATEGORY_CACHE_LOCK:
+            _WORLD_CATEGORY_CACHE.update({"names": [], "lookup": {}, "loaded": True})
         return [], {}
 
     names: List[str] = []
@@ -54,7 +58,8 @@ def _get_world_category_lookup(api_key: str = None) -> tuple[List[str], Dict[str
                 lookup[normalized_key] = category_id
 
     names.sort(key=lambda value: value.lower())
-    _WORLD_CATEGORY_CACHE.update({"names": names, "lookup": lookup, "loaded": True})
+    with _WORLD_CATEGORY_CACHE_LOCK:
+        _WORLD_CATEGORY_CACHE.update({"names": names, "lookup": lookup, "loaded": True})
     return list(names), dict(lookup)
 
 

@@ -14,6 +14,7 @@ from core.nbt_editor import (
     TAG_INT,
     TAG_LIST,
     TAG_LONG,
+    TAG_SHORT,
     TAG_STRING,
     compound_child as _compound_child,
     compound_tag_value as _compound_tag_value,
@@ -361,15 +362,29 @@ def _set_player_item_list(player_value: Dict[str, Any], list_key: str, inventory
     existing_tag = _compound_child(player_value, list_key)
     existing_by_slot: Dict[int, Dict[str, Any]] = {}
     use_modern_count = False
+    use_numeric_item_ids = False
 
     if existing_tag and int(existing_tag.get("type", TAG_END) or TAG_END) == TAG_LIST:
         existing_value = existing_tag.get("value", {})
         if isinstance(existing_value, dict):
+            try:
+                existing_list_type = int(existing_value.get("list_type", TAG_END) or TAG_END)
+            except Exception:
+                existing_list_type = TAG_END
+            if existing_list_type not in {TAG_COMPOUND, TAG_END}:
+                use_numeric_item_ids = True
             for entry in list(existing_value.get("items", [])):
                 if not isinstance(entry, dict):
                     continue
                 if _compound_child(entry, "count"):
                     use_modern_count = True
+                existing_id = _compound_child(entry, "id")
+                try:
+                    existing_id_type = int((existing_id or {}).get("type", TAG_STRING) or TAG_STRING)
+                except Exception:
+                    existing_id_type = TAG_STRING
+                if existing_id_type in {TAG_BYTE, TAG_SHORT, TAG_INT, TAG_LONG}:
+                    use_numeric_item_ids = True
                 slot = _int_value(_tag_value(entry, "Slot", None), None)
                 if slot is None:
                     continue
@@ -382,7 +397,17 @@ def _set_player_item_list(player_value: Dict[str, Any], list_key: str, inventory
         if not isinstance(entry, dict):
             entry = {}
         _set_compound_tag(entry, "Slot", TAG_BYTE, slot)
-        _set_compound_tag(entry, "id", TAG_STRING, str(item.get("item_id") or ""))
+        raw_item_id = str(item.get("item_id") or "").strip()
+        existing_id = _compound_child(entry, "id")
+        try:
+            existing_id_type = int((existing_id or {}).get("type", TAG_STRING) or TAG_STRING)
+        except Exception:
+            existing_id_type = TAG_STRING
+        numeric_item_id_type = existing_id_type if existing_id_type in {TAG_BYTE, TAG_SHORT, TAG_INT, TAG_LONG} else TAG_SHORT
+        if (existing_id_type in {TAG_BYTE, TAG_SHORT, TAG_INT, TAG_LONG} or use_numeric_item_ids) and raw_item_id.lstrip("-").isdigit():
+            _set_compound_tag(entry, "id", numeric_item_id_type, int(raw_item_id))
+        else:
+            _set_compound_tag(entry, "id", TAG_STRING, raw_item_id)
         stack_count = int(item.get("count") or 1)
         if use_modern_count or _compound_child(entry, "count"):
             _set_compound_tag(entry, "count", TAG_INT, stack_count)

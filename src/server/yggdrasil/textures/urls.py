@@ -38,9 +38,10 @@ _MINECRAFT_TEXTURE_ID_RE = re.compile(r"^[0-9a-fA-F]{40,128}$")
 
 
 def _build_public_skin_url(u_with_dashes: str, port: int = 0) -> str:
+    safe_id = urllib.parse.quote(str(u_with_dashes or "").strip(), safe="-")
     if port > 0:
-        return f"http://127.0.0.1:{port}/texture/skin/{u_with_dashes}"
-    return f"https://{TEXTURES_API_HOSTNAME}/skin/{u_with_dashes}"
+        return f"http://127.0.0.1:{port}/texture/skin/{safe_id}"
+    return f"https://{TEXTURES_API_HOSTNAME}/skin/{safe_id}"
 
 
 def _build_public_cape_url(identifier: str, port: int = 0) -> str:
@@ -242,10 +243,10 @@ def _collect_texture_identifiers(uuid_hex: str, username: str = "") -> list[str]
 
 
 def _normalize_skin_model(value: str | None) -> str | None:
-    raw = str(value or "").strip().lower()
-    if raw == "slim":
+    raw = re.sub(r"[\s_-]+", "", str(value or "").strip().lower())
+    if raw in {"slim", "alex", "narrow", "thin", "slimarm", "slimarms", "3px", "3pixel", "3pixels"}:
         return "slim"
-    if raw == "classic":
+    if raw in {"classic", "wide", "default", "steve", "4px", "4pixel", "4pixels"}:
         return "classic"
     return None
 

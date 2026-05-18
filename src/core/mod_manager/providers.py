@@ -18,6 +18,7 @@ from core.mod_manager._constants import (
     CURSEFORGE_MODLOADER_TYPE_QUILT,
     MODRINTH_PROJECT_TYPES,
     _CURSEFORGE_CLASS_ID_CACHE,
+    _CURSEFORGE_CLASS_ID_CACHE_LOCK,
     _MODRINTH_DETAIL_TTL,
     _MODRINTH_SEARCH_TTL,
     logger,
@@ -64,8 +65,9 @@ def _get_curseforge_class_id(addon_type: str, api_key: str = None) -> Tuple[Opti
     if normalized_type == "modpacks":
         return 4471, None
 
-    if normalized_type in _CURSEFORGE_CLASS_ID_CACHE:
-        return _CURSEFORGE_CLASS_ID_CACHE[normalized_type], None
+    with _CURSEFORGE_CLASS_ID_CACHE_LOCK:
+        if normalized_type in _CURSEFORGE_CLASS_ID_CACHE:
+            return _CURSEFORGE_CLASS_ID_CACHE[normalized_type], None
 
     response = _curseforge_request("/categories", {
         "gameId": CURSEFORGE_MINECRAFT_GAME_ID,
@@ -102,10 +104,12 @@ def _get_curseforge_class_id(addon_type: str, api_key: str = None) -> Tuple[Opti
                 class_id = int(item.get("id"))
             except Exception:
                 continue
-            _CURSEFORGE_CLASS_ID_CACHE[normalized_type] = class_id
+            with _CURSEFORGE_CLASS_ID_CACHE_LOCK:
+                _CURSEFORGE_CLASS_ID_CACHE[normalized_type] = class_id
             return class_id, None
 
-    _CURSEFORGE_CLASS_ID_CACHE[normalized_type] = None
+    with _CURSEFORGE_CLASS_ID_CACHE_LOCK:
+        _CURSEFORGE_CLASS_ID_CACHE[normalized_type] = None
     return None, {"error": f"CurseForge class not found for addon type: {normalized_type}", "requires_api_key": False}
 
 
@@ -199,6 +203,9 @@ def get_project_detail_modrinth(mod_id: str, addon_type: str = "mods") -> Option
     if str(response.get("project_type") or expected_type).strip().lower() != expected_type:
         return None
     result = {
+        "mod_id": response.get("id", mod_id),
+        "mod_slug": response.get("slug", ""),
+        "project_type": response.get("project_type", expected_type),
         "title": response.get("title", ""),
         "description": response.get("description", ""),
         "body": response.get("body", ""),
@@ -235,6 +242,8 @@ def get_project_detail_curseforge(mod_id: str) -> Optional[Dict[str, Any]]:
         body_html = desc_resp["data"]
 
     return {
+        "mod_id": str(mod.get("id") or mod_id),
+        "mod_slug": mod.get("slug", ""),
         "title": mod.get("name", ""),
         "description": mod.get("summary", ""),
         "body": body_html,
@@ -250,6 +259,64 @@ def get_project_detail_curseforge(mod_id: str) -> Optional[Dict[str, Any]]:
 
 def get_mod_detail_curseforge(mod_id: str) -> Optional[Dict[str, Any]]:
     return get_project_detail_curseforge(mod_id)
+
+
+def _normalize_modrinth_dependencies(raw_dependencies: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_dependencies, list):
+        return []
+
+    dependencies: List[Dict[str, Any]] = []
+    for dep in raw_dependencies:
+        if not isinstance(dep, dict):
+            continue
+        dep_type = str(dep.get("dependency_type") or "").strip().lower()
+        project_id = str(dep.get("project_id") or "").strip()
+        version_id = str(dep.get("version_id") or "").strip()
+        if not project_id and not version_id:
+            continue
+        dependencies.append({
+            "provider": "modrinth",
+            "dependency_type": dep_type,
+            "required": dep_type == "required",
+            "project_id": project_id,
+            "version_id": version_id,
+            "file_name": str(dep.get("file_name") or "").strip(),
+        })
+    return dependencies
+
+
+def _normalize_curseforge_dependencies(raw_dependencies: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw_dependencies, list):
+        return []
+
+    relation_names = {
+        1: "embedded_library",
+        2: "optional",
+        3: "required",
+        4: "tool",
+        5: "incompatible",
+        6: "include",
+    }
+    dependencies: List[Dict[str, Any]] = []
+    for dep in raw_dependencies:
+        if not isinstance(dep, dict):
+            continue
+        try:
+            relation_type = int(dep.get("relationType") or dep.get("relation_type") or 0)
+        except (TypeError, ValueError):
+            relation_type = 0
+        mod_id = str(dep.get("modId") or dep.get("mod_id") or "").strip()
+        if not mod_id:
+            continue
+        dep_type = relation_names.get(relation_type, str(relation_type or "unknown"))
+        dependencies.append({
+            "provider": "curseforge",
+            "dependency_type": dep_type,
+            "required": relation_type == 3,
+            "relation_type": relation_type,
+            "mod_id": mod_id,
+        })
+    return dependencies
 
 
 def search_projects_curseforge(
@@ -462,6 +529,21 @@ def get_mod_files_curseforge(
         else:
             version_type = "alpha"
 
+        cf_sha1 = ""
+        cf_md5 = ""
+        for h in (file_data.get("hashes") or []):
+            if not isinstance(h, dict):
+                continue
+            try:
+                algo = int(h.get("algo") or 0)
+            except (TypeError, ValueError):
+                continue
+            value = str(h.get("value") or "").strip()
+            if algo == 1 and value:
+                cf_sha1 = value
+            elif algo == 2 and value:
+                cf_md5 = value
+
         files.append({
             "file_id": str(file_data.get("id")),
             "file_name": file_data.get("fileName", ""),
@@ -471,8 +553,11 @@ def get_mod_files_curseforge(
             "file_date": file_data.get("fileDate", ""),
             "download_url": _cf_resolve_download_url(file_data),
             "file_length": file_data.get("fileLength", 0),
+            "sha1": cf_sha1,
+            "md5": cf_md5,
             "game_versions": clean_versions,
             "loaders": loaders,
+            "dependencies": _normalize_curseforge_dependencies(file_data.get("dependencies")),
         })
 
     if normalized_filter:
@@ -606,6 +691,56 @@ def search_mods_modrinth(
     )
 
 
+def _format_modrinth_version(version_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    if not isinstance(version_data, dict):
+        return None
+
+    files = version_data.get("files", [])
+    if not files:
+        return None
+
+    primary_file = files[0]
+    if not isinstance(primary_file, dict):
+        return None
+
+    primary_hashes = primary_file.get("hashes") if isinstance(primary_file.get("hashes"), dict) else {}
+    modrinth_sha1 = str((primary_hashes or {}).get("sha1") or "").strip()
+    modrinth_sha512 = str((primary_hashes or {}).get("sha512") or "").strip()
+
+    return {
+        "version_id": version_data.get("id", ""),
+        "version_number": version_data.get("version_number", ""),
+        "name": version_data.get("name", ""),
+        "version_type": version_data.get("version_type", "release"),
+        "date_published": version_data.get("date_published", ""),
+        "download_url": primary_file.get("url", ""),
+        "file_name": primary_file.get("filename", ""),
+        "file_size": primary_file.get("size", 0),
+        "sha1": modrinth_sha1,
+        "sha512": modrinth_sha512,
+        "game_versions": version_data.get("game_versions", []),
+        "loaders": version_data.get("loaders", []),
+        "dependencies": _normalize_modrinth_dependencies(version_data.get("dependencies")),
+    }
+
+
+def get_modrinth_version_by_id(version_id: str) -> Optional[Dict[str, Any]]:
+    version_id = str(version_id or "").strip()
+    if not version_id:
+        return None
+
+    cache_key = f"version:{version_id}"
+    cached = _modrinth_cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    response = _modrinth_request(f"/version/{version_id}")
+    version = _format_modrinth_version(response) if isinstance(response, dict) else None
+    if version is not None:
+        _modrinth_cache_set(cache_key, version, _MODRINTH_DETAIL_TTL)
+    return version
+
+
 def get_mod_versions_modrinth(mod_id: str, game_version: str = None, mod_loader: str = None) -> Optional[List[Dict[str, Any]]]:
     params = {}
 
@@ -635,24 +770,9 @@ def get_mod_versions_modrinth(mod_id: str, game_version: str = None, mod_loader:
 
     versions = []
     for version_data in response:
-        files = version_data.get("files", [])
-        if not files:
-            continue
-
-        primary_file = files[0]
-
-        versions.append({
-            "version_id": version_data.get("id", ""),
-            "version_number": version_data.get("version_number", ""),
-            "name": version_data.get("name", ""),
-            "version_type": version_data.get("version_type", "release"),
-            "date_published": version_data.get("date_published", ""),
-            "download_url": primary_file.get("url", ""),
-            "file_name": primary_file.get("filename", ""),
-            "file_size": primary_file.get("size", 0),
-            "game_versions": version_data.get("game_versions", []),
-            "loaders": version_data.get("loaders", []),
-        })
+        version = _format_modrinth_version(version_data)
+        if version:
+            versions.append(version)
 
     _modrinth_cache_set(cache_key, versions, _MODRINTH_DETAIL_TTL)
     return versions
@@ -666,6 +786,8 @@ def download_addon_file(
     file_name: str,
     mod_loader: str = "",
     progress_cb: Optional[Callable[[int, Optional[int]], None]] = None,
+    expected_sha1: Optional[str] = None,
+    expected_size: Optional[int] = None,
 ) -> bool:
     normalized_type = normalize_addon_type(addon_type)
     if not _validate_addon_filename(file_name, normalized_type):
@@ -685,11 +807,48 @@ def download_addon_file(
         logger.error(f"Refusing addon download with empty URL: {file_name}")
         return False
 
+    safe_sha1 = (expected_sha1 or "").strip().lower() or None
+    if safe_sha1 and len(safe_sha1) != 40:
+        logger.warning(f"Ignoring malformed expected_sha1 ({len(safe_sha1)} chars) for {file_name}")
+        safe_sha1 = None
+    safe_size: Optional[int] = None
+    if expected_size is not None:
+        try:
+            candidate = int(expected_size)
+            if candidate > 0:
+                safe_size = candidate
+        except (TypeError, ValueError):
+            safe_size = None
+    if not safe_sha1:
+        logger.warning(
+            f"Downloading addon file without an expected sha1 hash: {safe_file_name}"
+        )
+
     try:
         from core.downloader.http import CLIENT
         from core.downloader.errors import DownloadCancelled
 
-        CLIENT.download(normalized_url, file_path, progress_cb=progress_cb)
+        CLIENT.download(
+            normalized_url,
+            file_path,
+            progress_cb=progress_cb,
+            expected_sha1=safe_sha1,
+        )
+        if safe_size is not None:
+            try:
+                actual = os.path.getsize(file_path)
+            except OSError:
+                actual = -1
+            if actual != safe_size:
+                logger.error(
+                    f"Addon file size mismatch for {safe_file_name}: "
+                    f"expected {safe_size}, got {actual}"
+                )
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
+                return False
         logger.info(f"Downloaded addon file: {safe_file_name} to {ver_dir}")
         return True
     except DownloadCancelled:

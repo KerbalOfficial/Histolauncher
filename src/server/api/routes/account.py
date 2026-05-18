@@ -91,15 +91,45 @@ def _invalidate_account_texture_cache(uuid_value: str = "", username: str = "") 
     except Exception:
         pass
 
-    if not identifiers:
-        return
+    if identifiers:
+        try:
+            from server.auth.microsoft import remove_microsoft_texture_cache
+
+            for identifier in identifiers:
+                for suffix in ("skin", "cape"):
+                    remove_microsoft_texture_cache(identifier, suffix)
+        except Exception:
+            pass
 
     try:
-        from server.auth.microsoft import remove_microsoft_texture_cache
+        from server import yggdrasil
 
-        for identifier in identifiers:
-            for suffix in ("skin", "cape"):
-                remove_microsoft_texture_cache(identifier, suffix)
+        yggdrasil.prewarm_authlib_texture_properties(
+            target_uuid_hex=uuid_raw,
+            target_username=username_raw,
+            wait_seconds=0.0,
+        )
+    except Exception:
+        pass
+
+
+def _rebuild_active_authlib_texture_cache(
+    previous_uuid: str = "",
+    previous_username: str = "",
+    *,
+    target_uuid: str = "",
+    target_username: str = "",
+) -> None:
+    try:
+        from server import yggdrasil
+
+        if previous_uuid or previous_username:
+            yggdrasil.invalidate_texture_cache(previous_uuid, previous_username)
+        yggdrasil.prewarm_authlib_texture_properties(
+            target_uuid_hex=target_uuid,
+            target_username=target_username,
+            wait_seconds=0.0,
+        )
     except Exception:
         pass
 
@@ -182,12 +212,21 @@ def _verify_and_store_session_token(session_token: str):
 
     try:
         s = load_global_settings() or {}
+        previous_username = str(s.get("username") or "").strip()
+        previous_uuid = str(s.get("uuid") or "").strip()
         s["account_type"] = "Histolauncher"
         s["username"] = username
         s["uuid"] = account_uuid
         save_global_settings(s)
     except Exception as e:
         return {"ok": False, "error": f"Failed to save settings: {str(e)}"}
+
+    _rebuild_active_authlib_texture_cache(
+        previous_uuid,
+        previous_username,
+        target_uuid=account_uuid,
+        target_username=username,
+    )
 
     print(colorize_log(
         f"[api_account_verify_session] Account verified: "
@@ -261,6 +300,10 @@ def api_account_microsoft_poll(data):
             interval_int = None
         result = poll_device_code(data.get("device_code", ""), interval=interval_int)
         if result.get("ok") and result.get("authenticated"):
+            _rebuild_active_authlib_texture_cache(
+                target_uuid=str(result.get("uuid") or ""),
+                target_username=str(result.get("username") or ""),
+            )
             _send_microsoft_login_notification(username=result.get("username"))
         elif not result.get("pending"):
             _send_microsoft_login_notification(error=result.get("error"))
@@ -308,6 +351,10 @@ def api_account_microsoft_skin_upload(data):
             display_name=str(data.get("name") or ""),
             library_id=str(data.get("skin_id") or data.get("library_id") or ""),
             cape_id=data.get("cape_id") if "cape_id" in data else data.get("capeId") if "capeId" in data else None,
+            texture_type=data.get("texture_type"),
+            legacy_overlay_parts=data.get("legacy_overlay_parts"),
+            legacy_arm_mirror=data.get("legacy_arm_mirror"),
+            legacy_leg_mirror=data.get("legacy_leg_mirror"),
         )
         _invalidate_account_texture_cache(
             texture_profile.get("uuid", ""),
@@ -339,6 +386,14 @@ def api_account_microsoft_skin_save(data):
             display_name=str(data.get("name") or ""),
             library_id=str(data.get("skin_id") or data.get("library_id") or ""),
             cape_id=data.get("cape_id") if "cape_id" in data else data.get("capeId") if "capeId" in data else None,
+            texture_type=data.get("texture_type"),
+            legacy_overlay_parts=data.get("legacy_overlay_parts"),
+            legacy_arm_mirror=data.get("legacy_arm_mirror"),
+            legacy_leg_mirror=data.get("legacy_leg_mirror"),
+        )
+        _invalidate_account_texture_cache(
+            texture_profile.get("uuid", ""),
+            texture_profile.get("username", ""),
         )
         return _microsoft_texture_response(texture_profile, refresh_result={"provider": "Microsoft", "action": "skin_save"})
     except Exception as e:
@@ -358,6 +413,10 @@ def api_account_microsoft_skin_delete(data):
         from server.auth.microsoft import delete_microsoft_local_skin
 
         texture_profile = delete_microsoft_local_skin(data.get("skin_id") or data.get("id") or "")
+        _invalidate_account_texture_cache(
+            texture_profile.get("uuid", ""),
+            texture_profile.get("username", ""),
+        )
         return _microsoft_texture_response(texture_profile, refresh_result={"provider": "Microsoft", "action": "skin_delete"})
     except Exception as e:
         return {
@@ -533,6 +592,21 @@ def api_account_current():
         if account_type_norm == "microsoft" and isinstance(texture_profile, dict):
             response["active_skin"] = texture_profile.get("active_skin")
             response["active_cape"] = texture_profile.get("active_cape")
+        elif account_type_norm == "histolauncher":
+            try:
+                from server.yggdrasil.identity import _normalize_uuid_hex
+                from server.yggdrasil.textures.resolver import _resolve_cached_skin_model
+
+                hl_uuid = _normalize_uuid_hex(user_data.get("uuid") or "") or ""
+                hl_username = str(user_data.get("username") or "").strip()
+                if hl_uuid:
+                    skin_model = (
+                        _resolve_cached_skin_model(hl_uuid, hl_username, allow_stale=True)
+                        or "classic"
+                    )
+                    response["active_skin"] = {"variant": skin_model}
+            except Exception:
+                pass
         return response
     except Exception as e:
         return {
@@ -1041,10 +1115,13 @@ def api_account_status():
 def api_account_disconnect():
     try:
         s = load_global_settings() or {}
+        previous_username = str(s.get("username") or "").strip()
+        previous_uuid = str(s.get("uuid") or "").strip()
         s["account_type"] = "Local"
         s["uuid"] = ""
         save_global_settings(s)
         clear_account_token()
+        _rebuild_active_authlib_texture_cache(previous_uuid, previous_username)
         return {"ok": True, "message": "Account disconnected."}
     except Exception as e:
         return {"ok": False, "error": str(e)}

@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "YYYY. MM. DD. HH:mm",
+  "am": "DE",
+  "pm": "DU",
   "nav": {
     "home": "Kezdőlap",
     "versions": "Verziók",
     "worlds": "Világok",
+    "screenshots": "Képernyőképek",
     "addons": "Kiegészítők",
     "settings": "Beállítások",
-    "about": "Névjegy"
+    "about": "Névjegy",
+    "primaryNavAria": "Fő navigáció"
   },
   "common": {
     "none": "Nincs",
     "unknown": "ismeretlen",
     "all": "Mind",
+    "auto": "Auto",
     "defaultName": "Alapértelmezett",
     "loading": "Betöltés...",
     "refresh": "Frissítés",
@@ -70,6 +76,20 @@
     "playerModel": "Játékos modell",
     "modelWide": "Széles",
     "modelSlim": "Karcsú",
+    "textureType": "Textúratípus",
+    "textureDefault": "Alapértelmezett",
+    "textureLegacy": "Régi",
+    "armMirror": "Kar tükrözése",
+    "legMirror": "Láb tükrözése",
+    "mirrorRight": "Jobb",
+    "mirrorLeft": "Bal",
+    "overlayToFirstLayer": "Fedőréteg az első rétegre",
+    "overlayHead": "Fej",
+    "overlayBody": "Kabát",
+    "overlayRightArm": "Jobb ujj",
+    "overlayLeftArm": "Bal ujj",
+    "overlayRightLeg": "Jobb nadrágszár",
+    "overlayLeftLeg": "Bal nadrágszár",
     "skinFile": "Skin fájl",
     "capeSelection": "Köpeny",
     "skinPreviewAlt": "Skin előnézet",
@@ -131,12 +151,16 @@
     "versionTooltip": "Indító verziója",
     "refreshTooltip": "Értékek frissítése (az oldal frissítéséhez tartsd lenyomva a Shiftet)",
     "refreshAria": "Frissítés",
-    "profileTooltip": "Histolauncher fiók",
     "refreshAlt": "Frissítés",
-    "profileAlt": "Profil"
+    "profileAlt": "Profil",
+    "profileTooltip": "Histolauncher fiók"
   },
   "home": {
     "launchButton": "Indítás",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Üzenet bezárása"
+    },
     "info": {
       "version": "Verzió",
       "noneSelected": "(nincs kiválasztva)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Jelenleg letöltés alatt álló verziók.",
     "availableSubtitle": "Telepíthető verziók",
     "deleteSelected": "Kijelöltek törlése (0)",
+    "actionsMenuAria": "Verzió műveletek",
     "profile": {
       "renameTooltip": "Aktív verzióprofil átnevezése",
       "renameAria": "Verzióprofil átnevezése",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Minimum RAM felülírása",
       "maximumRamOverride": "Maximum RAM felülírása",
       "resolutionOverride": "Felbontás felülírása",
-      "javaRuntimePathOverride": "Java runtime útvonal felülírása",
+      "javaRuntimeOverride": "Java runtime útvonal felülírása",
       "extraJvmArgumentsOverride": "Extra JVM argumentumok felülírása",
       "versionImageFile": "Verzió képfájlja (opcionális, PNG/JPG)",
       "failedReadImageData": "Nem sikerült beolvasni a képadatokat",
@@ -356,6 +381,18 @@
       "successTitle": "Sikeres exportálás!",
       "successMessage": "A fájl mentve ide:<br><b>{filepath}</b><br><br>Fájlméret<br><b>{size} MB</b>",
       "unexpectedError": "Hiba történt exportálás közben:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Letöltések",
     "sortName": "Név",
     "sortRecentlyUpdated": "Legutóbb frissítve",
+    "actionsMenuAria": "Mod műveletek",
     "profile": {
       "renameTooltip": "Aktív kiegészítőprofil átnevezése",
       "renameAria": "Kiegészítőprofil átnevezése",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Válaszd ki a modbetöltőt ehhez: \"{file}\":"
+      "selectLoaderForFile": "Válaszd ki a modbetöltőt ehhez: \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Telepítve",
@@ -554,6 +593,14 @@
       "unexpectedError": "Váratlan telepítési hiba",
       "unexpectedForAddon": "Váratlan hiba történt a(z) {addon} telepítése közben."
     },
+    "dependencies": {
+      "title": "Modfüggőségek",
+      "checking": "Függőségek ellenőrzése...",
+      "prompt": "Ennek a modnak függőségekre van szüksége a megfelelő működéshez. Válaszd ki, melyeket szeretnéd telepíteni:",
+      "installSelected": "Kijelöltek telepítése",
+      "installing": "Függőségek telepítése...",
+      "required": "Kötelező"
+    },
     "exportModpack": {
       "title": "Modcsomag exportálása",
       "selectFormat": "Válaszd ki az exportálandó modcsomag formátumát:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Világok innen: {provider}",
     "deleteSelected": "Kijelöltek törlése (0)",
     "deleteSelectedCount": "Kijelöltek törlése ({count})",
+    "actionsMenuAria": "Világ műveletek",
     "importTooltip": "Világ importálása .zip archívumból",
     "importAria": "Világ importálása",
     "moreActionsTooltip": "További világműveletek",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Világszerkesztő betöltése...",
       "editWorldTitle": "Világ szerkesztése: {world}",
+      "failedNbtLoad": "A világ NBT adatainak betöltése sikertelen.",
       "worldFallback": "Világ",
       "thisWorld": "ez a világ",
       "primaryPlayer": "Elsődleges játékos",
@@ -933,8 +982,7 @@
       "saving": "Világszerkesztő módosításainak mentése...",
       "failedSaveNbt": "Nem sikerült menteni a világ NBT-adatait.",
       "renameFailedAfterNbt": "Az NBT-módosítások mentve lettek, de a világ mappájának átnevezése sikertelen: {error}",
-      "iconFailedAfterSave": "A világ adatai mentve lettek, de az ikon frissítése sikertelen: {error}",
-      "failedNbtLoad": "A világ NBT adatainak betöltése sikertelen."
+      "iconFailedAfterSave": "A világ adatai mentve lettek, de az ikon frissítése sikertelen: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Indítás...",
     "launchingTimed": "Indítás... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Java Runtime szükséges",
     "javaRequiredMessage": "Kompatibilis Java runtime szükséges.",
     "downloadJava": "Java letöltése",
@@ -1022,6 +1077,76 @@
       "generic": "Betöltő",
       "vanilla": "Vanilla",
       "none": "Nincs (modbetöltő nélkül)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Képek",
+    "imagesSubtitleDefault": "Képek az elérhető tárolókönyvtárakban",
+    "imagesSubtitle": "{count} kép a következő helyen: {storage}",
+    "itemFallback": "Képernyőkép",
+    "refreshTooltip": "Képernyőkép lista frissítése",
+    "bulkSelectTooltip": "Tömeges kijelölési mód átkapcsolása képernyőképeknél",
+    "bulkDeleteTooltip": "Kijelölt képernyőképek törlése",
+    "toggleImagesAria": "Képernyőkép szakasz váltása",
+    "favoriteAlt": "kedvenc",
+    "list": {
+      "loading": "Képernyőképek betöltése...",
+      "failedLoadInstalled": "Nem sikerült betölteni a képernyőképeket.",
+      "emptyInstalled": "Nem található képernyőkép"
+    },
+    "actions": {
+      "openImage": "Képernyőkép megnyitása: {name}",
+      "closeImagePreview": "Képernyőkép előnézet bezárása",
+      "toggleSelection": "Kijelölés váltása: {name}",
+      "toggleFavorite": "Kedvenc váltása: {name}",
+      "renameImage": "Képernyőkép átnevezése: {name}",
+      "deleteImage": "Képernyőkép törlése: {name}",
+      "saveAs": "Mentés másként",
+      "editImageButton": "Megnyitás"
+    },
+    "favorite": {
+      "saveFailedTitle": "Kedvenc mentése sikertelen",
+      "saveFailed": "Nem sikerült menteni a képernyőkép kedvenceket: {error}"
+    },
+    "rename": {
+      "title": "Képernyőkép átnevezése",
+      "prompt": "Válasszon új nevet ehhez a képernyőképhez.",
+      "keepExtension": "A {extension} fájlkiterjesztés változatlan marad.",
+      "invalidTitle": "Érvénytelen képernyőkép neve",
+      "invalidMessage": "Adjon meg nevet a képernyőképnek.",
+      "failedTitle": "Átnevezés sikertelen",
+      "failedMessage": "Nem sikerült átnevezni a képernyőképet."
+    },
+    "delete": {
+      "title": "Képernyőkép törlése",
+      "confirmMessage": "Törli: {name}? Ez nem vonható vissza.",
+      "failedTitle": "Törlés sikertelen",
+      "failedMessage": "Nem sikerült törölni a képernyőképet."
+    },
+    "edit": {
+      "failedTitle": "Megnyitás sikertelen",
+      "failedMessage": "Nem sikerült megnyitni a képernyőképet."
+    },
+    "saveAs": {
+      "failedTitle": "Mentés sikertelen",
+      "failedMessage": "Nem sikerült menteni a képernyőképet: {error}",
+      "fileTypeDescription": "Képfájl",
+      "missingFile": "A képernyőkép fájl nem található."
+    },
+    "bulkDelete": {
+      "title": "Képernyőképek törlése",
+      "deleteSelectedCount": "Kijelöltek törlése ({count})",
+      "noSelected": "Először jelöljön ki legalább egy képernyőképet.",
+      "confirmMessage": "Törli a kijelölt {count} képernyőképet? Ez nem vonható vissza.",
+      "deletingProgress": "Képernyőképek törlése... ({current}/{total})",
+      "cancelling": "Képernyőkép törlés megszakítása...",
+      "cancelledTitle": "A tömeges törlés megszakítva",
+      "cancelledMessage": "{deleted} képernyőkép törölve a megszakítás előtt.",
+      "cancelledWithFailures": "{deleted} képernyőkép törölve a megszakítás előtt. {failures} képernyőkép sikertelen.",
+      "completeTitle": "A tömeges törlés kész",
+      "completeMessage": "{deleted} képernyőkép törölve.",
+      "finishedWithErrorsTitle": "A tömeges törlés hibákkal fejeződött be",
+      "finishedWithErrorsMessage": "{deleted} képernyőkép törölve.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Kliens",
       "launcher": "Indító",
       "mods": "Modok",
-      "dataStorage": "Adatok és tárhely"
+      "dataStorage": "Adatok és tárhely",
+      "playtime": "Játékidő"
+    },
+    "playtime": {
+      "noData": "Még nem rögzítettünk munkameneteket. Játssz egy verzióval a nyomkövetés megkezdéséhez!",
+      "total": "Összes játékidő:",
+      "totalTooltip": "Összes játékidő az összes munkamenet alapján.",
+      "sessions": "Lejátszott munkamenetek:",
+      "sessionsTooltip": "Hányszor indítottál el egy játékot.",
+      "mostPlayed": "Legtöbbet játszott verzió:",
+      "mostPlayedTooltip": "Az a verzió, amelyen a legtöbb időt töltötted.",
+      "longest": "Leghosszabb munkamenet:",
+      "longestTooltip": "A leghosszabb egyszeri játékmunkamenet.",
+      "average": "Átlagos munkamenet:",
+      "averageTooltip": "Az összes játékmunkamenet átlagos időtartama.",
+      "moreDetails": "Részletek",
+      "detail": {
+        "title": "Játékidő részletei",
+        "allVersions": "Összes",
+        "filterBy": "Verzió:",
+        "date": "Dátum",
+        "version": "Verzió",
+        "duration": "Időtartam",
+        "modloader": "Modloader",
+        "noSessions": "Nincsenek megjeleníthető munkamenetek.",
+        "sortBy": "Kattintson a rendezéshez",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Összes",
+        "noLoader": "Nincs",
+        "totalLabel": "Összesen:",
+        "nowLive": "Élő",
+        "truncatedNote": "A(z) {total} munkamenetből a legutóbbi {shown} látható."
+      }
     },
     "account": {
       "username": "Felhasználónév:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Microsoft megnyitása",
         "failedLogin": "A Microsoft bejelentkezés sikertelen."
       },
-      "playerPreviewTooltip": "Játékos-előnézet megjelenítése döntött testtel és köpeny-rendereléssel, amikor a fiók textúrái elérhetők.",
+      "playerPreviewTooltip": "Mutasd meg a játékos skinjét és köpenyét egy 3D előnézetben.",
       "playerPreview": "3D játékos-előnézet:",
-      "playerRotateTitle": "Kattints és húzd a forgatáshoz",
       "playerPreviewBodyAlt": "Játékos előnézet",
-      "playerPreviewCapeAlt": "Köpeny előnézet"
+      "playerPreviewCapeAlt": "Köpeny előnézet",
+      "playerRotateTitle": "Kattints és húzd a forgatáshoz"
     },
     "appearance": {
       "theme": "Téma:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Automatikus optimalizálás:",
+      "autoOptimizeTooltip": "Automatikusan kiválasztja az indítási RAM-ot és a JVM-argumentumokat az aktuális eszközmemóriából minden Minecraft-indításkor.",
+      "autoOptimizeLockedTitle": "Kapcsold ki az Automatikus optimalizálást a manuális szerkesztéshez.",
       "minRam": "Minimális RAM:",
       "minRamTooltip": "A játékhoz rendelt minimum RAM\n  - Pozitív számnak kell lennie\n  - Kisebbnek kell lennie a maximum RAM-nál\n\nPélda formátum: 256, 256M, 2G stb.\n\n(teljesítménytipp: több RAM jobb teljesítményt adhat, és a kevesebb képkockaeséshez igazítsd a maximum RAM-hoz)",
       "ramInvalidTitle": "RAM formátum: szám opcionális K, M, G vagy T utótaggal (pl. 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Discord Rich Presence megjelenítése, amíg az indító vagy a játék fut.",
       "desktopNotifications": "Asztali értesítések:",
       "desktopNotificationsTooltip": "Az indító asztali értesítéseinek engedélyezése.",
+      "keyboardMouse": "Billentyűzetes egér:",
+      "keyboardMouseTooltip": "Billentyűzettel vezérelt kurzort jelenít meg a launcherben.\n\nEz még kísérleti, számíthat sok hibára!",
       "java": {
         "auto": "Automatikus",
         "defaultPath": "Alapértelmezett (Java PATH)",

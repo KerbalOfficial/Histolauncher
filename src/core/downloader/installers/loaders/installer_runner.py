@@ -10,13 +10,10 @@ from core.logger import colorize_log
 from core.subprocess_utils import no_window_kwargs
 
 
-#: Polled cancellation signal. Should raise ``DownloadCancelled`` when set.
 CancelCheck = Callable[[], None]
-
-#: Receives one stripped output line (stdout+stderr merged).
 LineSink = Callable[[str], None]
 
-DEFAULT_TIMEOUT_SECONDS: int = 600  # 10 minutes
+DEFAULT_TIMEOUT_SECONDS: int = 600
 KILL_GRACE_SECONDS: float = 5.0
 CANCEL_POLL_INTERVAL: float = 0.25
 
@@ -36,7 +33,7 @@ def run_installer_jar(
     if not java:
         raise DownloadFailed(
             "Java is required to run the loader installer but was not found. "
-            "Install Java and either add it to PATH or set 'java_path' in settings.",
+            "Please download Java and try again!",
             url=None,
         )
 
@@ -108,18 +105,36 @@ def run_installer_jar(
     except subprocess.TimeoutExpired:
         cancel_event.set()
         _terminate(proc)
+        try:
+            if proc.stdout is not None:
+                proc.stdout.close()
+        except Exception:
+            pass
+        try:
+            if proc.stderr is not None:
+                proc.stderr.close()
+        except Exception:
+            pass
         reader.join(timeout=1.0)
         raise DownloadFailed(
             f"Installer JAR timed out after {timeout}s", url=None
         )
 
     cancel_event.set()
+    try:
+        if proc.stdout is not None:
+            proc.stdout.close()
+    except Exception:
+        pass
+    try:
+        if proc.stderr is not None:
+            proc.stderr.close()
+    except Exception:
+        pass
     reader.join(timeout=2.0)
     if cancel_check is not None:
         watcher.join(timeout=1.0)
 
-    # If the user cancelled, surface that — even if the subprocess happened to
-    # finish with rc=0 between the cancel and the termination.
     if cancel_check is not None:
         try:
             cancel_check()

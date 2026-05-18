@@ -76,6 +76,7 @@ def setup_launcher_logging():
 
         timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         log_file = os.path.join(logs_dir, f"{timestamp}.log")
+        os.environ["HISTOLAUNCHER_LAUNCHER_LOG_FILE"] = log_file
 
         log_handle = open(
             log_file, "w", buffering=1, encoding="utf-8", errors="replace"

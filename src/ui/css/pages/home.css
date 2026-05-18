@@ -47,6 +47,30 @@
   margin-top: 4px;
 }
 
+.home-live-status {
+  max-width: 720px;
+  margin: 12px auto 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--color-overlay-soft);
+  border: 2px solid var(--color-border-strong);
+  font-size: 14px;
+  color: var(--color-text-primary);
+}
+
+.home-live-dot {
+  color: var(--color-live);
+  font-size: 12px;
+  animation: home-blink 1.4s step-start infinite;
+}
+
+@keyframes home-blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.2; }
+}
+
 .home-launch-container {
   display: flex;
   justify-content: center;

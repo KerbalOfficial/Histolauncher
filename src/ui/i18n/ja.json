@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "YYYY/MM/DD HH:mm",
+  "am": "午前",
+  "pm": "午後",
   "nav": {
     "home": "ホーム",
     "versions": "バージョン",
     "worlds": "ワールド",
+    "screenshots": "スクリーンショット",
     "addons": "アドオン",
     "settings": "設定",
-    "about": "情報"
+    "about": "情報",
+    "primaryNavAria": "メインナビゲーション"
   },
   "common": {
     "none": "なし",
     "unknown": "不明",
     "all": "すべて",
+    "auto": "Auto",
     "defaultName": "デフォルト",
     "loading": "読み込み中...",
     "refresh": "更新",
@@ -70,6 +76,20 @@
     "playerModel": "プレイヤーモデル",
     "modelWide": "ワイド",
     "modelSlim": "スリム",
+    "textureType": "テクスチャタイプ",
+    "textureDefault": "デフォルト",
+    "textureLegacy": "レガシー",
+    "armMirror": "腕のミラー",
+    "legMirror": "脚のミラー",
+    "mirrorRight": "右",
+    "mirrorLeft": "左",
+    "overlayToFirstLayer": "オーバーレイを第一レイヤーへ",
+    "overlayHead": "頭",
+    "overlayBody": "ジャケット",
+    "overlayRightArm": "右袖",
+    "overlayLeftArm": "左袖",
+    "overlayRightLeg": "右ズボン",
+    "overlayLeftLeg": "左ズボン",
     "skinFile": "スキンファイル",
     "capeSelection": "マント",
     "skinPreviewAlt": "スキンプレビュー",
@@ -131,12 +151,16 @@
     "versionTooltip": "ランチャーのバージョン",
     "refreshTooltip": "値を更新 (Shiftキーを押しながらでページを更新)",
     "refreshAria": "更新",
-    "profileTooltip": "Histolauncher アカウント",
     "refreshAlt": "更新",
-    "profileAlt": "プロフィール"
+    "profileAlt": "プロフィール",
+    "profileTooltip": "Histolauncher アカウント"
   },
   "home": {
     "launchButton": "起動",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "メッセージを閉じる"
+    },
     "info": {
       "version": "バージョン",
       "noneSelected": "(未選択)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "現在ダウンロード中のバージョンです。",
     "availableSubtitle": "インストール可能なバージョン",
     "deleteSelected": "選択したものを削除 (0)",
+    "actionsMenuAria": "バージョンの操作",
     "profile": {
       "renameTooltip": "現在使用中のバージョンプロファイルの名前を変更",
       "renameAria": "バージョンプロファイルの名前を変更",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "最小RAMを上書き",
       "maximumRamOverride": "最大RAMを上書き",
       "resolutionOverride": "解像度を上書き",
-      "javaRuntimePathOverride": "Java ランタイムパスを上書き",
+      "javaRuntimeOverride": "Java ランタイムパスを上書き",
       "extraJvmArgumentsOverride": "追加の JVM 引数を上書き",
       "versionImageFile": "バージョンの画像ファイル (任意、PNG/JPG)",
       "failedReadImageData": "画像データの読み取りに失敗しました",
@@ -356,6 +381,18 @@
       "successTitle": "エクスポート成功!",
       "successMessage": "ファイルが保存されました:<br><b>{filepath}</b><br><br>ファイルサイズ<br><b>{size} MB</b>",
       "unexpectedError": "エクスポート中にエラーが発生しました:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "ダウンロード数",
     "sortName": "名前",
     "sortRecentlyUpdated": "最近の更新",
+    "actionsMenuAria": "Modの操作",
     "profile": {
       "renameTooltip": "現在使用中のアドオンプロファイルの名前を変更",
       "renameAria": "アドオンプロファイルの名前を変更",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "\"{file}\" の Mod ローダーを選択してください:"
+      "selectLoaderForFile": "\"{file}\" の Mod ローダーを選択してください:",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "インストール済み",
@@ -554,6 +593,14 @@
       "unexpectedError": "予期しないインストールエラー",
       "unexpectedForAddon": "{addon} のインストール中に予期しないエラーが発生しました。"
     },
+    "dependencies": {
+      "title": "Mod の依存関係",
+      "checking": "依存関係を確認中...",
+      "prompt": "この Mod が正しく動作するには依存関係が必要です。インストールする依存関係を選択してください:",
+      "installSelected": "選択したものをインストール",
+      "installing": "依存関係をインストール中...",
+      "required": "必須"
+    },
     "exportModpack": {
       "title": "モッドパックをエクスポート",
       "selectFormat": "エクスポートするモッドパック形式を選択してください:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "{provider} のワールド",
     "deleteSelected": "選択したものを削除 (0)",
     "deleteSelectedCount": "選択したものを削除 ({count})",
+    "actionsMenuAria": "ワールドの操作",
     "importTooltip": ".zip アーカイブからワールドをインポート",
     "importAria": "ワールドをインポート",
     "moreActionsTooltip": "その他のワールドのアクション",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "ワールドエディタを読み込んでいます...",
       "editWorldTitle": "ワールドを編集: {world}",
+      "failedNbtLoad": "ワールドのNBTデータの読み込みに失敗しました。",
       "worldFallback": "ワールド",
       "thisWorld": "このワールド",
       "primaryPlayer": "プライマリプレイヤー",
@@ -933,8 +982,7 @@
       "saving": "ワールドエディターの変更を保存中...",
       "failedSaveNbt": "ワールドのNBTデータの保存に失敗しました。",
       "renameFailedAfterNbt": "NBTの変更は保存されましたが、ワールドフォルダーの名称変更に失敗しました: {error}",
-      "iconFailedAfterSave": "ワールドデータは保存されましたが、アイコンの更新に失敗しました: {error}",
-      "failedNbtLoad": "ワールドのNBTデータの読み込みに失敗しました。"
+      "iconFailedAfterSave": "ワールドデータは保存されましたが、アイコンの更新に失敗しました: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "起動中...",
     "launchingTimed": "起動中... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Java ランタイムが必要です",
     "javaRequiredMessage": "互換性のある Java ランタイムが必要です。",
     "downloadJava": "Java をダウンロード",
@@ -1022,6 +1077,76 @@
       "generic": "ローダー",
       "vanilla": "Vanilla",
       "none": "なし (Mod ローダーなし)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "画像",
+    "imagesSubtitleDefault": "利用可能な保存先ディレクトリ全体の画像",
+    "imagesSubtitle": "{storage} に {count} 枚の画像",
+    "itemFallback": "スクリーンショット",
+    "refreshTooltip": "スクリーンショットのリストを更新",
+    "bulkSelectTooltip": "スクリーンショットの一括選択モードを切り替え",
+    "bulkDeleteTooltip": "選択したスクリーンショットを削除",
+    "toggleImagesAria": "スクリーンショットセクションの切り替え",
+    "favoriteAlt": "お気に入り",
+    "list": {
+      "loading": "スクリーンショットを読み込んでいます...",
+      "failedLoadInstalled": "スクリーンショットの読み込みに失敗しました。",
+      "emptyInstalled": "スクリーンショットが見つかりません"
+    },
+    "actions": {
+      "openImage": "スクリーンショット {name} を開く",
+      "closeImagePreview": "スクリーンショットのプレビューを閉じる",
+      "toggleSelection": "スクリーンショット {name} の選択を切り替え",
+      "toggleFavorite": "スクリーンショット {name} のお気に入りを切り替え",
+      "renameImage": "スクリーンショット {name} の名前を変更",
+      "deleteImage": "スクリーンショット {name} を削除",
+      "saveAs": "名前を付けて保存",
+      "editImageButton": "開く"
+    },
+    "favorite": {
+      "saveFailedTitle": "お気に入りの保存に失敗しました",
+      "saveFailed": "スクリーンショットのお気に入りの保存に失敗しました: {error}"
+    },
+    "rename": {
+      "title": "スクリーンショットの名前を変更",
+      "prompt": "このスクリーンショットの新しい名前を選択してください。",
+      "keepExtension": "{extension} ファイル拡張子はそのまま維持されます。",
+      "invalidTitle": "無効なスクリーンショット名",
+      "invalidMessage": "スクリーンショットの名前を入力してください。",
+      "failedTitle": "名前の変更に失敗しました",
+      "failedMessage": "スクリーンショットの名前の変更に失敗しました。"
+    },
+    "delete": {
+      "title": "スクリーンショットを削除",
+      "confirmMessage": "{name} を削除しますか? この操作は元に戻せません。",
+      "failedTitle": "削除に失敗しました",
+      "failedMessage": "スクリーンショットの削除に失敗しました。"
+    },
+    "edit": {
+      "failedTitle": "開けませんでした",
+      "failedMessage": "スクリーンショットを開くことに失敗しました。"
+    },
+    "saveAs": {
+      "failedTitle": "保存に失敗しました",
+      "failedMessage": "スクリーンショットの保存に失敗しました: {error}",
+      "fileTypeDescription": "画像ファイル",
+      "missingFile": "スクリーンショットファイルを特定できませんでした。"
+    },
+    "bulkDelete": {
+      "title": "スクリーンショットを一括削除",
+      "deleteSelectedCount": "選択したものを削除 ({count})",
+      "noSelected": "最初に少なくとも 1 つのスクリーンショットを選択してください。",
+      "confirmMessage": "選択した {count} 個のスクリーンショットを削除しますか? この操作は元に戻せません。",
+      "deletingProgress": "スクリーンショットを削除中... ({current}/{total})",
+      "cancelling": "スクリーンショットの削除をキャンセルしています...",
+      "cancelledTitle": "一括削除がキャンセルされました",
+      "cancelledMessage": "キャンセルされるまでに {deleted} 個のスクリーンショットを削除しました。",
+      "cancelledWithFailures": "キャンセルされるまでに {deleted} 個のスクリーンショットを削除しました。{failures} 個のスクリーンショットの削除に失敗しました。",
+      "completeTitle": "一括削除完了",
+      "completeMessage": "{deleted} 個のスクリーンショットを削除しました。",
+      "finishedWithErrorsTitle": "エラーで一括削除が完了しました",
+      "finishedWithErrorsMessage": "{deleted} 個のスクリーンショットを削除しました。<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "クライアント",
       "launcher": "ランチャー",
       "mods": "Mod",
-      "dataStorage": "データとストレージ"
+      "dataStorage": "データとストレージ",
+      "playtime": "プレイ時間"
+    },
+    "playtime": {
+      "noData": "セッションがまだ記録されていません。バージョンをプレイして追跡を開始しましょう！",
+      "total": "合計プレイ時間:",
+      "totalTooltip": "すべてのセッションの合計プレイ時間。",
+      "sessions": "プレイセッション数:",
+      "sessionsTooltip": "ゲームを起動した回数。",
+      "mostPlayed": "最もプレイしたバージョン:",
+      "mostPlayedTooltip": "最も時間を費やしたバージョン。",
+      "longest": "最長セッション:",
+      "longestTooltip": "最も長い単一のプレイセッション。",
+      "average": "平均セッション:",
+      "averageTooltip": "すべてのプレイセッションの平均時間。",
+      "moreDetails": "詳細を見る",
+      "detail": {
+        "title": "プレイ時間の詳細",
+        "allVersions": "すべて",
+        "filterBy": "バージョン:",
+        "date": "日付",
+        "version": "バージョン",
+        "duration": "時間",
+        "modloader": "Modloader",
+        "noSessions": "表示するセッションがありません。",
+        "sortBy": "クリックで並び替え",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "すべて",
+        "noLoader": "なし",
+        "totalLabel": "合計:",
+        "nowLive": "ライブ",
+        "truncatedNote": "全{total}セッションのうち最新の{shown}件を表示中。"
+      }
     },
     "account": {
       "username": "ユーザー名:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Microsoft を開く",
         "failedLogin": "Microsoft ログインに失敗しました。"
       },
-      "playerPreviewTooltip": "アカウントのテクスチャが利用可能な場合、斜めの体とマントのレンダリングを含むプレイヤープレビューを表示します。",
+      "playerPreviewTooltip": "プレイヤーのスキンとマントを3Dプレビューで表示します。",
       "playerPreview": "3Dプレイヤープレビュー:",
-      "playerRotateTitle": "クリックしてドラッグで回転",
       "playerPreviewBodyAlt": "プレイヤープレビュー",
-      "playerPreviewCapeAlt": "ケーププレビュー"
+      "playerPreviewCapeAlt": "ケーププレビュー",
+      "playerRotateTitle": "クリックしてドラッグで回転"
     },
     "appearance": {
       "theme": "テーマ:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "自動最適化:",
+      "autoOptimizeTooltip": "Minecraftが起動するたびに、現在のデバイスメモリから起動RAMとJVM引数を自動的に選択します。",
+      "autoOptimizeLockedTitle": "手動で編集するには自動最適化を無効にしてください。",
       "minRam": "最小 RAM:",
       "minRamTooltip": "ゲームに割り当てられる最小 RAM\n  - 正の数でなければなりません\n  - 最大 RAM より小さくなければなりません\n\n記述例: 256, 256M, 2G など。\n\n(パフォーマンスのヒント: より多くの RAM を割り当てるとパフォーマンスが向上します。また、最大 RAM と一致させるとフレーム落ちが少なくなります)",
       "ramInvalidTitle": "RAMの形式: 数値の後に任意の K、M、G、または T を付けて使用します (例: 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "ランチャーまたはゲームの実行中に Discord の Rich Presence を表示します。",
       "desktopNotifications": "デスクトップ通知:",
       "desktopNotificationsTooltip": "ランチャーのデスクトップ通知を許可します。",
+      "keyboardMouse": "キーボードマウス:",
+      "keyboardMouseTooltip": "ランチャー全体に、キーボードで操作できるカーソルを表示します。\n\nこれはまだ試験的な機能です。多くの不具合がある可能性があります!",
       "java": {
         "auto": "自動",
         "defaultPath": "デフォルト (Java PATH)",

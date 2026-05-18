@@ -111,6 +111,13 @@
   opacity: 0.9;
 }
 
+.mod-detail-screenshot:focus-visible {
+  outline: none;
+  border-color: var(--color-focus);
+  opacity: 0.9;
+  box-shadow: 0 0 0 2px var(--color-focus);
+}
+
 .screenshot-lightbox {
   display: none;
   position: fixed;
@@ -119,7 +126,8 @@
   background: var(--color-overlay-modal);
   align-items: center;
   justify-content: center;
-  cursor: zoom-out;
+  cursor: default;
+  overflow: hidden;
 }
 .screenshot-lightbox.active {
   display: flex;
@@ -129,6 +137,36 @@
   max-height: 88vh;
   object-fit: contain;
   pointer-events: none;
+}
+
+.screenshot-lightbox[data-zoomed="1"] {
+  cursor: zoom-out;
+}
+
+.screenshot-lightbox-cursor {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--color-focus);
+  background: color-mix(in srgb, var(--color-focus) 18%, transparent);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.65);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  visibility: hidden;
+}
+
+.screenshot-lightbox[data-keyboard-cursor="1"] .screenshot-lightbox-cursor {
+  opacity: 1;
+  visibility: visible;
+}
+
+.keyboard-mouse-enabled .screenshot-lightbox-cursor {
+  display: none;
+}
+
+.screenshot-lightbox:focus-visible {
+  outline: none;
 }
 
 .mod-detail-stats {
@@ -194,6 +232,24 @@
   gap: 10px 16px;
   font-size: 13px;
   color: var(--color-text-muted);
+}
+
+.world-detail-sections {
+  display: grid;
+  gap: 10px;
+}
+
+.world-detail-section {
+  display: grid;
+  gap: 4px;
+}
+
+.world-detail-section-title {
+  color: var(--color-text-title);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .world-detail-note {

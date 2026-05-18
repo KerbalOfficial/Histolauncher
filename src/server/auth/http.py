@@ -16,6 +16,8 @@ ACCOUNT_API_URL = "https://accounts.histolauncher.org"
 
 TIMEOUT = 10.0
 
+_MAX_AUTH_RESPONSE_BYTES = 1 * 1024 * 1024
+
 
 def _make_request(
     method: str,
@@ -37,7 +39,10 @@ def _make_request(
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as response:
             status = getattr(response, "status", None) or response.getcode()
-            resp_body = response.read().decode("utf-8")
+            raw_body = response.read(_MAX_AUTH_RESPONSE_BYTES + 1)
+            if len(raw_body) > _MAX_AUTH_RESPONSE_BYTES:
+                return 502, {"error": "Auth response exceeded size limit"}, {}
+            resp_body = raw_body.decode("utf-8", errors="replace")
             try:
                 data = json.loads(resp_body)
             except json.JSONDecodeError:
@@ -57,8 +62,12 @@ def _make_request(
     except urllib.error.HTTPError as e:
         status = e.code
         try:
-            resp_body = e.read().decode("utf-8")
-            data = json.loads(resp_body)
+            raw_body = e.read(_MAX_AUTH_RESPONSE_BYTES + 1)
+            if len(raw_body) > _MAX_AUTH_RESPONSE_BYTES:
+                data = {"error": "Auth error response exceeded size limit"}
+            else:
+                resp_body = raw_body.decode("utf-8", errors="replace")
+                data = json.loads(resp_body)
         except (json.JSONDecodeError, AttributeError):
             data = {"error": str(e)}
 

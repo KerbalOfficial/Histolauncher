@@ -32,3 +32,8 @@
   font-size: 0.85em;
   opacity: 0.7;
 }
+
+.tooltip-line-spacer {
+  display: inline-block;
+  min-height: 0.45em;
+}

@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD/MM/YYYY HH:mm",
+  "am": "AM",
+  "pm": "PM",
   "nav": {
     "home": "בית",
     "versions": "גרסאות",
     "worlds": "עולמות",
+    "screenshots": "צילומי מסך",
     "addons": "תוספים",
     "settings": "הגדרות",
-    "about": "אודות"
+    "about": "אודות",
+    "primaryNavAria": "ניווט ראשי"
   },
   "common": {
     "none": "ללא",
     "unknown": "לא ידוע",
     "all": "הכול",
+    "auto": "Auto",
     "defaultName": "ברירת מחדל",
     "loading": "טוען...",
     "refresh": "רענן",
@@ -70,6 +76,20 @@
     "playerModel": "דגם שחקן",
     "modelWide": "רחב",
     "modelSlim": "דק",
+    "textureType": "סוג טקסטורה",
+    "textureDefault": "ברירת מחדל",
+    "textureLegacy": "ישן",
+    "armMirror": "שיקוף ידיים",
+    "legMirror": "שיקוף רגליים",
+    "mirrorRight": "ימין",
+    "mirrorLeft": "שמאל",
+    "overlayToFirstLayer": "העברת שכבת על לשכבה הראשונה",
+    "overlayHead": "ראש",
+    "overlayBody": "מעיל",
+    "overlayRightArm": "שרוול ימין",
+    "overlayLeftArm": "שרוול שמאל",
+    "overlayRightLeg": "מכנס ימין",
+    "overlayLeftLeg": "מכנס שמאל",
     "skinFile": "קובץ סקין",
     "capeSelection": "גלימה",
     "skinPreviewAlt": "תצוגה מקדימה של סקין",
@@ -131,12 +151,16 @@
     "versionTooltip": "גרסת המשגר",
     "refreshTooltip": "רענון ערכים (החזק Shift כדי לרענן את הדף)",
     "refreshAria": "רענן",
-    "profileTooltip": "חשבון Histolauncher",
     "refreshAlt": "רענן",
-    "profileAlt": "פרופיל"
+    "profileAlt": "פרופיל",
+    "profileTooltip": "חשבון Histolauncher"
   },
   "home": {
     "launchButton": "הפעל",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "סגור הודעה"
+    },
     "info": {
       "version": "גרסה",
       "noneSelected": "(לא נבחר)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "גרסאות שנמצאות כרגע בהורדה.",
     "availableSubtitle": "גרסאות זמינות להתקנה",
     "deleteSelected": "מחק נבחרים (0)",
+    "actionsMenuAria": "פעולות גרסה",
     "profile": {
       "renameTooltip": "שינוי שם פרופיל הגרסאות הפעיל",
       "renameAria": "שינוי שם פרופיל גרסאות",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "דריסת RAM מינימלי",
       "maximumRamOverride": "דריסת RAM מקסימלי",
       "resolutionOverride": "דריסת רזולוציה",
-      "javaRuntimePathOverride": "דריסת נתיב Java runtime",
+      "javaRuntimeOverride": "דריסת נתיב Java runtime",
       "extraJvmArgumentsOverride": "דריסת ארגומנטים נוספים ל-JVM",
       "versionImageFile": "קובץ תמונה לגרסה (אופציונלי, PNG/JPG)",
       "failedReadImageData": "קריאת נתוני התמונה נכשלה",
@@ -356,6 +381,18 @@
       "successTitle": "הייצוא הצליח!",
       "successMessage": "הקובץ נשמר אל:<br><b>{filepath}</b><br><br>גודל קובץ<br><b>{size} MB</b>",
       "unexpectedError": "אירעה שגיאה במהלך הייצוא:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "הורדות",
     "sortName": "שם",
     "sortRecentlyUpdated": "עודכן לאחרונה",
+    "actionsMenuAria": "פעולות מוד",
     "profile": {
       "renameTooltip": "שינוי שם פרופיל התוספים הפעיל",
       "renameAria": "שינוי שם פרופיל תוספים",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "בחר את טוען המודים עבור \"{file}\":"
+      "selectLoaderForFile": "בחר את טוען המודים עבור \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "מותקן",
@@ -554,6 +593,14 @@
       "unexpectedError": "שגיאת התקנה לא צפויה",
       "unexpectedForAddon": "אירעה שגיאה לא צפויה בעת התקנת {addon}."
     },
+    "dependencies": {
+      "title": "תלויות המוד",
+      "checking": "בודק תלויות...",
+      "prompt": "המוד הזה צריך תלויות כדי לעבוד כראוי. בחר אילו תלויות להתקין:",
+      "installSelected": "התקן נבחרים",
+      "installing": "מתקין תלויות...",
+      "required": "נדרש"
+    },
     "exportModpack": {
       "title": "ייצוא חבילת מודים",
       "selectFormat": "בחר את פורמט חבילת המודים לייצוא:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "עולמות מתוך {provider}",
     "deleteSelected": "מחק נבחרים (0)",
     "deleteSelectedCount": "מחק נבחרים ({count})",
+    "actionsMenuAria": "פעולות עולם",
     "importTooltip": "ייבוא עולם מארכיון .zip",
     "importAria": "ייבוא עולם",
     "moreActionsTooltip": "פעולות עולם נוספות",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "טוען עורך עולם...",
       "editWorldTitle": "עריכת עולם: {world}",
+      "failedNbtLoad": "טעינת נתוני ה-NBT של העולם נכשלה.",
       "worldFallback": "עולם",
       "thisWorld": "העולם הזה",
       "primaryPlayer": "שחקן ראשי",
@@ -933,8 +982,7 @@
       "saving": "שומר שינויים בעורך העולם...",
       "failedSaveNbt": "שמירת נתוני NBT של העולם נכשלה.",
       "renameFailedAfterNbt": "שינויי NBT נשמרו, אך שינוי שם תיקיית העולם נכשל: {error}",
-      "iconFailedAfterSave": "נתוני העולם נשמרו, אך עדכון האייקון נכשל: {error}",
-      "failedNbtLoad": "טעינת נתוני ה-NBT של העולם נכשלה."
+      "iconFailedAfterSave": "נתוני העולם נשמרו, אך עדכון האייקון נכשל: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "מפעיל...",
     "launchingTimed": "מפעיל... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "נדרש Java Runtime",
     "javaRequiredMessage": "נדרש Java runtime תואם.",
     "downloadJava": "הורד Java",
@@ -1022,6 +1077,76 @@
       "generic": "טוען",
       "vanilla": "Vanilla",
       "none": "ללא (בלי טוען מודים)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "תמונות",
+    "imagesSubtitleDefault": "תמונות בכל תיקיות האחסון הזמינות",
+    "imagesSubtitle": "{count} תמונה/תמונות בתוך {storage}",
+    "itemFallback": "צילום מסך",
+    "refreshTooltip": "רענון רשימת צילומי המסך",
+    "bulkSelectTooltip": "הפעלת מצב בחירה מרובה לצילומי מסך",
+    "bulkDeleteTooltip": "מחיקת צילומי המסך שנבחרו",
+    "toggleImagesAria": "החלפת מצב מקטע צילומי המסך",
+    "favoriteAlt": "מועדף",
+    "list": {
+      "loading": "טוען צילומי מסך...",
+      "failedLoadInstalled": "טעינת צילומי המסך נכשלה.",
+      "emptyInstalled": "לא נמצאו צילומי מסך"
+    },
+    "actions": {
+      "openImage": "פתיחת צילום המסך {name}",
+      "closeImagePreview": "סגירת תצוגה מקדימה של צילום המסך",
+      "toggleSelection": "החלפת בחירה עבור צילום המסך {name}",
+      "toggleFavorite": "החלפת מועדף עבור צילום המסך {name}",
+      "renameImage": "שינוי שם צילום המסך {name}",
+      "deleteImage": "מחיקת צילום המסך {name}",
+      "saveAs": "שמירה בשם",
+      "editImageButton": "פתיחה"
+    },
+    "favorite": {
+      "saveFailedTitle": "שמירת המועדפים נכשלה",
+      "saveFailed": "שמירת מועדפי צילומי המסך נכשלה: {error}"
+    },
+    "rename": {
+      "title": "שינוי שם צילום מסך",
+      "prompt": "בחר שם חדש לצילום המסך הזה.",
+      "keepExtension": "סיומת הקובץ {extension} נשארת כפי שהיא.",
+      "invalidTitle": "שם צילום המסך לא תקין",
+      "invalidMessage": "הזן שם לצילום המסך.",
+      "failedTitle": "שינוי השם נכשל",
+      "failedMessage": "שינוי שם צילום המסך נכשל."
+    },
+    "delete": {
+      "title": "מחיקת צילום מסך",
+      "confirmMessage": "למחוק את {name}? לא ניתן לבטל פעולה זו.",
+      "failedTitle": "המחיקה נכשלה",
+      "failedMessage": "מחיקת צילום המסך נכשלה."
+    },
+    "edit": {
+      "failedTitle": "הפתיחה נכשלה",
+      "failedMessage": "פתיחת צילום המסך נכשלה."
+    },
+    "saveAs": {
+      "failedTitle": "השמירה נכשלה",
+      "failedMessage": "שמירת צילום המסך נכשלה: {error}",
+      "fileTypeDescription": "קובץ תמונה",
+      "missingFile": "לא ניתן היה לאתר את קובץ צילום המסך."
+    },
+    "bulkDelete": {
+      "title": "מחיקה מרובה של צילומי מסך",
+      "deleteSelectedCount": "מחק נבחרים ({count})",
+      "noSelected": "בחר לפחות צילום מסך אחד קודם.",
+      "confirmMessage": "למחוק {count} צילום/צילומי מסך שנבחרו? לא ניתן לבטל פעולה זו.",
+      "deletingProgress": "מוחק צילומי מסך... ({current}/{total})",
+      "cancelling": "מבטל מחיקת צילומי מסך...",
+      "cancelledTitle": "המחיקה המרובה בוטלה",
+      "cancelledMessage": "נמחקו {deleted} צילום/צילומי מסך לפני הביטול.",
+      "cancelledWithFailures": "נמחקו {deleted} צילום/צילומי מסך לפני הביטול. {failures} צילום/צילומי מסך נכשלו.",
+      "completeTitle": "המחיקה המרובה הושלמה",
+      "completeMessage": "נמחקו {deleted} צילום/צילומי מסך.",
+      "finishedWithErrorsTitle": "המחיקה המרובה הסתיימה עם שגיאות",
+      "finishedWithErrorsMessage": "נמחקו {deleted} צילום/צילומי מסך.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "לקוח",
       "launcher": "משגר",
       "mods": "מודים",
-      "dataStorage": "נתונים ואחסון"
+      "dataStorage": "נתונים ואחסון",
+      "playtime": "זמן משחק"
+    },
+    "playtime": {
+      "noData": "טרם הוקלטו סשנים. שחק גרסה כדי להתחיל לעקוב!",
+      "total": "סה\"כ זמן משחק:",
+      "totalTooltip": "סה\"כ זמן משחק על פני כל הסשנים.",
+      "sessions": "סשנים שהושלמו:",
+      "sessionsTooltip": "כמה פעמים הפעלת את המשחק.",
+      "mostPlayed": "הגרסה המשוחקת ביותר:",
+      "mostPlayedTooltip": "הגרסה שבה בילית הכי הרבה זמן.",
+      "longest": "הסשן הארוך ביותר:",
+      "longestTooltip": "הסשן הבודד הארוך ביותר שלך.",
+      "average": "סשן ממוצע:",
+      "averageTooltip": "משך הזמן הממוצע של כל הסשנים שלך.",
+      "moreDetails": "פרטים נוספים",
+      "detail": {
+        "title": "פרטי זמן משחק",
+        "allVersions": "הכל",
+        "filterBy": "גרסה:",
+        "date": "תאריך",
+        "version": "גרסה",
+        "duration": "משך",
+        "modloader": "Modloader",
+        "noSessions": "אין סשנים להצגה.",
+        "sortBy": "לחץ למיון",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "הכל",
+        "noLoader": "ללא",
+        "totalLabel": "סה\"כ:",
+        "nowLive": "חי",
+        "truncatedNote": "מציג את {shown} הסשנים האחרונים מתוך {total} סה\"כ."
+      }
     },
     "account": {
       "username": "שם משתמש:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "פתח Microsoft",
         "failedLogin": "התחברות Microsoft נכשלה."
       },
-      "playerPreviewTooltip": "הצג תצוגה מקדימה של השחקן עם גוף בזווית ורינדור גלימה כאשר טקסטורות החשבון זמינות.",
+      "playerPreviewTooltip": "הצג את עור השחקן ואת הגלימה שלך בתצוגה מקדימה תלת-ממדית.",
       "playerPreview": "תצוגת שחקן תלת-ממדית:",
-      "playerRotateTitle": "לחץ וגרור כדי לסובב",
       "playerPreviewBodyAlt": "תצוגה מקדימה של השחקן",
-      "playerPreviewCapeAlt": "תצוגה מקדימה של הגלימה"
+      "playerPreviewCapeAlt": "תצוגה מקדימה של הגלימה",
+      "playerRotateTitle": "לחץ וגרור כדי לסובב"
     },
     "appearance": {
       "theme": "ערכת נושא:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "אופטימיזציה אוטומטית:",
+      "autoOptimizeTooltip": "בוחר אוטומטית את כמות ה-RAM וארגומנטי JVM מזיכרון המכשיר הנוכחי בכל הפעלה של Minecraft.",
+      "autoOptimizeLockedTitle": "כבה את האופטימיזציה האוטומטית כדי לערוך זאת ידנית.",
       "minRam": "RAM מינימלי:",
       "minRamTooltip": "RAM מינימלי שמוקצה למשחק\n  - חייב להיות מספר חיובי\n  - חייב להיות קטן מ-RAM מקסימלי\n\nפורמט לדוגמה: 256, 256M, 2G וכו'.\n\n(טיפ ביצועים: הקצה יותר RAM לביצועים טובים יותר, וגם התאם אותו ל-RAM המקסימלי כדי להפחית נפילות פריימים)",
       "ramInvalidTitle": "פורמט RAM: מספר עם סיומת K, M, G או T אופציונלית (לדוגמה 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "הצג Discord Rich Presence בזמן שהמשגר או המשחק פועלים.",
       "desktopNotifications": "התראות שולחן עבודה:",
       "desktopNotificationsTooltip": "אפשר התראות שולחן עבודה מהמשגר.",
+      "keyboardMouse": "עכבר מקלדת:",
+      "keyboardMouseTooltip": "מציג ברחבי המשגר סמן שנשלט באמצעות המקלדת.\n\nהאפשרות עדיין ניסיונית, צפויים הרבה באגים!",
       "java": {
         "auto": "אוטומטי",
         "defaultPath": "ברירת מחדל (Java PATH)",

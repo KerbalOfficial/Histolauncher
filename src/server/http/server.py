@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import socketserver
+import sys
 import threading
 from http.server import HTTPServer
 
@@ -12,6 +13,14 @@ __all__ = ["ThreadingHTTPServer", "start_server"]
 
 class ThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     daemon_threads = True
+    allow_reuse_address = True
+    request_queue_size = 256
+
+    def handle_error(self, request, client_address):
+        exc_value = sys.exc_info()[1]
+        if isinstance(exc_value, (BrokenPipeError, ConnectionAbortedError, ConnectionResetError)):
+            return
+        super().handle_error(request, client_address)
 
 
 def start_server(port):

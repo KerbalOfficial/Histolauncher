@@ -4,13 +4,20 @@ import os
 import re
 import urllib.error
 import urllib.request
-from urllib.parse import unquote, urlparse, quote
+from urllib.parse import parse_qs, unquote, urlparse, quote
 
 from core.logger import colorize_log
+from core.skin_legacy import (
+    convert_skin_to_legacy_format,
+    merge_skin_overlay_into_base,
+    normalize_skin_limb_mirror,
+    normalize_skin_overlay_parts,
+    normalize_skin_overlay_parts_for_texture_type,
+    normalize_skin_texture_type,
+)
 from core.settings import _apply_url_proxy, get_base_dir
 
 from server import yggdrasil
-from server.http._constants import BASE_DIR
 from server.yggdrasil.textures.local import _is_valid_local_texture_file
 from server.yggdrasil.textures.urls import (
     _build_minecraft_texture_url,
@@ -21,7 +28,7 @@ from server.yggdrasil.textures.urls import (
 __all__ = ["TextureMixin"]
 
 
-TEXTURE_ENDPOINT_METADATA_TIMEOUT_SECONDS = 6.0
+TEXTURE_ENDPOINT_METADATA_TIMEOUT_SECONDS = 8.0
 TEXTURE_ENDPOINT_FETCH_TIMEOUT_SECONDS = 8.0
 
 
@@ -55,6 +62,28 @@ def _is_valid_texture_payload(payload: bytes | None, texture_type: str) -> bool:
             return False
         return width == (height * 2) and (width % 64) == 0
     return False
+
+
+def _crop_skin_to_legacy_format(
+    png_data: bytes,
+    overlay_parts=None,
+    arm_mirror="right",
+    leg_mirror="right",
+) -> bytes:
+    return convert_skin_to_legacy_format(
+        png_data,
+        overlay_parts=overlay_parts,
+        arm_mirror=arm_mirror,
+        leg_mirror=leg_mirror,
+    )
+
+
+def _query_value(query: dict, *keys: str) -> str:
+    for key in keys:
+        values = query.get(key)
+        if values:
+            return str(values[0] or "").strip()
+    return ""
 
 
 def _ensure_dashed_uuid(u: str) -> str:
@@ -138,23 +167,49 @@ def _append_texture_url_cache_candidates(
 class TextureMixin:
     def _handle_texture_proxy(self, path):
         try:
-            parts = path.lstrip("/").split("/")
+            # Strip query string and detect legacy (Classic) format flag before
+            # splitting the path into its components.
+            _qs_sep = path.find("?")
+            _qs = path[_qs_sep + 1 :] if _qs_sep >= 0 else ""
+            path_clean = path[:_qs_sep] if _qs_sep >= 0 else path
+            legacy_format = "legacy=1" in _qs
+            legacy_overlay_parts = []
+            legacy_arm_mirror = "right"
+            legacy_leg_mirror = "right"
+            explicit_legacy_overlay_parts = False
+            explicit_legacy_arm_mirror = False
+            explicit_legacy_leg_mirror = False
+            if legacy_format:
+                query = parse_qs(_qs, keep_blank_values=True)
+                explicit_legacy_overlay_parts = bool(
+                    query.get("overlay") or query.get("overlays") or query.get("parts")
+                )
+                legacy_overlay_parts = normalize_skin_overlay_parts(
+                    query.get("overlay") or query.get("overlays") or query.get("parts")
+                )
+                raw_arm_mirror = _query_value(query, "arm_mirror", "armMirror", "arm")
+                raw_leg_mirror = _query_value(query, "leg_mirror", "legMirror", "leg")
+                explicit_legacy_arm_mirror = bool(raw_arm_mirror)
+                explicit_legacy_leg_mirror = bool(raw_leg_mirror)
+                legacy_arm_mirror = normalize_skin_limb_mirror(raw_arm_mirror)
+                legacy_leg_mirror = normalize_skin_limb_mirror(raw_leg_mirror)
+
+            parts = path_clean.lstrip("/").split("/")
             if len(parts) < 3:
                 self.send_error(404, "Invalid texture path")
                 return
 
-            texture_type = parts[1]
+            texture_type = parts[1].strip().lower()
             texture_id_raw = unquote("/".join(parts[2:])).strip()
             texture_id = texture_id_raw
 
-            if texture_type not in {"skin", "cape"}:
+            if texture_type not in {"skin", "cape", "raw"}:
                 self.send_error(404, "Texture type not supported")
                 return
+            if texture_type == "raw" and not _looks_like_minecraft_texture_id(texture_id_raw):
+                self.send_error(404, "Invalid raw texture id")
+                return
 
-            # Old MinecraftSkinManager versions key textures by
-            # MinecraftProfileTexture.getHash(), which is the URL basename.
-            # The texture property gives the cape a `_cape` suffix so its
-            # hash is distinct from the skin's; strip it back out here.
             if texture_type == "cape" and texture_id.endswith("_cape"):
                 texture_id = texture_id[: -len("_cape")]
 
@@ -173,26 +228,32 @@ class TextureMixin:
                 texture_id = minecraft_texture_id
             elif uuid_like:
                 texture_uuid_hex = yggdrasil._normalize_uuid_hex(texture_id)
-                current_name, current_uuid = yggdrasil._get_username_and_uuid()
-                if (
-                    str(texture_uuid_hex or texture_id).replace("-", "").lower()
-                    == str(current_uuid or "").replace("-", "").lower()
-                ):
-                    is_current_profile = True
-                    username_fallback = (current_name or "").strip()
-                elif texture_uuid_hex:
-                    username_fallback = str(
-                        yggdrasil.STATE.uuid_name_cache.get(texture_uuid_hex) or ""
-                    ).strip()
+                cached_name = str(
+                    yggdrasil.STATE.uuid_name_cache.get(texture_uuid_hex) or ""
+                ).strip() if texture_uuid_hex else ""
+                if cached_name:
+                    username_fallback = cached_name
+                else:
+                    current_name, current_uuid = yggdrasil._get_username_and_uuid()
+                    if yggdrasil._profile_matches_active_player(texture_uuid_hex, current_name):
+                        username_fallback = (current_name or "").strip()
             else:
                 username_fallback = texture_id
                 texture_id = yggdrasil._ensure_uuid(username_fallback).replace("-", "")
+
+            if not is_current_profile and texture_type != "raw":
+                is_current_profile = yggdrasil._profile_matches_active_player(
+                    texture_id,
+                    username_fallback,
+                )
 
             base_dir = get_base_dir()
             skins_dir = os.path.join(base_dir, "skins")
 
             microsoft_enabled = False
             microsoft_auth = None
+            microsoft_lookup_id = texture_id if uuid_like else ""
+            microsoft_lookup_name = username_fallback
             try:
                 import server.auth.microsoft as microsoft_auth
 
@@ -201,11 +262,44 @@ class TextureMixin:
                 microsoft_enabled = False
                 microsoft_auth = None
 
+            if microsoft_enabled and is_current_profile:
+                try:
+                    active_name, active_uuid = yggdrasil._get_username_and_uuid()
+                    microsoft_lookup_id = str(active_uuid or "")
+                    microsoft_lookup_name = str(active_name or "").strip()
+                except Exception:
+                    pass
+
             dashed = _ensure_dashed_uuid(texture_id)
             local_path = None
             microsoft_metadata = None
             microsoft_metadata_loaded = False
             use_microsoft_profile_metadata = bool(uuid_like or username_fallback)
+
+            if texture_type == "raw":
+                raw_candidates: list[tuple[str, str]] = []
+                for candidate_type in ("skin", "cape"):
+                    path = _texture_cache_path(
+                        skins_dir,
+                        texture_id,
+                        candidate_type,
+                        microsoft=microsoft_enabled,
+                    )
+                    if path:
+                        raw_candidates.append((path, candidate_type))
+                    path = _texture_cache_path(skins_dir, texture_id, candidate_type)
+                    if path:
+                        raw_candidates.append((path, candidate_type))
+                seen_raw_paths: set[str] = set()
+                for candidate, candidate_type in raw_candidates:
+                    if not candidate or candidate in seen_raw_paths:
+                        continue
+                    seen_raw_paths.add(candidate)
+                    if _is_valid_local_texture_file(candidate, candidate_type):
+                        local_path = candidate
+                        texture_type = candidate_type
+                        texture_id = os.path.splitext(os.path.basename(candidate))[0]
+                        break
 
             def get_microsoft_metadata():
                 nonlocal microsoft_metadata, microsoft_metadata_loaded
@@ -220,12 +314,45 @@ class TextureMixin:
                     return None
                 try:
                     microsoft_metadata = microsoft_auth.resolve_microsoft_texture_metadata(
-                        texture_id if uuid_like else "",
-                        username_fallback,
+                        microsoft_lookup_id,
+                        microsoft_lookup_name,
                     )
                 except Exception:
                     microsoft_metadata = None
                 return microsoft_metadata
+
+            def get_legacy_conversion_options():
+                overlay_parts = list(legacy_overlay_parts)
+                arm_mirror = legacy_arm_mirror
+                leg_mirror = legacy_leg_mirror
+                try:
+                    metadata = get_microsoft_metadata() or {}
+                    source_height = int(metadata.get("texture_height") or 0) or None
+                    metadata_arm_mirror = normalize_skin_limb_mirror(
+                        metadata.get("legacy_arm_mirror")
+                    )
+                    metadata_leg_mirror = normalize_skin_limb_mirror(
+                        metadata.get("legacy_leg_mirror")
+                    )
+                    metadata_texture_type = normalize_skin_texture_type(
+                        metadata.get("texture_type"),
+                        source_height=source_height,
+                    )
+                    if not explicit_legacy_overlay_parts:
+                        overlay_parts = normalize_skin_overlay_parts_for_texture_type(
+                            metadata.get("legacy_overlay_parts"),
+                            texture_type=metadata_texture_type,
+                            source_height=source_height,
+                            arm_mirror=metadata_arm_mirror,
+                            leg_mirror=metadata_leg_mirror,
+                        )
+                    if not explicit_legacy_arm_mirror:
+                        arm_mirror = metadata_arm_mirror
+                    if not explicit_legacy_leg_mirror:
+                        leg_mirror = metadata_leg_mirror
+                except Exception:
+                    pass
+                return overlay_parts, arm_mirror, leg_mirror
 
             cache_age = 31536000
 
@@ -362,6 +489,38 @@ class TextureMixin:
                     with open(local_path, "rb") as f:
                         texture_data = f.read()
 
+                    if texture_type == "skin":
+                        if legacy_format:
+                            overlay_parts, arm_mirror, leg_mirror = get_legacy_conversion_options()
+                            texture_data = _crop_skin_to_legacy_format(
+                                texture_data,
+                                overlay_parts=overlay_parts,
+                                arm_mirror=arm_mirror,
+                                leg_mirror=leg_mirror,
+                            )
+                        else:
+                            try:
+                                metadata = get_microsoft_metadata() or {}
+                                source_height = int(metadata.get("texture_height") or 0) or None
+                                metadata_texture_type = normalize_skin_texture_type(
+                                    metadata.get("texture_type"),
+                                    source_height=source_height,
+                                )
+                                overlay_parts = normalize_skin_overlay_parts_for_texture_type(
+                                    metadata.get("legacy_overlay_parts"),
+                                    texture_type=metadata_texture_type,
+                                    source_height=source_height,
+                                    arm_mirror=metadata.get("legacy_arm_mirror"),
+                                    leg_mirror=metadata.get("legacy_leg_mirror"),
+                                )
+                                if overlay_parts:
+                                    texture_data = merge_skin_overlay_into_base(
+                                        texture_data,
+                                        overlay_parts=overlay_parts,
+                                    )
+                            except Exception:
+                                pass
+
                     self.send_response(200)
                     self.send_header("Content-Type", "image/png")
                     self.send_header("Content-Length", str(len(texture_data)))
@@ -380,7 +539,7 @@ class TextureMixin:
 
             microsoft_remote_url = None
             try:
-                if microsoft_enabled and microsoft_auth and use_microsoft_profile_metadata:
+                if texture_type != "raw" and microsoft_enabled and microsoft_auth and use_microsoft_profile_metadata:
                     microsoft_metadata = get_microsoft_metadata()
                     microsoft_remote_url = str(
                         (microsoft_metadata or {}).get(texture_type) or ""
@@ -404,14 +563,22 @@ class TextureMixin:
 
             last_http_error = None
             metadata_remote_url = None
-            if not minecraft_texture_id:
+            if texture_type != "raw" and not minecraft_texture_id:
                 metadata_remote_url = yggdrasil._resolve_remote_texture_url(
                     texture_type,
                     texture_id if uuid_like else "",
                     username_fallback,
                     timeout_seconds=TEXTURE_ENDPOINT_METADATA_TIMEOUT_SECONDS,
-                    force_refresh_missing=True,
+                    force_refresh_missing=False,
                 )
+                if not metadata_remote_url:
+                    metadata_remote_url = yggdrasil._resolve_remote_texture_url(
+                        texture_type,
+                        texture_id if uuid_like else "",
+                        username_fallback,
+                        timeout_seconds=TEXTURE_ENDPOINT_METADATA_TIMEOUT_SECONDS,
+                        force_refresh_missing=True,
+                    )
 
             remote_urls = []
 
@@ -431,8 +598,14 @@ class TextureMixin:
                 if _looks_like_minecraft_texture_id(rid):
                     add_remote_url(_build_minecraft_texture_url(rid))
 
+            allow_histolauncher_fallback = not minecraft_texture_id
+
             for rid in remote_identifiers:
                 if _looks_like_minecraft_texture_id(rid):
+                    continue
+                if texture_type == "raw":
+                    continue
+                if not allow_histolauncher_fallback:
                     continue
                 if microsoft_enabled and is_current_profile:
                     continue
@@ -464,7 +637,11 @@ class TextureMixin:
                 proxied_url = _apply_url_proxy(remote_url)
                 if proxied_url:
                     probe_urls.append(proxied_url)
-                if remote_url not in probe_urls:
+                skip_direct = bool(
+                    proxied_url
+                    and "textures.histolauncher.org" in remote_url.lower()
+                )
+                if remote_url not in probe_urls and not skip_direct:
                     probe_urls.append(remote_url)
 
                 for probe_url in probe_urls:
@@ -479,7 +656,20 @@ class TextureMixin:
                             payload = resp.read()
                             resp_ctype = resp.headers.get("Content-Type", "")
 
-                        if not _is_valid_texture_payload(payload, texture_type):
+                        response_texture_type = texture_type
+                        if texture_type == "raw":
+                            if _is_valid_texture_payload(payload, "skin"):
+                                response_texture_type = "skin"
+                            elif _is_valid_texture_payload(payload, "cape"):
+                                response_texture_type = "cape"
+                            else:
+                                print(colorize_log(
+                                    f"[http_server] remote raw texture was not a valid "
+                                    f"Minecraft skin or cape: {remote_url} "
+                                    f"(content-type={resp_ctype or 'unknown'})"
+                                ))
+                                continue
+                        elif not _is_valid_texture_payload(payload, texture_type):
                             print(colorize_log(
                                 f"[http_server] remote {texture_type} was not a valid "
                                 f"Minecraft texture: {remote_url} "
@@ -507,11 +697,10 @@ class TextureMixin:
                                 if not sid:
                                     continue
                                 try:
-                                    suffix = "skin" if texture_type == "skin" else "cape"
                                     fname = _texture_cache_path(
                                         skins_dir,
                                         sid,
-                                        suffix,
+                                        response_texture_type,
                                         microsoft=microsoft_cache,
                                     )
                                     if not fname:
@@ -520,12 +709,12 @@ class TextureMixin:
                                     with open(fname, "wb") as wf:
                                         wf.write(payload)
                                     print(colorize_log(
-                                        f"[http_server] cached remote {texture_type} "
+                                        f"[http_server] cached remote {response_texture_type} "
                                         f"-> {fname}"
                                     ))
                                 except Exception as e:
                                     print(colorize_log(
-                                        f"[http_server] failed to cache {texture_type} "
+                                        f"[http_server] failed to cache {response_texture_type} "
                                         f"-> {sid}: {e}"
                                     ))
                         except Exception:
@@ -533,12 +722,21 @@ class TextureMixin:
 
                         self.send_response(200)
                         self.send_header("Content-Type", "image/png")
-                        self.send_header("Content-Length", str(len(payload)))
+                        serve_payload = payload
+                        if legacy_format and response_texture_type == "skin":
+                            overlay_parts, arm_mirror, leg_mirror = get_legacy_conversion_options()
+                            serve_payload = _crop_skin_to_legacy_format(
+                                payload,
+                                overlay_parts=overlay_parts,
+                                arm_mirror=arm_mirror,
+                                leg_mirror=leg_mirror,
+                            )
+                        self.send_header("Content-Length", str(len(serve_payload)))
                         self.send_header("Cache-Control", f"public, max-age={cache_age}")
                         self.end_headers()
-                        self.wfile.write(payload)
+                        self.wfile.write(serve_payload)
                         print(colorize_log(
-                            f"[http_server] proxied remote {texture_type}: "
+                            f"[http_server] proxied remote {response_texture_type}: "
                             f"{remote_url} via {probe_url}"
                         ))
                         return
@@ -565,35 +763,18 @@ class TextureMixin:
                         pass
                     return
                 try:
-                    self.send_error(404, "Cape not found")
+                    self.send_error(404, "Cape not found" if texture_type == "cape" else "Texture not found")
                 except Exception:
                     pass
                 return
             try:
-                placeholder = os.path.join(
-                    BASE_DIR, "ui", "assets", "images", "unknown_skin.png"
-                )
-                if os.path.exists(placeholder):
-                    with open(placeholder, "rb") as f:
-                        payload = f.read()
-                    if not _is_valid_texture_payload(payload, "skin"):
-                        raise ValueError("unknown skin placeholder is not a valid skin")
-                    self.send_response(200)
-                    self.send_header("Content-Type", "image/png")
-                    self.send_header("Content-Length", str(len(payload)))
-                    self.send_header("Cache-Control", f"public, max-age={cache_age}")
-                    self.end_headers()
-                    self.wfile.write(payload)
-                    print(colorize_log(
-                        "[http_server] served unknown skin as final fallback"
-                    ))
-                    return
-            except Exception:
-                pass
-            try:
                 is_network_failure = (
                     last_network_error is not None and last_http_error is None
                 )
+                if not is_network_failure:
+                    print(colorize_log(
+                        f"[http_server] skin not available; letting Minecraft use default skin: {texture_id_raw}"
+                    ))
                 self.send_error(
                     502 if is_network_failure else 404,
                     "Texture proxy error" if is_network_failure else "Texture not found",

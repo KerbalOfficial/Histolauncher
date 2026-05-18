@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 
 from server.yggdrasil.identity import _uuid_hex_to_dashed
@@ -21,6 +22,39 @@ __all__ = [
     "_has_local_skin_file",
     "_resolve_local_cape_url",
 ]
+
+
+_SAFE_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9_\-]{1,128}$")
+
+
+def _is_safe_identifier(identifier: str) -> bool:
+    if not identifier:
+        return False
+    if any(bad in identifier for bad in ("/", "\\", "\x00")):
+        return False
+    if identifier in (".", "..") or ".." in identifier:
+        return False
+    return bool(_SAFE_IDENTIFIER_RE.match(identifier))
+
+
+def _safe_skin_path(skins_dir: str, identifier: str, suffix: str) -> str | None:
+    if not _is_safe_identifier(identifier):
+        return None
+    safe_suffix = str(suffix or "").strip()
+    if any(bad in safe_suffix for bad in ("/", "\\", "\x00", "..")):
+        return None
+    candidate = os.path.join(skins_dir, f"{identifier}{safe_suffix}")
+    try:
+        skins_real = os.path.realpath(skins_dir)
+        candidate_real = os.path.realpath(candidate)
+    except Exception:
+        return None
+    try:
+        if os.path.commonpath([skins_real, candidate_real]) != skins_real:
+            return None
+    except ValueError:
+        return None
+    return candidate
 
 
 def _read_png_dimensions(path: str) -> tuple[int, int] | None:
@@ -70,15 +104,12 @@ def _collect_local_texture_paths(
     skins_dir = os.path.join(base_dir, "skins")
     dashed = _uuid_hex_to_dashed(uuid_hex) if uuid_hex else ""
 
+    suffix = f"+{safe_type}.png"
     candidates: list[str] = []
-    if dashed:
-        candidates.append(os.path.join(skins_dir, f"{dashed}+{safe_type}.png"))
-    if uuid_hex:
-        candidates.append(os.path.join(skins_dir, f"{uuid_hex}+{safe_type}.png"))
-
-    for identifier in _collect_texture_identifiers(uuid_hex, username):
-        if identifier:
-            candidates.append(os.path.join(skins_dir, f"{identifier}+{safe_type}.png"))
+    for ident in (dashed, uuid_hex, *_collect_texture_identifiers(uuid_hex, username)):
+        path = _safe_skin_path(skins_dir, ident, suffix)
+        if path:
+            candidates.append(path)
 
     seen: set[str] = set()
     out: list[str] = []
@@ -112,10 +143,10 @@ def _remove_local_skin_model_metadata(uuid_hex: str) -> list[str]:
     dashed = _uuid_hex_to_dashed(uuid_hex) if uuid_hex else ""
 
     candidates: list[str] = []
-    if dashed:
-        candidates.append(os.path.join(skins_dir, f"{dashed}.json"))
-    if uuid_hex:
-        candidates.append(os.path.join(skins_dir, f"{uuid_hex}.json"))
+    for ident in (dashed, uuid_hex):
+        path = _safe_skin_path(skins_dir, ident, ".json")
+        if path:
+            candidates.append(path)
 
     for candidate in candidates:
         try:
@@ -138,10 +169,10 @@ def _persist_cached_skin_model(uuid_hex: str, model: str, username: str = "") ->
 
     dashed = _uuid_hex_to_dashed(uuid_hex) if uuid_hex else ""
     targets: list[str] = []
-    if dashed:
-        targets.append(os.path.join(skins_dir, f"{dashed}.json"))
-    if uuid_hex:
-        targets.append(os.path.join(skins_dir, f"{uuid_hex}.json"))
+    for ident in (dashed, uuid_hex):
+        path = _safe_skin_path(skins_dir, ident, ".json")
+        if path:
+            targets.append(path)
 
     payload = {
         "model": normalized,
@@ -164,14 +195,10 @@ def _has_local_skin_file(uuid_hex: str, username: str = "") -> bool:
     dashed = _uuid_hex_to_dashed(uuid_hex) if uuid_hex else ""
 
     candidates: list[str] = []
-    if dashed:
-        candidates.append(os.path.join(skins_dir, f"{dashed}+skin.png"))
-    if uuid_hex:
-        candidates.append(os.path.join(skins_dir, f"{uuid_hex}+skin.png"))
-
-    clean_username = (username or "").strip()
-    if clean_username:
-        candidates.append(os.path.join(skins_dir, f"{clean_username}+skin.png"))
+    for ident in (dashed, uuid_hex, (username or "").strip()):
+        path = _safe_skin_path(skins_dir, ident, "+skin.png")
+        if path:
+            candidates.append(path)
 
     return any(
         candidate and _is_valid_local_texture_file(candidate, "skin")
@@ -189,12 +216,10 @@ def _resolve_local_cape_url(
 
     for identifier in identifiers:
         local_candidates: list[str] = []
-        if dashed:
-            local_candidates.append(os.path.join(skins_dir, f"{dashed}+cape.png"))
-        if uuid_hex:
-            local_candidates.append(os.path.join(skins_dir, f"{uuid_hex}+cape.png"))
-        if identifier:
-            local_candidates.append(os.path.join(skins_dir, f"{identifier}+cape.png"))
+        for ident in (dashed, uuid_hex, identifier):
+            path = _safe_skin_path(skins_dir, ident, "+cape.png")
+            if path:
+                local_candidates.append(path)
 
         for candidate in local_candidates:
             if candidate and _is_valid_local_texture_file(candidate, "cape"):

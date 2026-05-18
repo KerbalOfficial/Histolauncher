@@ -7,6 +7,9 @@ import tkinter
 from core.logger import colorize_log
 
 from launcher._constants import (
+    AERO_GLASS_ENABLED,
+    AERO_GLASS_TINT_ABGR,
+    AERO_GLASS_TRANSPARENT_KEY,
     ICO_PATH,
     SPLASH_BG_COLOR,
     SPLASH_BORDER_COLOR,
@@ -62,17 +65,21 @@ class LauncherSplash:
             self.root.configure(bg=SPLASH_BG_COLOR)
             self.root.resizable(False, False)
 
+            _canvas_bg = AERO_GLASS_TRANSPARENT_KEY if AERO_GLASS_ENABLED else SPLASH_BG_COLOR
             self.canvas = tkinter.Canvas(
                 self.root,
                 width=self.WINDOW_WIDTH,
                 height=self.WINDOW_HEIGHT,
-                bg=SPLASH_BG_COLOR,
+                bg=_canvas_bg,
                 bd=0,
                 highlightthickness=0,
             )
             self.canvas.pack(fill="both", expand=True)
 
-            self._draw_background()
+            if AERO_GLASS_ENABLED:
+                self.root.configure(bg=AERO_GLASS_TRANSPARENT_KEY)
+            else:
+                self._draw_background()
             font_family = self._resolve_font_family()
             self._draw_logo()
             self._draw_loading_row(font_family)
@@ -81,6 +88,14 @@ class LauncherSplash:
 
             self.root.deiconify()
             self.root.lift()
+            if AERO_GLASS_ENABLED:
+                try:
+                    self.root.update_idletasks()
+                    self.root.wm_attributes("-transparentcolor", AERO_GLASS_TRANSPARENT_KEY)
+                    from launcher.win32_glass import apply_acrylic_blur
+                    apply_acrylic_blur(self.root, AERO_GLASS_TINT_ABGR)
+                except Exception:
+                    pass
             self._shown_at = time.time()
             self._schedule_spinner_frame()
             self.pump()

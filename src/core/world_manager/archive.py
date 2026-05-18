@@ -4,12 +4,13 @@ import logging
 import os
 import shutil
 import tempfile
-import urllib.request
 import zipfile
 from collections.abc import Callable
 from typing import Any, Dict
 
 from core import mod_manager
+from core.downloader.errors import DownloadCancelled, DownloadFailed
+from core.downloader.http import CLIENT
 from core.zip_utils import ZipSecurityError, safe_extract_zip
 
 from core.world_manager.metadata import get_world_detail
@@ -72,38 +73,38 @@ def install_world_archive(
         return {"ok": False, "error": "World downloads must be ZIP archives."}
 
     normalized_url = mod_manager._normalize_download_url(download_url)
-    request_url = mod_manager._apply_url_proxy(normalized_url)
     temp_path = ""
 
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=extension or ".zip") as tmp:
             temp_path = tmp.name
+        try:
+            os.remove(temp_path)
+        except OSError:
+            pass
 
-        req = urllib.request.Request(
-            request_url,
-            headers={"User-Agent": "Histolauncher/1.0", "Accept": "application/octet-stream"},
-        )
-        with urllib.request.urlopen(req, timeout=30.0) as response, open(temp_path, "wb") as f:
-            total = 0
-            length_header = response.headers.get("Content-Length")
-            if length_header:
-                try:
-                    total = max(0, int(length_header))
-                except (TypeError, ValueError):
-                    total = 0
-            downloaded = 0
+        def _on_progress(done: int, total: int | None) -> None:
             if progress_callback:
-                progress_callback("download", downloaded, total)
-            while True:
-                chunk = response.read(1024 * 1024)
-                if not chunk:
-                    break
-                f.write(chunk)
-                downloaded += len(chunk)
-                if progress_callback:
-                    progress_callback("download", downloaded, total)
-            if progress_callback:
-                progress_callback("download", total or downloaded or 1, total or downloaded or 1)
+                progress_callback("download", int(done or 0), int(total or 0))
+
+        try:
+            CLIENT.download(
+                normalized_url,
+                temp_path,
+                progress_cb=_on_progress,
+                force=True,
+            )
+        except DownloadCancelled:
+            return {"ok": False, "error": "World download cancelled."}
+        except DownloadFailed as exc:
+            return {"ok": False, "error": f"World download failed: {exc}"}
+
+        if progress_callback:
+            try:
+                size = os.path.getsize(temp_path)
+            except OSError:
+                size = 1
+            progress_callback("download", size, size)
 
         with zipfile.ZipFile(temp_path, "r") as zf:
             root_prefix = _detect_world_archive_root(zf)
@@ -176,7 +177,9 @@ __all__ = [
     "install_world_archive",
     "export_world_zip",
     "scan_world_zip_bytes",
+    "scan_world_zip_file",
     "import_world_zip_bytes",
+    "import_world_zip_file",
 ]
 
 
@@ -274,16 +277,9 @@ def _list_world_roots_in_zip(zf: zipfile.ZipFile) -> list:
     return roots
 
 
-def scan_world_zip_bytes(zip_bytes: bytes) -> Dict[str, Any]:
-    if not zip_bytes:
-        return {"ok": False, "error": "Empty zip payload."}
-
+def _scan_world_zip(zf: zipfile.ZipFile) -> Dict[str, Any]:
     try:
-        import io
-        with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
-            roots = _list_world_roots_in_zip(zf)
-    except zipfile.BadZipFile:
-        return {"ok": False, "error": "The uploaded file is not a valid zip archive."}
+        roots = _list_world_roots_in_zip(zf)
     except Exception as e:
         return {"ok": False, "error": f"Failed to read zip: {e}"}
 
@@ -293,16 +289,40 @@ def scan_world_zip_bytes(zip_bytes: bytes) -> Dict[str, Any]:
     return {"ok": True, "roots": roots}
 
 
-def import_world_zip_bytes(
-    zip_bytes: bytes,
+def scan_world_zip_bytes(zip_bytes: bytes) -> Dict[str, Any]:
+    if not zip_bytes:
+        return {"ok": False, "error": "Empty zip payload."}
+
+    try:
+        import io
+        with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+            return _scan_world_zip(zf)
+    except zipfile.BadZipFile:
+        return {"ok": False, "error": "The uploaded file is not a valid zip archive."}
+    except Exception as e:
+        return {"ok": False, "error": f"Failed to read zip: {e}"}
+
+
+def scan_world_zip_file(zip_path: str) -> Dict[str, Any]:
+    if not zip_path or not os.path.isfile(zip_path):
+        return {"ok": False, "error": "Missing world zip file."}
+
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            return _scan_world_zip(zf)
+    except zipfile.BadZipFile:
+        return {"ok": False, "error": "The selected file is not a valid zip archive."}
+    except Exception as e:
+        return {"ok": False, "error": f"Failed to read zip: {e}"}
+
+
+def _import_world_zip_from_archive(
+    zf: zipfile.ZipFile,
     storage_target: str,
     *,
     custom_path: str = "",
     selected_roots: list = None,
 ) -> Dict[str, Any]:
-    if not zip_bytes:
-        return {"ok": False, "error": "Empty zip payload."}
-
     resolved = resolve_storage_target(storage_target, custom_path=custom_path, create_saves_dir=True)
     if not resolved.get("ok"):
         return {"ok": False, "error": resolved.get("error") or "Failed to resolve worlds storage directory."}
@@ -310,74 +330,65 @@ def import_world_zip_bytes(
     if not saves_dir:
         return {"ok": False, "error": "Worlds storage directory is not available."}
 
-    try:
-        import io
-        zf_outer = zipfile.ZipFile(io.BytesIO(zip_bytes), "r")
-    except zipfile.BadZipFile:
-        return {"ok": False, "error": "The uploaded file is not a valid zip archive."}
-    except Exception as e:
-        return {"ok": False, "error": f"Failed to read zip: {e}"}
-
     imported = []
     skipped = []
     errors = []
 
     try:
-        with zf_outer as zf:
-            available = _list_world_roots_in_zip(zf)
-            if not available:
-                return {"ok": False, "error": "No level.dat files were found inside the zip."}
+        available = _list_world_roots_in_zip(zf)
+        if not available:
+            return {"ok": False, "error": "No level.dat files were found inside the zip."}
 
-            if selected_roots is None:
-                chosen = list(available)
-            else:
-                requested = set(str(p or "").strip().strip("/") for p in selected_roots if p is not None)
-                chosen = [entry for entry in available if entry["path"] in requested]
-                if not chosen:
-                    return {"ok": False, "error": "None of the selected world roots were found in the zip."}
+        if selected_roots is None:
+            chosen = list(available)
+        else:
+            requested = set(str(p or "").strip().strip("/") for p in selected_roots if p is not None)
+            chosen = [entry for entry in available if entry["path"] in requested]
+            if not chosen:
+                return {"ok": False, "error": "None of the selected world roots were found in the zip."}
 
-            for entry in chosen:
-                root_prefix = entry["path"]
-                desired_name = os.path.basename(root_prefix) or root_prefix or "world"
-                world_id = _pick_unique_world_id(saves_dir, desired_name)
-                destination = os.path.join(saves_dir, world_id)
-                try:
-                    os.makedirs(destination, exist_ok=False)
-                except FileExistsError:
-                    skipped.append({"path": root_prefix, "reason": "destination already exists"})
+        for entry in chosen:
+            root_prefix = entry["path"]
+            desired_name = os.path.basename(root_prefix) or root_prefix or "world"
+            world_id = _pick_unique_world_id(saves_dir, desired_name)
+            destination = os.path.join(saves_dir, world_id)
+            try:
+                os.makedirs(destination, exist_ok=False)
+            except FileExistsError:
+                skipped.append({"path": root_prefix, "reason": "destination already exists"})
+                continue
+
+            try:
+                if root_prefix:
+                    prefix = f"{root_prefix}/"
+                    safe_extract_zip(
+                        zf,
+                        destination,
+                        member_filter=lambda normalized, _info, prefix=prefix, root=root_prefix: (
+                            normalized == root or normalized.startswith(prefix)
+                        ),
+                        name_transform=lambda normalized, _info, prefix=prefix, root=root_prefix: (
+                            "" if normalized == root else normalized[len(prefix):]
+                        ),
+                    )
+                else:
+                    safe_extract_zip(zf, destination)
+
+                if not os.path.isfile(os.path.join(destination, "level.dat")):
+                    shutil.rmtree(destination, ignore_errors=True)
+                    errors.append({"path": root_prefix, "error": "missing level.dat after extraction"})
                     continue
 
-                try:
-                    if root_prefix:
-                        prefix = f"{root_prefix}/"
-                        safe_extract_zip(
-                            zf,
-                            destination,
-                            member_filter=lambda normalized, _info, prefix=prefix, root=root_prefix: (
-                                normalized == root or normalized.startswith(prefix)
-                            ),
-                            name_transform=lambda normalized, _info, prefix=prefix, root=root_prefix: (
-                                "" if normalized == root else normalized[len(prefix):]
-                            ),
-                        )
-                    else:
-                        safe_extract_zip(zf, destination)
-
-                    if not os.path.isfile(os.path.join(destination, "level.dat")):
-                        shutil.rmtree(destination, ignore_errors=True)
-                        errors.append({"path": root_prefix, "error": "missing level.dat after extraction"})
-                        continue
-
-                    imported.append({
-                        "path": root_prefix,
-                        "world_id": world_id,
-                    })
-                except ZipSecurityError as e:
-                    shutil.rmtree(destination, ignore_errors=True)
-                    errors.append({"path": root_prefix, "error": str(e)})
-                except Exception as e:
-                    shutil.rmtree(destination, ignore_errors=True)
-                    errors.append({"path": root_prefix, "error": str(e)})
+                imported.append({
+                    "path": root_prefix,
+                    "world_id": world_id,
+                })
+            except ZipSecurityError as e:
+                shutil.rmtree(destination, ignore_errors=True)
+                errors.append({"path": root_prefix, "error": str(e)})
+            except Exception as e:
+                shutil.rmtree(destination, ignore_errors=True)
+                errors.append({"path": root_prefix, "error": str(e)})
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
@@ -397,3 +408,52 @@ def import_world_zip_bytes(
         "errors": errors,
         "message": f"Imported {len(imported)} world(s).",
     }
+
+
+def import_world_zip_bytes(
+    zip_bytes: bytes,
+    storage_target: str,
+    *,
+    custom_path: str = "",
+    selected_roots: list = None,
+) -> Dict[str, Any]:
+    if not zip_bytes:
+        return {"ok": False, "error": "Empty zip payload."}
+
+    try:
+        import io
+        with zipfile.ZipFile(io.BytesIO(zip_bytes), "r") as zf:
+            return _import_world_zip_from_archive(
+                zf,
+                storage_target,
+                custom_path=custom_path,
+                selected_roots=selected_roots,
+            )
+    except zipfile.BadZipFile:
+        return {"ok": False, "error": "The uploaded file is not a valid zip archive."}
+    except Exception as e:
+        return {"ok": False, "error": f"Failed to read zip: {e}"}
+
+
+def import_world_zip_file(
+    zip_path: str,
+    storage_target: str,
+    *,
+    custom_path: str = "",
+    selected_roots: list = None,
+) -> Dict[str, Any]:
+    if not zip_path or not os.path.isfile(zip_path):
+        return {"ok": False, "error": "Missing world zip file."}
+
+    try:
+        with zipfile.ZipFile(zip_path, "r") as zf:
+            return _import_world_zip_from_archive(
+                zf,
+                storage_target,
+                custom_path=custom_path,
+                selected_roots=selected_roots,
+            )
+    except zipfile.BadZipFile:
+        return {"ok": False, "error": "The selected file is not a valid zip archive."}
+    except Exception as e:
+        return {"ok": False, "error": f"Failed to read zip: {e}"}

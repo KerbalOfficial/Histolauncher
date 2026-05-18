@@ -6,7 +6,7 @@ import shutil
 from core.logger import colorize_log
 from core.version_manager import get_clients_dir, scan_categories
 
-from server.api._helpers import _is_path_within
+from server.api._helpers import _resolve_version_dir_secure
 from server.api._state import STATE
 from server.api._validation import _validate_category_string, _validate_version_string
 from server.api.routes.versions import invalidate_available_versions_cache
@@ -66,7 +66,6 @@ def api_delete_corrupted_versions(data):
     if not isinstance(versions_to_delete, list):
         return {"ok": False, "error": "versions must be an array"}
 
-    clients_dir = get_clients_dir()
     deleted = []
     failed = []
 
@@ -91,23 +90,16 @@ def api_delete_corrupted_versions(data):
                 })
                 continue
 
-            version_path = os.path.join(clients_dir, category, folder)
-
-            if not _is_path_within(clients_dir, version_path):
+            resolved = _resolve_version_dir_secure(category, folder)
+            if not resolved.get("ok"):
                 failed.append({
-                    "error": "invalid path",
+                    "error": resolved.get("error") or "directory not found",
                     "category": category,
                     "folder": folder,
                 })
                 continue
 
-            if not os.path.isdir(version_path):
-                failed.append({
-                    "error": "directory not found",
-                    "category": category,
-                    "folder": folder,
-                })
-                continue
+            version_path = resolved.get("path") or ""
 
             try:
                 shutil.rmtree(version_path)

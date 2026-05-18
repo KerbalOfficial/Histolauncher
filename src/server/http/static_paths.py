@@ -8,7 +8,7 @@ from core.settings import (
     normalize_storage_directory_mode,
     validate_custom_storage_directory,
 )
-from core.version_manager import get_clients_dir
+from core.version_manager import get_clients_dir, scan_categories
 
 from server.http._constants import UI_DIR
 
@@ -85,9 +85,22 @@ class StaticPathsMixin:
                 )
                 if storage_mode == "version":
                     sel = str(gs.get("selected_version") or "").strip()
+                    entry = None
                     if sel:
+                        for candidate in scan_categories().get("* All", []):
+                            category = str((candidate or {}).get("category") or "").strip()
+                            folder = str((candidate or {}).get("folder") or "").strip()
+                            if category and folder and f"{category}/{folder}".lower() == sel.lower():
+                                entry = candidate
+                                break
+
+                    if entry:
                         base_versions = get_versions_profile_dir()
-                        cand = os.path.join(base_versions, sel)
+                        cand = os.path.join(
+                            base_versions,
+                            str(entry.get("category") or ""),
+                            str(entry.get("folder") or ""),
+                        )
                         if os.path.isdir(cand):
                             game_dir = os.path.join(cand, "data")
                         else:

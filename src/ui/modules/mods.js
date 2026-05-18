@@ -6,6 +6,7 @@ import {
   $$,
   getEl,
   bindKeyboardActivation,
+  openSharedImageLightbox,
   wireCardActionArrowNavigation,
   imageAttachErrorPlaceholder,
   isShiftDelete,
@@ -29,7 +30,7 @@ import {
 } from './modal.js';
 import { refreshActionOverflowMenus } from './action-overflow.js';
 import { renderCommonPagination } from './pagination.js';
-import { formatBytes } from './string-utils.js';
+import { escapeInfoHtml, formatBytes } from './string-utils.js';
 import { createEmptyState, createInlineLoadingState } from './ui-states.js';
 import { t } from './i18n.js';
 
@@ -44,7 +45,7 @@ for (const k of ['autoSaveSetting', 'isTruthySetting', 'renderScopeProfilesSelec
 
 export const setModsDeps = (deps) => {
   for (const k of Object.keys(deps)) {
-    Object.defineProperty(_deps, k, {
+  Object.defineProperty(_deps, k, {
       configurable: true,
       enumerable: true,
       writable: true,
@@ -54,7 +55,6 @@ export const setModsDeps = (deps) => {
 };
 
 // ---------------- Mods Page ----------------
-
 const MODS_PAGE_SIZE = 20;
 
 let modsState = {
@@ -925,9 +925,6 @@ const updateModsTypeUI = () => {
   const overflowMenu = getEl('mods-actions-overflow-menu');
   if (overflowMenu) overflowMenu.setAttribute('aria-label', t('mods.actionsForType', { addon: getAddonConfigText('singularTitle') }));
 
-  const importInput = getEl('import-mod-file-input');
-  if (importInput) importInput.accept = config.importAccept;
-
   const refreshBtn = getEl('mods-refresh-btn');
   if (refreshBtn) refreshBtn.title = t('mods.refreshTypeListTooltip', { addon: getAddonConfigText('singular') });
 
@@ -1163,16 +1160,9 @@ export const initModsPage = () => {
 
   // --- Import mod archive ---
   const importModBtn = getEl('import-mod-btn');
-  const importModFileInput = getEl('import-mod-file-input');
-  if (importModBtn && importModFileInput) {
+  if (importModBtn) {
     importModBtn.addEventListener('click', () => {
-      importModFileInput.value = '';
-      importModFileInput.click();
-    });
-    importModFileInput.addEventListener('change', () => {
-      const file = importModFileInput.files[0];
-      if (!file) return;
-      handleImportMod(file);
+      handleImportMod();
     });
   }
 
@@ -1184,16 +1174,9 @@ export const initModsPage = () => {
 
   // --- Import modpack ---
   const importModpackBtn = getEl('import-modpack-btn');
-  const importModpackFileInput = getEl('import-modpack-file-input');
-  if (importModpackBtn && importModpackFileInput) {
+  if (importModpackBtn) {
     importModpackBtn.addEventListener('click', () => {
-      importModpackFileInput.value = '';
-      importModpackFileInput.click();
-    });
-    importModpackFileInput.addEventListener('change', () => {
-      const file = importModpackFileInput.files[0];
-      if (!file) return;
-      handleImportModpack(file);
+      handleImportModpack();
     });
   }
 
@@ -1674,31 +1657,27 @@ const renderAvailableMods = () => {
 };
 
 // --- Import Mod Handler ---
-const handleImportMod = (file) => {
+const handleImportMod = () => {
   if (isModpacksAddonType()) {
-    handleImportModpack(file);
+    handleImportModpack();
     return;
   }
 
-  const fileName = file.name;
   const config = getAddonConfig();
 
   const runImport = async (modLoader = '') => {
-    const formData = new FormData();
-    formData.append('addon_type', modsState.addonType);
-    if (modLoader) formData.append('mod_loader', modLoader);
-    formData.append('file_name', fileName);
-    formData.append('mod_file', file);
-
+    showLoadingOverlay('Importing...');
     try {
-      const response = await fetch('/api/mods/import', {
-        method: 'POST',
-        body: formData,
+      const result = await api('/api/mods/import-select', 'POST', {
+        addon_type: modsState.addonType,
+        mod_loader: modLoader,
       });
-      const result = await response.json();
+      hideLoadingOverlay();
+
+      if (result && result.cancelled) return;
 
       if (result && result.ok) {
-        let successMsg = result.message || `Successfully imported <b>${fileName}</b>.`;
+        let successMsg = result.message || `Successfully imported ${config.singular}.`;
         if (result.warning) {
           successMsg += `<br><br><i>${result.warning}</i>`;
         }
@@ -1711,12 +1690,18 @@ const handleImportMod = (file) => {
       } else {
         showMessageBox({
           title: 'Import Error',
-          message: result.error || `Failed to import ${config.singular}.`,
+          message: (result && result.error) || `Failed to import ${config.singular}.`,
           buttons: [{ label: 'OK' }],
         });
       }
     } catch (err) {
+      hideLoadingOverlay();
       console.error('Failed to import addon:', err);
+      showMessageBox({
+        title: 'Import Error',
+        message: (err && err.message) || `Failed to import ${config.singular}.`,
+        buttons: [{ label: 'OK' }],
+      });
     }
   };
 
@@ -1729,7 +1714,7 @@ const handleImportMod = (file) => {
   const content = document.createElement('div');
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
-  label.textContent = t('mods.import.selectLoaderForFile', { file: fileName });
+  label.textContent = textOrFallback('mods.import.selectLoader', {}, 'Select the mod loader for this import:');
 
   const select = document.createElement('select');
   select.className = 'mod-version-select';
@@ -2386,12 +2371,12 @@ export const showModDetailModal = async (mod) => {
         const name = String(attr.name || '').toLowerCase();
         const value = String(attr.value || '');
 
-        if (name.startsWith('on')) {
+        if (name.startsWith('on') || name === 'style') {
           el.removeAttribute(attr.name);
           return;
         }
 
-        if ((name === 'href' || name === 'src' || name === 'xlink:href') && /^\s*javascript:/i.test(value)) {
+        if ((name === 'href' || name === 'src' || name === 'xlink:href' || name === 'formaction') && /^\s*(?:javascript|data):/i.test(value)) {
           el.removeAttribute(attr.name);
         }
       });
@@ -2590,23 +2575,21 @@ export const showModDetailModal = async (mod) => {
         if (!imgUrl) return;
         const imgEl = document.createElement('img');
         imgEl.src = imgUrl;
+        imgEl.alt = '';
         imgEl.className = 'mod-detail-screenshot';
         imgEl.onerror = () => { imgEl.style.display = 'none'; };
         imgEl.title = t('mods.detail.clickToEnlarge');
-        imgEl.addEventListener('click', () => {
-          let lightbox = document.getElementById('screenshot-lightbox');
-          if (!lightbox) {
-            lightbox = document.createElement('div');
-            lightbox.id = 'screenshot-lightbox';
-            lightbox.className = 'screenshot-lightbox';
-            const lbImg = document.createElement('img');
-            lbImg.className = 'screenshot-lightbox-img';
-            lightbox.appendChild(lbImg);
-            lightbox.addEventListener('click', () => { lightbox.classList.remove('active'); });
-            document.body.appendChild(lightbox);
-          }
-          lightbox.querySelector('img').src = imgUrl;
-          lightbox.classList.add('active');
+        bindKeyboardActivation(imgEl, {
+          ariaLabel: t('mods.detail.clickToEnlarge'),
+        });
+        imgEl.addEventListener('click', (event) => {
+          openSharedImageLightbox({
+            src: imgUrl,
+            alt: t('mods.detail.screenshots'),
+            restoreFocusEl: imgEl,
+            closeAriaLabel: t('screenshots.actions.closeImagePreview'),
+            showKeyboardCursor: event.detail === 0,
+          });
         });
         galRow.appendChild(imgEl);
       });
@@ -2811,13 +2794,206 @@ export const showModDetailModal = async (mod) => {
   }
 };
 
-const installMod = async (mod, version, modLoader, installBtn, addonType = modsState.addonType) => {
+const versionHasRequiredDependencies = (version) => {
+  const dependencies = Array.isArray(version && version.dependencies) ? version.dependencies : [];
+  return dependencies.some((dep) => {
+    if (!dep || typeof dep !== 'object') return false;
+    const type = String(dep.dependency_type || dep.type || '').toLowerCase();
+    return !!dep.required || type === 'required' || type === 'required_dependency' || type === 'requireddependency';
+  });
+};
+
+const getDependencyGameVersion = (version) => {
+  const selected = String(modsState.gameVersion || '').trim();
+  if (selected) return selected;
+  const versions = Array.isArray(version && version.game_versions) ? version.game_versions : [];
+  return versions.length ? String(versions[0] || '').trim() : '';
+};
+
+const promptDependencySelection = (dependencies) => new Promise((resolve) => {
+  const wrap = document.createElement('div');
+  wrap.className = 'mod-dependency-prompt';
+  wrap.style.cssText = 'display:flex;flex-direction:column;text-align:left;min-width:min(480px,80vw);';
+
+  const message = document.createElement('p');
+  message.textContent = t('mods.dependencies.prompt');
+  message.style.cssText = 'margin:0 0 8px 0;color:var(--color-text);';
+  wrap.appendChild(message);
+
+  const selectAll = document.createElement('label');
+  selectAll.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;cursor:pointer;font-size:12px;color:var(--color-text-muted);';
+  const selectAllCheckbox = document.createElement('input');
+  selectAllCheckbox.type = 'checkbox';
+  selectAllCheckbox.checked = true;
+  selectAll.appendChild(selectAllCheckbox);
+  selectAll.appendChild(document.createTextNode(t('common.selectAll')));
+  wrap.appendChild(selectAll);
+
+  const list = document.createElement('div');
+  list.style.cssText = 'max-height:320px;overflow-y:auto;border:1px solid var(--color-border-input);padding:8px;';
+  wrap.appendChild(list);
+
+  const dependencyCheckboxes = [];
+  const syncSelectAllState = () => {
+    const checkedCount = dependencyCheckboxes.filter((input) => input.checked).length;
+    selectAllCheckbox.checked = checkedCount === dependencyCheckboxes.length;
+    selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < dependencyCheckboxes.length;
+  };
+
+  dependencies.forEach((dep, index) => {
+    const modInfo = dep && dep.mod ? dep.mod : {};
+    const versionInfo = dep && dep.version ? dep.version : {};
+    const row = document.createElement('label');
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--color-border-input);cursor:pointer;';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = true;
+    checkbox.className = 'mod-dependency-checkbox';
+    checkbox.dataset.dependencyIndex = String(index);
+    checkbox.addEventListener('change', syncSelectAllState);
+    dependencyCheckboxes.push(checkbox);
+
+    const text = document.createElement('span');
+    text.style.cssText = 'display:flex;flex:1;flex-direction:column;gap:2px;min-width:0;';
+    const name = document.createElement('span');
+    name.style.cssText = 'font-size:13px;color:var(--color-text-primary);';
+    name.textContent = modInfo.name || modInfo.mod_name || modInfo.mod_slug || t('mods.addonTypes.mods.singularTitle');
+    const detail = document.createElement('small');
+    detail.style.cssText = 'font-size:11px;color:var(--color-text-muted);';
+    const versionLabel = versionInfo.version_number || versionInfo.display_name || versionInfo.name || versionInfo.file_name || '';
+    detail.textContent = [t('mods.dependencies.required'), versionLabel].filter(Boolean).join(' · ');
+
+    text.appendChild(name);
+    text.appendChild(detail);
+    row.appendChild(checkbox);
+    row.appendChild(text);
+    list.appendChild(row);
+  });
+
+  selectAllCheckbox.addEventListener('change', () => {
+    dependencyCheckboxes.forEach((input) => {
+      input.checked = selectAllCheckbox.checked;
+    });
+    syncSelectAllState();
+  });
+
+  let settled = false;
+  showMessageBox({
+    title: t('mods.dependencies.title'),
+    customContent: wrap,
+    onClose: () => {
+      if (!settled) resolve(null);
+    },
+    buttons: [
+      {
+        label: t('common.cancel'),
+        closeOnClick: false,
+        onClick: (_values, controls) => {
+          settled = true;
+          controls.close();
+          resolve(null);
+        },
+      },
+      {
+        label: t('mods.dependencies.installSelected'),
+        classList: ['primary'],
+        closeOnClick: false,
+        onClick: (_values, controls) => {
+          const selected = Array.from(wrap.querySelectorAll('.mod-dependency-checkbox'))
+            .filter((input) => input.checked)
+            .map((input) => dependencies[Number(input.dataset.dependencyIndex)])
+            .filter(Boolean);
+          settled = true;
+          controls.close();
+          resolve(selected);
+        },
+      },
+    ],
+  });
+});
+
+const installMissingDependencies = async ({ mod, version, resolvedModLoader, normalizedAddonType, installBtn, idleLabel, options }) => {
+  if (options.skipDependencyPrompt || normalizedAddonType !== 'mods' || !versionHasRequiredDependencies(version)) {
+    return true;
+  }
+
+  if (installBtn) {
+    installBtn.disabled = true;
+    installBtn.textContent = t('mods.dependencies.checking');
+  }
+
+  let res = null;
+  try {
+    res = await api('/api/mods/dependencies', 'POST', {
+      addon_type: normalizedAddonType,
+      provider: mod.provider || modsState.provider,
+      mod_id: mod.mod_id,
+      mod_slug: mod.mod_slug,
+      mod_loader: resolvedModLoader,
+      game_version: getDependencyGameVersion(version),
+      version,
+      dependencies: Array.isArray(version.dependencies) ? version.dependencies : [],
+    });
+  } catch (err) {
+    console.warn('Failed to resolve mod dependencies:', err);
+  }
+
+  const dependencies = res && res.ok && Array.isArray(res.dependencies) ? res.dependencies : [];
+  if (!dependencies.length) return true;
+
+  const selected = await promptDependencySelection(dependencies);
+  if (selected === null) {
+    if (installBtn) {
+      installBtn.disabled = false;
+      installBtn.textContent = idleLabel;
+    }
+    return false;
+  }
+
+  if (!selected.length) return true;
+
+  if (installBtn) installBtn.textContent = t('mods.dependencies.installing');
+  for (const dep of selected) {
+    const ok = await installMod(
+      dep.mod || {},
+      dep.version || {},
+      resolvedModLoader,
+      null,
+      normalizedAddonType,
+      { skipDependencyPrompt: true, refreshAfterInstall: false }
+    );
+    if (!ok) {
+      if (installBtn) {
+        installBtn.disabled = false;
+        installBtn.textContent = idleLabel;
+      }
+      return false;
+    }
+  }
+  return true;
+};
+
+const installMod = async (mod, version, modLoader, installBtn, addonType = modsState.addonType, options = {}) => {
   let progress = null;
   const requestedAddonType = String(addonType || 'mods').toLowerCase();
   const normalizedAddonType = ADDON_TYPE_CONFIG[requestedAddonType] ? requestedAddonType : 'mods';
-  const config = getAddonConfig(normalizedAddonType);
   try {
     const idleLabel = installBtn ? (installBtn.textContent || t('common.install')) : t('common.install');
+    const resolvedModLoader = addonTypeSupportsCompatibilityFilter(normalizedAddonType)
+      ? (modLoader || normalizeAddonCompatibilityValue(normalizedAddonType, modsState.modLoader) || (isModsAddonType(normalizedAddonType) ? 'fabric' : ''))
+      : '';
+    const dependenciesReady = await installMissingDependencies({
+      mod,
+      version,
+      resolvedModLoader,
+      normalizedAddonType,
+      installBtn,
+      idleLabel,
+      options: options || {},
+    });
+    if (!dependenciesReady) return false;
+
     const installKey = `addons/${normalizedAddonType}/${createOperationId('install')}`;
     if (installBtn) {
       installBtn.disabled = true;
@@ -2839,9 +3015,7 @@ const installMod = async (mod, version, modLoader, installBtn, addonType = modsS
       mod_id: mod.mod_id,
       mod_slug: mod.mod_slug,
       mod_name: mod.name || mod.mod_name,
-      mod_loader: addonTypeSupportsCompatibilityFilter(normalizedAddonType)
-        ? (modLoader || normalizeAddonCompatibilityValue(normalizedAddonType, modsState.modLoader) || (isModsAddonType(normalizedAddonType) ? 'fabric' : ''))
-        : '',
+      mod_loader: resolvedModLoader,
       compatibility_types: extractAddonCompatibilityValues(version && version.loaders, normalizedAddonType),
       download_url: version.download_url,
       file_name: version.file_name,
@@ -2865,9 +3039,10 @@ const installMod = async (mod, version, modLoader, installBtn, addonType = modsS
         installBtn.style.background = 'transparent';
         installBtn.style.cursor = 'default';
       }
-      if (normalizedAddonType === modsState.addonType) {
+      if (normalizedAddonType === modsState.addonType && options.refreshAfterInstall !== false) {
         await loadInstalledMods();
       }
+      return true;
     } else {
       if (progress) progress.fail((res && res.error) ? res.error : t('mods.install.failedForAddon', { addon: getAddonConfigText('singular', normalizedAddonType) }));
       if (installBtn) {
@@ -2880,6 +3055,7 @@ const installMod = async (mod, version, modLoader, installBtn, addonType = modsS
         message: (res && res.error) ? res.error : t('mods.install.failedForAddon', { addon: getAddonConfigText('singular', normalizedAddonType) }),
         buttons: [{ label: t('common.ok') }],
       });
+      return false;
     }
   } catch (err) {
     console.error('Failed to install mod:', err);
@@ -2894,6 +3070,7 @@ const installMod = async (mod, version, modLoader, installBtn, addonType = modsS
       message: t('mods.install.unexpectedForAddon', { addon: getAddonConfigText('singular', normalizedAddonType) }),
       buttons: [{ label: t('common.ok') }],
     });
+    return false;
   }
 };
 
@@ -3799,19 +3976,9 @@ const deleteModpack = (pack, options = {}) => {
 };
 
 // --- Import Modpack Handler ---
-const handleImportModpack = (file) => {
-  const fileName = String((file && file.name) || '');
-  const ext = fileName.includes('.') ? fileName.split('.').pop().toLowerCase() : '';
-  const sourceFormat = ext === 'mrpack' ? 'mrpack' : (ext === 'hlmp' ? 'hlmp' : 'zip');
-
+const handleImportModpack = () => {
   const importId = createOperationId('modpack_import');
   let cancelRequested = false;
-  const formData = new FormData();
-  formData.append('modpack_file', file);
-  formData.append('file_name', fileName);
-  formData.append('source_format', sourceFormat);
-  formData.append('import_id', importId);
-  formData.append('operation_id', importId);
 
   showLoadingOverlay('Importing modpack...', {
     buttons: [
@@ -3834,7 +4001,7 @@ const handleImportModpack = (file) => {
 
   const progressInterval = setInterval(async () => {
     try {
-      const res = await fetch(`/api/modpacks/import/progress/?id=${importId}`);
+      const res = await fetch(`/api/modpacks/import/progress/?id=${encodeURIComponent(importId)}`);
       const data = await res.json();
       if (!cancelRequested && data && data.ok && data.percent !== undefined) {
         setLoadingOverlayText(`Importing modpack... ${data.percent}%`);
@@ -3844,22 +4011,24 @@ const handleImportModpack = (file) => {
     }
   }, 500);
 
-  fetch('/api/modpacks/import', { method: 'POST', body: formData })
-    .then((r) => r.json())
+  api('/api/modpacks/import-select', 'POST', {
+    import_id: importId,
+    operation_id: importId,
+  })
     .then((result) => {
       clearInterval(progressInterval);
       hideLoadingOverlay();
       if (result && result.ok) {
-        let msg = `Successfully imported modpack <b>${result.name || ''}</b>.`;
+        let msg = `Successfully imported modpack <b>${escapeInfoHtml(result.name || '')}</b>.`;
         if (result.source_format) {
-          msg += `<br><br>Detected format: <b>${String(result.source_format).toUpperCase()}</b>.`;
+          msg += `<br><br>Detected format: <b>${escapeInfoHtml(String(result.source_format).toUpperCase())}</b>.`;
         }
         if (result.disabled_standalone && result.disabled_standalone.length > 0) {
           msg += `<br><br>The following standalone mods were disabled because they conflict with the modpack:<br>` +
-                  result.disabled_standalone.map((s) => `- ${s}`).join('<br>');
+                  result.disabled_standalone.map((s) => `- ${escapeInfoHtml(s)}`).join('<br>');
         }
         if (result.import_warnings && result.import_warnings.length > 0) {
-          const preview = result.import_warnings.slice(0, 8).map((w) => `- ${w}`).join('<br>');
+          const preview = result.import_warnings.slice(0, 8).map((w) => `- ${escapeInfoHtml(w)}`).join('<br>');
           const more = result.import_warnings.length > 8 ? `<br>...and ${result.import_warnings.length - 8} more warning(s).` : '';
           msg += `<br><br>Import warnings:<br>${preview}${more}`;
         }

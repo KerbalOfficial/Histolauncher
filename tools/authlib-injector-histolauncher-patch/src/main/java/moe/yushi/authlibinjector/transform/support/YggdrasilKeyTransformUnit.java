@@ -3,9 +3,6 @@ package moe.yushi.authlibinjector.transform.support;
 import static java.lang.invoke.MethodHandles.publicLookup;
 import static java.lang.invoke.MethodType.methodType;
 import static moe.yushi.authlibinjector.util.IOUtils.asBytes;
-import static moe.yushi.authlibinjector.util.JsonUtils.asJsonObject;
-import static moe.yushi.authlibinjector.util.JsonUtils.asJsonString;
-import static moe.yushi.authlibinjector.util.JsonUtils.parseJson;
 import static moe.yushi.authlibinjector.util.Logging.Level.DEBUG;
 import static moe.yushi.authlibinjector.internal.org.objectweb.asm.Opcodes.ALOAD;
 import static moe.yushi.authlibinjector.internal.org.objectweb.asm.Opcodes.ARETURN;
@@ -26,7 +23,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import moe.yushi.authlibinjector.internal.org.json.simple.JSONObject;
 import moe.yushi.authlibinjector.internal.org.objectweb.asm.ClassVisitor;
 import moe.yushi.authlibinjector.internal.org.objectweb.asm.MethodVisitor;
 import moe.yushi.authlibinjector.transform.CallbackMethod;
@@ -55,9 +51,17 @@ public class YggdrasilKeyTransformUnit implements TransformUnit {
 	@CallbackMethod
 	public static boolean verifyPropertySignature(Object propertyObj) {
 		String base64Signature;
+		String propertyName;
 		String propertyValue;
 
 		try {
+			MethodHandle nameHandle;
+			try {
+				nameHandle = publicLookup().findVirtual(propertyObj.getClass(), "getName", methodType(String.class));
+			} catch (NoSuchMethodException ignored) {
+				nameHandle = publicLookup().findVirtual(propertyObj.getClass(), "name", methodType(String.class));
+			}
+
 			MethodHandle valueHandle;
 			try {
 				valueHandle = publicLookup().findVirtual(propertyObj.getClass(), "getValue", methodType(String.class));
@@ -72,10 +76,19 @@ public class YggdrasilKeyTransformUnit implements TransformUnit {
 				signatureHandle = publicLookup().findVirtual(propertyObj.getClass(), "signature", methodType(String.class));
 			}
 
+			propertyName = (String) nameHandle.invokeWithArguments(propertyObj);
 			base64Signature = (String) signatureHandle.invokeWithArguments(propertyObj);
 			propertyValue = (String) valueHandle.invokeWithArguments(propertyObj);
 		} catch (Throwable e) {
 			Logging.log(Level.ERROR, "Failed to get property attributes", e);
+			return false;
+		}
+
+		if ("textures".equalsIgnoreCase(String.valueOf(propertyName))) {
+			return true;
+		}
+
+		if (base64Signature == null || base64Signature.isEmpty()) {
 			return false;
 		}
 
@@ -98,18 +111,6 @@ public class YggdrasilKeyTransformUnit implements TransformUnit {
 			}
 		}
 
-		Optional<PublicKey> embeddedKey = getHistolauncherEmbeddedPublicKey(propertyValue);
-		if (embeddedKey.isPresent()) {
-			try {
-				if (verifyWithKey(embeddedKey.get(), data, sig)) {
-					Logging.log(DEBUG, "Verified Histolauncher texture payload with embedded peer key");
-					return true;
-				}
-			} catch (GeneralSecurityException e) {
-				Logging.log(DEBUG, "Failed to verify signature with embedded Histolauncher key", e);
-			}
-		}
-
 		Logging.log(Level.WARNING, "Failed to verify property signature");
 		return false;
 	}
@@ -119,21 +120,6 @@ public class YggdrasilKeyTransformUnit implements TransformUnit {
 		signature.initVerify(key);
 		signature.update(data);
 		return signature.verify(sig);
-	}
-
-	private static Optional<PublicKey> getHistolauncherEmbeddedPublicKey(String propertyValue) {
-		try {
-			String payloadJson = new String(Base64.getDecoder().decode(propertyValue), StandardCharsets.UTF_8);
-			JSONObject payload = asJsonObject(parseJson(payloadJson));
-			Object keyValue = payload.get("histolauncherSignaturePublickey");
-			if (keyValue == null) {
-				return Optional.empty();
-			}
-			return Optional.of(KeyUtils.parseSignaturePublicKey(asJsonString(keyValue)));
-		} catch (Throwable e) {
-			Logging.log(DEBUG, "Failed to parse embedded Histolauncher public key", e);
-			return Optional.empty();
-		}
 	}
 
 	@CallbackMethod

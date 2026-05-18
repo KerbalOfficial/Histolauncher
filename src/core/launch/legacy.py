@@ -35,6 +35,7 @@ __all__ = [
     "_prepare_legacy_direct_buffer_sound_patch",
     "_prepare_legacy_assets_directory",
     "_prepare_legacy_client_resources",
+    "_prepare_legacy_unsigned_client_jar",
     "_prepare_legacy_forge_merged_client_jar",
     "_prepare_legacy_forge_runtime_files",
     "_prepare_legacy_modloader_runtime_directory",
@@ -852,6 +853,65 @@ def _prepare_legacy_client_resources(version_dir: str, staged_assets_dir: str) -
         f"[launcher] Prepared legacy client.jar resources in {staged_assets_dir} "
         f"(extracted {extracted_count}, reused {skipped_count})"
     ))
+
+
+def _prepare_legacy_unsigned_client_jar(version_dir: str) -> str:
+    client_jar = os.path.join(version_dir, "client.jar")
+    if not os.path.isfile(client_jar):
+        return ""
+
+    try:
+        with zipfile.ZipFile(client_jar, "r") as jar:
+            is_signed = any(
+                name.upper().startswith("META-INF/")
+                and name.upper().endswith((".SF", ".RSA", ".DSA", ".EC"))
+                for name in jar.namelist()
+            )
+    except Exception:
+        return ""
+
+    if not is_signed:
+        return ""
+
+    patch_dir = os.path.join(version_dir, ".histolauncher")
+    unsigned_name = "legacy-client-unsigned-v1.jar"
+    unsigned_path = os.path.join(patch_dir, unsigned_name)
+    try:
+        unsigned_mtime = os.path.getmtime(unsigned_path) if os.path.exists(unsigned_path) else 0
+        if unsigned_mtime >= os.path.getmtime(client_jar):
+            return os.path.relpath(unsigned_path, version_dir).replace("\\", "/")
+    except OSError:
+        pass
+
+    os.makedirs(patch_dir, exist_ok=True)
+    tmp_path = unsigned_path + ".tmp"
+    try:
+        with zipfile.ZipFile(client_jar, "r") as src_zip, zipfile.ZipFile(
+            tmp_path, "w", compression=zipfile.ZIP_DEFLATED
+        ) as dst_zip:
+            for entry in src_zip.infolist():
+                name = (entry.filename or "").replace("\\", "/")
+                if not name or entry.is_dir():
+                    continue
+                if name.upper().startswith("META-INF/"):
+                    continue
+                with src_zip.open(entry, "r") as src_file:
+                    dst_zip.writestr(name, src_file.read())
+        os.replace(tmp_path, unsigned_path)
+        print(colorize_log(
+            "[launcher] Prepared unsigned legacy client.jar (removed META-INF signature data)"
+        ))
+        return os.path.relpath(unsigned_path, version_dir).replace("\\", "/")
+    except Exception as e:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except OSError:
+            pass
+        print(colorize_log(
+            f"[launcher] Warning: Could not prepare unsigned legacy client.jar: {e}"
+        ))
+        return ""
 
 
 def _class_utf8_replace_exact(class_data: bytes, old_value: bytes, new_value: bytes) -> bytes:
@@ -1672,6 +1732,15 @@ class _SimpleClassBuilder:
             self.cp.append(("MethodRef", owner_index, name_type_index))
         return self.indexes[key]
 
+    def interface_method_ref(self, owner: str, name: str, desc: str) -> int:
+        key = ("InterfaceMethodRef", owner, name, desc)
+        if key not in self.indexes:
+            owner_index = self.class_ref(owner)
+            name_type_index = self.name_type(name, desc)
+            self.indexes[key] = len(self.cp)
+            self.cp.append(("InterfaceMethodRef", owner_index, name_type_index))
+        return self.indexes[key]
+
     def field_ref(self, owner: str, name: str, desc: str) -> int:
         key = ("FieldRef", owner, name, desc)
         if key not in self.indexes:
@@ -1679,6 +1748,14 @@ class _SimpleClassBuilder:
             name_type_index = self.name_type(name, desc)
             self.indexes[key] = len(self.cp)
             self.cp.append(("FieldRef", owner_index, name_type_index))
+        return self.indexes[key]
+
+    def string_const(self, value: str) -> int:
+        key = ("String", value)
+        if key not in self.indexes:
+            value_index = self.utf8(value)
+            self.indexes[key] = len(self.cp)
+            self.cp.append(("String", value_index))
         return self.indexes[key]
 
     @staticmethod
@@ -1700,12 +1777,15 @@ class _SimpleClassBuilder:
         super_class: str,
         methods: list[tuple[int, str, str, bytes, int, int]],
         fields: list[tuple[int, str, str]] = None,
+        interfaces: list[str] = None,
         access: int = 0x0021,
         major: int = 49,
     ) -> bytes:
         fields = list(fields or [])
+        interfaces = list(interfaces or [])
         this_index = self.class_ref(this_class)
         super_index = self.class_ref(super_class)
+        interface_indexes = [self.class_ref(name) for name in interfaces]
         code_index = self.utf8("Code")
         for _access, name, desc in fields:
             self.utf8(name)
@@ -1730,13 +1810,19 @@ class _SimpleClassBuilder:
                 output.extend(self.u1(12) + self.u2(entry[1]) + self.u2(entry[2]))
             elif tag == "MethodRef":
                 output.extend(self.u1(10) + self.u2(entry[1]) + self.u2(entry[2]))
+            elif tag == "InterfaceMethodRef":
+                output.extend(self.u1(11) + self.u2(entry[1]) + self.u2(entry[2]))
             elif tag == "FieldRef":
                 output.extend(self.u1(9) + self.u2(entry[1]) + self.u2(entry[2]))
+            elif tag == "String":
+                output.extend(self.u1(8) + self.u2(entry[1]))
 
         output.extend(self.u2(access))
         output.extend(self.u2(this_index))
         output.extend(self.u2(super_index))
-        output.extend(self.u2(0))
+        output.extend(self.u2(len(interface_indexes)))
+        for interface_index in interface_indexes:
+            output.extend(self.u2(interface_index))
         output.extend(self.u2(len(fields)))
         for field_access, name, desc in fields:
             output.extend(self.u2(field_access))
@@ -1997,6 +2083,101 @@ def _legacy_applet_display_sync_classes() -> dict[str, bytes]:
     return {"histolauncher/AppletDisplaySync.class": class_bytes}
 
 
+def _legacy_applet_server_parameter_classes() -> dict[str, bytes]:
+    def u2(value: int) -> bytes:
+        return int(value).to_bytes(2, "big")
+
+    def emit_ldc(code: _BytecodeBuilder, cp_index: int) -> None:
+        if cp_index <= 0xFF:
+            code.emit(0x12, cp_index)
+        else:
+            code.emit(0x13, u2(cp_index))
+
+    builder = _SimpleClassBuilder()
+    fake_class_name = "net/minecraft/launchwrapper/injector/AlphaVanillaTweakInjector$1LauncherFake"
+    applet_init = builder.method_ref("java/applet/Applet", "<init>", "()V")
+    params_field = builder.field_ref(fake_class_name, "val$params", "Ljava/util/Map;")
+    map_get = builder.interface_method_ref("java/util/Map", "get", "(Ljava/lang/Object;)Ljava/lang/Object;")
+    string_equals = builder.method_ref("java/lang/String", "equals", "(Ljava/lang/Object;)Z")
+    string_length = builder.method_ref("java/lang/String", "length", "()I")
+    getenv = builder.method_ref("java/lang/System", "getenv", "(Ljava/lang/String;)Ljava/lang/String;")
+    url_init = builder.method_ref("java/net/URL", "<init>", "(Ljava/lang/String;)V")
+    string_class = builder.class_ref("java/lang/String")
+    url_class = builder.class_ref("java/net/URL")
+    url_value = builder.string_const("http://www.minecraft.net/game/")
+    param_server = builder.string_const("server")
+    env_server = builder.string_const("HISTOLAUNCHER_SERVER_HOST")
+    param_port = builder.string_const("port")
+    env_port = builder.string_const("HISTOLAUNCHER_SERVER_PORT")
+    param_mppass = builder.string_const("mppass")
+    env_mppass = builder.string_const("HISTOLAUNCHER_SERVER_MPPASS")
+    param_loadmap_user = builder.string_const("loadmap_user")
+    env_loadmap_user = builder.string_const("HISTOLAUNCHER_SERVER_LOADMAP_USER")
+
+    init_code = (
+        b"\x2a\x2b\xb5" + u2(params_field)
+        + b"\x2a\xb7" + u2(applet_init)
+        + b"\xb1"
+    )
+
+    url_code = _BytecodeBuilder()
+    url_code.emit(0xBB, u2(url_class), 0x59)
+    emit_ldc(url_code, url_value)
+    url_code.emit(0xB7, u2(url_init), 0xB0)
+
+    get_parameter = _BytecodeBuilder()
+    get_parameter.emit(0x2A, 0xB4, u2(params_field), 0x4D)
+    get_parameter.emit(0x2C)
+    get_parameter.branch(0xC6, "check_server")
+    get_parameter.emit(0x2C, 0x2B, 0xB9, u2(map_get), 0x02, 0x00, 0x4E)
+    get_parameter.emit(0x2D, 0xC1, u2(string_class))
+    get_parameter.branch(0x99, "check_server")
+    get_parameter.emit(0x2D, 0xC0, u2(string_class), 0xB0)
+
+    def emit_env_parameter_check(label: str, next_label: str, parameter_index: int, env_index: int) -> None:
+        get_parameter.label(label)
+        emit_ldc(get_parameter, parameter_index)
+        get_parameter.emit(0x2B, 0xB6, u2(string_equals))
+        get_parameter.branch(0x99, next_label)
+        emit_ldc(get_parameter, env_index)
+        get_parameter.emit(0xB8, u2(getenv), 0x4E)
+        get_parameter.branch(0xA7, "return_env")
+
+    emit_env_parameter_check("check_server", "check_port", param_server, env_server)
+    emit_env_parameter_check("check_port", "check_mppass", param_port, env_port)
+    emit_env_parameter_check("check_mppass", "check_loadmap_user", param_mppass, env_mppass)
+    emit_env_parameter_check("check_loadmap_user", "missing", param_loadmap_user, env_loadmap_user)
+
+    get_parameter.label("return_env")
+    get_parameter.emit(0x2D)
+    get_parameter.branch(0xC6, "missing")
+    get_parameter.emit(0x2D, 0xB6, u2(string_length))
+    get_parameter.branch(0x99, "missing")
+    get_parameter.emit(0x2D, 0xB0)
+    get_parameter.label("missing")
+    get_parameter.emit(0x01, 0xB0)
+
+    class_bytes = builder.class_file(
+        this_class=fake_class_name,
+        super_class="java/applet/Applet",
+        interfaces=["java/applet/AppletStub"],
+        fields=[(0x0010, "val$params", "Ljava/util/Map;")],
+        methods=[
+            (0x0000, "<init>", "(Ljava/util/Map;)V", init_code, 2, 2),
+            (0x0001, "appletResize", "(II)V", b"\xb1", 0, 3),
+            (0x0001, "isActive", "()Z", b"\x04\xac", 1, 1),
+            (0x0001, "getDocumentBase", "()Ljava/net/URL;", url_code.finish(), 3, 1),
+            (0x0001, "getCodeBase", "()Ljava/net/URL;", url_code.finish(), 3, 1),
+            (0x0001, "getParameter", "(Ljava/lang/String;)Ljava/lang/String;", get_parameter.finish(), 2, 4),
+        ],
+        access=0x0020,
+    )
+
+    return {
+        "net/minecraft/launchwrapper/injector/AlphaVanillaTweakInjector$1LauncherFake.class": class_bytes,
+    }
+
+
 def _prepare_legacy_applet_window_patch(version_dir: str) -> str:
     wrapper_jar = os.path.join(version_dir, "launchwrapper-1.6.jar")
     if not os.path.isfile(wrapper_jar):
@@ -2029,7 +2210,7 @@ def _prepare_legacy_applet_window_patch(version_dir: str) -> str:
             game_changed = False
 
     patch_dir = os.path.join(version_dir, ".histolauncher")
-    patch_name = "legacy-applet-window-patch-v7.jar"
+    patch_name = "legacy-applet-window-patch-v8.jar"
     patch_path = os.path.join(patch_dir, patch_name)
     try:
         source_mtime = max(os.path.getmtime(wrapper_jar), os.path.getmtime(client_jar) if os.path.exists(client_jar) else 0)
@@ -2045,6 +2226,8 @@ def _prepare_legacy_applet_window_patch(version_dir: str) -> str:
         with zipfile.ZipFile(tmp_path, "w", compression=zipfile.ZIP_DEFLATED) as dst_zip:
             dst_zip.writestr(injector_name, patched)
             for helper_name, helper_payload in _legacy_applet_resize_bridge_classes().items():
+                dst_zip.writestr(helper_name, helper_payload)
+            for helper_name, helper_payload in _legacy_applet_server_parameter_classes().items():
                 dst_zip.writestr(helper_name, helper_payload)
             if game_changed:
                 dst_zip.writestr(game_name, game_patched)

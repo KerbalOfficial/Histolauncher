@@ -32,13 +32,22 @@ const parseParenthesesInElement = (parent, text) => {
   }
 };
 
+const normalizeTooltipLines = (text) => String(text || '')
+  .replace(/\r\n?/g, '\n')
+  .replace(/\\r\\n/g, '\n')
+  .replace(/\\n/g, '\n')
+  .split('\n')
+  .map((line) => line.replace(/\s+$/g, ''));
+
 const addFormattedLine = (parent, line) => {
+  if (!String(line || '').trim()) return;
   const firstParenIndex = line.indexOf('(');
-  const colonIndex = line.indexOf(': ');
+  const colonMatch = line.match(/^([^:\n]{1,48}):\s+(.+)$/);
+  const colonIndex = colonMatch ? colonMatch[1].length : -1;
 
   if (colonIndex !== -1 && (firstParenIndex === -1 || colonIndex < firstParenIndex)) {
-    const label = line.substring(0, colonIndex);
-    const value = line.substring(colonIndex + 2);
+    const label = colonMatch[1].trim();
+    const value = colonMatch[2];
 
     const labelSpan = document.createElement('span');
     labelSpan.className = 'tooltip-label';
@@ -59,9 +68,15 @@ const createTooltip = (text) => {
   const tooltip = document.createElement('div');
   tooltip.className = 'tooltip';
 
-  const lines = text.split('\\n');
+  const lines = normalizeTooltipLines(text);
   lines.forEach((line, index) => {
-    addFormattedLine(tooltip, line);
+    if (String(line || '').trim()) {
+      addFormattedLine(tooltip, line);
+    } else {
+      const spacer = document.createElement('span');
+      spacer.className = 'tooltip-line-spacer';
+      tooltip.appendChild(spacer);
+    }
 
     if (index < lines.length - 1) {
       tooltip.appendChild(document.createElement('br'));

@@ -43,7 +43,7 @@ Backup Website: **https://histolauncher.pages.dev**
 
 ### Java
 - Auto-detect installed Java runtimes across the system
-- One-click **Java download and install** from within the launcher (JRE 8, JDK 11/16/17/21/25)
+- One-click **Java download and install** from within the launcher (JRE 8, JDK 11/16/17/21/25/26)
 - Auto-select the right Java version per Minecraft version
 - Override Java path per version or globally
 
@@ -90,6 +90,7 @@ You will need:
   - JDK 17 (**1.18 - 1.20.4**): **https://adoptium.net/en-GB/temurin/releases?version=17**
   - JDK 21 (**1.20.5 - 1.21.11**): **https://adoptium.net/en-GB/temurin/releases?version=21**
   - JDK 25 (*recommended*, **26.1 - latest**): **https://adoptium.net/en-GB/temurin/releases?version=25**
+  - JDK 26 (**Mods & Tools**): **https://adoptium.net/en-GB/temurin/releases?version=26**
 2. Find your operating system (Windows, macOS, or Linux).
 3. Select the correct architecture (64‑bit for most modern systems).
 4. Download the installer.

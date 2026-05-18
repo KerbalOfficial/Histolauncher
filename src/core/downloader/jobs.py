@@ -88,8 +88,14 @@ class Job:
         for listener in listeners:
             try:
                 listener(self, event)
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001
+                try:
+                    from core.logger import colorize_log
+                    print(colorize_log(
+                        f"[jobs] listener for event={event!r} raised: {exc}"
+                    ))
+                except Exception:
+                    pass
 
     # ---- State transitions (driven by JobRegistry / runner) ------------------
 
@@ -141,6 +147,7 @@ class JobRegistry:
         listeners: Optional[List[JobListener]] = None,
     ) -> Job:
         with self._lock:
+            self.prune_finished()
             existing = self._jobs.get(key)
             if existing and existing.state in (JobState.RUNNING, JobState.PAUSED, JobState.PENDING):
                 thread = self._threads.get(key)

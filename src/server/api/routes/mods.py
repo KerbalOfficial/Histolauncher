@@ -4,6 +4,7 @@ import html
 import json
 import os
 import re as _re
+import shutil
 import tempfile
 
 from core.logger import colorize_log
@@ -15,10 +16,12 @@ from server.api._archive import (
     _extract_pack_mcmeta_description,
 )
 from server.api._constants import (
+    MAX_MODS_IMPORT_PAYLOAD,
     MAX_VERSION_LABEL_LENGTH,
     VALID_LOADER_TYPES,
     VALID_MOD_LOADERS,
 )
+from server.api.file_dialogs import open_native_file_picker, validate_selected_file
 from server.api._helpers import _loader_display_name
 from server.api._validation import (
     _normalize_addon_type,
@@ -36,8 +39,10 @@ __all__ = [
     "api_mods_search",
     "api_mods_version_options",
     "api_mods_versions",
+    "api_mods_dependencies",
     "api_mods_install",
     "api_mods_import",
+    "api_mods_import_select",
     "api_mods_delete",
     "api_mods_toggle",
     "api_mods_move",
@@ -296,6 +301,194 @@ def api_mods_versions(data):
         return {"ok": False, "error": str(e)}
 
 
+def _first_installable_version(versions):
+    if not isinstance(versions, list):
+        return None
+    for version in versions:
+        if not isinstance(version, dict):
+            continue
+        if str(version.get("download_url") or "").strip() and str(version.get("file_name") or "").strip():
+            return version
+    return None
+
+
+def _is_required_dependency(dep) -> bool:
+    if not isinstance(dep, dict):
+        return False
+    dep_type = str(dep.get("dependency_type") or dep.get("type") or "").strip().lower()
+    if bool(dep.get("required")):
+        return True
+    return dep_type in {"required", "required_dependency", "requireddependency"}
+
+
+def _is_dependency_installed(installed, *, provider: str, mod_id: str = "", mod_slug: str = "", mod_loader: str = "") -> bool:
+    target_provider = str(provider or "").strip().lower()
+    target_id = str(mod_id or "").strip().lower()
+    target_slug = str(mod_slug or "").strip().lower()
+    target_loader = str(mod_loader or "").strip().lower()
+
+    for item in installed or []:
+        if not isinstance(item, dict) or item.get("disabled", False):
+            continue
+        installed_loader = str(item.get("mod_loader") or "").strip().lower()
+        if target_loader and installed_loader and installed_loader != target_loader:
+            continue
+        installed_provider = str(item.get("provider") or "").strip().lower()
+        installed_id = str(item.get("mod_id") or "").strip().lower()
+        installed_slug = str(item.get("mod_slug") or "").strip().lower()
+        if target_id and installed_id and installed_id == target_id:
+            return True
+        if target_slug and installed_slug and installed_slug == target_slug:
+            return True
+        if target_provider and installed_provider == target_provider and target_id and installed_id == target_id:
+            return True
+    return False
+
+
+def _dependency_game_version(data, version_info) -> str:
+    game_version = str(data.get("game_version") or "").strip()
+    if game_version:
+        return game_version
+    game_versions = version_info.get("game_versions") if isinstance(version_info, dict) else []
+    if isinstance(game_versions, list) and game_versions:
+        return str(game_versions[0] or "").strip()
+    return ""
+
+
+def api_mods_dependencies(data):
+    try:
+        from core import mod_manager
+
+        if not isinstance(data, dict):
+            return {"ok": False, "error": "Invalid request"}
+
+        addon_type = _normalize_addon_type(data.get("addon_type"))
+        if addon_type != "mods":
+            return {"ok": True, "dependencies": []}
+
+        provider = str(data.get("provider") or "modrinth").strip().lower()
+        if provider not in {"modrinth", "curseforge"}:
+            return {"ok": True, "dependencies": []}
+
+        dependencies = data.get("dependencies") if isinstance(data.get("dependencies"), list) else []
+        if not dependencies:
+            return {"ok": True, "dependencies": []}
+
+        mod_loader = str(data.get("mod_loader") or "").strip().lower()
+        game_version = _dependency_game_version(data, data.get("version") if isinstance(data.get("version"), dict) else {})
+        installed = mod_manager.get_installed_addons("mods")
+
+        resolved = []
+        seen = set()
+        for dep in dependencies[:50]:
+            if not _is_required_dependency(dep):
+                continue
+
+            if provider == "modrinth":
+                dep_project_id = str(dep.get("project_id") or dep.get("mod_id") or "").strip()
+                dep_version_id = str(dep.get("version_id") or "").strip()
+                if not dep_project_id:
+                    continue
+
+                detail = mod_manager.get_project_detail_modrinth(dep_project_id, addon_type="mods") or {}
+                dep_slug = str(detail.get("mod_slug") or dep_project_id).strip().lower()
+                dep_name = str(detail.get("title") or dep_slug).strip()
+                if _is_dependency_installed(
+                    installed,
+                    provider=provider,
+                    mod_id=dep_project_id,
+                    mod_slug=dep_slug,
+                    mod_loader=mod_loader,
+                ):
+                    continue
+
+                version_info = None
+                if dep_version_id:
+                    version_info = mod_manager.get_modrinth_version_by_id(dep_version_id)
+                    version_loaders = mod_manager.normalize_addon_compatibility_types(
+                        "mods",
+                        version_info.get("loaders") if isinstance(version_info, dict) else [],
+                    )
+                    if mod_loader and version_loaders and mod_loader not in version_loaders:
+                        version_info = None
+
+                if not version_info:
+                    version_info = _first_installable_version(mod_manager.get_mod_versions_modrinth(
+                        mod_id=dep_project_id,
+                        game_version=game_version or None,
+                        mod_loader=mod_loader or None,
+                    ))
+
+                dep_key = f"modrinth:{dep_project_id}"
+                if not version_info or dep_key in seen:
+                    continue
+                seen.add(dep_key)
+                resolved.append({
+                    "dependency_key": dep_key,
+                    "provider": "modrinth",
+                    "dependency_type": dep.get("dependency_type") or "required",
+                    "mod": {
+                        "provider": "modrinth",
+                        "mod_id": dep_project_id,
+                        "mod_slug": dep_slug,
+                        "name": dep_name,
+                        "summary": detail.get("description", ""),
+                        "description": detail.get("description", ""),
+                        "icon_url": detail.get("icon_url", ""),
+                    },
+                    "version": version_info,
+                })
+
+            elif provider == "curseforge":
+                dep_mod_id = str(dep.get("mod_id") or dep.get("modId") or "").strip()
+                if not dep_mod_id:
+                    continue
+                detail = mod_manager.get_project_detail_curseforge(dep_mod_id) or {}
+                dep_name = str(detail.get("title") or f"CurseForge {dep_mod_id}").strip()
+                dep_slug = str(detail.get("mod_slug") or _slugify_import_name(dep_name) or dep_mod_id).strip().lower()
+                if _is_dependency_installed(
+                    installed,
+                    provider=provider,
+                    mod_id=dep_mod_id,
+                    mod_slug=dep_slug,
+                    mod_loader=mod_loader,
+                ):
+                    continue
+
+                version_info = _first_installable_version(mod_manager.get_mod_files_curseforge(
+                    mod_id=dep_mod_id,
+                    game_version=game_version or None,
+                    mod_loader_type=mod_loader or None,
+                    api_key=data.get("api_key"),
+                    addon_type="mods",
+                ))
+
+                dep_key = f"curseforge:{dep_mod_id}"
+                if not version_info or dep_key in seen:
+                    continue
+                seen.add(dep_key)
+                resolved.append({
+                    "dependency_key": dep_key,
+                    "provider": "curseforge",
+                    "dependency_type": dep.get("dependency_type") or "required",
+                    "mod": {
+                        "provider": "curseforge",
+                        "mod_id": dep_mod_id,
+                        "mod_slug": dep_slug,
+                        "name": dep_name,
+                        "summary": detail.get("description", ""),
+                        "description": detail.get("description", ""),
+                        "icon_url": detail.get("icon_url", ""),
+                    },
+                    "version": version_info,
+                })
+
+        return {"ok": True, "dependencies": resolved}
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to resolve mod dependencies: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
 def api_mods_install(data):
     tracker = None
     try:
@@ -325,6 +518,13 @@ def api_mods_install(data):
         description = data.get("description", "")
         icon_url = data.get("icon_url", "")
         raw_version = str(data.get("version", "unknown") or "unknown").strip()
+
+        expected_sha1 = str(data.get("sha1") or "").strip().lower()
+        try:
+            expected_size_value = int(data.get("file_size") or data.get("file_length") or 0)
+        except (TypeError, ValueError):
+            expected_size_value = 0
+        expected_size = expected_size_value if expected_size_value > 0 else None
 
         if not mod_slug or not download_url or not file_name:
             return {"ok": False, "error": "Missing required fields"}
@@ -458,6 +658,8 @@ def api_mods_install(data):
             file_name=file_name,
             mod_loader=mod_loader,
             progress_cb=download_progress,
+            expected_sha1=expected_sha1 or None,
+            expected_size=expected_size,
         )
 
         if not success:
@@ -544,6 +746,48 @@ def api_mods_install(data):
         return {"ok": False, "error": str(e)}
 
 
+def _addon_import_filetypes(addon_type: str):
+    if addon_type == "mods":
+        return [("Mod archives", "*.jar *.zip")], {".jar", ".zip"}
+    if addon_type == "resourcepacks":
+        return [("Resource pack archives", "*.zip")], {".zip"}
+    if addon_type == "shaderpacks":
+        return [("Shader pack archives", "*.zip")], {".zip"}
+    return [("Addon archives", "*.zip")], {".zip"}
+
+
+def api_mods_import_select(data):
+    try:
+        payload = data if isinstance(data, dict) else {}
+        addon_type = _normalize_addon_type(payload.get("addon_type"))
+        filetypes, allowed_extensions = _addon_import_filetypes(addon_type)
+        addon_label = _addon_type_display_name(addon_type).lower()
+
+        selected_path = open_native_file_picker(
+            title=f"Import {_addon_type_display_name(addon_type)}",
+            filetypes=[*filetypes, ("All Files", "*.*")],
+        )
+        selected = validate_selected_file(
+            selected_path,
+            allowed_extensions=allowed_extensions,
+            max_size=MAX_MODS_IMPORT_PAYLOAD,
+            label=addon_label,
+        )
+        if not selected.get("ok"):
+            return selected
+
+        import_payload = dict(payload)
+        import_payload.update({
+            "addon_type": addon_type,
+            "file_path": selected.get("path") or "",
+            "file_name": selected.get("file_name") or "",
+        })
+        return api_mods_import(import_payload)
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to select addon import file: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
 def api_mods_import(data):
     try:
         from core import mod_manager
@@ -561,6 +805,11 @@ def api_mods_import(data):
         if addon_type != "mods" and not mod_loader and compatibility_types:
             mod_loader = compatibility_types[0]
         file_name = str(data.get("file_name") or data.get("jar_name") or "").strip()
+        file_path = str(data.get("file_path") or "").strip()
+        if file_path and not os.path.isfile(file_path):
+            return {"ok": False, "error": "Selected addon archive was not found"}
+        if file_path and not file_name:
+            file_name = os.path.basename(file_path)
         file_data = data.get("file_data")
         if file_data is None:
             file_data = data.get("jar_data")
@@ -576,6 +825,14 @@ def api_mods_import(data):
             else:
                 expected_exts = ".zip"
             return {"ok": False, "error": f"A valid {expected_exts} filename is required"}
+        if file_path:
+            try:
+                if os.path.getsize(file_path) > MAX_MODS_IMPORT_PAYLOAD:
+                    return {"ok": False, "error": "Selected addon archive is too large"}
+                with open(file_path, "rb") as f:
+                    file_data = f.read()
+            except Exception as e:
+                return {"ok": False, "error": f"Failed to read selected addon archive: {e}"}
         if not isinstance(file_data, (bytes, bytearray)):
             return {"ok": False, "error": "Invalid addon file data"}
         if not file_data or len(file_data) == 0:
@@ -624,9 +881,12 @@ def api_mods_import(data):
         ver_dir = mod_manager.get_addon_version_dir(
             addon_type, mod_slug, version_label, mod_loader=mod_loader
         )
-        file_path = os.path.join(ver_dir, file_name)
-        with open(file_path, "wb") as f:
-            f.write(file_data)
+        dest_file_path = os.path.join(ver_dir, file_name)
+        if file_path and os.path.abspath(file_path) != os.path.abspath(dest_file_path):
+            shutil.copy2(file_path, dest_file_path)
+        elif not file_path:
+            with open(dest_file_path, "wb") as f:
+                f.write(file_data)
 
         mod_manager.save_addon_version_metadata(
             addon_type,

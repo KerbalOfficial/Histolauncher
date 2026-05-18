@@ -65,8 +65,8 @@ def open_with_webview(
     import sys
 
     if sys.platform.startswith("linux"):
-        os.environ["PYWEBVIEW_GUI"] = "qt"
-        os.environ["QT_API"] = "pyqt6"
+        os.environ.setdefault("PYWEBVIEW_GUI", "qt")
+        os.environ.setdefault("QT_API", "pyqt6")
 
     url = f"http://127.0.0.1:{port}/"
     try:

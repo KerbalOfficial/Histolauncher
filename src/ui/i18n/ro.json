@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD.MM.YYYY HH:mm",
+  "am": "AM",
+  "pm": "PM",
   "nav": {
     "home": "Acasă",
     "versions": "Versiuni",
     "worlds": "Lumi",
+    "screenshots": "Capturi de ecran",
     "addons": "Suplimente",
     "settings": "Setări",
-    "about": "Despre"
+    "about": "Despre",
+    "primaryNavAria": "Navigare principală"
   },
   "common": {
     "none": "Niciunul",
     "unknown": "necunoscut",
     "all": "Toate",
+    "auto": "Auto",
     "defaultName": "Implicit",
     "loading": "Se încarcă...",
     "refresh": "Reîmprospătează",
@@ -70,6 +76,20 @@
     "playerModel": "Model jucător",
     "modelWide": "Lat",
     "modelSlim": "Subțire",
+    "textureType": "Tip textură",
+    "textureDefault": "Implicită",
+    "textureLegacy": "Clasică",
+    "armMirror": "Oglindire brațe",
+    "legMirror": "Oglindire picioare",
+    "mirrorRight": "Dreapta",
+    "mirrorLeft": "Stânga",
+    "overlayToFirstLayer": "Aplică stratul exterior pe primul strat",
+    "overlayHead": "Cap",
+    "overlayBody": "Jachetă",
+    "overlayRightArm": "Mânecă dreaptă",
+    "overlayLeftArm": "Mânecă stângă",
+    "overlayRightLeg": "Pantalon drept",
+    "overlayLeftLeg": "Pantalon stâng",
     "skinFile": "Fișier skin",
     "capeSelection": "Pelerină",
     "skinPreviewAlt": "Previzualizare skin",
@@ -131,12 +151,16 @@
     "versionTooltip": "Versiunea launcherului",
     "refreshTooltip": "Reîmprospătează valorile (ține apăsat Shift pentru a reîncărca pagina)",
     "refreshAria": "Reîmprospătează",
-    "profileTooltip": "Cont Histolauncher",
     "refreshAlt": "Reîmprospătează",
-    "profileAlt": "Profil"
+    "profileAlt": "Profil",
+    "profileTooltip": "Cont Histolauncher"
   },
   "home": {
     "launchButton": "Lansează",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Închide mesajul"
+    },
     "info": {
       "version": "Versiune",
       "noneSelected": "(nimic selectat)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Versiuni care se descarcă în prezent.",
     "availableSubtitle": "Versiuni disponibile pentru instalare",
     "deleteSelected": "Șterge selectate (0)",
+    "actionsMenuAria": "Acțiuni versiune",
     "profile": {
       "renameTooltip": "Redenumește profilul de versiuni activ",
       "renameAria": "Redenumește profilul de versiuni",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Suprascriere RAM minim",
       "maximumRamOverride": "Suprascriere RAM maxim",
       "resolutionOverride": "Suprascriere rezoluție",
-      "javaRuntimePathOverride": "Suprascriere cale runtime Java",
+      "javaRuntimeOverride": "Suprascriere cale runtime Java",
       "extraJvmArgumentsOverride": "Suprascriere argumente JVM suplimentare",
       "versionImageFile": "Imagine versiune (opțional, PNG/JPG)",
       "failedReadImageData": "Nu s-au putut citi datele imaginii",
@@ -356,6 +381,18 @@
       "successTitle": "Export reușit!",
       "successMessage": "Fișier salvat în:<br><b>{filepath}</b><br><br>Dimensiunea fișierului<br><b>{size} MB</b>",
       "unexpectedError": "A apărut o eroare în timpul exportului:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Descărcări",
     "sortName": "Nume",
     "sortRecentlyUpdated": "Actualizat recent",
+    "actionsMenuAria": "Acțiuni mod",
     "profile": {
       "renameTooltip": "Redenumește profilul de suplimente activ",
       "renameAria": "Redenumește profilul de suplimente",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Alege loaderul de mod pentru „{file}”:"
+      "selectLoaderForFile": "Alege loaderul de mod pentru „{file}”:",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Instalat",
@@ -554,6 +593,14 @@
       "unexpectedError": "Eroare de instalare neașteptată",
       "unexpectedForAddon": "A apărut o eroare neașteptată la instalarea {addon}."
     },
+    "dependencies": {
+      "title": "Dependințe mod",
+      "checking": "Se verifică dependințele...",
+      "prompt": "Acest mod are nevoie de dependințe pentru a funcționa corect. Alege ce dependințe vrei să instalezi:",
+      "installSelected": "Instalează selectate",
+      "installing": "Se instalează dependințele...",
+      "required": "Necesară"
+    },
     "exportModpack": {
       "title": "Export Modpack",
       "selectFormat": "Alege formatul modpackului de exportat:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Lumi din {provider}",
     "deleteSelected": "Șterge selectate (0)",
     "deleteSelectedCount": "Șterge selectate ({count})",
+    "actionsMenuAria": "Acțiuni lume",
     "importTooltip": "Importă o lume dintr-o arhivă .zip",
     "importAria": "Import lume",
     "moreActionsTooltip": "Mai multe acțiuni pentru lumi",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Se încarcă editorul lumii...",
       "editWorldTitle": "Editează lumea: {world}",
+      "failedNbtLoad": "Încărcarea datelor NBT ale lumii a eșuat.",
       "worldFallback": "Lume",
       "thisWorld": "această lume",
       "primaryPlayer": "Jucător principal",
@@ -809,7 +858,7 @@
         "allowCommands": "Activează sau dezactivează comenzile pentru această lume.\n\nUtil dacă doriți lucruri precum teleportarea, oferirea de obiecte sau folosirea altor trucuri.",
         "hardcore": "Marchează lumea ca Hardcore.\n\nLumile hardcore sunt mult mai puțin iertătoare și sunt menite pentru o provocare de stil de viață.",
         "spawnX": "Coordonata X implicită în care jucătorii reapar în această lume.",
-        "spawnY": "Înălțimea Y ​​implicită în care jucătorii reapar în această lume.",
+        "spawnY": "Înălțimea Y implicită în care jucătorii reapar în această lume.",
         "spawnZ": "Coordonata Z implicită în care jucătorii reapar în această lume.",
         "timeOfDay": "Controlează unde se află soarele sau luna chiar acum.\n\nValori comune:\n0: Răsărit\n6000: amiază\n12000: Apus de soare\n18000: miezul nopții",
         "raining": "Pornește sau oprește ploaia.",
@@ -822,7 +871,7 @@
         "xpLevel": "Numărul nivelului de experiență verde afișat deasupra barei rapide.",
         "xpTotal": "Totalul punctelor de experiență salvate de jucător.",
         "playerX": "Coordonata X salvată de jucător.\n\nAceasta decide unde vor sta atunci când lumea se încarcă.",
-        "playerY": "Înălțimea Y ​​salvată a jucătorului.\n\nAceasta decide cât de sus sau de jos vor fi atunci când lumea se încarcă.",
+        "playerY": "Înălțimea Y salvată a jucătorului.\n\nAceasta decide cât de sus sau de jos vor fi atunci când lumea se încarcă.",
         "playerZ": "Coordonata Z salvată de jucător.\n\nAceasta decide unde vor sta atunci când lumea se încarcă.",
         "inventorySlot": "Numărul slotului utilizat pentru acest articol.\n\nFolosiți butonul de selecție dacă doriți o bară vizuală vizuală, un inventar, o armură și un aspect de tip offhand, în loc să vă amintiți numerele de slot.",
         "inventoryItem": "ID-ul articolului de plasat în acest slot.\n\nExemplu: minecraft:stone",
@@ -933,8 +982,7 @@
       "saving": "Se salvează modificările editorului de lumi...",
       "failedSaveNbt": "Nu s-au putut salva datele NBT ale lumii.",
       "renameFailedAfterNbt": "Modificările NBT au fost salvate, dar redenumirea folderului mondial a eșuat: {error}",
-      "iconFailedAfterSave": "Datele lumii au fost salvate, dar actualizarea pictogramei a eșuat: {error}",
-      "failedNbtLoad": "Încărcarea datelor NBT ale lumii a eșuat."
+      "iconFailedAfterSave": "Datele lumii au fost salvate, dar actualizarea pictogramei a eșuat: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Se lansează...",
     "launchingTimed": "Se lansează... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Este necesar un runtime Java",
     "javaRequiredMessage": "Este necesar un runtime Java compatibil.",
     "downloadJava": "Descarcă Java",
@@ -1022,6 +1077,76 @@
       "generic": "Loader",
       "vanilla": "Vanilla",
       "none": "Niciunul (fără încărcător de mod)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Imagini",
+    "imagesSubtitleDefault": "Imagini din directoarele de stocare disponibile",
+    "imagesSubtitle": "{count} imagine(i) în {storage}",
+    "itemFallback": "Captură de ecran",
+    "refreshTooltip": "Reîmprospătați lista de capturi de ecran",
+    "bulkSelectTooltip": "Comutați modul de selectare multiplă pentru capturi de ecran",
+    "bulkDeleteTooltip": "Ștergeți capturile de ecran selectate",
+    "toggleImagesAria": "Comutați secțiunea capturi de ecran",
+    "favoriteAlt": "favorit",
+    "list": {
+      "loading": "Se încarcă capturile de ecran...",
+      "failedLoadInstalled": "Nu s-au putut încărca capturile de ecran.",
+      "emptyInstalled": "Nu s-au găsit capturi de ecran"
+    },
+    "actions": {
+      "openImage": "Deschide captura de ecran {name}",
+      "closeImagePreview": "Închide previzualizarea capturii de ecran",
+      "toggleSelection": "Comutați selecția pentru captura de ecran {name}",
+      "toggleFavorite": "Comutați favoritele pentru captura de ecran {name}",
+      "renameImage": "Redenumiți captura de ecran {name}",
+      "deleteImage": "Ștergeți captura de ecran {name}",
+      "saveAs": "Salvează ca",
+      "editImageButton": "Deschide"
+    },
+    "favorite": {
+      "saveFailedTitle": "Salvarea favoritelor a eșuat",
+      "saveFailed": "Nu s-au putut salva favoritele capturilor de ecran: {error}"
+    },
+    "rename": {
+      "title": "Redenumiți captura de ecran",
+      "prompt": "Alegeți un nou nume pentru această captură de ecran.",
+      "keepExtension": "Extensia fișierului {extension} rămâne neschimbată.",
+      "invalidTitle": "Nume invalid pentru captura de ecran",
+      "invalidMessage": "Introduceți un nume pentru captura de ecran.",
+      "failedTitle": "Redenumire eșuată",
+      "failedMessage": "Nu s-a putut redenumi captura de ecran."
+    },
+    "delete": {
+      "title": "Șterge captura de ecran",
+      "confirmMessage": "Ștergi {name}? Această acțiune nu poate fi anulată.",
+      "failedTitle": "Ștergere eșuată",
+      "failedMessage": "Nu s-a putut șterge captura de ecran."
+    },
+    "edit": {
+      "failedTitle": "Deschidere eșuată",
+      "failedMessage": "Nu s-a putut deschide captura de ecran."
+    },
+    "saveAs": {
+      "failedTitle": "Salvare eșuată",
+      "failedMessage": "Nu s-a putut salva captura de ecran: {error}",
+      "fileTypeDescription": "Fișier imagine",
+      "missingFile": "Fișierul capturii de ecran nu a putut fi rezolvat."
+    },
+    "bulkDelete": {
+      "title": "Șterge capturi de ecran",
+      "deleteSelectedCount": "Șterge selectate ({count})",
+      "noSelected": "Selectați mai întâi cel puțin o captură de ecran.",
+      "confirmMessage": "Ștergi {count} captură(i) de ecran selectată(e)? Această acțiune nu poate fi anulată.",
+      "deletingProgress": "Se șterg capturile de ecran... ({current}/{total})",
+      "cancelling": "Se anulează ștergerea capturilor de ecran...",
+      "cancelledTitle": "Ștergerea multiplă a fost anulată",
+      "cancelledMessage": "S-au șters {deleted} captură(i) de ecran înainte de anulare.",
+      "cancelledWithFailures": "S-au șters {deleted} captură(i) de ecran înainte de anulare. {failures} captură(i) de ecran au eșuat.",
+      "completeTitle": "Ștergere multiplă finalizată",
+      "completeMessage": "S-au șters {deleted} captură(i) de ecran.",
+      "finishedWithErrorsTitle": "Ștergerea multiplă s-a încheiat cu erori",
+      "finishedWithErrorsMessage": "S-au șters {deleted} captură(i) de ecran.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Client",
       "launcher": "Launcher",
       "mods": "Moduri",
-      "dataStorage": "Date și stocare"
+      "dataStorage": "Date și stocare",
+      "playtime": "Timp de joc"
+    },
+    "playtime": {
+      "noData": "Nu au fost înregistrate sesiuni încă. Joacă o versiune pentru a începe urmărirea!",
+      "total": "Timp total de joc:",
+      "totalTooltip": "Timp total de joc pe toate sesiunile.",
+      "sessions": "Sesiuni jucate:",
+      "sessionsTooltip": "De câte ori ai lansat un joc.",
+      "mostPlayed": "Versiunea cea mai jucată:",
+      "mostPlayedTooltip": "Versiunea în care ai petrecut cel mai mult timp.",
+      "longest": "Cea mai lungă sesiune:",
+      "longestTooltip": "Cea mai lungă sesiune de joc individuală.",
+      "average": "Sesiune medie:",
+      "averageTooltip": "Durata medie a tuturor sesiunilor de joc.",
+      "moreDetails": "Mai multe detalii",
+      "detail": {
+        "title": "Detalii timp de joc",
+        "allVersions": "Toate",
+        "filterBy": "Versiune:",
+        "date": "Dată",
+        "version": "Versiune",
+        "duration": "Durată",
+        "modloader": "Modloader",
+        "noSessions": "Nu există sesiuni de afișat.",
+        "sortBy": "Clic pentru sortare",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Toate",
+        "noLoader": "Niciunul",
+        "totalLabel": "Total:",
+        "nowLive": "Live",
+        "truncatedNote": "Se afișează cele mai recente {shown} sesiuni din {total} total."
+      }
     },
     "account": {
       "username": "Nume de utilizator:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Deschide pagina Microsoft",
         "failedLogin": "Autentificarea Microsoft a eșuat."
       },
-      "playerPreviewTooltip": "Afișează previzualizarea jucătorului cu corp înclinat și capă atunci când sunt disponibile texturile contului.",
+      "playerPreviewTooltip": "Afișează skin-ul jucătorului și mantia într-o previzualizare 3D.",
       "playerPreview": "Previzualizare jucător 3D:",
-      "playerRotateTitle": "Faceți clic și trageți pentru a roti",
       "playerPreviewBodyAlt": "Previzualizare jucător",
-      "playerPreviewCapeAlt": "Previzualizare pelerină"
+      "playerPreviewCapeAlt": "Previzualizare pelerină",
+      "playerRotateTitle": "Faceți clic și trageți pentru a roti"
     },
     "appearance": {
       "theme": "Temă:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Optimizare automată:",
+      "autoOptimizeTooltip": "Alege automat RAM-ul de lansare și argumentele JVM din memoria curentă a dispozitivului de fiecare dată când Minecraft pornește.",
+      "autoOptimizeLockedTitle": "Dezactivează Optimizarea automată pentru a edita manual.",
       "minRam": "RAM minim:",
       "minRamTooltip": "RAM minimă alocată jocului\n  - Trebuie să fie un număr pozitiv\n  - Trebuie să fie mai mică decât RAM maximă\n\nExemplu de format: 256, 256M, 2G etc.\n\n(sfat de performanță: alocă mai multă RAM pentru performanță mai bună și încearcă să o apropii de RAM-ul maxim pentru mai puține căderi de cadre)",
       "ramInvalidTitle": "Format RAM: număr cu sufix opțional K, M, G sau T (de ex., 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Afișați Discord Rich Presence în timp ce lansatorul sau jocul rulează.",
       "desktopNotifications": "Notificări desktop:",
       "desktopNotificationsTooltip": "Permiteți notificări de pe desktop ale lansatorului.",
+      "keyboardMouse": "Mouse prin tastatură:",
+      "keyboardMouseTooltip": "Afișează un cursor controlat prin tastatură în launcher.\n\nAcesta este încă experimental, așteptați-vă la multe erori!",
       "java": {
         "auto": "Auto",
         "defaultPath": "Implicit (Java din PATH)",

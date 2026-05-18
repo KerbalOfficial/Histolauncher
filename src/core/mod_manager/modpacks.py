@@ -35,6 +35,13 @@ from core.mod_manager._validation import (
 )
 from core.mod_manager.providers import _cf_resolve_download_url
 from core.mod_manager.storage import get_addon_storage_dir, get_mods_storage_dir
+from core.zip_utils import (
+    ZIP_MAX_ENTRIES,
+    ZIP_MAX_FILE_BYTES,
+    ZIP_MAX_TOTAL_BYTES,
+    ZipSecurityError,
+    _validate_archive_limits,
+)
 
 # Re-export for backwards compatibility (tests import _MODPACK_NAME_FORBIDDEN):
 _MODPACK_NAME_FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
@@ -944,6 +951,8 @@ def _collect_bundled_mod_archives(zf: zipfile.ZipFile) -> List[Tuple[str, str, b
         )
         if not looks_like_mod_path:
             continue
+        if zi.file_size > ZIP_MAX_FILE_BYTES:
+            continue
         try:
             bundled.append((normalized, file_name, zf.read(zi)))
         except Exception:
@@ -970,6 +979,8 @@ def _collect_bundled_addon_archives(zf: zipfile.ZipFile, addon_type: str) -> Lis
             continue
         file_name = os.path.basename(normalized)
         if not _validate_addon_filename(file_name, normalized_type):
+            continue
+        if zi.file_size > ZIP_MAX_FILE_BYTES:
             continue
         try:
             bundled.append((normalized, file_name, zf.read(zi)))
@@ -1481,7 +1492,7 @@ def _convert_external_modpack_to_hlmp(
 
 
 def import_modpack(
-    hlmp_bytes: bytes,
+    hlmp_bytes: bytes | str | os.PathLike,
     file_name: str = "",
     source_format: str = "",
     allow_external: bool = True,
@@ -1491,9 +1502,26 @@ def import_modpack(
     source_metadata: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     try:
-        zf = zipfile.ZipFile(io.BytesIO(hlmp_bytes), "r")
+        if isinstance(hlmp_bytes, (str, os.PathLike)):
+            zf = zipfile.ZipFile(os.fspath(hlmp_bytes), "r")
+        else:
+            zf = zipfile.ZipFile(io.BytesIO(hlmp_bytes), "r")
     except Exception:
         return {"ok": False, "error": "Invalid modpack archive (not a valid zip)"}
+
+    try:
+        _validate_archive_limits(
+            zf,
+            max_entries=ZIP_MAX_ENTRIES,
+            max_single_file_size=ZIP_MAX_FILE_BYTES,
+            max_total_uncompressed=ZIP_MAX_TOTAL_BYTES,
+        )
+    except ZipSecurityError as exc:
+        try:
+            zf.close()
+        except Exception:
+            pass
+        return {"ok": False, "error": f"Modpack archive rejected: {exc}"}
 
     if "data.json" not in zf.namelist():
         if allow_external:

@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "YYYY/MM/DD HH:mm",
+  "am": "上午",
+  "pm": "下午",
   "nav": {
     "home": "主页",
     "versions": "版本",
     "worlds": "世界",
+    "screenshots": "截图",
     "addons": "附加内容",
     "settings": "设置",
-    "about": "关于"
+    "about": "关于",
+    "primaryNavAria": "主导航"
   },
   "common": {
     "none": "无",
     "unknown": "未知",
     "all": "全部",
+    "auto": "Auto",
     "defaultName": "默认",
     "loading": "加载中...",
     "refresh": "刷新",
@@ -70,6 +76,20 @@
     "playerModel": "玩家模型",
     "modelWide": "宽",
     "modelSlim": "细",
+    "textureType": "纹理类型",
+    "textureDefault": "默认",
+    "textureLegacy": "旧版",
+    "armMirror": "手臂镜像",
+    "legMirror": "腿部镜像",
+    "mirrorRight": "右",
+    "mirrorLeft": "左",
+    "overlayToFirstLayer": "将外层应用到第一层",
+    "overlayHead": "头部",
+    "overlayBody": "外套",
+    "overlayRightArm": "右袖",
+    "overlayLeftArm": "左袖",
+    "overlayRightLeg": "右裤腿",
+    "overlayLeftLeg": "左裤腿",
     "skinFile": "皮肤文件",
     "capeSelection": "披风",
     "skinPreviewAlt": "皮肤预览",
@@ -131,12 +151,16 @@
     "versionTooltip": "启动器版本",
     "refreshTooltip": "刷新数值 (按住 Shift 刷新页面)",
     "refreshAria": "刷新",
-    "profileTooltip": "Histolauncher 账户",
     "refreshAlt": "刷新",
-    "profileAlt": "个人资料"
+    "profileAlt": "个人资料",
+    "profileTooltip": "Histolauncher 账户"
   },
   "home": {
     "launchButton": "启动",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "关闭消息"
+    },
     "info": {
       "version": "版本",
       "noneSelected": "(未选择)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "当前正在下载的版本。",
     "availableSubtitle": "可供安装的版本",
     "deleteSelected": "删除所选 (0)",
+    "actionsMenuAria": "版本操作",
     "profile": {
       "renameTooltip": "重命名当前版本配置文件",
       "renameAria": "重命名版本配置文件",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "最小内存覆盖",
       "maximumRamOverride": "最大内存覆盖",
       "resolutionOverride": "分辨率覆盖",
-      "javaRuntimePathOverride": "Java 运行时路径覆盖",
+      "javaRuntimeOverride": "Java 运行时路径覆盖",
       "extraJvmArgumentsOverride": "额外 JVM 参数覆盖",
       "versionImageFile": "版本图片文件 (可选, PNG/JPG)",
       "failedReadImageData": "读取图片数据失败",
@@ -356,6 +381,18 @@
       "successTitle": "导出成功!",
       "successMessage": "文件已保存至: <br><b>{filepath}</b><br><br>文件大小<br><b>{size} MB</b>",
       "unexpectedError": "导出过程中发生错误: <br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "下载量",
     "sortName": "名称",
     "sortRecentlyUpdated": "最近更新",
+    "actionsMenuAria": "Mod 操作",
     "profile": {
       "renameTooltip": "重命名当前附加内容配置文件",
       "renameAria": "重命名附加内容配置文件",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "为 \"{file}\" 选择模组加载器："
+      "selectLoaderForFile": "为 \"{file}\" 选择模组加载器：",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "已安装",
@@ -554,6 +593,14 @@
       "unexpectedError": "意外的安装错误",
       "unexpectedForAddon": "安装 {addon} 时发生意外错误。"
     },
+    "dependencies": {
+      "title": "模组依赖",
+      "checking": "正在检查依赖...",
+      "prompt": "此模组需要依赖项才能正常工作。请选择要安装的依赖项：",
+      "installSelected": "安装所选项",
+      "installing": "正在安装依赖...",
+      "required": "必需"
+    },
     "exportModpack": {
       "title": "导出整合包",
       "selectFormat": "选择要导出的整合包格式: ",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "来自 {provider} 的世界",
     "deleteSelected": "删除所选 (0)",
     "deleteSelectedCount": "删除所选 ({count})",
+    "actionsMenuAria": "世界操作",
     "importTooltip": "从 .zip 压缩包导入世界",
     "importAria": "导入世界",
     "moreActionsTooltip": "更多世界操作",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "加载世界编辑器中...",
       "editWorldTitle": "编辑世界: {world}",
+      "failedNbtLoad": "无法加载世界 NBT 数据。",
       "worldFallback": "世界",
       "thisWorld": "此世界",
       "primaryPlayer": "主要玩家",
@@ -933,8 +982,7 @@
       "saving": "正在保存世界编辑器更改...",
       "failedSaveNbt": "保存世界 NBT 数据失败。",
       "renameFailedAfterNbt": "NBT 更改已保存, 但世界文件夹重命名失败: {error}",
-      "iconFailedAfterSave": "世界数据已保存, 但图标更新失败: {error}",
-      "failedNbtLoad": "无法加载世界 NBT 数据。"
+      "iconFailedAfterSave": "世界数据已保存, 但图标更新失败: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "启动中...",
     "launchingTimed": "启动中... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "需要 Java 运行时",
     "javaRequiredMessage": "需要兼容的 Java 运行时。",
     "downloadJava": "下载 Java",
@@ -1022,6 +1077,76 @@
       "generic": "加载器",
       "vanilla": "原版",
       "none": "无 (无模组加载器)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "图片",
+    "imagesSubtitleDefault": "可用存储目录中的所有图片",
+    "imagesSubtitle": "{storage} 中共 {count} 张图片",
+    "itemFallback": "截图",
+    "refreshTooltip": "刷新截图列表",
+    "bulkSelectTooltip": "切换截图的批量选择模式",
+    "bulkDeleteTooltip": "删除所选截图",
+    "toggleImagesAria": "切换截图区域",
+    "favoriteAlt": "收藏",
+    "list": {
+      "loading": "加载截图中...",
+      "failedLoadInstalled": "加载截图失败。",
+      "emptyInstalled": "未找到截图"
+    },
+    "actions": {
+      "openImage": "打开截图 {name}",
+      "closeImagePreview": "关闭截图预览",
+      "toggleSelection": "切换截图 {name} 的选择状态",
+      "toggleFavorite": "切换截图 {name} 的收藏状态",
+      "renameImage": "重命名截图 {name}",
+      "deleteImage": "删除截图 {name}",
+      "saveAs": "另存为",
+      "editImageButton": "打开"
+    },
+    "favorite": {
+      "saveFailedTitle": "收藏保存失败",
+      "saveFailed": "保存截图收藏失败: {error}"
+    },
+    "rename": {
+      "title": "重命名截图",
+      "prompt": "为此截图选择新名称。",
+      "keepExtension": "{extension} 文件扩展名保持不变。",
+      "invalidTitle": "无效的截图名称",
+      "invalidMessage": "请输入截图名称。",
+      "failedTitle": "重命名失败",
+      "failedMessage": "重命名截图失败。"
+    },
+    "delete": {
+      "title": "删除截图",
+      "confirmMessage": "删除 {name}? 此操作无法撤销。",
+      "failedTitle": "删除失败",
+      "failedMessage": "删除截图失败。"
+    },
+    "edit": {
+      "failedTitle": "打开失败",
+      "failedMessage": "打开截图失败。"
+    },
+    "saveAs": {
+      "failedTitle": "保存失败",
+      "failedMessage": "保存截图失败: {error}",
+      "fileTypeDescription": "图片文件",
+      "missingFile": "无法解析截图文件。"
+    },
+    "bulkDelete": {
+      "title": "批量删除截图",
+      "deleteSelectedCount": "删除所选 ({count})",
+      "noSelected": "请先选择至少一张截图。",
+      "confirmMessage": "删除 {count} 张所选截图? 此操作无法撤销。",
+      "deletingProgress": "正在删除截图... ({current}/{total})",
+      "cancelling": "正在取消截图删除...",
+      "cancelledTitle": "批量删除已取消",
+      "cancelledMessage": "取消前已删除 {deleted} 张截图。",
+      "cancelledWithFailures": "取消前已删除 {deleted} 张截图。{failures} 张截图删除失败。",
+      "completeTitle": "批量删除完成",
+      "completeMessage": "已删除 {deleted} 张截图。",
+      "finishedWithErrorsTitle": "批量删除完成 (含错误)",
+      "finishedWithErrorsMessage": "已删除 {deleted} 张截图。<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "客户端",
       "launcher": "启动器",
       "mods": "模组",
-      "dataStorage": "数据与存储"
+      "dataStorage": "数据与存储",
+      "playtime": "游戏时间"
+    },
+    "playtime": {
+      "noData": "尚未记录任何会话。开始游玩一个版本以开始追踪！",
+      "total": "总游戏时间：",
+      "totalTooltip": "所有会话的总游戏时间。",
+      "sessions": "游戏次数：",
+      "sessionsTooltip": "您启动游戏的次数。",
+      "mostPlayed": "最常玩的版本：",
+      "mostPlayedTooltip": "您花费最多时间的版本。",
+      "longest": "最长会话：",
+      "longestTooltip": "您单次最长的游戏会话。",
+      "average": "平均会话：",
+      "averageTooltip": "您所有游戏会话的平均时长。",
+      "moreDetails": "更多详情",
+      "detail": {
+        "title": "游戏时间详情",
+        "allVersions": "全部",
+        "filterBy": "版本：",
+        "date": "日期",
+        "version": "版本",
+        "duration": "时长",
+        "modloader": "模组加载器",
+        "noSessions": "没有会话可显示。",
+        "sortBy": "点击排序",
+        "loaderFilterBy": "模组加载器：",
+        "allModloaders": "全部",
+        "noLoader": "无",
+        "totalLabel": "合计：",
+        "nowLive": "实时",
+        "truncatedNote": "显示最近 {shown} 条会话，共 {total} 条。"
+      }
     },
     "account": {
       "username": "用户名: ",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "打开 Microsoft",
         "failedLogin": "Microsoft 登录失败。"
       },
-      "playerPreviewTooltip": "当账户材质可用时, 显示带角度身体和披风渲染的玩家预览。",
+      "playerPreviewTooltip": "在3D预览中显示您的玩家皮肤和披风。",
       "playerPreview": "3D 玩家预览: ",
-      "playerRotateTitle": "点击并拖动以旋转",
       "playerPreviewBodyAlt": "玩家预览",
-      "playerPreviewCapeAlt": "披风预览"
+      "playerPreviewCapeAlt": "披风预览",
+      "playerRotateTitle": "点击并拖动以旋转"
     },
     "appearance": {
       "theme": "主题: ",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "自动优化:",
+      "autoOptimizeTooltip": "每次 Minecraft 启动时，自动根据当前设备内存选择启动 RAM 和 JVM 参数。",
+      "autoOptimizeLockedTitle": "禁用自动优化以手动编辑此项。",
       "minRam": "最小内存: ",
       "minRamTooltip": "分配给游戏的最小内存\n  - 必须为正数\n  - 必须小于最大内存\n\n示例格式: 256、256M、2G 等\n\n (性能提示: 分配更多内存以获得更好的性能, 同时将其与最大内存匹配以减少帧率下降)",
       "ramInvalidTitle": "内存格式: 数字加可选的 K、M、G 或 T 后缀 (例如 2048M、2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "在启动器或游戏运行时显示 Discord Rich Presence。",
       "desktopNotifications": "桌面通知: ",
       "desktopNotificationsTooltip": "允许启动器发送桌面通知。",
+      "keyboardMouse": "键盘鼠标：",
+      "keyboardMouseTooltip": "在整个启动器中显示由键盘控制的光标。\n\n此功能仍处于实验阶段, 可能有许多问题!",
       "java": {
         "auto": "自动",
         "defaultPath": "默认 (Java PATH)",

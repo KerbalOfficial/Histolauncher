@@ -20,6 +20,151 @@ __all__ = ["ProxyMixin"]
 
 
 class ProxyMixin:
+    def _has_real_minecraftservices_token(self) -> bool:
+        try:
+            value = str(self.headers.get("Authorization", "") or "").strip()
+        except Exception:
+            value = ""
+        if not value.lower().startswith("bearer "):
+            return False
+
+        token = value.split(None, 1)[1].strip() if " " in value else ""
+        if not token or token.lower() in {"0", "null", "none"}:
+            return False
+
+        try:
+            from server.auth.microsoft import get_microsoft_launch_account
+
+            success, account, _error = get_microsoft_launch_account()
+            return bool(success and account and str(account.get("access_token") or "").strip())
+        except Exception:
+            return False
+
+    @staticmethod
+    def _empty_friends_response() -> dict:
+        return {"friends": [], "incomingRequests": [], "outgoingRequests": []}
+
+    @staticmethod
+    def _stubbed_player_attributes_response() -> dict:
+        return {
+            "privileges": {
+                "onlineChat": {"enabled": True},
+                "multiplayerServer": {"enabled": True},
+                "multiplayerRealms": {"enabled": True},
+                "telemetry": {"enabled": False},
+                "optionalTelemetry": {"enabled": False},
+            },
+            "profanityFilterPreferences": {
+                "enabled": False,
+                "profanityFilterOn": False,
+            },
+            "friendsPreferences": {
+                "friends": "ENABLED",
+                "acceptInvites": "ENABLED",
+            },
+            "chatPreferences": {"textCommunication": "ENABLED"},
+            "banStatus": {"bannedScopes": {}},
+        }
+
+    def _try_stub_minecraftservices_social(self, target: str) -> bool:
+        parsed = urlparse(f"http://{target}")
+        host = (parsed.netloc or "").split(":", 1)[0].lower()
+        path = parsed.path.rstrip("/") or "/"
+
+        if host != "api.minecraftservices.com":
+            return False
+        if self._has_real_minecraftservices_token():
+            return False
+
+        method_upper = str(getattr(self, "command", None) or "GET").upper()
+        if (
+            path == "/friends"
+            and method_upper in {"GET", "POST", "PUT", "DELETE"}
+        ):
+            self._send_json(self._empty_friends_response(), status=200)
+            print(colorize_log(
+                "[http_server] stubbed minecraftservices friends for custom auth"
+            ))
+            return True
+        if (
+            path.startswith("/friends/")
+            and method_upper in {"GET", "POST", "PUT", "DELETE"}
+        ):
+            self._send_json(self._empty_friends_response(), status=200)
+            print(colorize_log(
+                "[http_server] stubbed minecraftservices friend action for custom auth"
+            ))
+            return True
+        if path == "/presence" and method_upper in {"GET", "POST"}:
+            self._send_json({"presence": []}, status=200)
+            print(colorize_log(
+                "[http_server] stubbed minecraftservices presence for custom auth"
+            ))
+            return True
+        if (
+            (path == "/privacy/blocklist" or path.startswith("/privacy/blocklist/"))
+            and method_upper in {"GET", "POST", "PUT", "DELETE"}
+        ):
+            self._send_json({"blockedProfiles": []}, status=200)
+            print(colorize_log(
+                "[http_server] stubbed minecraftservices blocklist for custom auth"
+            ))
+            return True
+
+        return False
+
+    def _minecraftservices_forward_headers(self) -> dict[str, str]:
+        blocked = {
+            "host",
+            "content-length",
+            "connection",
+            "proxy-connection",
+            "accept-encoding",
+            "transfer-encoding",
+        }
+        allowed = {
+            "authorization",
+            "content-type",
+            "accept",
+            "accept-language",
+            "if-none-match",
+            "user-agent",
+        }
+        headers: dict[str, str] = {}
+        try:
+            for header_name, value in self.headers.items():
+                key = str(header_name or "").strip()
+                lower = key.lower()
+                if not key or lower in blocked:
+                    continue
+                if lower in allowed or lower.startswith("x-"):
+                    clean_value = str(value or "").strip()
+                    if clean_value:
+                        headers[key] = clean_value
+        except Exception:
+            pass
+        if not any(name.lower() == "user-agent" for name in headers):
+            headers["User-Agent"] = "Histolauncher/1.0"
+        return headers
+
+    @staticmethod
+    def _summarize_upstream_error(payload: bytes) -> str:
+        import json
+
+        text = (payload or b"").decode("utf-8", errors="replace").strip()
+        if not text:
+            return ""
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict):
+                for key in ("error", "errorMessage", "message", "path"):
+                    value = str(data.get(key) or "").strip()
+                    if value:
+                        return value[:240]
+        except Exception:
+            pass
+        return text.replace("\r", " ").replace("\n", " ")[:240]
+
     def _get_histolauncher_auth_cookie_header(self) -> str:
         try:
             from server.auth import load_histolauncher_cookie_header
@@ -168,6 +313,9 @@ class ProxyMixin:
         if not target_clean:
             return False
 
+        if self._try_bridge_sessionserver_get(target_clean):
+            return True
+
         if self._try_bridge_modern_profile_lookup_get(target_clean):
             return True
 
@@ -175,6 +323,12 @@ class ProxyMixin:
             return True
 
         if self._try_bridge_legacy_skin_target(target_clean):
+            return True
+
+        if self._try_bridge_player_attributes(target_clean):
+            return True
+
+        if self._try_bridge_minecraftservices_generic(target_clean):
             return True
 
         domain = target_clean.split("/", 1)[0].lower()
@@ -303,10 +457,106 @@ class ProxyMixin:
             self.end_headers()
             return True
 
+        if self._try_bridge_sessionserver_post(target_clean, body_bytes):
+            return True
+
         if self._try_bridge_modern_profile_lookup_post(target_clean, body_bytes):
             return True
 
+        if self._try_bridge_player_attributes(target_clean, body_bytes):
+            return True
+
+        if self._try_bridge_minecraftservices_generic(target_clean, body_bytes=body_bytes):
+            return True
+
         return False
+
+    def _sessionserver_local_path(self, target: str) -> str:
+        parsed = urlparse(f"http://{target}")
+        path = parsed.path or "/"
+        query = parsed.query or ""
+        if query and "&" not in query and "%26" in query.lower():
+            query = unquote(query)
+        local_path = "/sessionserver" + path
+        if query:
+            local_path += f"?{query}"
+        return local_path
+
+    def _try_bridge_sessionserver_get(self, target: str) -> bool:
+        parsed = urlparse(f"http://{target}")
+        host = (parsed.netloc or "").split(":", 1)[0].lower()
+        path = parsed.path or ""
+
+        if host != "sessionserver.mojang.com":
+            return False
+
+        local_path = self._sessionserver_local_path(target)
+        request_path = str(getattr(self, "path", "") or local_path)
+        if re.match(r"^/session/minecraft/profile/[0-9a-fA-F-]{32,36}/?$", path):
+            try:
+                require_signature = self._request_requires_signature()
+            except Exception:
+                require_signature = True
+            status, resp = yggdrasil.handle_session_get(
+                request_path,
+                self.server.server_port,
+                require_signature=require_signature,
+            )
+            self._send_json(resp, status=status)
+            print(colorize_log(
+                "[http_server] bridged sessionserver profile lookup locally"
+            ))
+            return True
+
+        if path == "/session/minecraft/hasJoined":
+            try:
+                require_signature = self._request_requires_signature()
+            except Exception:
+                require_signature = True
+            status, resp = yggdrasil.handle_has_joined_get(
+                request_path,
+                self.server.server_port,
+                require_signature=require_signature,
+            )
+            if status == 204:
+                self.send_response(204)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return True
+            self._send_json(resp, status=status)
+            print(colorize_log(
+                "[http_server] bridged sessionserver hasJoined lookup locally"
+            ))
+            return True
+
+        return False
+
+    def _try_bridge_sessionserver_post(self, target: str, body_bytes: bytes) -> bool:
+        parsed = urlparse(f"http://{target}")
+        host = (parsed.netloc or "").split(":", 1)[0].lower()
+        path = parsed.path or ""
+
+        if host != "sessionserver.mojang.com":
+            return False
+
+        if path != "/session/minecraft/join":
+            return False
+
+        body = (body_bytes or b"").decode("utf-8", errors="replace")
+        status, resp = yggdrasil.handle_session_join_post(
+            self._sessionserver_local_path(target),
+            body,
+        )
+        if status == 204:
+            self.send_response(204)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return True
+        self._send_json(resp, status=status)
+        print(colorize_log(
+            "[http_server] bridged sessionserver join locally"
+        ))
+        return True
 
     def _try_bridge_modern_profile_lookup_get(self, target: str) -> bool:
         parsed = urlparse(f"http://{target}")
@@ -333,6 +583,142 @@ class ProxyMixin:
             print(colorize_log(
                 f"[http_server] bridged mojang profile lookup: {name} -> {uid_hex}"
             ))
+            return True
+
+        return False
+
+    def _try_bridge_player_attributes(
+        self, target: str, body_bytes: bytes | None = None
+    ) -> bool:
+        import json
+
+        parsed = urlparse(f"http://{target}")
+        host = (parsed.netloc or "").split(":", 1)[0].lower()
+        path = parsed.path or ""
+
+        if host != "api.minecraftservices.com":
+            return False
+
+        if path.rstrip("/") != "/player/attributes":
+            return False
+
+        if self._has_real_minecraftservices_token():
+            return self._try_bridge_minecraftservices_generic(target, body_bytes=body_bytes)
+
+        resp = self._stubbed_player_attributes_response()
+        self._send_json(resp, status=200)
+        print(colorize_log(
+            "[http_server] stubbed player/attributes for custom auth"
+        ))
+        return True
+
+    def _try_bridge_minecraftservices_generic(
+        self,
+        target: str,
+        body_bytes: bytes | None = None,
+    ) -> bool:
+        parsed = urlparse(f"http://{target}")
+        host = (parsed.netloc or "").split(":", 1)[0].lower()
+        path = parsed.path or "/"
+        query = parsed.query or ""
+
+        if host != "api.minecraftservices.com":
+            return False
+
+        if self._try_stub_minecraftservices_social(target):
+            return True
+
+        full_path = path
+        if query:
+            full_path += f"?{query}"
+        direct_url = f"https://api.minecraftservices.com{full_path}"
+
+        candidate_urls = []
+        proxied = _apply_url_proxy(direct_url)
+        if proxied:
+            candidate_urls.append(proxied)
+        if direct_url not in candidate_urls:
+            candidate_urls.append(direct_url)
+
+        method_upper = str(getattr(self, "command", None) or "GET").upper()
+
+        forward_headers = self._minecraftservices_forward_headers()
+
+        for idx, candidate_url in enumerate(candidate_urls):
+            try:
+                req = urllib.request.Request(
+                    candidate_url,
+                    data=body_bytes or None,
+                    headers=forward_headers,
+                    method=method_upper,
+                )
+                with urllib.request.urlopen(req, timeout=10) as resp:
+                    payload = resp.read()
+                    status = getattr(resp, "status", None) or resp.getcode()
+                    response_headers = resp.headers
+                    self.send_response(status)
+                    for header_name in ("Content-Type", "Cache-Control", "ETag", "Last-Modified"):
+                        val = response_headers.get(header_name)
+                        if val:
+                            self.send_header(header_name, val)
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    if method_upper != "HEAD" and payload:
+                        self.wfile.write(payload)
+                    print(colorize_log(
+                        f"[http_server] passed through minecraftservices: {path}"
+                    ))
+                    return True
+            except urllib.error.HTTPError as e:
+                should_retry = idx == 0 and len(candidate_urls) > 1 and e.code >= 500
+                if should_retry:
+                    continue
+                try:
+                    payload = e.read()
+                except Exception:
+                    payload = b""
+                self.send_response(e.code)
+                resp_headers = getattr(e, "headers", None)
+                if resp_headers:
+                    for header_name in ("Content-Type", "Cache-Control"):
+                        val = resp_headers.get(header_name)
+                        if val:
+                            self.send_header(header_name, val)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                if method_upper != "HEAD" and payload:
+                    self.wfile.write(payload)
+                summary = self._summarize_upstream_error(payload)
+                detail = f" - {summary}" if summary else ""
+                print(colorize_log(
+                    f"[http_server] minecraftservices passthrough returned {e.code}: {path}{detail}"
+                ))
+                return True
+            except Exception as e:
+                if idx < len(candidate_urls) - 1:
+                    continue
+                print(colorize_log(
+                    f"[http_server] minecraftservices passthrough failed: {path} - {e}"
+                ))
+                try:
+                    self.send_error(502, "Bad Gateway")
+                except Exception:
+                    pass
+                return True
+
+        return True
+
+    def _handle_allowlisted_remote_proxy_put(
+        self, scheme: str, target: str, body_bytes: bytes
+    ) -> bool:
+        target_clean = str(target or "").lstrip("/")
+        if not target_clean:
+            return False
+
+        if self._try_bridge_player_attributes(target_clean, body_bytes):
+            return True
+
+        if self._try_bridge_minecraftservices_generic(target_clean, body_bytes=body_bytes):
             return True
 
         return False
@@ -439,7 +825,7 @@ class ProxyMixin:
                 self.send_error(404, "Texture not found")
                 return True
             self._handle_texture_proxy(
-                f"/texture/skin/{quote(requested_name, safe='')}"
+                f"/texture/skin/{quote(requested_name, safe='')}?legacy=1"
             )
             print(colorize_log(
                 f"[http_server] bridged legacy skin URL to texture proxy: {requested_name}"
@@ -453,7 +839,7 @@ class ProxyMixin:
                 self.send_error(404, "Texture not found")
                 return True
             self._handle_texture_proxy(
-                f"/texture/skin/{quote(requested_name, safe='')}"
+                f"/texture/skin/{quote(requested_name, safe='')}?legacy=1"
             )
             print(colorize_log(
                 f"[http_server] bridged minecraft.net skin URL to texture proxy: "

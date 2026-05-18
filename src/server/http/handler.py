@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import html
 import ipaddress
 import json
+import mimetypes
+import os
 import re
 import select
 import socket
@@ -42,6 +45,128 @@ def _is_player_certificates_path(path: str) -> bool:
         or normalized.startswith("/authserverminecraftservices/")
         or normalized.startswith("/minecraftservices/")
     )
+
+
+def _is_player_attributes_path(path: str) -> bool:
+    normalized = "/" + "/".join(
+        part for part in str(path or "").split("/") if part
+    )
+    return normalized.endswith("/player/attributes") and (
+        normalized.startswith("/authserver/")
+        or normalized.startswith("/authserverminecraftservices/")
+        or normalized.startswith("/minecraftservices/")
+    )
+
+
+def _normalized_yggdrasil_session_path(path: str) -> str:
+    parts = [part for part in str(path or "").split("/") if part]
+    while parts and parts[0] == "authserver":
+        parts = parts[1:]
+    if len(parts) >= 2 and parts[0] == "sessionserver" and parts[1] == "session":
+        parts = parts[1:]
+    return "/" + "/".join(parts)
+
+
+def _is_yggdrasil_session_profile_path(path: str) -> bool:
+    return bool(re.match(
+        r"^/session/minecraft/profile/[0-9a-fA-F-]{32,36}/?$",
+        _normalized_yggdrasil_session_path(path),
+    ))
+
+
+def _is_yggdrasil_has_joined_path(path: str) -> bool:
+    return _normalized_yggdrasil_session_path(path) == "/session/minecraft/hasJoined"
+
+
+def _is_yggdrasil_join_path(path: str) -> bool:
+    return _normalized_yggdrasil_session_path(path) == "/session/minecraft/join"
+
+
+def _split_proxy_path(path: str) -> tuple[str, str] | None:
+    parts = [part for part in str(path or "").split("/") if part]
+    while parts and parts[0] == "authserver":
+        parts = parts[1:]
+    if parts and parts[0] in ("http", "https"):
+        return parts[0], "/".join(parts[1:])
+    return None
+
+
+def _extract_minecraftservices_subpath(path: str) -> str | None:
+    normalized = "/" + "/".join(part for part in str(path or "").split("/") if part)
+    for prefix in (
+        "/authserver/minecraftservices",
+        "/authserverminecraftservices",
+        "/minecraftservices",
+    ):
+        if normalized == prefix or normalized.startswith(prefix + "/"):
+            return normalized[len(prefix):] or "/"
+    return None
+
+
+def _split_host_port(value: str) -> tuple[str, int | None]:
+    raw = str(value or "").strip()
+    if not raw:
+        return "", None
+    if raw.startswith("["):
+        end = raw.find("]")
+        if end >= 0:
+            host = raw[1:end]
+            rest = raw[end + 1:]
+            if rest.startswith(":"):
+                try:
+                    return host, int(rest[1:])
+                except ValueError:
+                    return host, None
+            return host, None
+    if raw.count(":") == 1:
+        host, port_text = raw.rsplit(":", 1)
+        try:
+            return host, int(port_text)
+        except ValueError:
+            return host, None
+    return raw, None
+
+
+def _is_loopback_host(host: str) -> bool:
+    clean = str(host or "").strip().strip("[]").lower()
+    if clean == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(clean).is_loopback
+    except ValueError:
+        return False
+
+
+def _origin_matches_loopback_server(value: str, request_host: str, server_port: int) -> bool:
+    try:
+        parsed = urlparse(str(value or ""))
+        if parsed.scheme not in {"http", "https"}:
+            return False
+        origin_host = parsed.hostname or ""
+        if not _is_loopback_host(origin_host):
+            return False
+        header_host, _header_port = _split_host_port(request_host)
+        if header_host and not _is_loopback_host(header_host):
+            return False
+        origin_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        return int(origin_port) == int(server_port)
+    except Exception:
+        return False
+
+
+def _is_json_content_type(value: str) -> bool:
+    content_type = str(value or "").split(";", 1)[0].strip().lower()
+    return content_type == "application/json" or content_type.endswith("+json")
+
+
+def _is_api_multipart_import_path(path: str) -> bool:
+    return path.startswith((
+        "/api/versions/import",
+        "/api/mods/import",
+        "/api/modpacks/import",
+        "/api/worlds/import",
+        "/api/worlds/import-scan",
+    ))
 
 
 class RequestHandler(
@@ -190,52 +315,13 @@ class RequestHandler(
             except Exception:
                 pass
 
-    def _client_requires_signature(self) -> bool:
-        try:
-            ua = str(self.headers.get("User-Agent") or "").strip()
-            if not ua:
-                return False
-
-            m = re.search(
-                r"Minecraft(?:/| )?([0-9]+(?:\.[0-9]+){0,2})", ua, flags=re.IGNORECASE
-            )
-            ver = m.group(1) if m else None
-            if not ver:
-                m2 = re.search(r"([0-9]+(?:\.[0-9]+){0,2})", ua)
-                ver = m2.group(1) if m2 else None
-
-            if not ver:
-                if re.search(r"\d+w\d+[a-z]?", ua, flags=re.IGNORECASE):
-                    return True
-                return False
-
-            parts = [int(x) for x in ver.split(".")]
-            while len(parts) < 3:
-                parts.append(0)
-
-            return tuple(parts) >= (1, 20, 2)
-        except Exception:
-            return False
-
     def _request_requires_signature(self) -> bool:
         try:
             parsed = urlparse(getattr(self, "path", "") or "")
             query = urllib.parse.parse_qs(parsed.query or "")
-            unsigned_flag = str((query.get("unsigned") or [""])[0]).strip().lower()
-            if unsigned_flag == "true":
-                return False
-            if unsigned_flag == "false":
-                return True
-        except Exception:
-            pass
-
-        try:
-            return (
-                yggdrasil.get_public_key_pem() is not None
-                or self._client_requires_signature()
-            )
-        except Exception:
-            return self._client_requires_signature()
+            if str((query.get("unsigned") or [""])[0]).strip().lower() == "true": return False
+        except Exception: pass
+        return True
 
     def end_headers(self):
         parsed = urlparse(getattr(self, "path", "") or "")
@@ -268,10 +354,41 @@ class RequestHandler(
         self.end_headers()
         self.wfile.write(encoded)
 
+    def _validate_api_write_request(self, path: str) -> bool:
+        sec_fetch_site = str(self.headers.get("Sec-Fetch-Site", "") or "").strip().lower()
+        if sec_fetch_site == "cross-site":
+            self._send_json({"ok": False, "error": "Cross-site API requests are not allowed."}, status=403)
+            return False
+
+        request_host = str(self.headers.get("Host", "") or "")
+        origin = str(self.headers.get("Origin", "") or "").strip()
+        if origin and not _origin_matches_loopback_server(origin, request_host, self.server.server_port):
+            self._send_json({"ok": False, "error": "Invalid API request origin."}, status=403)
+            return False
+
+        referer = str(self.headers.get("Referer", "") or "").strip()
+        if not origin and referer and not _origin_matches_loopback_server(referer, request_host, self.server.server_port):
+            self._send_json({"ok": False, "error": "Invalid API request referer."}, status=403)
+            return False
+
+        try:
+            content_length = int(self.headers.get("Content-Length", 0) or 0)
+        except (TypeError, ValueError):
+            content_length = 0
+        if content_length <= 0:
+            return True
+
+        content_type = str(self.headers.get("Content-Type", "") or "")
+        if _is_api_multipart_import_path(path) and "multipart/form-data" in content_type.lower():
+            return True
+        if _is_json_content_type(content_type):
+            return True
+
+        self._send_json({"ok": False, "error": "API POST requests must use application/json."}, status=415)
+        return False
+
     def _send_ygg_metadata(self):
         launcher_version = read_local_version(base_dir=BASE_DIR)
-
-        public_key = yggdrasil.get_public_key_pem()
 
         try:
             from core.launch.auth import is_microsoft_account_active
@@ -284,7 +401,7 @@ class RequestHandler(
                 "serverName": f"Histolauncher {launcher_version}",
                 "implementationName": "Histolauncher",
                 "implementationVersion": launcher_version,
-                "usesSignature": public_key is not None,
+                "usesSignature": False,
                 "feature.non_email_login": True,
                 "feature.enable_profile_key": profile_key_enabled,
             },
@@ -294,7 +411,7 @@ class RequestHandler(
                 "textures.minecraft.net",
                 "textures.histolauncher.org",
             ],
-            "signaturePublickey": public_key,
+            "signaturePublickey": None,
             "links": {
                 "homepage": "https://histolauncher.org",
                 "register": "https://histolauncher.org/signup",
@@ -302,6 +419,58 @@ class RequestHandler(
         }
 
         return data
+
+    def _handle_playtime_live_stream(self):
+        import time as _time
+        from core.launch.state import STATE as _STATE
+
+        def _fmt(secs: float) -> str:
+            s = int(secs)
+            h, r = divmod(s, 3600)
+            m, sec = divmod(r, 60)
+            if h > 0:
+                return f"{h}h {m:02d}m {sec:02d}s"
+            return f"{m}m {sec:02d}s"
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        try:
+            while True:
+                try:
+                    with _STATE.process_lock:
+                        running = [
+                            p for p in _STATE.active_processes.values()
+                            if p.get("status") == "running"
+                        ]
+                    if running:
+                        p = running[0]
+                        elapsed = _time.time() - float(p.get("start_time") or _time.time())
+                        ver_id = str(p.get("version") or "")
+                        version = ver_id.split("/", 1)[1] if "/" in ver_id else ver_id
+                        payload = {
+                            "playing": True,
+                            "version": version,
+                            "loader": p.get("loader") or None,
+                            "elapsed_s": round(elapsed, 1),
+                            "elapsed_formatted": _fmt(elapsed),
+                        }
+                    else:
+                        payload = {"playing": False}
+
+                    self.wfile.write(b"data: ")
+                    self.wfile.write(json.dumps(payload).encode("utf-8"))
+                    self.wfile.write(b"\n\n")
+                    self.wfile.flush()
+                    _time.sleep(1.0)
+                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                    break
+        except Exception:
+            pass
 
     def _handle_install_stream(self, target_version_key: str):
         import queue
@@ -348,6 +517,54 @@ class RequestHandler(
         finally:
             remove_progress_listener(q)
 
+    def _handle_screenshot_file_request(self, parsed) -> bool:
+        query = urllib.parse.parse_qs(parsed.query or "")
+        storage_target = str((query.get("storage_target") or [""])[-1] or "").strip()
+        relative_path = str((query.get("relative_path") or [""])[-1] or "").strip()
+        custom_path = str((query.get("custom_path") or [""])[-1] or "").strip()
+
+        try:
+            from core import screenshots
+
+            resolved = screenshots.resolve_screenshot_file(
+                storage_target,
+                relative_path,
+                custom_path=custom_path,
+            )
+        except Exception as exc:
+            print(colorize_log(f"[http_server] failed to resolve screenshot file: {exc}"))
+            self.send_error(500, "Internal server error")
+            return True
+
+        if not resolved.get("ok"):
+            self.send_error(404, str(resolved.get("error") or "Screenshot not found"))
+            return True
+
+        file_path = str(resolved.get("file_path") or "")
+        if not file_path:
+            self.send_error(404, "Screenshot not found")
+            return True
+
+        try:
+            with open(file_path, "rb") as handle:
+                payload = handle.read()
+        except OSError:
+            self.send_error(404, "Screenshot not found")
+            return True
+
+        content_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+        if not str(content_type).startswith("image/"):
+            self.send_error(403, "Forbidden")
+            return True
+
+        self.send_response(200)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
+        return True
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -367,14 +584,15 @@ class RequestHandler(
             error_message = (
                 (response or {}).get("error") or "Failed to load account settings"
             )
+            safe_error_message = html.escape(str(error_message), quote=False)
             error_html = (
                 "<!DOCTYPE html><html><head><meta charset=\"utf-8\">"
                 "<title>Account Settings Error</title></head>"
                 "<body style=\"margin:0;background:#111;color:#e5e7eb;display:flex;"
                 "align-items:center;justify-content:center;min-height:100vh;"
                 "text-align:center;padding:24px;box-sizing:border-box;\">"
-                f"<div><h2 style=\"margin-top:0;font-style='Arial';\">"
-                f"Account Settings Unavailable</h2><p>{error_message}</p></div>"
+                f"<div><h2 style=\"margin-top:0;font-family:Arial,sans-serif;\">"
+                f"Account Settings Unavailable</h2><p>{safe_error_message}</p></div>"
                 "</body></html>"
             ).encode("utf-8", errors="replace")
             self.send_response(502)
@@ -421,13 +639,12 @@ class RequestHandler(
             self.send_error(404, "Not Found")
             return
 
-        if path.startswith("/http/") or path.startswith("/https/"):
-            scheme = "http" if path.startswith("/http/") else "https"
-            remainder = path.split("/", 2)
-            if len(remainder) < 3 or not remainder[2]:
+        proxy_path = _split_proxy_path(path)
+        if proxy_path:
+            scheme, target = proxy_path
+            if not target:
                 self.send_error(404, "Not Found")
                 return
-            target = remainder[2]
             if self._handle_allowlisted_remote_proxy(scheme, target):
                 return
             self.send_error(403, "Forbidden")
@@ -467,15 +684,7 @@ class RequestHandler(
             self._send_json(resp, status=status)
             return
 
-        if (
-            path.startswith("/authserver/session/minecraft/profile/")
-            or path.startswith("/authserver/sessionserver/session/minecraft/profile/")
-            or path.startswith("/authserver/authserver/session/minecraft/profile/")
-            or path.startswith(
-                "/authserver/authserver/sessionserver/session/minecraft/profile/"
-            )
-            or path.startswith("/sessionserver/session/minecraft/profile/")
-        ):
+        if _is_yggdrasil_session_profile_path(path):
             req_sig = self._request_requires_signature()
             status, resp = yggdrasil.handle_session_get(
                 self.path, self.server.server_port, require_signature=req_sig
@@ -483,11 +692,7 @@ class RequestHandler(
             self._send_json(resp, status=status)
             return
 
-        if (
-            path.startswith("/authserver/session/minecraft/hasJoined")
-            or path.startswith("/authserver/sessionserver/session/minecraft/hasJoined")
-            or path.startswith("/sessionserver/session/minecraft/hasJoined")
-        ):
+        if _is_yggdrasil_has_joined_path(path):
             req_sig = self._request_requires_signature()
             status, resp = yggdrasil.handle_has_joined_get(
                 self.path, self.server.server_port, require_signature=req_sig
@@ -578,11 +783,31 @@ class RequestHandler(
             self._send_json(resp, status=status)
             return
 
+        if _is_player_attributes_path(path):
+            self._try_bridge_player_attributes("api.minecraftservices.com/player/attributes")
+            return
+
+        ms_subpath = _extract_minecraftservices_subpath(path)
+        if ms_subpath is not None:
+            target = "api.minecraftservices.com" + ms_subpath
+            if parsed.query:
+                target += f"?{parsed.query}"
+            self._try_bridge_minecraftservices_generic(target)
+            return
+
         # API endpoints
         if path.startswith("/api/stream/install/"):
             version_key = unquote(path[len("/api/stream/install/"):])
             self._handle_install_stream(version_key)
             return
+
+        if path == "/api/stream/playtime-live":
+            self._handle_playtime_live_stream()
+            return
+
+        if path == "/api/screenshots/file":
+            if self._handle_screenshot_file_request(parsed):
+                return
 
         if path.startswith("/api/"):
             response = handle_api_request(self.path, None)
@@ -638,7 +863,6 @@ class RequestHandler(
         if not self._check_content_length(max_size=max_payload_size):
             return
 
-        # Handle proxy-form absolute POSTs (modern services + legacy telemetry).
         if parsed.scheme in ("http", "https") and parsed.netloc:
             length = int(self.headers.get("Content-Length", 0))
             body_bytes = self.rfile.read(length)
@@ -647,6 +871,23 @@ class RequestHandler(
                 target += f"?{parsed.query}"
             if self._handle_allowlisted_remote_proxy_post(
                 parsed.scheme, target, body_bytes
+            ):
+                return
+            self.send_error(403, "Forbidden")
+            return
+
+        proxy_path = _split_proxy_path(path)
+        if proxy_path:
+            scheme, target = proxy_path
+            if not target:
+                self.send_error(404, "Not Found")
+                return
+            length = int(self.headers.get("Content-Length", 0))
+            body_bytes = self.rfile.read(length)
+            if parsed.query:
+                target += f"?{parsed.query}"
+            if self._handle_allowlisted_remote_proxy_post(
+                scheme, target, body_bytes
             ):
                 return
             self.send_error(403, "Forbidden")
@@ -684,6 +925,19 @@ class RequestHandler(
                         uid_hex = str(current_uuid).replace("-", "")
                     else:
                         uid_hex = yggdrasil._ensure_uuid(nm_clean).replace("-", "")
+                    try:
+                        if uid_hex:
+                            yggdrasil.STATE.uuid_name_cache[uid_hex] = nm_clean
+                    except Exception:
+                        pass
+                    try:
+                        if nm_clean.lower() != current_name_norm:
+                            yggdrasil.schedule_remote_texture_metadata_prefetch(
+                                uid_hex,
+                                nm_clean,
+                            )
+                    except Exception:
+                        pass
                     out.append({"id": uid_hex, "name": nm_clean})
                 self._send_json(out, status=200)
                 return
@@ -701,12 +955,7 @@ class RequestHandler(
             self._send_json(resp, status=status)
             return
 
-        # Session join endpoint used in modern multiplayer auth flow.
-        if (
-            path.startswith("/authserver/session/minecraft/join")
-            or path.startswith("/authserver/sessionserver/session/minecraft/join")
-            or path.startswith("/sessionserver/session/minecraft/join")
-        ):
+        if _is_yggdrasil_join_path(path):
             length = int(self.headers.get("Content-Length", 0))
             body = self.rfile.read(length).decode("utf-8")
             status, resp = yggdrasil.handle_session_join_post(path, body)
@@ -718,7 +967,6 @@ class RequestHandler(
             self._send_json(resp, status=status)
             return
 
-        # Own profile endpoint used by 1.20.2+ via servicesHost
         if (
             path == "/authserver/minecraft/profile"
             or path == "/authserver/minecraft/profile/"
@@ -737,8 +985,27 @@ class RequestHandler(
             self._send_json(resp, status=status)
             return
 
+        if _is_player_attributes_path(path):
+            length = int(self.headers.get("Content-Length", 0))
+            body_bytes = self.rfile.read(length) if length > 0 else None
+            self._try_bridge_player_attributes("api.minecraftservices.com/player/attributes", body_bytes)
+            return
+
+        ms_subpath = _extract_minecraftservices_subpath(path)
+        if ms_subpath is not None:
+            length = int(self.headers.get("Content-Length", 0))
+            body_bytes = self.rfile.read(length) if length > 0 else b""
+            target = "api.minecraftservices.com" + ms_subpath
+            if parsed.query:
+                target += f"?{parsed.query}"
+            self._try_bridge_minecraftservices_generic(target, body_bytes=body_bytes or None)
+            return
+
         # API POSTs
         if path.startswith("/api/"):
+            if not self._validate_api_write_request(path):
+                return
+
             length = int(self.headers.get("Content-Length", 0))
             content_type = self.headers.get("Content-Type", "")
 
@@ -987,3 +1254,62 @@ class RequestHandler(
             return
 
         self.send_error(405, "Method Not Allowed")
+
+    def _do_proxy_write_method(self, method: str):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if _is_player_attributes_path(path):
+            length = int(self.headers.get("Content-Length", 0))
+            body_bytes = self.rfile.read(length) if length > 0 else None
+            self._try_bridge_player_attributes("api.minecraftservices.com/player/attributes", body_bytes)
+            return
+
+        if not self._check_content_length():
+            return
+
+        length = int(self.headers.get("Content-Length", 0))
+        body_bytes = self.rfile.read(length)
+
+        ms_subpath = _extract_minecraftservices_subpath(path)
+        if ms_subpath is not None:
+            target = "api.minecraftservices.com" + ms_subpath
+            if parsed.query:
+                target += f"?{parsed.query}"
+            self._try_bridge_minecraftservices_generic(target, body_bytes=body_bytes or None)
+            return
+
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            target = parsed.netloc + (parsed.path or "")
+            if parsed.query:
+                target += f"?{parsed.query}"
+            if self._handle_allowlisted_remote_proxy_put(
+                parsed.scheme, target, body_bytes
+            ):
+                return
+            self.send_error(403, "Forbidden")
+            return
+
+        proxy_path = _split_proxy_path(path)
+        if proxy_path:
+            scheme, target = proxy_path
+            if not target:
+                self.send_error(404, "Not Found")
+                return
+            if parsed.query:
+                target += f"?{parsed.query}"
+            if self._handle_allowlisted_remote_proxy_put(scheme, target, body_bytes):
+                return
+            self.send_error(403, "Forbidden")
+            return
+
+        self.send_error(405, "Method Not Allowed")
+
+    def do_PUT(self):
+        self._do_proxy_write_method("PUT")
+
+    def do_PATCH(self):
+        self._do_proxy_write_method("PATCH")
+
+    def do_DELETE(self):
+        self._do_proxy_write_method("DELETE")

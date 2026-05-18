@@ -15,6 +15,12 @@ from core.mod_manager.storage import (
     _resolve_mod_archive_path,
     get_mod_version_dir,
 )
+from core.zip_utils import (
+    ZipSecurityError,
+    _validate_archive_limits,
+    safe_extract_zip,
+)
+from core.constants import ZIP_MAX_ENTRIES, ZIP_MAX_FILE_BYTES, ZIP_MAX_TOTAL_BYTES
 
 
 def list_mod_archive_source_folders(
@@ -31,6 +37,18 @@ def list_mod_archive_source_folders(
     folders = set()
     try:
         with zipfile.ZipFile(archive_path, "r") as zf:
+            try:
+                _validate_archive_limits(
+                    zf,
+                    max_entries=ZIP_MAX_ENTRIES,
+                    max_single_file_size=ZIP_MAX_FILE_BYTES,
+                    max_total_uncompressed=ZIP_MAX_TOTAL_BYTES,
+                )
+            except ZipSecurityError as exc:
+                logger.warning(
+                    f"Refusing to list archive {archive_path}: {exc}"
+                )
+                return [""]
             for info in zf.infolist():
                 raw_name = str(info.filename or "")
                 if not raw_name:
@@ -84,43 +102,38 @@ def extract_archive_path_subfolder(
 
     os.makedirs(target_dir, exist_ok=True)
     source_prefix = f"{normalized_source}/" if normalized_source else ""
-    extracted = 0
+    extracted_count = [0]
+
+    def _filter(normalized_name: str, info: zipfile.ZipInfo) -> bool:
+        if info.is_dir():
+            return False
+        if normalized_name.upper().startswith("META-INF/"):
+            return False
+        if normalized_source and not normalized_name.startswith(source_prefix):
+            return False
+        return True
+
+    def _transform(normalized_name: str, info: zipfile.ZipInfo) -> str | None:
+        if normalized_source and normalized_name.startswith(source_prefix):
+            return normalized_name[len(source_prefix):]
+        return normalized_name
+
+    def _progress(done: int, total: int, name: str, info: zipfile.ZipInfo) -> None:
+        extracted_count[0] = done
 
     try:
-        with zipfile.ZipFile(archive_path, "r") as zf:
-            for info in zf.infolist():
-                if info.is_dir():
-                    continue
-
-                raw_name = str(info.filename or "")
-                normalized_name = raw_name.replace("\\", "/").lstrip("/")
-                if not _is_safe_zip_entry_path(normalized_name):
-                    continue
-
-                if normalized_name.upper().startswith("META-INF/"):
-                    continue
-
-                if normalized_source:
-                    if not normalized_name.startswith(source_prefix):
-                        continue
-                    relative_name = normalized_name[len(source_prefix):]
-                else:
-                    relative_name = normalized_name
-
-                if not relative_name or relative_name.endswith("/"):
-                    continue
-
-                dest_path = os.path.normpath(os.path.join(target_dir, relative_name))
-                if not _is_within_dir(target_dir, dest_path):
-                    continue
-
-                dest_parent = os.path.dirname(dest_path) or target_dir
-                os.makedirs(dest_parent, exist_ok=True)
-                with zf.open(info, "r") as src_file, open(dest_path, "wb") as dst_file:
-                    shutil.copyfileobj(src_file, dst_file)
-                extracted += 1
+        safe_extract_zip(
+            archive_path,
+            target_dir,
+            member_filter=_filter,
+            name_transform=_transform,
+            progress_cb=_progress,
+        )
+    except ZipSecurityError as exc:
+        logger.error(f"Refusing to extract archive {archive_path}: {exc}")
+        return 0
     except Exception as e:
         logger.error(f"Failed extracting archive subfolder from {archive_path}: {e}")
         return 0
 
-    return extracted
+    return extracted_count[0]

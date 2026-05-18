@@ -161,3 +161,9 @@ def invalidate_texture_cache(uuid_hex: str = "", username: str = "") -> None:
         for key in list(STATE.texture_metadata_cache.keys()):
             if _matches_key(key):
                 STATE.texture_metadata_cache.pop(key, None)
+
+    for key, value in list(STATE.uuid_name_cache.items()):
+        key_norm = str(key or "").strip().lower()
+        value_norm = str(value or "").strip().lower()
+        if (norm_uuid and key_norm == norm_uuid) or (clean_username and value_norm == clean_username):
+            STATE.uuid_name_cache.pop(key, None)

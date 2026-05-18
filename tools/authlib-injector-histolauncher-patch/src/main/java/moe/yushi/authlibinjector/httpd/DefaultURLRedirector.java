@@ -1,11 +1,17 @@
 package moe.yushi.authlibinjector.httpd;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
 import moe.yushi.authlibinjector.APIMetadata;
+import moe.yushi.authlibinjector.transform.support.ConstantURLTransformUnit;
 
 public class DefaultURLRedirector implements URLRedirector {
 
@@ -19,6 +25,119 @@ public class DefaultURLRedirector implements URLRedirector {
 
 		apiRoot = config.getApiRoot();
 		localRoot = computeLocalRoot(apiRoot);
+		startHistolauncherProfilePreload();
+	}
+
+	private void startHistolauncherProfilePreload() {
+		final String uuid = normalizeUuid(System.getenv("HISTOLAUNCHER_AUTHLIB_PRELOAD_UUID"));
+		if (uuid.isEmpty()) {
+			return;
+		}
+		final String name = String.valueOf(System.getenv("HISTOLAUNCHER_AUTHLIB_PRELOAD_NAME") == null ? "" : System.getenv("HISTOLAUNCHER_AUTHLIB_PRELOAD_NAME")).trim();
+		final String accountType = String.valueOf(System.getenv("HISTOLAUNCHER_AUTHLIB_ACCOUNT_TYPE") == null ? "" : System.getenv("HISTOLAUNCHER_AUTHLIB_ACCOUNT_TYPE")).trim();
+		final String offlineUuid = "microsoft".equalsIgnoreCase(accountType) ? offlineUuidForName(name) : "";
+		final String root = ensureTrailingSlash(apiRoot);
+		Thread worker = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				for (int attempt = 0; attempt < 4; attempt++) {
+					boolean primaryReady = preloadHistolauncherProfile(root, uuid, name);
+					boolean offlineAliasReady = offlineUuid.isEmpty() || offlineUuid.equals(uuid) || preloadHistolauncherProfile(root, offlineUuid, name);
+					if (primaryReady && offlineAliasReady) {
+						return;
+					}
+					try {
+						Thread.sleep(250L + (attempt * 750L));
+					} catch (InterruptedException ignored) {
+						return;
+					}
+				}
+			}
+		}, "Histolauncher authlib profile preloader");
+		worker.setDaemon(true);
+		worker.start();
+	}
+
+	private static String normalizeUuid(String value) {
+		String raw = String.valueOf(value == null ? "" : value).replace("-", "").trim().toLowerCase();
+		if (raw.length() != 32) {
+			return "";
+		}
+		for (int i = 0; i < raw.length(); i++) {
+			char ch = raw.charAt(i);
+			if (!((ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'f'))) {
+				return "";
+			}
+		}
+		return raw;
+	}
+
+	private static boolean preloadHistolauncherProfile(String root, String uuid, String name) {
+		HttpURLConnection connection = null;
+		InputStream in = null;
+		try {
+			String url = root + "sessionserver/session/minecraft/profile/" + uuid + "?unsigned=false";
+			if (!name.isEmpty()) {
+				url += "&username=" + URLEncoder.encode(name, "UTF-8");
+			}
+			connection = (HttpURLConnection) new URL(url).openConnection();
+			connection.setConnectTimeout(1000);
+			connection.setReadTimeout(1800);
+			connection.setUseCaches(false);
+			connection.setRequestProperty("User-Agent", "HistolauncherAuthlibPreload/1.0");
+			int code = connection.getResponseCode();
+			in = code >= 200 && code < 400 ? connection.getInputStream() : connection.getErrorStream();
+			StringBuilder body = new StringBuilder();
+			if (in != null) {
+				byte[] buffer = new byte[1024];
+				while (true) {
+					int read = in.read(buffer);
+					if (read < 0) {
+						break;
+					}
+					body.append(new String(buffer, 0, read, "UTF-8"));
+				}
+			}
+			if (code >= 200 && code < 300) {
+				ConstantURLTransformUnit.cacheProfileResponse(uuid, name, true, body.toString());
+			}
+			return code >= 200 && code < 300;
+		} catch (Exception ignored) {
+			return false;
+		} finally {
+			if (in != null) {
+				try {
+					in.close();
+				} catch (Exception ignored) {
+				}
+			}
+			if (connection != null) {
+				connection.disconnect();
+			}
+		}
+	}
+
+	private static String offlineUuidForName(String name) {
+		String value = String.valueOf(name == null ? "" : name).trim();
+		if (value.isEmpty()) {
+			return "";
+		}
+		try {
+			byte[] digest = MessageDigest.getInstance("MD5").digest(("OfflinePlayer:" + value).getBytes("UTF-8"));
+			digest[6] = (byte) ((digest[6] & 0x0F) | 0x30);
+			digest[8] = (byte) ((digest[8] & 0x3F) | 0x80);
+			StringBuilder out = new StringBuilder(32);
+			for (byte b : digest) {
+				String hex = Integer.toHexString(b & 0xFF);
+				if (hex.length() == 1) {
+					out.append('0');
+				}
+				out.append(hex);
+			}
+			return out.toString();
+		} catch (Exception ignored) {
+			return "";
+		}
 	}
 
 	private static void warmNanoHttpdClientHandler() {
@@ -75,8 +194,14 @@ public class DefaultURLRedirector implements URLRedirector {
 
 	private static Optional<String> texturePath(String path) {
 		String value = path == null ? "" : path;
-		if (value.startsWith("/texture/skin/") || value.startsWith("/texture/cape/")) {
+		if (value.startsWith("/texture/skin/") || value.startsWith("/texture/cape/") || value.startsWith("/texture/raw/")) {
 			return Optional.of(value.substring(1));
+		}
+		if (value.startsWith("/texture/")) {
+			String textureId = value.substring("/texture/".length());
+			if (!textureId.isEmpty()) {
+				return Optional.of("texture/raw/" + textureId);
+			}
 		}
 		if (value.startsWith("/skin/") || value.startsWith("/cape/")) {
 			return Optional.of("texture" + value);
@@ -115,7 +240,7 @@ public class DefaultURLRedirector implements URLRedirector {
 		Optional<String> texturePath = texturePath(path);
 		if (texturePath.isPresent()) {
 			String host = normalizedHost(domain);
-			if ("textures.minecraft.net".equals(host) || isLoopbackDomain(domain)) {
+			if ("textures.minecraft.net".equals(host) || "textures.histolauncher.org".equals(host) || isLoopbackDomain(domain)) {
 				return Optional.of(localRoot + texturePath.get());
 			}
 		}

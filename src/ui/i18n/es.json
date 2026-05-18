@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD/MM/YYYY HH:mm",
+  "am": "AM",
+  "pm": "PM",
   "nav": {
     "home": "Inicio",
     "versions": "Versiones",
     "worlds": "Mundos",
+    "screenshots": "Capturas de pantalla",
     "addons": "Complementos",
     "settings": "Ajustes",
-    "about": "Acerca de"
+    "about": "Acerca de",
+    "primaryNavAria": "Navegación principal"
   },
   "common": {
     "none": "Ninguna",
     "unknown": "desconocido",
     "all": "Todas",
+    "auto": "Auto",
     "defaultName": "Predeterminado",
     "loading": "Cargando...",
     "refresh": "Actualizar",
@@ -70,6 +76,20 @@
     "playerModel": "Modelo de jugador",
     "modelWide": "Ancho",
     "modelSlim": "Delgado",
+    "textureType": "Tipo de textura",
+    "textureDefault": "Predeterminada",
+    "textureLegacy": "Clásica",
+    "armMirror": "Reflejo de brazos",
+    "legMirror": "Reflejo de piernas",
+    "mirrorRight": "Derecha",
+    "mirrorLeft": "Izquierda",
+    "overlayToFirstLayer": "Aplicar capa exterior a la primera capa",
+    "overlayHead": "Cabeza",
+    "overlayBody": "Chaqueta",
+    "overlayRightArm": "Manga derecha",
+    "overlayLeftArm": "Manga izquierda",
+    "overlayRightLeg": "Pantalón derecho",
+    "overlayLeftLeg": "Pantalón izquierdo",
     "skinFile": "Archivo de skin",
     "capeSelection": "Capa",
     "skinPreviewAlt": "Vista previa de la skin",
@@ -131,12 +151,16 @@
     "versionTooltip": "Versión del launcher",
     "refreshTooltip": "Actualizar valores (Mantén Mayús para recargar la página)",
     "refreshAria": "Actualizar",
-    "profileTooltip": "Cuenta de Histolauncher",
     "refreshAlt": "Actualizar",
-    "profileAlt": "Perfil"
+    "profileAlt": "Perfil",
+    "profileTooltip": "Cuenta de Histolauncher"
   },
   "home": {
     "launchButton": "Iniciar",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Cerrar mensaje"
+    },
     "info": {
       "version": "Versión",
       "noneSelected": "(ninguna seleccionada)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Versiones que se están descargando actualmente.",
     "availableSubtitle": "Versiones disponibles para instalar",
     "deleteSelected": "Eliminar seleccionadas (0)",
+    "actionsMenuAria": "Acciones de versión",
     "profile": {
       "renameTooltip": "Renombrar perfil de versiones activo",
       "renameAria": "Renombrar perfil de versiones",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Sobrescritura de RAM mínima",
       "maximumRamOverride": "Sobrescritura de RAM máxima",
       "resolutionOverride": "Sobrescritura de resolución",
-      "javaRuntimePathOverride": "Sobrescritura de ruta del entorno Java",
+      "javaRuntimeOverride": "Sobrescritura de ruta del entorno Java",
       "extraJvmArgumentsOverride": "Sobrescritura de argumentos JVM adicionales",
       "versionImageFile": "Imagen de la versión (opcional, PNG/JPG)",
       "failedReadImageData": "No se pudieron leer los datos de la imagen",
@@ -356,6 +381,18 @@
       "successTitle": "Exportación correcta",
       "successMessage": "Archivo guardado en:<br><b>{filepath}</b><br><br>Tamaño del archivo<br><b>{size} MB</b>",
       "unexpectedError": "Ocurrió un error durante la exportación:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Descargas",
     "sortName": "Nombre",
     "sortRecentlyUpdated": "Actualizados recientemente",
+    "actionsMenuAria": "Acciones de mod",
     "profile": {
       "renameTooltip": "Renombrar perfil de complementos activo",
       "renameAria": "Renombrar perfil de complementos",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Selecciona el cargador de mods para \"{file}\":"
+      "selectLoaderForFile": "Selecciona el cargador de mods para \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Instalado",
@@ -554,6 +593,14 @@
       "unexpectedError": "Error inesperado de instalación",
       "unexpectedForAddon": "Ocurrió un error inesperado al instalar {addon}."
     },
+    "dependencies": {
+      "title": "Dependencias del mod",
+      "checking": "Comprobando dependencias...",
+      "prompt": "Este mod necesita dependencias para funcionar correctamente. Elige cuáles quieres instalar:",
+      "installSelected": "Instalar seleccionadas",
+      "installing": "Instalando dependencias...",
+      "required": "Obligatoria"
+    },
     "exportModpack": {
       "title": "Exportar modpack",
       "selectFormat": "Selecciona el formato del modpack para exportar:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Mundos de {provider}",
     "deleteSelected": "Eliminar seleccionados (0)",
     "deleteSelectedCount": "Eliminar seleccionados ({count})",
+    "actionsMenuAria": "Acciones del mundo",
     "importTooltip": "Importar un mundo desde un archivo .zip",
     "importAria": "Importar mundo",
     "moreActionsTooltip": "Más acciones de mundo",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Cargando editor del mundo...",
       "editWorldTitle": "Editar mundo: {world}",
+      "failedNbtLoad": "No se pudieron cargar los datos NBT del mundo.",
       "worldFallback": "Mundo",
       "thisWorld": "este mundo",
       "primaryPlayer": "Jugador principal",
@@ -933,8 +982,7 @@
       "saving": "Guardando cambios del editor del mundo...",
       "failedSaveNbt": "No se pudieron guardar los datos NBT del mundo.",
       "renameFailedAfterNbt": "Los cambios NBT se guardaron, pero falló el cambio de nombre de la carpeta del mundo: {error}",
-      "iconFailedAfterSave": "Los datos del mundo se guardaron, pero falló la actualización del icono: {error}",
-      "failedNbtLoad": "No se pudieron cargar los datos NBT del mundo."
+      "iconFailedAfterSave": "Los datos del mundo se guardaron, pero falló la actualización del icono: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Iniciando...",
     "launchingTimed": "Iniciando... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Se requiere entorno Java",
     "javaRequiredMessage": "Se requiere un entorno Java compatible.",
     "downloadJava": "Descargar Java",
@@ -1022,6 +1077,76 @@
       "generic": "Cargador",
       "vanilla": "Vanilla",
       "none": "Ninguno (sin cargador de mods)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Imágenes",
+    "imagesSubtitleDefault": "Imágenes en los directorios de almacenamiento disponibles",
+    "imagesSubtitle": "{count} imagen(es) en {storage}",
+    "itemFallback": "Captura de pantalla",
+    "refreshTooltip": "Actualizar lista de capturas de pantalla",
+    "bulkSelectTooltip": "Activar/desactivar selección múltiple de capturas de pantalla",
+    "bulkDeleteTooltip": "Eliminar capturas de pantalla seleccionadas",
+    "toggleImagesAria": "Mostrar/ocultar sección de capturas de pantalla",
+    "favoriteAlt": "favorito",
+    "list": {
+      "loading": "Cargando capturas de pantalla...",
+      "failedLoadInstalled": "No se pudieron cargar las capturas de pantalla.",
+      "emptyInstalled": "No se encontraron capturas de pantalla"
+    },
+    "actions": {
+      "openImage": "Abrir captura de pantalla {name}",
+      "closeImagePreview": "Cerrar vista previa de la captura de pantalla",
+      "toggleSelection": "Activar/desactivar selección de captura de pantalla {name}",
+      "toggleFavorite": "Marcar/desmarcar como favorito la captura de pantalla {name}",
+      "renameImage": "Renombrar captura de pantalla {name}",
+      "deleteImage": "Eliminar captura de pantalla {name}",
+      "saveAs": "Guardar como",
+      "editImageButton": "Abrir"
+    },
+    "favorite": {
+      "saveFailedTitle": "Error al guardar favorito",
+      "saveFailed": "Error al guardar los favoritos de capturas de pantalla: {error}"
+    },
+    "rename": {
+      "title": "Renombrar captura de pantalla",
+      "prompt": "Elige un nuevo nombre para esta captura de pantalla.",
+      "keepExtension": "La extensión de archivo {extension} se mantiene igual.",
+      "invalidTitle": "Nombre de captura de pantalla no válido",
+      "invalidMessage": "Introduce un nombre para la captura de pantalla.",
+      "failedTitle": "Error al renombrar",
+      "failedMessage": "No se pudo renombrar la captura de pantalla."
+    },
+    "delete": {
+      "title": "Eliminar captura de pantalla",
+      "confirmMessage": "¿Eliminar {name}? Esto no se puede deshacer.",
+      "failedTitle": "Error al eliminar",
+      "failedMessage": "No se pudo eliminar la captura de pantalla."
+    },
+    "edit": {
+      "failedTitle": "Error al abrir",
+      "failedMessage": "No se pudo abrir la captura de pantalla."
+    },
+    "saveAs": {
+      "failedTitle": "Error al guardar",
+      "failedMessage": "Error al guardar la captura de pantalla: {error}",
+      "fileTypeDescription": "Archivo de imagen",
+      "missingFile": "No se pudo resolver el archivo de la captura de pantalla."
+    },
+    "bulkDelete": {
+      "title": "Eliminar capturas de pantalla",
+      "deleteSelectedCount": "Eliminar seleccionadas ({count})",
+      "noSelected": "Selecciona al menos una captura de pantalla primero.",
+      "confirmMessage": "¿Eliminar {count} captura(s) de pantalla seleccionada(s)? Esto no se puede deshacer.",
+      "deletingProgress": "Eliminando capturas de pantalla... ({current}/{total})",
+      "cancelling": "Cancelando la eliminación de capturas de pantalla...",
+      "cancelledTitle": "Eliminación múltiple cancelada",
+      "cancelledMessage": "Se eliminaron {deleted} captura(s) de pantalla antes de cancelar.",
+      "cancelledWithFailures": "Se eliminaron {deleted} captura(s) de pantalla antes de cancelar. {failures} captura(s) de pantalla fallaron.",
+      "completeTitle": "Eliminación múltiple completada",
+      "completeMessage": "Se eliminaron {deleted} captura(s) de pantalla.",
+      "finishedWithErrorsTitle": "Eliminación múltiple terminada con errores",
+      "finishedWithErrorsMessage": "Se eliminaron {deleted} captura(s) de pantalla.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Cliente",
       "launcher": "Launcher",
       "mods": "Mods",
-      "dataStorage": "Datos y almacenamiento"
+      "dataStorage": "Datos y almacenamiento",
+      "playtime": "Tiempo de juego"
+    },
+    "playtime": {
+      "noData": "Aún no hay sesiones registradas. ¡Juega una versión para comenzar el seguimiento!",
+      "total": "Tiempo total de juego:",
+      "totalTooltip": "Tiempo total de juego en todas las sesiones.",
+      "sessions": "Sesiones jugadas:",
+      "sessionsTooltip": "Cuántas veces has iniciado un juego.",
+      "mostPlayed": "Versión más jugada:",
+      "mostPlayedTooltip": "La versión en la que has pasado más tiempo.",
+      "longest": "Sesión más larga:",
+      "longestTooltip": "Tu sesión de juego individual más larga.",
+      "average": "Sesión promedio:",
+      "averageTooltip": "Duración promedio de todas tus sesiones de juego.",
+      "moreDetails": "Más detalles",
+      "detail": {
+        "title": "Detalles de tiempo de juego",
+        "allVersions": "Todas",
+        "filterBy": "Versión:",
+        "date": "Fecha",
+        "version": "Versión",
+        "duration": "Duración",
+        "modloader": "Modloader",
+        "noSessions": "No hay sesiones para mostrar.",
+        "sortBy": "Clic para ordenar",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Todos",
+        "noLoader": "Ninguno",
+        "totalLabel": "Total:",
+        "nowLive": "En vivo",
+        "truncatedNote": "Mostrando las {shown} sesiones más recientes de {total} en total."
+      }
     },
     "account": {
       "username": "Nombre de usuario:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Abrir Microsoft",
         "failedLogin": "El inicio de sesión de Microsoft falló."
       },
-      "playerPreviewTooltip": "Muestra la vista previa del jugador con cuerpo en ángulo y renderizado de capa cuando hay texturas de cuenta disponibles.",
+      "playerPreviewTooltip": "Muestra la skin y la capa del jugador en una vista previa 3D.",
       "playerPreview": "Vista previa 3D del jugador:",
-      "playerRotateTitle": "Haz clic y arrastra para rotar",
       "playerPreviewBodyAlt": "Vista previa del jugador",
-      "playerPreviewCapeAlt": "Vista previa de la capa"
+      "playerPreviewCapeAlt": "Vista previa de la capa",
+      "playerRotateTitle": "Haz clic y arrastra para rotar"
     },
     "appearance": {
       "theme": "Tema:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Optimización automática:",
+      "autoOptimizeTooltip": "Elige automáticamente la RAM de inicio y los argumentos de JVM de la memoria del dispositivo actual cada vez que Minecraft se inicia.",
+      "autoOptimizeLockedTitle": "Desactiva la Optimización automática para editarlo manualmente.",
       "minRam": "RAM mínima:",
       "minRamTooltip": "RAM mínima asignada al juego\n  - Debe ser un número positivo\n  - Debe ser menor que la RAM máxima\n\nFormato de ejemplo: 256, 256M, 2G, etc.\n\n(consejo de rendimiento: asigna más RAM para mejor rendimiento, e iguálalo con la RAM máxima para menos caídas de FPS)",
       "ramInvalidTitle": "Formato de RAM: número con sufijo opcional K, M, G o T (p. ej., 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Muestra Rich Presence de Discord mientras el launcher o el juego están en ejecución.",
       "desktopNotifications": "Notificaciones de escritorio:",
       "desktopNotificationsTooltip": "Permite las notificaciones de escritorio del launcher.",
+      "keyboardMouse": "Ratón de teclado:",
+      "keyboardMouseTooltip": "Muestra un cursor controlado por teclado en el launcher.\n\n¡Esto es experimental, espera muchos errores!",
       "java": {
         "auto": "Auto",
         "defaultPath": "Predeterminado (Java PATH)",

@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD.MM.YYYY HH:mm",
+  "am": "AM",
+  "pm": "PM",
   "nav": {
     "home": "Головна",
     "versions": "Версії",
     "worlds": "Світи",
+    "screenshots": "Скриншоти",
     "addons": "Додатки",
     "settings": "Налаштування",
-    "about": "Про програму"
+    "about": "Про програму",
+    "primaryNavAria": "Головна навігація"
   },
   "common": {
     "none": "Немає",
     "unknown": "невідомо",
     "all": "Усе",
+    "auto": "Auto",
     "defaultName": "Типовий",
     "loading": "Завантаження...",
     "refresh": "Оновити",
@@ -70,6 +76,20 @@
     "playerModel": "Модель гравця",
     "modelWide": "Широка",
     "modelSlim": "Струнка",
+    "textureType": "Тип текстури",
+    "textureDefault": "Стандартна",
+    "textureLegacy": "Класична",
+    "armMirror": "Дзеркалення рук",
+    "legMirror": "Дзеркалення ніг",
+    "mirrorRight": "Права",
+    "mirrorLeft": "Ліва",
+    "overlayToFirstLayer": "Накласти верхній шар на перший шар",
+    "overlayHead": "Голова",
+    "overlayBody": "Куртка",
+    "overlayRightArm": "Правий рукав",
+    "overlayLeftArm": "Лівий рукав",
+    "overlayRightLeg": "Права штанина",
+    "overlayLeftLeg": "Ліва штанина",
     "skinFile": "Файл скіна",
     "capeSelection": "Плащ",
     "skinPreviewAlt": "Попередній перегляд скіна",
@@ -131,12 +151,16 @@
     "versionTooltip": "Версія лаунчера",
     "refreshTooltip": "Оновити значення (утримуйте Shift, щоб оновити сторінку)",
     "refreshAria": "Оновити",
-    "profileTooltip": "Обліковий запис Histolauncher",
     "refreshAlt": "Оновити",
-    "profileAlt": "Профіль"
+    "profileAlt": "Профіль",
+    "profileTooltip": "Обліковий запис Histolauncher"
   },
   "home": {
     "launchButton": "Запустити",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Закрити повідомлення"
+    },
     "info": {
       "version": "Версія",
       "noneSelected": "(нічого не вибрано)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Версії, які зараз завантажуються.",
     "availableSubtitle": "Доступні для встановлення версії",
     "deleteSelected": "Видалити вибрані (0)",
+    "actionsMenuAria": "Дії з версією",
     "profile": {
       "renameTooltip": "Перейменувати активний профіль версій",
       "renameAria": "Перейменувати профіль версій",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Перевизначення мінімальної RAM",
       "maximumRamOverride": "Перевизначення максимальної RAM",
       "resolutionOverride": "Перевизначення роздільності",
-      "javaRuntimePathOverride": "Перевизначення шляху до середовища Java",
+      "javaRuntimeOverride": "Перевизначення шляху до середовища Java",
       "extraJvmArgumentsOverride": "Перевизначення додаткових аргументів JVM",
       "versionImageFile": "Зображення версії (необов'язково, PNG/JPG)",
       "failedReadImageData": "Не вдалося прочитати дані зображення",
@@ -356,6 +381,18 @@
       "successTitle": "Експорт виконано!",
       "successMessage": "Файл збережено в:<br><b>{filepath}</b><br><br>Розмір файлу<br><b>{size} МБ</b>",
       "unexpectedError": "Під час експорту сталася помилка:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Завантаження",
     "sortName": "Назва",
     "sortRecentlyUpdated": "Нещодавно оновлені",
+    "actionsMenuAria": "Дії з модом",
     "profile": {
       "renameTooltip": "Перейменувати активний профіль додатків",
       "renameAria": "Перейменувати профіль додатків",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Виберіть завантажувач модів для \"{file}\":"
+      "selectLoaderForFile": "Виберіть завантажувач модів для \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Встановлено",
@@ -554,6 +593,14 @@
       "unexpectedError": "Неочікувана помилка встановлення",
       "unexpectedForAddon": "Під час встановлення {addon} сталася неочікувана помилка."
     },
+    "dependencies": {
+      "title": "Залежності мода",
+      "checking": "Перевірка залежностей...",
+      "prompt": "Цьому моду потрібні залежності для правильної роботи. Виберіть, які залежності встановити:",
+      "installSelected": "Встановити вибрані",
+      "installing": "Встановлення залежностей...",
+      "required": "Обов’язково"
+    },
     "exportModpack": {
       "title": "Експорт збірки модів",
       "selectFormat": "Виберіть формат збірки модів для експорту:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Світи з {provider}",
     "deleteSelected": "Видалити вибрані (0)",
     "deleteSelectedCount": "Видалити вибрані ({count})",
+    "actionsMenuAria": "Дії зі світом",
     "importTooltip": "Імпортувати світ з .zip-архіву",
     "importAria": "Імпортувати світ",
     "moreActionsTooltip": "Інші дії зі світом",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Завантаження редактора світу...",
       "editWorldTitle": "Редагування світу: {world}",
+      "failedNbtLoad": "Не вдалося завантажити дані NBT світу.",
       "worldFallback": "Світ",
       "thisWorld": "цей світ",
       "primaryPlayer": "Основний гравець",
@@ -933,8 +982,7 @@
       "saving": "Збереження змін редактора світу...",
       "failedSaveNbt": "Не вдалося зберегти NBT-дані світу.",
       "renameFailedAfterNbt": "Зміни NBT збережено, але не вдалося перейменувати папку світу: {error}",
-      "iconFailedAfterSave": "Дані світу збережено, але не вдалося оновити іконку: {error}",
-      "failedNbtLoad": "Не вдалося завантажити дані NBT світу."
+      "iconFailedAfterSave": "Дані світу збережено, але не вдалося оновити іконку: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Запуск...",
     "launchingTimed": "Запуск... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Потрібне середовище Java",
     "javaRequiredMessage": "Потрібне сумісне середовище Java.",
     "downloadJava": "Завантажити Java",
@@ -1022,6 +1077,76 @@
       "generic": "Завантажувач",
       "vanilla": "Vanilla",
       "none": "Немає (без завантажувача модів)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Зображення",
+    "imagesSubtitleDefault": "Зображення в доступних каталогах зберігання",
+    "imagesSubtitle": "{count} зображення(нь) у {storage}",
+    "itemFallback": "Скриншот",
+    "refreshTooltip": "Оновити список скриншотів",
+    "bulkSelectTooltip": "Перемкнути режим масового вибору скриншотів",
+    "bulkDeleteTooltip": "Видалити вибрані скриншоти",
+    "toggleImagesAria": "Перемкнути розділ скриншотів",
+    "favoriteAlt": "обране",
+    "list": {
+      "loading": "Завантаження скриншотів...",
+      "failedLoadInstalled": "Не вдалося завантажити скриншоти.",
+      "emptyInstalled": "Скриншоти не знайдено"
+    },
+    "actions": {
+      "openImage": "Відкрити скриншот {name}",
+      "closeImagePreview": "Закрити попередній перегляд скриншота",
+      "toggleSelection": "Перемкнути вибір скриншота {name}",
+      "toggleFavorite": "Перемкнути обране для скриншота {name}",
+      "renameImage": "Перейменувати скриншот {name}",
+      "deleteImage": "Видалити скриншот {name}",
+      "saveAs": "Зберегти як",
+      "editImageButton": "Відкрити"
+    },
+    "favorite": {
+      "saveFailedTitle": "Помилка збереження обраного",
+      "saveFailed": "Не вдалося зберегти обрані скриншоти: {error}"
+    },
+    "rename": {
+      "title": "Перейменувати скриншот",
+      "prompt": "Оберіть нову назву для цього скриншота.",
+      "keepExtension": "Розширення файлу {extension} залишається незмінним.",
+      "invalidTitle": "Недопустима назва скриншота",
+      "invalidMessage": "Введіть назву для скриншота.",
+      "failedTitle": "Перейменування не вдалося",
+      "failedMessage": "Не вдалося перейменувати скриншот."
+    },
+    "delete": {
+      "title": "Видалити скриншот",
+      "confirmMessage": "Видалити {name}? Цю дію не можна скасувати.",
+      "failedTitle": "Видалення не вдалося",
+      "failedMessage": "Не вдалося видалити скриншот."
+    },
+    "edit": {
+      "failedTitle": "Відкриття не вдалося",
+      "failedMessage": "Не вдалося відкрити скриншот."
+    },
+    "saveAs": {
+      "failedTitle": "Збереження не вдалося",
+      "failedMessage": "Не вдалося зберегти скриншот: {error}",
+      "fileTypeDescription": "Файл зображення",
+      "missingFile": "Файл скриншота не вдалося знайти."
+    },
+    "bulkDelete": {
+      "title": "Видалити скриншоти",
+      "deleteSelectedCount": "Видалити вибрані ({count})",
+      "noSelected": "Спочатку виберіть принаймні один скриншот.",
+      "confirmMessage": "Видалити {count} вибраних скриншотів? Цю дію не можна скасувати.",
+      "deletingProgress": "Видалення скриншотів... ({current}/{total})",
+      "cancelling": "Скасування видалення скриншотів...",
+      "cancelledTitle": "Масове видалення скасовано",
+      "cancelledMessage": "До скасування видалено {deleted} скриншотів.",
+      "cancelledWithFailures": "До скасування видалено {deleted} скриншотів. {failures} скриншот(ів) не вдалося видалити.",
+      "completeTitle": "Масове видалення завершено",
+      "completeMessage": "Видалено {deleted} скриншотів.",
+      "finishedWithErrorsTitle": "Масове видалення завершено з помилками",
+      "finishedWithErrorsMessage": "Видалено {deleted} скриншотів.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Клієнт",
       "launcher": "Лаунчер",
       "mods": "Моди",
-      "dataStorage": "Дані та сховище"
+      "dataStorage": "Дані та сховище",
+      "playtime": "Час у грі"
+    },
+    "playtime": {
+      "noData": "Сесії ще не записані. Запустіть версію, щоб почати відстеження!",
+      "total": "Загальний час у грі:",
+      "totalTooltip": "Загальний час у грі в усіх сесіях.",
+      "sessions": "Зіграно сесій:",
+      "sessionsTooltip": "Скільки разів ви запускали гру.",
+      "mostPlayed": "Найбільш відіграна версія:",
+      "mostPlayedTooltip": "Версія, в якій ви провели найбільше часу.",
+      "longest": "Найдовша сесія:",
+      "longestTooltip": "Ваша найдовша окрема ігрова сесія.",
+      "average": "Середня сесія:",
+      "averageTooltip": "Середня тривалість усіх ваших ігрових сесій.",
+      "moreDetails": "Детальніше",
+      "detail": {
+        "title": "Деталі часу у грі",
+        "allVersions": "Усі",
+        "filterBy": "Версія:",
+        "date": "Дата",
+        "version": "Версія",
+        "duration": "Тривалість",
+        "modloader": "Modloader",
+        "noSessions": "Немає сесій для відображення.",
+        "sortBy": "Натисніть для сортування",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Усі",
+        "noLoader": "Немає",
+        "totalLabel": "Разом:",
+        "nowLive": "Зараз",
+        "truncatedNote": "Показано {shown} останніх сесій із {total} загалом."
+      }
     },
     "account": {
       "username": "Нікнейм:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Відкрити Microsoft",
         "failedLogin": "Вхід через Microsoft не вдався."
       },
-      "playerPreviewTooltip": "Показувати 3D-перегляд гравця з нахиленим корпусом і рендерингом плаща, коли текстури облікового запису доступні.",
+      "playerPreviewTooltip": "Показує скін гравця та плащ у 3D-перегляді.",
       "playerPreview": "3D-перегляд гравця:",
-      "playerRotateTitle": "Натисніть і перетягніть, щоб обертати",
       "playerPreviewBodyAlt": "Перегляд гравця",
-      "playerPreviewCapeAlt": "Перегляд плаща"
+      "playerPreviewCapeAlt": "Перегляд плаща",
+      "playerRotateTitle": "Натисніть і перетягніть, щоб обертати"
     },
     "appearance": {
       "theme": "Тема:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Авто-оптимізація:",
+      "autoOptimizeTooltip": "Автоматично обирає обсяг RAM та аргументи JVM з поточної пам’яті пристрою при кожному запуску Minecraft.",
+      "autoOptimizeLockedTitle": "Вимкніть Авто-оптимізацію для ручного редагування.",
       "minRam": "Мін. RAM:",
       "minRamTooltip": "Мінімальний обсяг RAM, виділений для гри\n  - Має бути додатним числом\n  - Має бути меншим за максимальний обсяг RAM\n\nПриклад формату: 256, 256M, 2G тощо.\n\n(порада щодо продуктивності: виділіть більше RAM для кращої продуктивності, а також зрівняйте її з максимальним обсягом RAM, щоб зменшити просідання кадрів)",
       "ramInvalidTitle": "Формат RAM: число з необов'язковим суфіксом K, M, G або T (наприклад, 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Показувати Discord Rich Presence під час роботи лаунчера або гри.",
       "desktopNotifications": "Сповіщення на робочому столі:",
       "desktopNotificationsTooltip": "Дозволити сповіщення лаунчера на робочому столі.",
+      "keyboardMouse": "Клавіатурна миша:",
+      "keyboardMouseTooltip": "Відображає керований з клавіатури курсор у лаунчері.\n\nЦе все ще є експериментальним, очікуйте багато помилок!",
       "java": {
         "auto": "Авто",
         "defaultPath": "Типово (Java PATH)",

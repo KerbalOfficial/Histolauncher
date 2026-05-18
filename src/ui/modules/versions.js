@@ -9,7 +9,7 @@ import {
   imageAttachErrorPlaceholder,
   isShiftDelete,
 } from './dom-utils.js';
-import { getLoaderUi, LOADER_UI_ORDER } from './config.js';
+import { getLoaderUi, LOADER_UI_ORDER, JAVA_RUNTIME_AUTO, JAVA_RUNTIME_PATH } from './config.js';
 import { api } from './api.js';
 import {
   showMessageBox,
@@ -35,6 +35,7 @@ import {
   updateCardProgressUI,
   startPollingForInstall,
 } from './install.js';
+import { escapeInfoHtml } from './string-utils.js';
 import { t } from './i18n.js';
 
 const _deps = {};
@@ -266,9 +267,62 @@ const showVersionEditModal = (v, draftState = null) => {
   launchExtraJvmArgsInput.maxLength = 2048;
   launchExtraJvmArgsInput.value = initialLaunchExtraJvmArgs;
 
-  const launchJavaPathInput = createInput(t('versions.edit.useGlobal'));
-  launchJavaPathInput.maxLength = 500;
-  launchJavaPathInput.value = initialLaunchJavaPath;
+  const launchJavaPathSelect = document.createElement('select');
+  launchJavaPathSelect.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;';
+
+  const populateJavaRuntimeSelect = (runtimes) => {
+    launchJavaPathSelect.innerHTML = '';
+
+    const globalOpt = document.createElement('option');
+    globalOpt.value = '';
+    globalOpt.textContent = t('versions.edit.useGlobal');
+    launchJavaPathSelect.appendChild(globalOpt);
+
+    const autoOpt = document.createElement('option');
+    autoOpt.value = JAVA_RUNTIME_AUTO;
+    autoOpt.textContent = t('settings.launcher.java.auto');
+    launchJavaPathSelect.appendChild(autoOpt);
+
+    const pathOpt = document.createElement('option');
+    pathOpt.value = JAVA_RUNTIME_PATH;
+    pathOpt.textContent = t('settings.launcher.java.defaultPath');
+    launchJavaPathSelect.appendChild(pathOpt);
+
+    runtimes.forEach((rt) => {
+      const opt = document.createElement('option');
+      opt.value = rt.path || '';
+      opt.textContent = rt.display || rt.path || t('settings.launcher.java.runtimeFallback');
+      launchJavaPathSelect.appendChild(opt);
+    });
+
+    if (
+      initialLaunchJavaPath &&
+      initialLaunchJavaPath !== JAVA_RUNTIME_AUTO &&
+      initialLaunchJavaPath !== JAVA_RUNTIME_PATH &&
+      !runtimes.some((rt) => rt.path === initialLaunchJavaPath)
+    ) {
+      const missingOpt = document.createElement('option');
+      missingOpt.value = initialLaunchJavaPath;
+      missingOpt.textContent = t('settings.launcher.java.missing', { path: initialLaunchJavaPath });
+      launchJavaPathSelect.appendChild(missingOpt);
+    }
+
+    launchJavaPathSelect.value = initialLaunchJavaPath || '';
+  };
+
+  populateJavaRuntimeSelect(state.javaRuntimes);
+
+  if (!state.javaRuntimesLoaded && !state.javaRuntimesLoading) {
+    state.javaRuntimesLoading = true;
+    api('/api/java-runtimes', 'GET').then((res) => {
+      state.javaRuntimesLoading = false;
+      if (res && res.ok) {
+        state.javaRuntimes = Array.isArray(res.runtimes) ? res.runtimes : [];
+        state.javaRuntimesLoaded = true;
+        populateJavaRuntimeSelect(state.javaRuntimes);
+      }
+    }).catch(() => { state.javaRuntimesLoading = false; });
+  }
 
   const launchResolutionWidthInput = createInput(t('versions.edit.useGlobal'));
   launchResolutionWidthInput.maxLength = 5;
@@ -317,9 +371,8 @@ const showVersionEditModal = (v, draftState = null) => {
     makeField(t('versions.edit.maximumRamOverride'), launchMaxRamInput)
   ));
   launchSection.appendChild(makeField(t('versions.edit.resolutionOverride'), launchResolutionRow));
-  launchSection.appendChild(launchFullscreenRow);
   launchSection.appendChild(launchDemoRow);
-  launchSection.appendChild(makeField(t('versions.edit.javaRuntimePathOverride'), launchJavaPathInput));
+  launchSection.appendChild(makeField(t('versions.edit.javaRuntimeOverride'), launchJavaPathSelect));
   launchSection.appendChild(makeField(t('versions.edit.extraJvmArgumentsOverride'), launchExtraJvmArgsInput));
 
   const storageModeSelect = document.createElement('select');
@@ -640,7 +693,7 @@ const showVersionEditModal = (v, draftState = null) => {
     launchMinRam: String(launchMinRamInput.value || '').trim().toUpperCase(),
     launchMaxRam: String(launchMaxRamInput.value || '').trim().toUpperCase(),
     launchExtraJvmArgs: String(launchExtraJvmArgsInput.value || '').trim(),
-    launchJavaPath: String(launchJavaPathInput.value || '').trim(),
+    launchJavaPath: String(launchJavaPathSelect.value || '').trim(),
     launchResolutionWidth: String(launchResolutionWidthInput.value || '').trim(),
     launchResolutionHeight: String(launchResolutionHeightInput.value || '').trim(),
     launchFullscreen: launchFullscreenOverrideInput.checked
@@ -700,7 +753,7 @@ const showVersionEditModal = (v, draftState = null) => {
           const nextLaunchMinRam = String(launchMinRamInput.value || '').trim().toUpperCase();
           const nextLaunchMaxRam = String(launchMaxRamInput.value || '').trim().toUpperCase();
           const nextLaunchExtraJvmArgs = String(launchExtraJvmArgsInput.value || '').trim();
-          const nextLaunchJavaPath = String(launchJavaPathInput.value || '').trim();
+          const nextLaunchJavaPath = String(launchJavaPathSelect.value || '').trim();
           const nextLaunchResolutionWidth = String(launchResolutionWidthInput.value || '').trim();
           const nextLaunchResolutionHeight = String(launchResolutionHeightInput.value || '').trim();
           const nextLaunchFullscreen = launchFullscreenOverrideInput.checked
@@ -723,7 +776,7 @@ const showVersionEditModal = (v, draftState = null) => {
             launch_java_path: nextLaunchJavaPath,
             launch_resolution_width: nextLaunchResolutionWidth,
             launch_resolution_height: nextLaunchResolutionHeight,
-            launch_fullscreen: nextLaunchFullscreen,
+            launch_fullscreen: '',
             launch_demo: nextLaunchDemo,
           });
 
@@ -1153,8 +1206,11 @@ const createAddLoaderButton = (v) => {
   return loaderBtn;
 };
 
-const showLoaderManagementModal = async (v) => {
-  // Fetch available and installed loaders
+const showLoaderManagementModal = async (v, options = {}) => {
+  const overlay = getEl('loading-overlay');
+  const ownsOverlay = options.showOverlay !== false && (!overlay || overlay.classList.contains('hidden'));
+  if (ownsOverlay) showLoadingOverlay();
+  setLoadingOverlayText('Loading mod loader information...');
   try {
     const loaderData = await api(`/api/loaders/${v.category.toLowerCase()}/${v.folder}`);
     if (!loaderData || !loaderData.ok) {
@@ -1267,7 +1323,7 @@ const showLoaderManagementModal = async (v) => {
         if (!card) return;
         card.addEventListener('click', (e) => {
           e.preventDefault();
-          showLoaderVersionSelector(v, loaderType);
+          showLoaderVersionSelector(v, loaderType, loaderData);
         });
       });
     }, 100);
@@ -1278,13 +1334,21 @@ const showLoaderManagementModal = async (v) => {
       message: t('versions.loaders.failedLoadInformation'),
       buttons: [{ label: t('common.ok') }],
     });
+  } finally {
+    if (ownsOverlay) hideLoadingOverlay();
   }
 };
 
-const showLoaderVersionSelector = async (v, loaderType) => {
+const showLoaderVersionSelector = async (v, loaderType, existingLoaderData = null) => {
   const loaderName = getLoaderUi(loaderType).name;
+  const overlay = getEl('loading-overlay');
+  const ownsOverlay = !existingLoaderData && (!overlay || overlay.classList.contains('hidden'));
+  if (ownsOverlay) {
+    showLoadingOverlay();
+    setLoadingOverlayText(`Loading ${loaderName} versions...`);
+  }
   try {
-    const loaderData = await api(`/api/loaders/${v.category.toLowerCase()}/${v.folder}`);
+    const loaderData = existingLoaderData || await api(`/api/loaders/${v.category.toLowerCase()}/${v.folder}`);
     if (!loaderData || !loaderData.ok) {
       showMessageBox({
         title: t('common.error'),
@@ -1317,6 +1381,7 @@ const showLoaderVersionSelector = async (v, loaderType) => {
       versions.forEach((ver, idx) => {
         const isRecommended = idx === 0;
         const isSelected = ver.version === selected;
+        const versionLabel = escapeInfoHtml(ver.version);
 
         var btnClass = '';
         var metaLabel = ' ';
@@ -1332,8 +1397,8 @@ const showLoaderVersionSelector = async (v, loaderType) => {
         };
 
         html += `
-          <button type="button" class="version-btn ${btnClass}" data-version="${ver.version}" aria-pressed="${isSelected ? 'true' : 'false'}">
-            <div><b>${ver.version}</b>${metaLabel}</div>
+          <button type="button" class="version-btn ${btnClass}" data-version="${versionLabel}" aria-pressed="${isSelected ? 'true' : 'false'}">
+            <div><b>${versionLabel}</b>${metaLabel}</div>
           </button>
         `;
       });
@@ -1349,7 +1414,7 @@ const showLoaderVersionSelector = async (v, loaderType) => {
       let msg = `
         <div>
           <p style="margin-top: 0; color: var(--color-text-muted); font-size: 12px; margin-bottom: 12px;">
-            ${t('versions.loaders.selectVersionFor', { loader: loaderName, version: v.display })}
+            ${t('versions.loaders.selectVersionFor', { loader: escapeInfoHtml(loaderName), version: escapeInfoHtml(v.display) })}
           </p>
           ${renderVersionList(displayedVersions, selectedLoaderVersion)}
           <p style="margin-top: 8px; margin-bottom: 8px; color: var(--color-text-dim); font-size: 11px;">
@@ -1435,6 +1500,8 @@ const showLoaderVersionSelector = async (v, loaderType) => {
       message: t('versions.loaders.failedFetchAvailableVersions', { loader: loaderName }),
       buttons: [{ label: t('common.ok') }],
     });
+  } finally {
+    if (ownsOverlay) hideLoadingOverlay();
   }
 };
 
@@ -1473,6 +1540,8 @@ const installLoaderVersion = async (v, loaderType, loaderVersion) => {
 
   _deps.renderAllVersionSections();
 
+  showLoadingOverlay();
+  setLoadingOverlayText(`Starting ${loaderName} ${loaderVersion} installation...`);
   try {
     const installResult = await api('/api/install-loader', 'POST', {
       category: v.category,
@@ -1616,6 +1685,8 @@ const installLoaderVersion = async (v, loaderType, loaderVersion) => {
       x._installKey === installKey ? { ...x, installing: false, _progressText: t('versions.install.failedWithMessage', { message: err.message }) } : x
     );
     _deps.renderAllVersionSections();
+  } finally {
+    hideLoadingOverlay();
   }
 };
 
@@ -1624,6 +1695,8 @@ const deleteLoaderVersion = (v, loaderType, loaderVersion, options = {}) => {
   const skipConfirm = !!options.skipConfirm;
 
   const runDelete = async () => {
+    showLoadingOverlay();
+    setLoadingOverlayText(`Deleting ${loaderName} ${loaderVersion}...`);
     try {
       const deleteResult = await api('/api/delete-loader', 'POST', {
         category: v.category,
@@ -1634,9 +1707,8 @@ const deleteLoaderVersion = (v, loaderType, loaderVersion, options = {}) => {
 
       if (deleteResult && deleteResult.ok) {
         invalidateInitialCache();
-        setTimeout(() => {
-          showLoaderManagementModal(v);
-        }, 500);
+        setLoadingOverlayText('Refreshing mod loader information...');
+        await showLoaderManagementModal(v, { showOverlay: false });
       } else {
         showMessageBox({
           title: t('versions.loaders.deleteFailedTitle'),
@@ -1651,6 +1723,8 @@ const deleteLoaderVersion = (v, loaderType, loaderVersion, options = {}) => {
         message: (err && err.message) || t('versions.loaders.unexpectedDeleteError'),
         buttons: [{ label: t('common.ok') }],
       });
+    } finally {
+      hideLoadingOverlay();
     }
   };
 

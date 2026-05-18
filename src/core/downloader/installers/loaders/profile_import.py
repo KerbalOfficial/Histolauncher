@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import urllib.parse
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -20,7 +21,7 @@ DEFAULT_MAVEN: str = "https://libraries.minecraft.net/"
 @dataclass(frozen=True)
 class ImportResult:
     profile_id: str
-    profile_path: str  # destination path inside the real version dir
+    profile_path: str
     library_count: int
     main_class: Optional[str]
 
@@ -44,8 +45,6 @@ def find_profile_json(
         if os.path.isfile(candidate):
             return expected_profile_id, candidate
 
-    # Fallback: scan for the newest <name>/<name>.json that doesn't look like
-    # the vanilla MC entry we placed ourselves.
     candidates: List[Tuple[float, str, str]] = []
     for entry in os.listdir(versions_root):
         sub = os.path.join(versions_root, entry)
@@ -58,16 +57,12 @@ def find_profile_json(
             f"Installer produced no profile JSON in {versions_root}", url=None
         )
 
-    # Prefer entries other than vanilla MC dirs (those usually have a client
-    # jar next to the json). The newest candidate wins on tie.
     candidates.sort(key=lambda t: t[0], reverse=True)
     for mtime, name, path in candidates:
         client_jar = os.path.join(os.path.dirname(path), f"{name}.jar")
         if not os.path.isfile(client_jar):
             return name, path
 
-    # Otherwise the newest. (Will be the loader profile in the rare case it
-    # ships its own jar.)
     return candidates[0][1], candidates[0][2]
 
 
@@ -75,6 +70,12 @@ def _maven_to_artifact_path(name: str) -> Optional[str]:
     parts = (name or "").split(":")
     if len(parts) < 3:
         return None
+    for raw in parts:
+        if not raw or any(ch in raw for ch in ("/", "\\", "\x00")):
+            return None
+        for segment in raw.split("."):
+            if segment in ("", ".", ".."):
+                return None
     group = parts[0].replace(".", "/")
     artifact = parts[1]
     version = parts[2]
@@ -88,6 +89,10 @@ def _maven_to_artifact_path(name: str) -> Optional[str]:
             classifier, extension = cls.split("@", 1)
         else:
             classifier = cls
+    if extension and any(ch in extension for ch in ("/", "\\", "\x00", "..")):
+        return None
+    if classifier and any(ch in classifier for ch in ("/", "\\", "\x00", "..")):
+        return None
     file_name = f"{artifact}-{version}"
     if classifier:
         file_name += f"-{classifier}"
@@ -100,9 +105,10 @@ def _resolve_artifact(
 ) -> Optional[Tuple[str, str, Optional[str], Optional[int]]]:
     name = str(lib.get("name") or "").strip()
 
-    # Modern shape: downloads.artifact carries url+sha1+size+path.
     downloads = lib.get("downloads") or {}
-    artifact = downloads.get("artifact") if isinstance(downloads, dict) else None
+    if not isinstance(downloads, dict):
+        downloads = {}
+    artifact = downloads.get("artifact")
     if isinstance(artifact, dict) and artifact.get("url"):
         path = artifact.get("path") or _maven_to_artifact_path(name)
         if not path:
@@ -114,18 +120,62 @@ def _resolve_artifact(
             artifact.get("size") if isinstance(artifact.get("size"), int) else None,
         )
 
-    # Fabric/Quilt shape: just name + base URL.
+    # Classifiers-only library (e.g. natives) — no main artifact jar exists.
+    if isinstance(downloads.get("classifiers"), dict):
+        return None
+
     if not name:
         return None
     path = _maven_to_artifact_path(name)
     if not path:
         return None
     base = str(lib.get("url") or DEFAULT_MAVEN).rstrip("/")
-    # Encode each path segment to handle '+' in versions etc.
     encoded_path = "/".join(
         urllib.parse.quote(seg, safe="+") for seg in path.split("/")
     )
     return (path, f"{base}/{encoded_path}", None, None)
+
+
+def _platform_native_key(lib: Dict[str, Any]) -> Optional[str]:
+    natives = lib.get("natives")
+    if not isinstance(natives, dict):
+        return None
+    system = platform.system().lower()
+    if "windows" in system:
+        return natives.get("windows")
+    if "linux" in system:
+        return natives.get("linux")
+    if "darwin" in system or "mac" in system:
+        return natives.get("osx") or natives.get("mac")
+    return None
+
+
+def _resolve_native_classifier(
+    lib: Dict[str, Any],
+) -> Optional[Tuple[str, str, Optional[str], Optional[int]]]:
+    """Return (artifact_path, url, sha1, size) for the platform-native classifier."""
+    native_key = _platform_native_key(lib)
+    if not native_key:
+        return None
+    downloads = lib.get("downloads") or {}
+    classifiers = downloads.get("classifiers") if isinstance(downloads, dict) else None
+    if not isinstance(classifiers, dict):
+        return None
+    entry = classifiers.get(native_key)
+    if not isinstance(entry, dict) or not entry.get("url"):
+        return None
+    path = entry.get("path")
+    if not path:
+        name = str(lib.get("name") or "").strip()
+        path = _maven_to_artifact_path(f"{name}:{native_key}") if name else None
+    if not path:
+        return None
+    return (
+        path,
+        str(entry["url"]),
+        entry.get("sha1") or None,
+        entry.get("size") if isinstance(entry.get("size"), int) else None,
+    )
 
 
 def import_profile(
@@ -153,7 +203,6 @@ def import_profile(
     libraries = profile.get("libraries") or []
     main_class = str(profile.get("mainClass") or "").strip() or None
 
-    # Resolve each library to an artifact path + URL, dedup by store path.
     plan: Dict[str, Tuple[str, Optional[str], Optional[int]]] = {}
     skipped: List[str] = []
     for lib in libraries:
@@ -162,23 +211,27 @@ def import_profile(
         resolved = _resolve_artifact(lib)
         if resolved is None:
             skipped.append(str(lib.get("name") or lib))
-            continue
-        artifact_path, url, sha1, size = resolved
-        plan.setdefault(artifact_path, (url, sha1, size))
+        else:
+            artifact_path, url, sha1, size = resolved
+            plan.setdefault(artifact_path, (url, sha1, size))
+        # Also collect the platform-appropriate native classifier jar.
+        native = _resolve_native_classifier(lib)
+        if native is not None:
+            native_path, native_url, native_sha1, native_size = native
+            plan.setdefault(native_path, (native_url, native_sha1, native_size))
 
     if skipped:
         print(colorize_log(
-            f"[profile-import] skipped {len(skipped)} unresolved libraries"
+            f"[profile-import] skipped {len(skipped)} libraries with no main artifact (natives-only or unresolved)"
         ))
 
-    # Download every needed artifact into the canonical store.
     tasks: List[DownloadTask] = []
     store_paths: Dict[str, str] = {}
     for artifact_path, (url, sha1, size) in plan.items():
         store_dest = store_path_for(artifact_path)
         store_paths[artifact_path] = store_dest
         if os.path.isfile(store_dest) and sha1 is None:
-            continue  # cached, no expectation to re-verify
+            continue
         tasks.append(DownloadTask(
             url=url,
             dest_path=store_dest,
@@ -194,16 +247,25 @@ def import_profile(
             tasks, max_workers=max_workers, cancel_check=cancel_check
         )
 
-    # Hardlink each into the real version dir under libraries/<artifact_path>.
     libs_dir = os.path.join(real_version_dir, "libraries")
+    libs_dir_real = os.path.realpath(libs_dir)
     linked = 0
     for artifact_path, store_dest in store_paths.items():
         if not os.path.isfile(store_dest):
-            # Some libraries (e.g. Forge installer-only entries) may have no
-            # downloadable artifact. Skip silently — they shouldn't be on the
-            # client classpath.
             continue
         version_dest = os.path.join(libs_dir, artifact_path.replace("/", os.sep))
+        version_dest_real = os.path.realpath(version_dest)
+        try:
+            if os.path.commonpath([libs_dir_real, version_dest_real]) != libs_dir_real:
+                print(colorize_log(
+                    f"[profile-import] refusing to link library outside libraries/: {artifact_path}"
+                ))
+                continue
+        except ValueError:
+            print(colorize_log(
+                f"[profile-import] rejecting cross-volume library path: {artifact_path}"
+            ))
+            continue
         link_into_version(store_file=store_dest, version_dest=version_dest)
         linked += 1
         if progress_cb is not None:

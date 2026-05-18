@@ -12,6 +12,8 @@ from core.settings import _apply_url_proxy, load_global_settings
 
 from server.auth.http import ACCOUNT_API_URL, TIMEOUT, _make_request
 
+_MAX_AUTH_RESPONSE_BYTES = 1 * 1024 * 1024
+
 
 __all__ = [
     "login",
@@ -158,8 +160,14 @@ def get_user_info(
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as response:
                 status = response.status
-                resp_body = response.read().decode("utf-8")
-                data = json.loads(resp_body)
+                raw_body = response.read(_MAX_AUTH_RESPONSE_BYTES + 1)
+                if len(raw_body) > _MAX_AUTH_RESPONSE_BYTES:
+                    return False, None, "Auth response exceeded size limit", status
+                resp_body = raw_body.decode("utf-8", errors="replace")
+                try:
+                    data = json.loads(resp_body)
+                except json.JSONDecodeError:
+                    data = {}
 
                 if status == 200 and data and data.get("success"):
                     user_data = {
@@ -173,13 +181,19 @@ def get_user_info(
                     except Exception:
                         pass
                     return True, user_data, None, status
-                return False, None, data.get("error", "Failed to get user info"), status
+                if not isinstance(data, dict):
+                    data = {}
+                return False, None, str(data.get("error") or "Failed to get user info"), status
         except urllib.error.HTTPError as e:
             if e.code == 401:
                 return False, None, "Session expired", e.code
             try:
-                data = json.loads(e.read().decode("utf-8"))
-                error = data.get("error", "Failed to get user info")
+                raw = e.read(_MAX_AUTH_RESPONSE_BYTES + 1)
+                if len(raw) > _MAX_AUTH_RESPONSE_BYTES:
+                    error = "Failed to get user info"
+                else:
+                    data = json.loads(raw.decode("utf-8", errors="replace"))
+                    error = data.get("error", "Failed to get user info") if isinstance(data, dict) else "Failed to get user info"
             except Exception:
                 error = "Failed to get user info"
             return False, None, error, e.code
@@ -195,17 +209,14 @@ def get_user_info(
                 in {"1", "true", "yes"}
             )
             if prefetch:
-                import threading
-
                 try:
                     import server.yggdrasil as _ygg
 
-                    threading.Thread(
-                        target=_ygg.cache_textures,
-                        args=(user_data.get("uuid", ""), user_data.get("username", "")),
-                        kwargs={"probe_remote": True},
-                        daemon=True,
-                    ).start()
+                    _ygg.prewarm_authlib_texture_properties(
+                        target_uuid_hex=user_data.get("uuid", ""),
+                        target_username=user_data.get("username", ""),
+                        wait_seconds=0.0,
+                    )
                 except Exception:
                     pass
         except Exception:

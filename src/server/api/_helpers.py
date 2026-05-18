@@ -18,6 +18,7 @@ from server.api._constants import (
     VALID_VERSION_STORAGE_OVERRIDE_MODES,
 )
 from server.api._state import STATE, CancelledOperationError
+from server.api._validation import _validate_category_string, _validate_version_string
 
 
 __all__ = [
@@ -204,7 +205,9 @@ def _sanitize_settings_payload(data: Dict[str, Any]) -> Dict[str, Any]:
     boolean_keys = {
         "game_fullscreen",
         "game_demo_mode",
+        "auto_optimize_launch_settings",
         "compact_sidebar",
+        "keyboard_mouse_enabled",
         "discord_rpc_enabled",
         "desktop_notifications_enabled",
     }
@@ -265,6 +268,20 @@ def _sanitize_settings_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         sanitized["custom_storage_directory"] = normalize_custom_storage_directory(
             sanitized.get("custom_storage_directory")
         )
+    if "selected_version" in sanitized:
+        selected = str(sanitized.get("selected_version") or "").replace("\\", "/").strip()
+        if not selected:
+            sanitized["selected_version"] = ""
+        else:
+            parts = [part.strip() for part in selected.split("/", 1)]
+            if (
+                len(parts) == 2
+                and _validate_category_string(parts[0])
+                and _validate_version_string(parts[1])
+            ):
+                sanitized["selected_version"] = f"{parts[0]}/{parts[1]}"
+            else:
+                sanitized["selected_version"] = ""
     return sanitized
 
 

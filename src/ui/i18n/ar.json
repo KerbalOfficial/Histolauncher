@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD/MM/YYYY HH:mm",
+  "am": "ص",
+  "pm": "م",
   "nav": {
     "home": "الرئيسية",
     "versions": "الإصدارات",
     "worlds": "العوالم",
+    "screenshots": "لقطات الشاشة",
     "addons": "الإضافات",
     "settings": "الإعدادات",
-    "about": "حول"
+    "about": "حول",
+    "primaryNavAria": "التنقل الرئيسي"
   },
   "common": {
     "none": "لا شيء",
     "unknown": "غير معروف",
     "all": "الكل",
+    "auto": "Auto",
     "defaultName": "افتراضي",
     "loading": "جار التحميل...",
     "refresh": "تحديث",
@@ -70,6 +76,20 @@
     "playerModel": "نموذج اللاعب",
     "modelWide": "عريض",
     "modelSlim": "نحيف",
+    "textureType": "نوع الملمس",
+    "textureDefault": "افتراضي",
+    "textureLegacy": "قديم",
+    "armMirror": "عكس الذراع",
+    "legMirror": "عكس الساق",
+    "mirrorRight": "يمين",
+    "mirrorLeft": "يسار",
+    "overlayToFirstLayer": "دمج الطبقة العلوية مع الطبقة الأولى",
+    "overlayHead": "الرأس",
+    "overlayBody": "السترة",
+    "overlayRightArm": "الكم الأيمن",
+    "overlayLeftArm": "الكم الأيسر",
+    "overlayRightLeg": "الساق اليمنى",
+    "overlayLeftLeg": "الساق اليسرى",
     "skinFile": "ملف السكن",
     "capeSelection": "عباءة",
     "skinPreviewAlt": "معاينة السكن",
@@ -131,12 +151,16 @@
     "versionTooltip": "إصدار المشغل",
     "refreshTooltip": "تحديث القيم (اضغط Shift مطولًا لتحديث الصفحة)",
     "refreshAria": "تحديث",
-    "profileTooltip": "حساب Histolauncher",
     "refreshAlt": "تحديث",
-    "profileAlt": "الملف الشخصي"
+    "profileAlt": "الملف الشخصي",
+    "profileTooltip": "حساب Histolauncher"
   },
   "home": {
     "launchButton": "تشغيل",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "رفض الرسالة"
+    },
     "info": {
       "version": "الإصدار",
       "noneSelected": "(لم يتم الاختيار)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "الإصدارات التي يتم تنزيلها حاليًا.",
     "availableSubtitle": "الإصدارات المتاحة للتثبيت",
     "deleteSelected": "حذف المحدد (0)",
+    "actionsMenuAria": "إجراءات الإصدار",
     "profile": {
       "renameTooltip": "إعادة تسمية ملف الإصدارات الشخصي النشط",
       "renameAria": "إعادة تسمية ملف الإصدارات الشخصي",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "تجاوز الحد الأدنى للذاكرة RAM",
       "maximumRamOverride": "تجاوز الحد الأقصى للذاكرة RAM",
       "resolutionOverride": "تجاوز الدقة",
-      "javaRuntimePathOverride": "تجاوز مسار Java runtime",
+      "javaRuntimeOverride": "تجاوز مسار Java runtime",
       "extraJvmArgumentsOverride": "تجاوز وسائط JVM الإضافية",
       "versionImageFile": "ملف صورة الإصدار (اختياري، PNG/JPG)",
       "failedReadImageData": "فشل قراءة بيانات الصورة",
@@ -356,6 +381,18 @@
       "successTitle": "تم التصدير بنجاح!",
       "successMessage": "تم حفظ الملف في:<br><b>{filepath}</b><br><br>حجم الملف<br><b>{size} MB</b>",
       "unexpectedError": "حدث خطأ أثناء التصدير:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "التنزيلات",
     "sortName": "الاسم",
     "sortRecentlyUpdated": "المحدثة مؤخرًا",
+    "actionsMenuAria": "إجراءات الإضافات",
     "profile": {
       "renameTooltip": "إعادة تسمية ملف الإضافات الشخصي النشط",
       "renameAria": "إعادة تسمية ملف الإضافات الشخصي",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "حدد محمل المودات للملف \"{file}\":"
+      "selectLoaderForFile": "حدد محمل المودات للملف \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "مثبت",
@@ -554,6 +593,14 @@
       "unexpectedError": "خطأ تثبيت غير متوقع",
       "unexpectedForAddon": "حدث خطأ غير متوقع أثناء تثبيت {addon}."
     },
+    "dependencies": {
+      "title": "تبعيات التعديل",
+      "checking": "جار فحص التبعيات...",
+      "prompt": "يحتاج هذا التعديل إلى تبعيات ليعمل بشكل صحيح. اختر التبعيات التي تريد تثبيتها:",
+      "installSelected": "تثبيت المحدد",
+      "installing": "جار تثبيت التبعيات...",
+      "required": "مطلوب"
+    },
     "exportModpack": {
       "title": "تصدير حزمة مودات",
       "selectFormat": "حدد صيغة حزمة المودات للتصدير:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "عوالم من {provider}",
     "deleteSelected": "حذف المحدد (0)",
     "deleteSelectedCount": "حذف المحدد ({count})",
+    "actionsMenuAria": "إجراءات العالم",
     "importTooltip": "استيراد عالم من أرشيف .zip",
     "importAria": "استيراد عالم",
     "moreActionsTooltip": "إجراءات عوالم إضافية",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "جار تحميل محرر العالم...",
       "editWorldTitle": "تعديل العالم: {world}",
+      "failedNbtLoad": "فشل تحميل بيانات NBT للعالم.",
       "worldFallback": "العالم",
       "thisWorld": "هذا العالم",
       "primaryPlayer": "اللاعب الرئيسي",
@@ -933,8 +982,7 @@
       "saving": "جار حفظ تغييرات محرر العالم...",
       "failedSaveNbt": "فشل حفظ بيانات NBT للعالم.",
       "renameFailedAfterNbt": "تم حفظ تغييرات NBT، لكن فشلت إعادة تسمية مجلد العالم: {error}",
-      "iconFailedAfterSave": "تم حفظ بيانات العالم، لكن فشل تحديث الأيقونة: {error}",
-      "failedNbtLoad": "فشل تحميل بيانات NBT للعالم."
+      "iconFailedAfterSave": "تم حفظ بيانات العالم، لكن فشل تحديث الأيقونة: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "جار التشغيل...",
     "launchingTimed": "جار التشغيل... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Java Runtime مطلوب",
     "javaRequiredMessage": "يلزم Java runtime متوافق.",
     "downloadJava": "تنزيل Java",
@@ -1022,6 +1077,76 @@
       "generic": "محمل",
       "vanilla": "بدون تعديلات",
       "none": "لا شيء (بدون محمل مودات)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "الصور",
+    "imagesSubtitleDefault": "الصور عبر مجلدات التخزين المتاحة",
+    "imagesSubtitle": "{count} صورة/صور في {storage}",
+    "itemFallback": "لقطة شاشة",
+    "refreshTooltip": "تحديث قائمة لقطات الشاشة",
+    "bulkSelectTooltip": "تبديل وضع التحديد المتعدد للقطات الشاشة",
+    "bulkDeleteTooltip": "حذف لقطات الشاشة المحددة",
+    "toggleImagesAria": "تبديل قسم لقطات الشاشة",
+    "favoriteAlt": "مفضلة",
+    "list": {
+      "loading": "جار تحميل لقطات الشاشة...",
+      "failedLoadInstalled": "فشل تحميل لقطات الشاشة.",
+      "emptyInstalled": "لم يتم العثور على لقطات شاشة"
+    },
+    "actions": {
+      "openImage": "فتح لقطة الشاشة {name}",
+      "closeImagePreview": "إغلاق معاينة لقطة الشاشة",
+      "toggleSelection": "تبديل تحديد لقطة الشاشة {name}",
+      "toggleFavorite": "تبديل تفضيل لقطة الشاشة {name}",
+      "renameImage": "إعادة تسمية لقطة الشاشة {name}",
+      "deleteImage": "حذف لقطة الشاشة {name}",
+      "saveAs": "حفظ باسم",
+      "editImageButton": "فتح"
+    },
+    "favorite": {
+      "saveFailedTitle": "فشل حفظ المفضلة",
+      "saveFailed": "فشل حفظ مفضلات لقطات الشاشة: {error}"
+    },
+    "rename": {
+      "title": "إعادة تسمية لقطة الشاشة",
+      "prompt": "اختر اسمًا جديدًا لهذه اللقطة.",
+      "keepExtension": "يبقى امتداد الملف {extension} كما هو.",
+      "invalidTitle": "اسم لقطة الشاشة غير صالح",
+      "invalidMessage": "أدخل اسمًا للقطة الشاشة.",
+      "failedTitle": "فشلت إعادة التسمية",
+      "failedMessage": "فشلت إعادة تسمية لقطة الشاشة."
+    },
+    "delete": {
+      "title": "حذف لقطة الشاشة",
+      "confirmMessage": "حذف {name}؟ لا يمكن التراجع عن هذا.",
+      "failedTitle": "فشل الحذف",
+      "failedMessage": "فشل حذف لقطة الشاشة."
+    },
+    "edit": {
+      "failedTitle": "فشل الفتح",
+      "failedMessage": "فشل فتح لقطة الشاشة."
+    },
+    "saveAs": {
+      "failedTitle": "فشل الحفظ",
+      "failedMessage": "فشل حفظ لقطة الشاشة: {error}",
+      "fileTypeDescription": "ملف صورة",
+      "missingFile": "تعذر تحديد ملف لقطة الشاشة."
+    },
+    "bulkDelete": {
+      "title": "حذف لقطات الشاشة دفعة واحدة",
+      "deleteSelectedCount": "حذف المحدد ({count})",
+      "noSelected": "حدد لقطة شاشة واحدة على الأقل أولًا.",
+      "confirmMessage": "حذف {count} لقطة/لقطات شاشة محددة؟ لا يمكن التراجع عن هذا.",
+      "deletingProgress": "جار حذف لقطات الشاشة... ({current}/{total})",
+      "cancelling": "جار إلغاء حذف لقطات الشاشة...",
+      "cancelledTitle": "تم إلغاء الحذف المتعدد",
+      "cancelledMessage": "تم حذف {deleted} لقطة/لقطات شاشة قبل الإلغاء.",
+      "cancelledWithFailures": "تم حذف {deleted} لقطة/لقطات شاشة قبل الإلغاء. فشل حذف {failures} لقطة/لقطات شاشة.",
+      "completeTitle": "اكتمل الحذف المتعدد",
+      "completeMessage": "تم حذف {deleted} لقطة/لقطات شاشة.",
+      "finishedWithErrorsTitle": "انتهى الحذف المتعدد مع أخطاء",
+      "finishedWithErrorsMessage": "تم حذف {deleted} لقطة/لقطات شاشة.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "العميل",
       "launcher": "المشغل",
       "mods": "المودات",
-      "dataStorage": "البيانات والتخزين"
+      "dataStorage": "البيانات والتخزين",
+      "playtime": "وقت اللعب"
+    },
+    "playtime": {
+      "noData": "لم يتم تسجيل أي جلسات بعد. العب إصداراً لبدء التتبع!",
+      "total": "إجمالي وقت اللعب:",
+      "totalTooltip": "إجمالي وقت اللعب عبر جميع الجلسات.",
+      "sessions": "الجلسات المُلعبة:",
+      "sessionsTooltip": "عدد المرات التي أطلقت فيها اللعبة.",
+      "mostPlayed": "الإصدار الأكثر لعباً:",
+      "mostPlayedTooltip": "الإصدار الذي أمضيت فيه أكثر وقت.",
+      "longest": "أطول جلسة:",
+      "longestTooltip": "أطول جلسة لعب فردية لديك.",
+      "average": "متوسط الجلسة:",
+      "averageTooltip": "متوسط مدة جميع جلسات اللعب.",
+      "moreDetails": "مزيد من التفاصيل",
+      "detail": {
+        "title": "تفاصيل وقت اللعب",
+        "allVersions": "الكل",
+        "filterBy": "الإصدار:",
+        "date": "التاريخ",
+        "version": "الإصدار",
+        "duration": "المدة",
+        "modloader": "Modloader",
+        "noSessions": "لا توجد جلسات للعرض.",
+        "sortBy": "انقر للترتيب",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "الكل",
+        "noLoader": "لا شيء",
+        "totalLabel": "الإجمالي:",
+        "nowLive": "مباشر",
+        "truncatedNote": "عرض آخر {shown} جلسة من إجمالي {total}."
+      }
     },
     "account": {
       "username": "اسم المستخدم:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "فتح Microsoft",
         "failedLogin": "فشل تسجيل الدخول عبر Microsoft."
       },
-      "playerPreviewTooltip": "إظهار معاينة اللاعب بجسم مائل وعرض الرداء عندما تكون خامات الحساب متاحة.",
+      "playerPreviewTooltip": "اعرض جلد لاعبك وعباءتك في معاينة ثلاثية الأبعاد.",
       "playerPreview": "معاينة اللاعب ثلاثية الأبعاد:",
-      "playerRotateTitle": "انقر واسحب للتدوير",
       "playerPreviewBodyAlt": "معاينة اللاعب",
-      "playerPreviewCapeAlt": "معاينة العباءة"
+      "playerPreviewCapeAlt": "معاينة العباءة",
+      "playerRotateTitle": "انقر واسحب للتدوير"
     },
     "appearance": {
       "theme": "السمة:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "تحسين تلقائي:",
+      "autoOptimizeTooltip": "يختار تلقائياً مقدار ذاكرة الوصول العشوائي وعوامل JVM عند كل تشغيل لـ Minecraft بناءً على ذاكرة الجهاز الحالية.",
+      "autoOptimizeLockedTitle": "قم بتعطيل التحسين التلقائي لتعديله يدوياً.",
       "minRam": "الحد الأدنى للذاكرة RAM:",
       "minRamTooltip": "الحد الأدنى للذاكرة RAM المخصصة للعبة\n  - يجب أن يكون رقمًا موجبًا\n  - يجب أن يكون أصغر من الحد الأقصى للذاكرة RAM\n\nمثال على التنسيق: 256، 256M، 2G، إلخ.\n\n(نصيحة أداء: خصص RAM أكثر لأداء أفضل، وطابقها أيضًا مع الحد الأقصى للذاكرة لتقليل هبوط الإطارات)",
       "ramInvalidTitle": "تنسيق RAM: رقم مع لاحقة K أو M أو G أو T اختيارية (مثل 2048M، 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "إظهار Discord Rich Presence أثناء تشغيل المشغل أو اللعبة.",
       "desktopNotifications": "إشعارات سطح المكتب:",
       "desktopNotificationsTooltip": "السماح بإشعارات سطح المكتب من المشغل.",
+      "keyboardMouse": "ماوس لوحة المفاتيح:",
+      "keyboardMouseTooltip": "يعرض مؤشرًا يتم التحكم به من لوحة المفاتيح في كل أنحاء المشغل.\n\nهذه الميزة ما زالت تجريبية، فتوقع الكثير من الأخطاء!",
       "java": {
         "auto": "تلقائي",
         "defaultPath": "افتراضي (Java PATH)",

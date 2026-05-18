@@ -9,8 +9,27 @@ from core.logger import colorize_log
 
 
 def store_path_for(artifact_path: str) -> str:
-    safe = artifact_path.replace("\\", "/").lstrip("/")
-    return os.path.join(LIBRARY_STORE_DIR, safe.replace("/", os.sep))
+    raw = str(artifact_path or "").replace("\\", "/").strip().lstrip("/")
+    parts = []
+    for part in raw.split("/"):
+        if not part or part == ".":
+            continue
+        if part == ".." or "\x00" in part or (len(part) >= 2 and part[1] == ":"):
+            raise ValueError(f"invalid library artifact path: {artifact_path!r}")
+        parts.append(part)
+
+    if not parts:
+        raise ValueError("library artifact path is empty")
+
+    path = os.path.join(LIBRARY_STORE_DIR, *parts)
+    root_real = os.path.normcase(os.path.realpath(LIBRARY_STORE_DIR))
+    path_real = os.path.normcase(os.path.realpath(path))
+    try:
+        if os.path.commonpath([root_real, path_real]) != root_real:
+            raise ValueError(f"invalid library artifact path: {artifact_path!r}")
+    except ValueError:
+        raise ValueError(f"invalid library artifact path: {artifact_path!r}")
+    return path
 
 
 def link_into_version(

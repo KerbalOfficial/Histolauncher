@@ -21,6 +21,7 @@ DEFAULTS: Final[dict[str, dict[str, str]]] = {
         "game_resolution_height": "480",
         "game_fullscreen": "0",
         "game_demo_mode": "0",
+        "auto_optimize_launch_settings": "1",
         "extra_jvm_args": "",
         "selected_version": "",
         "favorite_versions": "",
@@ -52,7 +53,16 @@ DEFAULTS: Final[dict[str, dict[str, str]]] = {
     },
 }
 
-DEPRECATED_KEYS: Final[frozenset[str]] = frozenset({"signature_hash"})
+DEPRECATED_KEYS: Final[frozenset[str]] = frozenset({
+    "signature_hash",
+    "smart_settings_auto_applied",
+    "smart_settings_optimizer_version",
+    "smart_settings_last_reason",
+    "smart_settings_last_total_ram_mb",
+    "smart_settings_last_available_ram_mb",
+    "skin_legacy_preview",
+    "skin_legacy_merge_overlay",
+})
 
 MAX_PROFILE_NAME_LEN: Final[int] = 32
 MAX_PROFILE_ID_LEN: Final[int] = 48

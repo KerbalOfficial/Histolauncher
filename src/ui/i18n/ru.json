@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD.MM.YYYY HH:mm",
+  "am": "AM",
+  "pm": "PM",
   "nav": {
     "home": "Главная",
     "versions": "Версии",
     "worlds": "Миры",
+    "screenshots": "Скриншоты",
     "addons": "Дополнения",
     "settings": "Настройки",
-    "about": "О программе"
+    "about": "О программе",
+    "primaryNavAria": "Основная навигация"
   },
   "common": {
     "none": "Нет",
     "unknown": "неизвестно",
     "all": "Все",
+    "auto": "Auto",
     "defaultName": "По умолчанию",
     "loading": "Загрузка...",
     "refresh": "Обновить",
@@ -70,6 +76,20 @@
     "playerModel": "Модель игрока",
     "modelWide": "Широкая",
     "modelSlim": "Тонкая",
+    "textureType": "Тип текстуры",
+    "textureDefault": "По умолчанию",
+    "textureLegacy": "Классическая",
+    "armMirror": "Зеркалирование рук",
+    "legMirror": "Зеркалирование ног",
+    "mirrorRight": "Правая",
+    "mirrorLeft": "Левая",
+    "overlayToFirstLayer": "Наложить внешний слой на первый слой",
+    "overlayHead": "Голова",
+    "overlayBody": "Куртка",
+    "overlayRightArm": "Правый рукав",
+    "overlayLeftArm": "Левый рукав",
+    "overlayRightLeg": "Правая штанина",
+    "overlayLeftLeg": "Левая штанина",
     "skinFile": "Файл скина",
     "capeSelection": "Плащ",
     "skinPreviewAlt": "Предпросмотр скина",
@@ -131,12 +151,16 @@
     "versionTooltip": "Версия лаунчера",
     "refreshTooltip": "Обновить значения (удерживайте shift, чтобы обновить страницу)",
     "refreshAria": "Обновить",
-    "profileTooltip": "Аккаунт Histolauncher",
     "refreshAlt": "Обновить",
-    "profileAlt": "Профиль"
+    "profileAlt": "Профиль",
+    "profileTooltip": "Аккаунт Histolauncher"
   },
   "home": {
     "launchButton": "Играть",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Закрыть сообщение"
+    },
     "info": {
       "version": "Версия",
       "noneSelected": "(не выбрано)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Версии, которые в данный момент скачиваются.",
     "availableSubtitle": "Доступные для установки версии",
     "deleteSelected": "Удалить выбранные (0)",
+    "actionsMenuAria": "Действия с версией",
     "profile": {
       "renameTooltip": "Переименовать активный профиль версий",
       "renameAria": "Переименовать профиль версий",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Переопределение минимальной RAM",
       "maximumRamOverride": "Переопределение максимальной RAM",
       "resolutionOverride": "Переопределение разрешения",
-      "javaRuntimePathOverride": "Переопределение пути к Java Runtime",
+      "javaRuntimeOverride": "Переопределение пути к Java Runtime",
       "extraJvmArgumentsOverride": "Переопределение дополнительных аргументов JVM",
       "versionImageFile": "Файл изображения версии (необязательно, PNG/JPG)",
       "failedReadImageData": "Не удалось прочитать данные изображения",
@@ -356,6 +381,18 @@
       "successTitle": "Экспорт успешен!",
       "successMessage": "Файл сохранен в:<br><b>{filepath}</b><br><br>Размер файла<br><b>{size} МБ</b>",
       "unexpectedError": "Во время экспорта произошла ошибка:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Скачивания",
     "sortName": "Имя",
     "sortRecentlyUpdated": "Недавно обновленные",
+    "actionsMenuAria": "Действия с модом",
     "profile": {
       "renameTooltip": "Переименовать активный профиль дополнений",
       "renameAria": "Переименовать профиль дополнений",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Выберите загрузчик модов для \"{file}\":"
+      "selectLoaderForFile": "Выберите загрузчик модов для \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Установлено",
@@ -554,6 +593,14 @@
       "unexpectedError": "Непредвиденная ошибка установки",
       "unexpectedForAddon": "Произошла непредвиденная ошибка при установке {addon}."
     },
+    "dependencies": {
+      "title": "Зависимости мода",
+      "checking": "Проверка зависимостей...",
+      "prompt": "Этому моду нужны зависимости для правильной работы. Выберите, какие зависимости установить:",
+      "installSelected": "Установить выбранные",
+      "installing": "Установка зависимостей...",
+      "required": "Обязательно"
+    },
     "exportModpack": {
       "title": "Экспорт сборки модов",
       "selectFormat": "Выберите формат экспорта сборки модов:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Миры из {provider}",
     "deleteSelected": "Удалить выбранные (0)",
     "deleteSelectedCount": "Удалить выбранные ({count})",
+    "actionsMenuAria": "Действия с миром",
     "importTooltip": "Импортировать мир из .zip архива",
     "importAria": "Импортировать мир",
     "moreActionsTooltip": "Дополнительные действия с миром",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Загрузка редактора мира...",
       "editWorldTitle": "Редактирование мира: {world}",
+      "failedNbtLoad": "Не удалось загрузить данные NBT мира.",
       "worldFallback": "Мир",
       "thisWorld": "этот мир",
       "primaryPlayer": "Основной игрок",
@@ -933,8 +982,7 @@
       "saving": "Сохранение изменений редактора мира...",
       "failedSaveNbt": "Не удалось сохранить NBT данные мира.",
       "renameFailedAfterNbt": "Изменения NBT были сохранены, но переименование папки мира не удалось: {error}",
-      "iconFailedAfterSave": "Данные мира были сохранены, но обновление значка не удалось: {error}",
-      "failedNbtLoad": "Не удалось загрузить данные NBT мира."
+      "iconFailedAfterSave": "Данные мира были сохранены, но обновление значка не удалось: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Запуск...",
     "launchingTimed": "Запуск... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Требуется Java Runtime",
     "javaRequiredMessage": "Требуется совместимая среда выполнения Java.",
     "downloadJava": "Скачать Java",
@@ -1022,6 +1077,76 @@
       "generic": "Загрузчик",
       "vanilla": "Ванильный",
       "none": "Нет (без загрузчика модов)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Изображения",
+    "imagesSubtitleDefault": "Изображения в доступных каталогах хранения",
+    "imagesSubtitle": "{count} изображение(й) в {storage}",
+    "itemFallback": "Скриншот",
+    "refreshTooltip": "Обновить список скриншотов",
+    "bulkSelectTooltip": "Переключить режим массового выбора скриншотов",
+    "bulkDeleteTooltip": "Удалить выбранные скриншоты",
+    "toggleImagesAria": "Переключить раздел скриншотов",
+    "favoriteAlt": "избранное",
+    "list": {
+      "loading": "Загрузка скриншотов...",
+      "failedLoadInstalled": "Не удалось загрузить скриншоты.",
+      "emptyInstalled": "Скриншоты не найдены"
+    },
+    "actions": {
+      "openImage": "Открыть скриншот {name}",
+      "closeImagePreview": "Закрыть предпросмотр скриншота",
+      "toggleSelection": "Переключить выбор скриншота {name}",
+      "toggleFavorite": "Переключить избранное для скриншота {name}",
+      "renameImage": "Переименовать скриншот {name}",
+      "deleteImage": "Удалить скриншот {name}",
+      "saveAs": "Сохранить как",
+      "editImageButton": "Открыть"
+    },
+    "favorite": {
+      "saveFailedTitle": "Ошибка сохранения избранного",
+      "saveFailed": "Не удалось сохранить избранные скриншоты: {error}"
+    },
+    "rename": {
+      "title": "Переименовать скриншот",
+      "prompt": "Выберите новое имя для этого скриншота.",
+      "keepExtension": "Расширение файла {extension} остаётся прежним.",
+      "invalidTitle": "Недопустимое имя скриншота",
+      "invalidMessage": "Введите имя для скриншота.",
+      "failedTitle": "Переименование не удалось",
+      "failedMessage": "Не удалось переименовать скриншот."
+    },
+    "delete": {
+      "title": "Удалить скриншот",
+      "confirmMessage": "Удалить {name}? Это действие не может быть отменено.",
+      "failedTitle": "Удаление не удалось",
+      "failedMessage": "Не удалось удалить скриншот."
+    },
+    "edit": {
+      "failedTitle": "Открытие не удалось",
+      "failedMessage": "Не удалось открыть скриншот."
+    },
+    "saveAs": {
+      "failedTitle": "Сохранение не удалось",
+      "failedMessage": "Не удалось сохранить скриншот: {error}",
+      "fileTypeDescription": "Файл изображения",
+      "missingFile": "Файл скриншота не удалось найти."
+    },
+    "bulkDelete": {
+      "title": "Удалить скриншоты",
+      "deleteSelectedCount": "Удалить выбранные ({count})",
+      "noSelected": "Сначала выберите хотя бы один скриншот.",
+      "confirmMessage": "Удалить {count} выбранных скриншота(ов)? Это действие не может быть отменено.",
+      "deletingProgress": "Удаление скриншотов... ({current}/{total})",
+      "cancelling": "Отмена удаления скриншотов...",
+      "cancelledTitle": "Массовое удаление отменено",
+      "cancelledMessage": "Удалено {deleted} скриншотов перед отменой.",
+      "cancelledWithFailures": "Удалено {deleted} скриншотов перед отменой. {failures} скриншот(ов) не удалось удалить.",
+      "completeTitle": "Массовое удаление завершено",
+      "completeMessage": "Удалено {deleted} скриншотов.",
+      "finishedWithErrorsTitle": "Массовое удаление завершено с ошибками",
+      "finishedWithErrorsMessage": "Удалено {deleted} скриншотов.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Клиент",
       "launcher": "Лаунчер",
       "mods": "Моды",
-      "dataStorage": "Данные и хранение"
+      "dataStorage": "Данные и хранение",
+      "playtime": "Время в игре"
+    },
+    "playtime": {
+      "noData": "Сессии ещё не записаны. Запустите версию, чтобы начать отслеживание!",
+      "total": "Общее время в игре:",
+      "totalTooltip": "Общее время в игре во всех сессиях.",
+      "sessions": "Сыграно сессий:",
+      "sessionsTooltip": "Сколько раз вы запускали игру.",
+      "mostPlayed": "Наиболее играемая версия:",
+      "mostPlayedTooltip": "Версия, в которой вы провели больше всего времени.",
+      "longest": "Самая длинная сессия:",
+      "longestTooltip": "Ваша самая длинная одиночная игровая сессия.",
+      "average": "Средняя сессия:",
+      "averageTooltip": "Средняя продолжительность всех ваших игровых сессий.",
+      "moreDetails": "Подробнее",
+      "detail": {
+        "title": "Подробности о времени в игре",
+        "allVersions": "Все",
+        "filterBy": "Версия:",
+        "date": "Дата",
+        "version": "Версия",
+        "duration": "Продолжительность",
+        "modloader": "Modloader",
+        "noSessions": "Нет сессий для отображения.",
+        "sortBy": "Нажмите для сортировки",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Все",
+        "noLoader": "Нет",
+        "totalLabel": "Итого:",
+        "nowLive": "Сейчас",
+        "truncatedNote": "Отображение {shown} последних сессий из {total} всего."
+      }
     },
     "account": {
       "username": "Имя пользователя:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Открыть Microsoft",
         "failedLogin": "Вход через Microsoft не удался."
       },
-      "playerPreviewTooltip": "Показать предпросмотр игрока с телом под углом и рендерингом плаща, когда текстуры аккаунта доступны.",
+      "playerPreviewTooltip": "Показывает скин игрока и плащ в 3D-предпросмотре.",
       "playerPreview": "3D-превью игрока:",
-      "playerRotateTitle": "Нажмите и перетащите для поворота",
       "playerPreviewBodyAlt": "Предпросмотр игрока",
-      "playerPreviewCapeAlt": "Предпросмотр плаща"
+      "playerPreviewCapeAlt": "Предпросмотр плаща",
+      "playerRotateTitle": "Нажмите и перетащите для поворота"
     },
     "appearance": {
       "theme": "Тема:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Авто-оптимизация:",
+      "autoOptimizeTooltip": "Автоматически выбирает объём RAM и аргументы JVM из текущей памяти устройства при каждом запуске Minecraft.",
+      "autoOptimizeLockedTitle": "Отключите Авто-оптимизацию для ручного редактирования.",
       "minRam": "Мин. RAM:",
       "minRamTooltip": "Минимальная выделенная RAM для игры\n  - Должно быть положительным числом\n  - Должно быть меньше, чем Максимальная RAM\n\nПример: 256, 256M, 2G и т.д.\n\n(совет: выделите больше RAM для лучшей производительности, а также уравняйте с максимальной RAM для меньше падений FPS)",
       "ramInvalidTitle": "Формат RAM: число с дополнительными суффиксами K, M, G или T (например, 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Отображать статус Discord Rich Presence во время работы лаунчера или самой игры.",
       "desktopNotifications": "Уведомления на ПК:",
       "desktopNotificationsTooltip": "Разрешить уведомления лаунчера на рабочем столе.",
+      "keyboardMouse": "Клавишная мышь:",
+      "keyboardMouseTooltip": "Отображает управляемый с клавиатуры курсор в лаунчере.\n\nЭто всё ещё экспериментально, ожидайте множества ошибок!",
       "java": {
         "auto": "Авто",
         "defaultPath": "По умолчанию (Java PATH)",

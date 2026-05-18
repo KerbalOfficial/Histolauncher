@@ -1,16 +1,22 @@
 {
+  "dateTimeFormat": "DD.MM.YYYY HH:mm",
+  "am": "AM",
+  "pm": "PM",
   "nav": {
     "home": "Start",
     "versions": "Versionen",
     "worlds": "Welten",
+    "screenshots": "Screenshots",
     "addons": "Add-ons",
     "settings": "Einstellungen",
-    "about": "Über"
+    "about": "Über",
+    "primaryNavAria": "Hauptnavigation"
   },
   "common": {
     "none": "Keine",
     "unknown": "unbekannt",
     "all": "Alle",
+    "auto": "Auto",
     "defaultName": "Standard",
     "loading": "Wird geladen...",
     "refresh": "Aktualisieren",
@@ -70,6 +76,20 @@
     "playerModel": "Spielermodell",
     "modelWide": "Breit",
     "modelSlim": "Schmal",
+    "textureType": "Texturtyp",
+    "textureDefault": "Standard",
+    "textureLegacy": "Klassisch",
+    "armMirror": "Arme spiegeln",
+    "legMirror": "Beine spiegeln",
+    "mirrorRight": "Rechts",
+    "mirrorLeft": "Links",
+    "overlayToFirstLayer": "Überlagerung auf erste Ebene anwenden",
+    "overlayHead": "Kopf",
+    "overlayBody": "Jacke",
+    "overlayRightArm": "Rechter Ärmel",
+    "overlayLeftArm": "Linker Ärmel",
+    "overlayRightLeg": "Rechtes Hosenbein",
+    "overlayLeftLeg": "Linkes Hosenbein",
     "skinFile": "Skin-Datei",
     "capeSelection": "Cape",
     "skinPreviewAlt": "Skin-Vorschau",
@@ -131,12 +151,16 @@
     "versionTooltip": "Launcher-Version",
     "refreshTooltip": "Werte aktualisieren (Shift halten, um die Seite neu zu laden)",
     "refreshAria": "Aktualisieren",
-    "profileTooltip": "Histolauncher-Konto",
     "refreshAlt": "Aktualisieren",
-    "profileAlt": "Profil"
+    "profileAlt": "Profil",
+    "profileTooltip": "Histolauncher-Konto"
   },
   "home": {
     "launchButton": "Starten",
+    "versionImageAlt": "Version",
+    "globalMessage": {
+      "dismiss": "Meldung schließen"
+    },
     "info": {
       "version": "Version",
       "noneSelected": "(keine ausgewählt)",
@@ -170,6 +194,7 @@
     "installingSubtitle": "Versionen, die gerade heruntergeladen werden.",
     "availableSubtitle": "Installierbare Versionen",
     "deleteSelected": "Ausgewählte löschen (0)",
+    "actionsMenuAria": "Versionsaktionen",
     "profile": {
       "renameTooltip": "Aktives Versionen-Profil umbenennen",
       "renameAria": "Versionen-Profil umbenennen",
@@ -248,7 +273,7 @@
       "minimumRamOverride": "Minimale RAM überschreiben",
       "maximumRamOverride": "Maximale RAM überschreiben",
       "resolutionOverride": "Auflösung überschreiben",
-      "javaRuntimePathOverride": "Java-Laufzeitpfad überschreiben",
+      "javaRuntimeOverride": "Java-Laufzeitpfad überschreiben",
       "extraJvmArgumentsOverride": "Zusätzliche JVM-Argumente überschreiben",
       "versionImageFile": "Versionsbilddatei (optional, PNG/JPG)",
       "failedReadImageData": "Bilddaten konnten nicht gelesen werden",
@@ -356,6 +381,18 @@
       "successTitle": "Export erfolgreich!",
       "successMessage": "Datei gespeichert unter:<br><b>{filepath}</b><br><br>Dateigröße<br><b>{size} MB</b>",
       "unexpectedError": "Ein Fehler ist während des Exports aufgetreten:<br><br>{error}"
+    },
+    "import": {
+      "errorTitle": "Import Error",
+      "invalidFilename": "Invalid filename. Please use a valid .hlvdf file.",
+      "importing": "Importing version...",
+      "cancelling": "Cancelling import...",
+      "cancelledTitle": "Import Cancelled",
+      "cancelledMessage": "You cancelled the import.",
+      "failed": "Failed to import version.",
+      "successTitle": "Import Successful",
+      "successMessage": "Successfully imported version \"<b>{version}</b>\"<br><br>The version now appears in your Installed list with an IMPORTED badge.",
+      "unexpectedError": "An error occurred during import:<br><br>{error}"
     }
   },
   "mods": {
@@ -394,6 +431,7 @@
     "sortDownloads": "Downloads",
     "sortName": "Name",
     "sortRecentlyUpdated": "Kürzlich aktualisiert",
+    "actionsMenuAria": "Mod-Aktionen",
     "profile": {
       "renameTooltip": "Aktives Add-ons-Profil umbenennen",
       "renameAria": "Add-ons-Profil umbenennen",
@@ -470,7 +508,8 @@
       }
     },
     "import": {
-      "selectLoaderForFile": "Wähle den Mod-Loader für \"{file}\":"
+      "selectLoaderForFile": "Wähle den Mod-Loader für \"{file}\":",
+      "selectLoader": "Select the mod loader for this import:"
     },
     "status": {
       "installed": "Installiert",
@@ -554,6 +593,14 @@
       "unexpectedError": "Unerwarteter Installationsfehler",
       "unexpectedForAddon": "Beim Installieren von {addon} ist ein unerwarteter Fehler aufgetreten."
     },
+    "dependencies": {
+      "title": "Mod-Abhängigkeiten",
+      "checking": "Abhängigkeiten werden geprüft...",
+      "prompt": "Diese Mod benötigt Abhängigkeiten, um richtig zu funktionieren. Wähle aus, welche Abhängigkeiten installiert werden sollen:",
+      "installSelected": "Ausgewählte installieren",
+      "installing": "Abhängigkeiten werden installiert...",
+      "required": "Erforderlich"
+    },
     "exportModpack": {
       "title": "Modpack exportieren",
       "selectFormat": "Wähle das Modpack-Format für den Export:",
@@ -635,6 +682,7 @@
     "availableSubtitleWithProvider": "Welten von {provider}",
     "deleteSelected": "Ausgewählte löschen (0)",
     "deleteSelectedCount": "Ausgewählte löschen ({count})",
+    "actionsMenuAria": "Weltaktionen",
     "importTooltip": "Welt aus einem .zip-Archiv importieren",
     "importAria": "Welt importieren",
     "moreActionsTooltip": "Weitere Welt-Aktionen",
@@ -755,6 +803,7 @@
     "editor": {
       "loadingEditor": "Welt-Editor wird geladen...",
       "editWorldTitle": "Welt bearbeiten: {world}",
+      "failedNbtLoad": "NBT-Daten der Welt konnten nicht geladen werden.",
       "worldFallback": "Welt",
       "thisWorld": "diese Welt",
       "primaryPlayer": "Hauptspieler",
@@ -933,8 +982,7 @@
       "saving": "Änderungen im Welt-Editor werden gespeichert...",
       "failedSaveNbt": "Welt-NBT-Daten konnten nicht gespeichert werden.",
       "renameFailedAfterNbt": "NBT-Änderungen wurden gespeichert, aber die Umbenennung des Weltordners ist fehlgeschlagen: {error}",
-      "iconFailedAfterSave": "Weltdaten wurden gespeichert, aber die Symbolaktualisierung ist fehlgeschlagen: {error}",
-      "failedNbtLoad": "NBT-Daten der Welt konnten nicht geladen werden."
+      "iconFailedAfterSave": "Weltdaten wurden gespeichert, aber die Symbolaktualisierung ist fehlgeschlagen: {error}"
     }
   },
   "java": {
@@ -994,6 +1042,13 @@
   "launch": {
     "launching": "Wird gestartet...",
     "launchingTimed": "Wird gestartet... ({time})",
+    "serverPrompt": {
+      "title": "Join a Server?",
+      "message": "Enter a server address to connect to, or leave it empty to play in a local world. Classic servers that require login can use host:port/mppass.",
+      "placeholder": "e.g. play.example.com:25565 or classic.example.net:25565/mppass",
+      "goButton": "Go",
+      "skipButton": "Skip"
+    },
     "javaRequiredTitle": "Java-Laufzeit erforderlich",
     "javaRequiredMessage": "Eine kompatible Java-Laufzeit ist erforderlich.",
     "downloadJava": "Java herunterladen",
@@ -1022,6 +1077,76 @@
       "generic": "Loader",
       "vanilla": "Vanilla",
       "none": "Keiner (ohne Mod-Loader)"
+    }
+  },
+  "screenshots": {
+    "imagesSection": "Bilder",
+    "imagesSubtitleDefault": "Bilder in verfügbaren Speicherverzeichnissen",
+    "imagesSubtitle": "{count} Bild(er) in {storage}",
+    "itemFallback": "Screenshot",
+    "refreshTooltip": "Screenshot-Liste aktualisieren",
+    "bulkSelectTooltip": "Mehrfachauswahl-Modus für Screenshots umschalten",
+    "bulkDeleteTooltip": "Ausgewählte Screenshots löschen",
+    "toggleImagesAria": "Abschnitt Screenshots ein-/ausblenden",
+    "favoriteAlt": "Favorit",
+    "list": {
+      "loading": "Screenshots werden geladen...",
+      "failedLoadInstalled": "Screenshots konnten nicht geladen werden.",
+      "emptyInstalled": "Keine Screenshots gefunden"
+    },
+    "actions": {
+      "openImage": "Screenshot {name} öffnen",
+      "closeImagePreview": "Screenshot-Vorschau schließen",
+      "toggleSelection": "Auswahl für Screenshot {name} umschalten",
+      "toggleFavorite": "Favorit für Screenshot {name} umschalten",
+      "renameImage": "Screenshot {name} umbenennen",
+      "deleteImage": "Screenshot {name} löschen",
+      "saveAs": "Speichern unter",
+      "editImageButton": "Öffnen"
+    },
+    "favorite": {
+      "saveFailedTitle": "Favorit konnte nicht gespeichert werden",
+      "saveFailed": "Screenshot-Favoriten konnten nicht gespeichert werden: {error}"
+    },
+    "rename": {
+      "title": "Screenshot umbenennen",
+      "prompt": "Wähle einen neuen Namen für diesen Screenshot.",
+      "keepExtension": "Die Dateiendung {extension} bleibt gleich.",
+      "invalidTitle": "Ungültiger Screenshot-Name",
+      "invalidMessage": "Gib einen Namen für den Screenshot ein.",
+      "failedTitle": "Umbenennen fehlgeschlagen",
+      "failedMessage": "Screenshot konnte nicht umbenannt werden."
+    },
+    "delete": {
+      "title": "Screenshot löschen",
+      "confirmMessage": "{name} löschen? Das kann nicht rückgängig gemacht werden.",
+      "failedTitle": "Löschen fehlgeschlagen",
+      "failedMessage": "Screenshot konnte nicht gelöscht werden."
+    },
+    "edit": {
+      "failedTitle": "Öffnen fehlgeschlagen",
+      "failedMessage": "Screenshot konnte nicht geöffnet werden."
+    },
+    "saveAs": {
+      "failedTitle": "Speichern fehlgeschlagen",
+      "failedMessage": "Screenshot konnte nicht gespeichert werden: {error}",
+      "fileTypeDescription": "Bilddatei",
+      "missingFile": "Die Screenshot-Datei konnte nicht aufgelöst werden."
+    },
+    "bulkDelete": {
+      "title": "Screenshots löschen",
+      "deleteSelectedCount": "Auswahl löschen ({count})",
+      "noSelected": "Wähle zuerst mindestens einen Screenshot aus.",
+      "confirmMessage": "{count} ausgewählten Screenshot(s) löschen? Das kann nicht rückgängig gemacht werden.",
+      "deletingProgress": "Screenshots werden gelöscht... ({current}/{total})",
+      "cancelling": "Screenshot-Löschung wird abgebrochen...",
+      "cancelledTitle": "Stapellöschung abgebrochen",
+      "cancelledMessage": "{deleted} Screenshot(s) vor dem Abbruch gelöscht.",
+      "cancelledWithFailures": "{deleted} Screenshot(s) vor dem Abbruch gelöscht. {failures} Screenshot(s) fehlgeschlagen.",
+      "completeTitle": "Stapellöschung abgeschlossen",
+      "completeMessage": "{deleted} Screenshot(s) gelöscht.",
+      "finishedWithErrorsTitle": "Stapellöschung mit Fehlern abgeschlossen",
+      "finishedWithErrorsMessage": "{deleted} Screenshot(s) gelöscht.<br><br>{failures}"
     }
   },
   "settings": {
@@ -1070,7 +1195,39 @@
       "client": "Client",
       "launcher": "Launcher",
       "mods": "Mods",
-      "dataStorage": "Daten & Speicher"
+      "dataStorage": "Daten & Speicher",
+      "playtime": "Spielzeit"
+    },
+    "playtime": {
+      "noData": "Noch keine Sitzungen aufgezeichnet. Spiele eine Version, um die Aufzeichnung zu starten!",
+      "total": "Gesamtspielzeit:",
+      "totalTooltip": "Gesamtspielzeit über alle Sitzungen.",
+      "sessions": "Gespielte Sitzungen:",
+      "sessionsTooltip": "Wie oft du ein Spiel gestartet hast.",
+      "mostPlayed": "Meistgespielte Version:",
+      "mostPlayedTooltip": "Die Version, in der du die meiste Zeit verbracht hast.",
+      "longest": "Längste Sitzung:",
+      "longestTooltip": "Deine längste einzelne Spielsitzung.",
+      "average": "Durchschnittliche Sitzung:",
+      "averageTooltip": "Durchschnittliche Dauer aller deiner Spielsitzungen.",
+      "moreDetails": "Mehr Details",
+      "detail": {
+        "title": "Spielzeit-Details",
+        "allVersions": "Alle",
+        "filterBy": "Version:",
+        "date": "Datum",
+        "version": "Version",
+        "duration": "Dauer",
+        "modloader": "Modloader",
+        "noSessions": "Keine Sitzungen zum Anzeigen.",
+        "sortBy": "Zum Sortieren klicken",
+        "loaderFilterBy": "Modloader:",
+        "allModloaders": "Alle",
+        "noLoader": "Keiner",
+        "totalLabel": "Gesamt:",
+        "nowLive": "Live",
+        "truncatedNote": "Zeigt die {shown} neuesten Sitzungen von {total} insgesamt."
+      }
     },
     "account": {
       "username": "Benutzername:",
@@ -1113,11 +1270,11 @@
         "openMicrosoft": "Microsoft öffnen",
         "failedLogin": "Microsoft-Anmeldung fehlgeschlagen."
       },
-      "playerPreviewTooltip": "Zeige die Spielervorschau mit abgewinkeltem Körper und Umhangs-Rendering, wenn Kontotexturen verfügbar sind.",
+      "playerPreviewTooltip": "Zeige deine Spieler-Skin und deinen Umhang in einer 3D-Vorschau an.",
       "playerPreview": "3D-Spielervorschau:",
-      "playerRotateTitle": "Klicken und ziehen zum Drehen",
       "playerPreviewBodyAlt": "Spielervorschau",
-      "playerPreviewCapeAlt": "Umhang-Vorschau"
+      "playerPreviewCapeAlt": "Umhang-Vorschau",
+      "playerRotateTitle": "Klicken und ziehen zum Drehen"
     },
     "appearance": {
       "theme": "Thema:",
@@ -1158,6 +1315,9 @@
       }
     },
     "client": {
+      "autoOptimize": "Auto-Optimierung:",
+      "autoOptimizeTooltip": "Wählt automatisch den Start-RAM und die JVM-Argumente basierend auf dem aktuellen Gerätespeicher, wenn Minecraft startet.",
+      "autoOptimizeLockedTitle": "Deaktiviere die Auto-Optimierung, um dies manuell zu bearbeiten.",
       "minRam": "Minimale RAM:",
       "minRamTooltip": "Minimale RAM, die dem Spiel zugewiesen ist\n  - Muss eine positive Zahl sein\n  - Muss kleiner sein als Maximale RAM\n\nBeispielformat: 256, 256M, 2G usw.\n\n(Leistungstipp: Weise mehr RAM für bessere Leistung zu, gleiche es idealerweise mit der maximalen RAM ab für weniger Frame Drops)",
       "ramInvalidTitle": "RAM-Format: Zahl mit optionalem Suffix K, M, G oder T (z. B. 2048M, 2G)",
@@ -1197,6 +1357,8 @@
       "discordStatusTooltip": "Zeige Discord Rich Presence an, während der Launcher oder das Spiel läuft.",
       "desktopNotifications": "Desktop-Benachrichtigungen:",
       "desktopNotificationsTooltip": "Erlaube Desktop-Benachrichtigungen vom Launcher.",
+      "keyboardMouse": "Tastaturmaus:",
+      "keyboardMouseTooltip": "Zeigt einen tastaturgesteuerten Cursor im Launcher an.\n\nDies ist noch experimentell, rechne mit vielen Fehlern!",
       "java": {
         "auto": "Auto",
         "defaultPath": "Standard (Java PATH)",

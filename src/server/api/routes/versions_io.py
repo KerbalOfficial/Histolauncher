@@ -9,11 +9,21 @@ from core.version_manager import get_clients_dir, scan_categories
 from core.zip_utils import ZipSecurityError, safe_extract_zip
 from launcher.i18n import t
 
-from server.api._constants import CURRENT_MD_VERSION, VALID_LOADER_TYPES
+from server.api._constants import (
+    CURRENT_MD_VERSION,
+    MAX_VERSIONS_IMPORT_PAYLOAD,
+    VALID_LOADER_TYPES,
+)
+from server.api.file_dialogs import (
+    open_native_file_picker,
+    save_native_file_picker,
+    validate_selected_file,
+)
 from server.api._helpers import (
     _begin_operation,
     _clear_operation,
     _is_path_within,
+    _resolve_version_dir_secure,
     _raise_if_operation_cancelled,
 )
 from server.api._state import CancelledOperationError, STATE
@@ -23,7 +33,7 @@ from server.api._validation import (
 )
 
 
-__all__ = ["api_export_versions", "api_import_versions"]
+__all__ = ["api_export_versions", "api_import_versions", "api_import_versions_select"]
 
 
 def api_export_versions(data):
@@ -70,14 +80,10 @@ def api_export_versions(data):
             f"config={include_config}, compression={compression}"
         ))
 
-        clients_dir = get_clients_dir()
-        version_path = os.path.join(clients_dir, category, folder)
-
-        if not _is_path_within(clients_dir, version_path):
-            return {"ok": False, "error": "invalid version path"}
-
-        if not os.path.isdir(version_path):
-            return {"ok": False, "error": "version not found"}
+        resolved = _resolve_version_dir_secure(category, folder)
+        if not resolved.get("ok"):
+            return {"ok": False, "error": resolved.get("error") or "version not found"}
+        version_path = resolved.get("path") or ""
 
         temp_dir = tempfile.gettempdir()
         with tempfile.NamedTemporaryFile(
@@ -175,34 +181,22 @@ def api_export_versions(data):
             print(colorize_log(f"[api] Temporary file saved to {temp_path}..."))
 
             try:
-                from tkinter import Tk
-                from tkinter.filedialog import asksaveasfilename
-
                 print(colorize_log("[api] Opening file save dialog..."))
                 _raise_if_operation_cancelled(operation_id)
 
-                root = Tk()
-                root.withdraw()
-                root.attributes("-topmost", True)
-
-                initial_name = filename
-                default_dir = os.path.expanduser("~")
-
-                save_path = asksaveasfilename(
-                    initialfile=initial_name,
+                save_path = save_native_file_picker(
+                    initialfile=filename,
                     defaultextension=".hlvdf",
                     filetypes=[
                         (t("native.fileDialogs.histolauncherVersion"), "*.hlvdf"),
                         (t("native.fileDialogs.allFiles"), "*.*"),
                     ],
-                    initialdir=default_dir,
+                    initialdir=os.path.expanduser("~"),
                     title=t(
                         "native.fileDialogs.saveVersionExportTitle",
                         {"category": category, "folder": folder},
                     ),
                 )
-
-                root.destroy()
 
                 if save_path:
                     _raise_if_operation_cancelled(operation_id)
@@ -321,6 +315,51 @@ def api_export_versions(data):
         _clear_operation(operation_id)
 
 
+def api_import_versions_select(data):
+    operation_id = ""
+    try:
+        payload = data if isinstance(data, dict) else {}
+        operation_id = str(payload.get("operation_id") or "").strip()
+
+        selected_path = open_native_file_picker(
+            title=t(
+                "native.fileDialogs.openVersionImportTitle",
+                default="Import Histolauncher Version",
+            ),
+            filetypes=[
+                (t("native.fileDialogs.histolauncherVersion"), "*.hlvdf"),
+                (t("native.fileDialogs.allFiles"), "*.*"),
+            ],
+        )
+        selected = validate_selected_file(
+            selected_path,
+            allowed_extensions={".hlvdf"},
+            max_size=MAX_VERSIONS_IMPORT_PAYLOAD,
+            label="version import",
+        )
+        if not selected.get("ok"):
+            return selected
+
+        _raise_if_operation_cancelled(operation_id)
+
+        file_name = str(selected.get("file_name") or "")
+        version_name = file_name[:-6] if file_name.lower().endswith(".hlvdf") else os.path.splitext(file_name)[0]
+        return api_import_versions({
+            "version_name": version_name,
+            "zip_path": selected.get("path") or "",
+            "operation_id": operation_id,
+        })
+    except CancelledOperationError:
+        return {
+            "ok": False,
+            "cancelled": True,
+            "error": "Import cancelled by user",
+        }
+    except Exception as e:
+        print(colorize_log(f"[api] Failed to select version import file: {e}"))
+        return {"ok": False, "error": str(e)}
+
+
 def api_import_versions(data):
     operation_id = ""
     try:
@@ -336,35 +375,45 @@ def api_import_versions(data):
         operation_id = _begin_operation(data.get("operation_id"))
         zip_bytes_raw = data.get("zip_bytes")
         zip_data_base64 = (data.get("zip_data") or "").strip()
+        zip_path = str(data.get("zip_path") or "").strip()
 
         zip_bytes = None
-        if isinstance(zip_bytes_raw, (bytes, bytearray)):
+        if zip_path:
+            if not os.path.isfile(zip_path):
+                return {"ok": False, "error": "Selected version archive was not found"}
+            if not version_name:
+                file_name = os.path.basename(zip_path)
+                version_name = file_name[:-6] if file_name.lower().endswith(".hlvdf") else os.path.splitext(file_name)[0]
+        elif isinstance(zip_bytes_raw, (bytes, bytearray)):
             zip_bytes = bytes(zip_bytes_raw)
         elif zip_data_base64:
             import base64
 
             zip_bytes = base64.b64decode(zip_data_base64)
 
-        zip_len = len(zip_bytes) if isinstance(zip_bytes, (bytes, bytearray)) else 0
+        zip_len = os.path.getsize(zip_path) if zip_path else (len(zip_bytes) if isinstance(zip_bytes, (bytes, bytearray)) else 0)
         print(colorize_log(f"[api] version_name: '{version_name}', zip bytes length: {zip_len}"))
 
-        if not version_name or not zip_bytes:
+        if not version_name or (not zip_path and not zip_bytes):
             return {"ok": False, "error": "missing version_name or zip data"}
 
         if not _validate_version_string(version_name):
             return {"ok": False, "error": "invalid version_name format"}
         _raise_if_operation_cancelled(operation_id)
 
-        import io
         import zipfile
 
-        try:
-            zip_buffer = io.BytesIO(zip_bytes)
+        def _open_import_zip():
+            if zip_path:
+                return zipfile.ZipFile(zip_path, "r")
+            import io
+            return zipfile.ZipFile(io.BytesIO(zip_bytes), "r")
 
+        try:
             category = None
             existing_data = {}
 
-            with zipfile.ZipFile(zip_buffer, "r") as zipf:
+            with _open_import_zip() as zipf:
                 data_ini_entry = None
                 for info in zipf.infolist():
                     normalized = str(info.filename or "").replace("\\", "/").lstrip("/")
@@ -416,8 +465,7 @@ def api_import_versions(data):
             os.makedirs(category_path, exist_ok=True)
 
             try:
-                zip_buffer.seek(0)
-                with zipfile.ZipFile(zip_buffer, "r") as zipf:
+                with _open_import_zip() as zipf:
                     os.makedirs(version_path, exist_ok=True)
 
                     def extraction_progress(_done, _total, _name, _info):

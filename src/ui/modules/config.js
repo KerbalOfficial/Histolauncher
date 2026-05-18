@@ -8,6 +8,8 @@ export const JAVA_RUNTIME_INSTALL_OPTION = '__install_java_runtime__';
 
 export const AVAILABLE_PAGE_SIZE = 30;
 
+export const SIGNUP_URL = 'https://histolauncher.org/signup';
+
 export const INSTALL_POLL_MS_ACTIVE = 500;
 export const INSTALL_POLL_MS_PAUSED = 1500;
 export const INSTALL_POLL_MS_BACKOFF_BASE = 800;
@@ -17,6 +19,9 @@ export const unicodeList = {
   warning: '⚠',
   dropdown_open: '⏷',
   dropdown_close: '⏵',
+  sort_asc: '▲',
+  sort_desc: '▼',
+  empty: '—',
 };
 
 export const LOADER_UI_ORDER = ['fabric', 'babric', 'forge', 'modloader', 'neoforge', 'quilt'];

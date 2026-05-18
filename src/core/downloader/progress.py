@@ -22,9 +22,15 @@ DEFAULT_FLUSH_INTERVAL: float = 0.1
 
 _listeners_lock = threading.Lock()
 _listeners: List[queue.Queue] = []
+_MAX_LISTENERS: int = 64
 
 def add_progress_listener(q: queue.Queue) -> None:
     with _listeners_lock:
+        if len(_listeners) >= _MAX_LISTENERS:
+            print(colorize_log(
+                f"[progress] refusing new listener: cap of {_MAX_LISTENERS} reached"
+            ))
+            return
         _listeners.append(q)
 
 def remove_progress_listener(q: queue.Queue) -> None:
@@ -34,12 +40,17 @@ def remove_progress_listener(q: queue.Queue) -> None:
 
 def _broadcast_progress(key: str, data: Dict[str, Any]) -> None:
     payload = {"version_key": _encode_key(key), **data}
+    dropped = 0
     with _listeners_lock:
         for q in _listeners:
             try:
                 q.put_nowait(payload)
             except queue.Full:
-                pass
+                dropped += 1
+    if dropped:
+        print(colorize_log(
+            f"[progress] dropped event for key={key!r} on {dropped} slow listener(s)"
+        ))
 
 
 # ---------------------------------------------------------------------------

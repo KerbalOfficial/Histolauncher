@@ -9,6 +9,7 @@ import sys
 import threading
 
 from core.downloader._legacy._constants import BASE_DIR
+from core.logger import colorize_log
 from server.api.version_check import read_local_version
 
 
@@ -315,22 +316,40 @@ def install_linux_desktop_shortcut(
         try:
             os.makedirs(applications_dir, exist_ok=True)
             existing = ""
+            existing_read_failed = False
             if os.path.isfile(shortcut_path):
                 try:
                     with open(shortcut_path, "r", encoding="utf-8") as handle:
                         existing = handle.read()
-                except Exception:
+                except Exception as read_exc:
+                    existing_read_failed = True
+                    print(colorize_log(
+                        f"[shortcut] Could not read existing desktop shortcut at "
+                        f"{shortcut_path}: {read_exc}"
+                    ))
                     existing = ""
-            if existing != contents:
+            if existing != contents or existing_read_failed:
                 with open(shortcut_path, "w", encoding="utf-8") as handle:
                     handle.write(contents)
                 try:
                     os.chmod(shortcut_path, 0o644)
-                except Exception:
-                    pass
+                except OSError as chmod_exc:
+                    print(colorize_log(
+                        f"[shortcut] chmod 0644 failed for {shortcut_path}: "
+                        f"{chmod_exc} (errno={chmod_exc.errno})"
+                    ))
             _refresh_linux_desktop_database(applications_dir)
             return True
-        except Exception:
+        except OSError as exc:
+            print(colorize_log(
+                f"[shortcut] Failed to install Linux desktop shortcut at "
+                f"{shortcut_path}: {exc} (errno={exc.errno})"
+            ))
+            return False
+        except Exception as exc:
+            print(colorize_log(
+                f"[shortcut] Unexpected error installing Linux desktop shortcut: {exc}"
+            ))
             return False
 
 

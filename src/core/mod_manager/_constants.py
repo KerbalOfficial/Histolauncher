@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ IMPORT_RETRY_ATTEMPTS = 10
 IMPORT_RETRY_DELAY = 1.0
 
 _MODRINTH_CACHE: Dict[str, dict] = {}
+_MODRINTH_CACHE_LOCK = threading.Lock()
 _MODRINTH_SEARCH_TTL = 120
 _MODRINTH_DETAIL_TTL = 300
 
@@ -54,6 +56,7 @@ MODRINTH_PROJECT_TYPES = {
 }
 
 _CURSEFORGE_CLASS_ID_CACHE: Dict[str, Optional[int]] = {}
+_CURSEFORGE_CLASS_ID_CACHE_LOCK = threading.Lock()
 
 _MAX_SAFE_COMPONENT_LENGTH = 128
 _SUPPORTED_MOD_ARCHIVE_EXTENSIONS = {".jar", ".zip"}

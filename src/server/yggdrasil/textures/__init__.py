@@ -20,6 +20,8 @@ from server.yggdrasil.textures.property import (
     _build_texture_property,
     _get_skin_property,
     _get_skin_property_with_timeout,
+    prewarm_authlib_texture_properties,
+    schedule_remote_texture_metadata_prefetch,
 )
 from server.yggdrasil.textures.resolver import (
     _resolve_cached_skin_model,
@@ -74,5 +76,7 @@ __all__ = [
     "_store_cached_texture_metadata",
     "cache_textures",
     "invalidate_texture_cache",
+    "prewarm_authlib_texture_properties",
     "refresh_textures",
+    "schedule_remote_texture_metadata_prefetch",
 ]

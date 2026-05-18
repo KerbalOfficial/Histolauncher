@@ -54,8 +54,8 @@ __all__ = ["main", "check_and_prompt", "show_disclaimer_if_needed"]
 
 
 _RUNTIME_MODULE_PREFIXES = (
+    "keyring",
     "PyQt6",
-    "cryptography",
     "pypresence",
     "qtpy",
     "webview",
@@ -63,6 +63,36 @@ _RUNTIME_MODULE_PREFIXES = (
 
 if not sys.platform.startswith("linux"):
     _RUNTIME_MODULE_PREFIXES += ("plyer",)
+
+
+def _start_local_server_with_retry(
+    *,
+    min_port: int = 10000,
+    max_port: int = 20000,
+    attempts: int = 30,
+):
+    from server.http import start_server
+
+    tried_ports: set[int] = set()
+    last_error: Exception | None = None
+
+    for _ in range(max(1, int(attempts))):
+        port = random.randint(min_port, max_port)
+        if port in tried_ports:
+            continue
+        tried_ports.add(port)
+
+        try:
+            server = start_server(port)
+            return port, server
+        except OSError as exc:
+            last_error = exc
+            print(colorize_log(
+                f"[launcher] Local server port {port} unavailable: {exc}"
+            ))
+
+    detail = f": {last_error}" if last_error else ""
+    raise RuntimeError(f"Could not bind local launcher server{detail}")
 
 
 def _reconfigure_std_streams() -> None:
@@ -328,16 +358,16 @@ def _clear_runtime_import_cache() -> None:
 
 def _webview_install_target() -> list[str]:
     if sys.platform.startswith("linux"):
-        os.environ["PYWEBVIEW_GUI"] = "qt"
-        os.environ["QT_API"] = "pyqt6"
+        os.environ.setdefault("PYWEBVIEW_GUI", "qt")
+        os.environ.setdefault("QT_API", "pyqt6")
         return ["pywebview[qt]", "PyQt6", "PyQt6-WebEngine", "qtpy"]
     return ["pywebview"]
 
 
 def _import_webview_module():
     if sys.platform.startswith("linux"):
-        os.environ["PYWEBVIEW_GUI"] = "qt"
-        os.environ["QT_API"] = "pyqt6"
+        os.environ.setdefault("PYWEBVIEW_GUI", "qt")
+        os.environ.setdefault("QT_API", "pyqt6")
         import PyQt6  # noqa: F401
         import PyQt6.QtWebEngineCore as qt_webengine_core
 
@@ -358,8 +388,8 @@ def _import_webview_module():
 
 def _probe_runtime_features() -> tuple[dict[str, bool], dict[str, Exception]]:
     status = {
+        "keyring": False,
         "webview": False,
-        "cryptography": False,
         "pypresence": False,
     }
     errors: dict[str, Exception] = {}
@@ -375,16 +405,16 @@ def _probe_runtime_features() -> tuple[dict[str, bool], dict[str, Exception]]:
         status["webview"] = True
 
     try:
-        import cryptography
+        import keyring as _kr
     except Exception as exc:
-        errors["cryptography"] = exc
+        errors["keyring"] = exc
     else:
-        if not _is_module_from_launcher_venv(cryptography):
-            errors["cryptography"] = ImportError(
-                "cryptography is not loaded from the launcher venv"
+        if not _is_module_from_launcher_venv(_kr):
+            errors["keyring"] = ImportError(
+                "keyring is not loaded from the launcher venv"
             )
         else:
-            status["cryptography"] = True
+            status["keyring"] = True
 
     try:
         import pypresence
@@ -418,8 +448,8 @@ def _missing_runtime_packages(status: dict[str, bool]) -> list[str]:
     missing: list[str] = []
     if not status["webview"]:
         missing.extend(_webview_install_target())
-    if not status["cryptography"]:
-        missing.append("cryptography")
+    if not status.get("keyring"):
+        missing.append("keyring")
     if not status["pypresence"]:
         missing.append("pypresence")
     if status.get("plyer") is False:
@@ -465,8 +495,8 @@ def main():
     _reconfigure_std_streams()
 
     if sys.platform.startswith("linux"):
-        os.environ["PYWEBVIEW_GUI"] = "qt"
-        os.environ["QT_API"] = "pyqt6"
+        os.environ.setdefault("PYWEBVIEW_GUI", "qt")
+        os.environ.setdefault("QT_API", "pyqt6")
 
     if not sys.platform.startswith("win") and sys.platform != "darwin":
         try:
@@ -504,18 +534,18 @@ def main():
     runtime_status, runtime_errors = _ensure_runtime_dependencies()
 
     try:
+        from core.settings.account import migrate_all_tokens_to_keyring
+        migrate_all_tokens_to_keyring()
+    except Exception:
+        pass
+
+    try:
         from core import discord_rpc
     except Exception as e:
         print(colorize_log(
             f"[launcher] Warning: could not import Discord RPC module: {e}"
         ))
         discord_rpc = None
-
-    if not runtime_status["cryptography"]:
-        print(colorize_log(
-            "[installation] cryptography is unavailable. Custom skins will "
-            "NOT load in 1.20.2 and above."
-        ))
 
     if not runtime_status["pypresence"]:
         print(colorize_log(
@@ -596,7 +626,17 @@ def main():
 
     print(dim_line("------------------------------------------------"))
 
-    port = random.randint(10000, 20000)
+    print(colorize_log("[launcher] Starting local server..."))
+    try:
+        port, local_server = _start_local_server_with_retry()
+    except Exception as e:
+        print(colorize_log(
+            f"[launcher] Failed to start local server: {e}"
+        ))
+        splash.close(ensure_minimum=False)
+        if discord_rpc is not None:
+            discord_rpc.stop_discord_rpc()
+        return
 
     try:
         from core.settings import save_global_settings
@@ -607,23 +647,16 @@ def main():
 
     os.environ["HISTOLAUNCHER_PORT"] = str(port)
     print(colorize_log(
-        f"[launcher] Starting local server on port {port}..."
+        f"[launcher] Local server listening on port {port}."
     ))
-    from server.http import start_server
-
-    server_thread = threading.Thread(
-        target=start_server, args=(port,), daemon=True
-    )
-    server_thread.start()
     splash.pump()
     try:
         from server import yggdrasil as _ygg
 
-        threading.Thread(
-            target=_ygg.cache_textures,
-            kwargs={"probe_remote": True},
-            daemon=True,
-        ).start()
+        _ygg.prewarm_authlib_texture_properties(
+            port=port,
+            wait_seconds=0.0,
+        )
     except Exception:
         pass
     url = f"http://127.0.0.1:{port}/"
@@ -634,6 +667,11 @@ def main():
             "failed! Exiting launcher..."
         ))
         splash.close(ensure_minimum=False)
+        try:
+            local_server.shutdown()
+            local_server.server_close()
+        except Exception:
+            pass
         if discord_rpc is not None:
             discord_rpc.stop_discord_rpc()
         return

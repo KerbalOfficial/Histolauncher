@@ -4,6 +4,7 @@ import { api } from './api.js';
 import {
   bindKeyboardActivation,
   imageAttachErrorPlaceholder,
+  isShiftDelete,
   wireCardActionArrowNavigation,
 } from './dom-utils.js';
 import { t } from './i18n.js';
@@ -21,6 +22,28 @@ import {
 const NONE_CAPE_ID = '__none__';
 const MAX_CLIENT_SKIN_UPLOAD_BYTES = 2 * 1024 * 1024;
 const UNKNOWN_SKIN_PREVIEW_URL = 'assets/images/unknown_skin.png';
+const SLIM_SKIN_MODEL_ALIASES = new Set(['slim', 'alex', 'narrow', 'thin', 'slimarm', 'slimarms', '3px', '3pixel', '3pixels']);
+const CLASSIC_SKIN_MODEL_ALIASES = new Set(['classic', 'wide', 'default', 'steve', '4px', '4pixel', '4pixels']);
+const LEGACY_OVERLAY_PARTS = [
+  { id: 'head', labelKey: 'skinEditor.overlayHead' },
+  { id: 'body', labelKey: 'skinEditor.overlayBody' },
+  { id: 'right_arm', labelKey: 'skinEditor.overlayRightArm' },
+  { id: 'left_arm', labelKey: 'skinEditor.overlayLeftArm' },
+  { id: 'right_leg', labelKey: 'skinEditor.overlayRightLeg' },
+  { id: 'left_leg', labelKey: 'skinEditor.overlayLeftLeg' },
+];
+const LEGACY_OVERLAY_PART_IDS = new Set(LEGACY_OVERLAY_PARTS.map((part) => part.id));
+const SKIN_TEXTURE_TYPES = [
+  { id: 'default', labelKey: 'skinEditor.textureDefault' },
+  { id: 'legacy', labelKey: 'skinEditor.textureLegacy' },
+];
+const LEGACY_MIRROR_OPTIONS = [
+  { id: 'right', labelKey: 'skinEditor.mirrorRight' },
+  { id: 'left', labelKey: 'skinEditor.mirrorLeft' },
+];
+const SKIN_TEXTURE_TYPE_IDS = new Set(SKIN_TEXTURE_TYPES.map((type) => type.id));
+const LEGACY_MIRROR_IDS = new Set(LEGACY_MIRROR_OPTIONS.map((side) => side.id));
+const LEGACY_SWITCH_DEFAULT_OVERLAY_PARTS = Object.freeze(['body']);
 
 let activeEditor = null;
 
@@ -41,7 +64,12 @@ const createEl = (tag, className = '', text = '') => {
 
 const normalizeEntryId = (entry) => String(entry && entry.id || '').trim();
 const isDefaultSkinEntry = (entry) => !!(entry && (entry.default || entry.builtin));
-const normalizeSkinModel = (model) => String(model || '').trim().toLowerCase() === 'slim' ? 'slim' : 'classic';
+const normalizeSkinModel = (model) => {
+  const value = String(model || '').trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (SLIM_SKIN_MODEL_ALIASES.has(value)) return 'slim';
+  if (CLASSIC_SKIN_MODEL_ALIASES.has(value)) return 'classic';
+  return 'classic';
+};
 
 const defaultSkinTextureIdentifier = (entry, model = '') => {
   if (!isDefaultSkinEntry(entry)) return '';
@@ -71,6 +99,124 @@ const textureIdentifierForEntry = (type, entry, profile) => {
   return String(profile && profile.uuid || state.settingsState.uuid || state.settingsState.username || '').trim();
 };
 
+const normalizeLegacyOverlayParts = (value) => {
+  const raw = Array.isArray(value) ? value : String(value || '').split(',');
+  const out = [];
+  raw.forEach((item) => {
+    const id = String(item || '').trim().toLowerCase();
+    if (LEGACY_OVERLAY_PART_IDS.has(id) && !out.includes(id)) out.push(id);
+  });
+  return out;
+};
+
+const skinDimensionsFromImage = (img) => ({
+  width: Number(img && (img.naturalWidth || img.width) || 0),
+  height: Number(img && (img.naturalHeight || img.height) || 0),
+});
+
+const skinDimensionsFromEntry = (entry) => ({
+  width: Number(entry && (entry.texture_width || entry.width) || 0),
+  height: Number(entry && (entry.texture_height || entry.height) || 0),
+});
+
+const isModernSkinDimensions = (dimensions) => Number(dimensions && dimensions.width || 0) === 64
+  && Number(dimensions && dimensions.height || 0) === 64;
+const isLegacySkinDimensions = (dimensions) => Number(dimensions && dimensions.width || 0) === 64
+  && Number(dimensions && dimensions.height || 0) === 32;
+const hasKnownSkinDimensions = (dimensions) => isModernSkinDimensions(dimensions) || isLegacySkinDimensions(dimensions);
+
+const normalizeSkinTextureType = (value, dimensions = null, legacyOverlayParts = []) => {
+  if (isLegacySkinDimensions(dimensions)) return 'legacy';
+  const raw = String(value || '').trim().toLowerCase().replace(/[-\s]+/g, '_');
+  if (raw === 'legacy' || raw === 'classic' || raw === 'old' || raw === '64x32') return 'legacy';
+  if (!raw && isModernSkinDimensions(dimensions) && normalizeLegacyOverlayParts(legacyOverlayParts).length > 0) return 'legacy';
+  return 'default';
+};
+
+const normalizeLegacyMirrorSide = (value) => {
+  const raw = String(value || '').trim().toLowerCase().replace(/[-\s]+/g, '_');
+  if (raw === 'left' || raw === 'l' || raw === 'left_side') return 'left';
+  return 'right';
+};
+
+const legacyMirrorOverlayPart = (limb, mirror) => {
+  const side = normalizeLegacyMirrorSide(mirror);
+  if (limb === 'arm') return side === 'left' ? 'left_arm' : 'right_arm';
+  if (limb === 'leg') return side === 'left' ? 'left_leg' : 'right_leg';
+  return '';
+};
+
+const syncLegacyOverlayPartsToMirrors = (value, {
+  previousArmMirror = 'right',
+  nextArmMirror = previousArmMirror,
+  previousLegMirror = 'right',
+  nextLegMirror = previousLegMirror,
+} = {}) => {
+  const previousArmPart = legacyMirrorOverlayPart('arm', previousArmMirror);
+  const nextArmPart = legacyMirrorOverlayPart('arm', nextArmMirror);
+  const previousLegPart = legacyMirrorOverlayPart('leg', previousLegMirror);
+  const nextLegPart = legacyMirrorOverlayPart('leg', nextLegMirror);
+  let parts = normalizeLegacyOverlayParts(value);
+
+  if (previousArmPart && nextArmPart && previousArmPart !== nextArmPart && parts.includes(previousArmPart) && !parts.includes(nextArmPart)) {
+    parts = parts.map((part) => (part === previousArmPart ? nextArmPart : part));
+  }
+  if (previousLegPart && nextLegPart && previousLegPart !== nextLegPart && parts.includes(previousLegPart) && !parts.includes(nextLegPart)) {
+    parts = parts.map((part) => (part === previousLegPart ? nextLegPart : part));
+  }
+  return parts;
+};
+
+const normalizeOverlayBakeParts = (value, textureType, dimensions = null, {
+  armMirror = 'right',
+  legMirror = 'right',
+} = {}) => {
+  const parts = normalizeLegacyOverlayParts(value);
+  if (isLegacySkinDimensions(dimensions)) {
+    return parts.filter((part) => part === 'head');
+  }
+  if (!isModernSkinDimensions(dimensions)) return [];
+  if (normalizeSkinTextureType(textureType, dimensions, parts) !== 'legacy') return parts;
+
+  const cleanArmMirror = normalizeLegacyMirrorSide(armMirror);
+  const cleanLegMirror = normalizeLegacyMirrorSide(legMirror);
+  const out = [...parts];
+  if (out.includes('right_arm') && out.includes('left_arm')) {
+    const rejectedArm = cleanArmMirror === 'left' ? 'right_arm' : 'left_arm';
+    const index = out.indexOf(rejectedArm);
+    if (index >= 0) out.splice(index, 1);
+  }
+  if (out.includes('right_leg') && out.includes('left_leg')) {
+    const rejectedLeg = cleanLegMirror === 'left' ? 'right_leg' : 'left_leg';
+    const index = out.indexOf(rejectedLeg);
+    if (index >= 0) out.splice(index, 1);
+  }
+  return out;
+};
+
+const shouldShowOverlayBakeControls = (dimensions) => isModernSkinDimensions(dimensions);
+
+const shouldShowLegacyDetailControls = (dimensions, textureType) => (
+  isModernSkinDimensions(dimensions) && normalizeSkinTextureType(textureType, dimensions) === 'legacy'
+);
+
+const isLegacyOverlayOptionDisabled = (partId, selectedParts, dimensions, textureType) => {
+  if (!shouldShowLegacyDetailControls(dimensions, textureType)) return false;
+  if (partId === 'left_arm') return selectedParts.includes('right_arm') && !selectedParts.includes('left_arm');
+  if (partId === 'right_arm') return selectedParts.includes('left_arm') && !selectedParts.includes('right_arm');
+  if (partId === 'left_leg') return selectedParts.includes('right_leg') && !selectedParts.includes('left_leg');
+  if (partId === 'right_leg') return selectedParts.includes('left_leg') && !selectedParts.includes('right_leg');
+  return false;
+};
+
+const oppositeLegacyOverlayPart = (partId) => {
+  if (partId === 'left_arm') return 'right_arm';
+  if (partId === 'right_arm') return 'left_arm';
+  if (partId === 'left_leg') return 'right_leg';
+  if (partId === 'right_leg') return 'left_leg';
+  return '';
+};
+
 const textureUrlForEntry = (type, entry, profile) => {
   const identifier = textureIdentifierForEntry(type, entry, profile);
   return identifier ? getTextureUrl(type, identifier) : '';
@@ -98,6 +244,8 @@ const formDraftKey = (entry) => normalizeEntryId(entry) || '__new__';
 const createFormDraft = (editor) => {
   const profile = editor.profile || {};
   const editingSkin = editor.editingSkin || null;
+  const dimensions = skinDimensionsFromEntry(editingSkin);
+  const legacyOverlayParts = normalizeLegacyOverlayParts(editingSkin && editingSkin.legacy_overlay_parts);
   const editingCapeId = editingSkin && (editingSkin.local || isDefaultSkinEntry(editingSkin)) && entryHasOwnCapeId(editingSkin)
     ? String(editingSkin.cape_id || '').trim()
     : getActiveCapeId(profile);
@@ -106,6 +254,13 @@ const createFormDraft = (editor) => {
     name: editingSkin && editingSkin.name || '',
     variant: normalizeSkinModel(editingSkin && editingSkin.variant),
     capeId: editingCapeId || NONE_CAPE_ID,
+    textureType: normalizeSkinTextureType(editingSkin && editingSkin.texture_type, dimensions, legacyOverlayParts),
+    legacyOverlayParts,
+    legacyArmMirror: normalizeLegacyMirrorSide(editingSkin && editingSkin.legacy_arm_mirror),
+    legacyLegMirror: normalizeLegacyMirrorSide(editingSkin && editingSkin.legacy_leg_mirror),
+    skinWidth: dimensions.width,
+    skinHeight: dimensions.height,
+    legacySwitchDefaultsArmed: false,
     skinDataUrl: '',
     fileBase64: '',
     fileName: '',
@@ -138,6 +293,122 @@ const loadImage = (url) => new Promise((resolve) => {
   img.onerror = () => resolve(null);
   img.src = url;
 });
+
+const drawLegacyOverlayRect = (ctx, img, targetX, targetY, sourceX, sourceY, width, height) => {
+  ctx.drawImage(img, sourceX, sourceY, width, height, targetX, targetY, width, height);
+};
+
+const clearOverlayRect = (ctx, x, y, width, height) => {
+  ctx.clearRect(x, y, width, height);
+};
+
+const renderOverlayMergedSkinDataUrl = (img, overlayParts = []) => {
+  if (!isValidSkinImage(img)) return '';
+  const sourceWidth = Number(img.naturalWidth || img.width || 0);
+  const sourceHeight = Number(img.naturalHeight || img.height || 0);
+  if (sourceWidth !== 64 || (sourceHeight !== 64 && sourceHeight !== 32)) return '';
+
+  const parts = normalizeOverlayBakeParts(overlayParts, 'default', {
+    width: sourceWidth,
+    height: sourceHeight,
+  });
+  if (!parts.length) return '';
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = sourceWidth;
+    canvas.height = sourceHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, sourceWidth, sourceHeight);
+    ctx.drawImage(img, 0, 0, sourceWidth, sourceHeight, 0, 0, sourceWidth, sourceHeight);
+
+    if (parts.includes('head')) {
+      drawLegacyOverlayRect(ctx, img, 0, 0, 32, 0, 32, 16);
+      clearOverlayRect(ctx, 32, 0, 32, 16);
+    }
+
+    if (sourceHeight >= 64) {
+      if (parts.includes('right_leg')) {
+        drawLegacyOverlayRect(ctx, img, 0, 16, 0, 32, 16, 16);
+        clearOverlayRect(ctx, 0, 32, 16, 16);
+      }
+      if (parts.includes('body')) {
+        drawLegacyOverlayRect(ctx, img, 16, 16, 16, 32, 24, 16);
+        clearOverlayRect(ctx, 16, 32, 24, 16);
+      }
+      if (parts.includes('right_arm')) {
+        drawLegacyOverlayRect(ctx, img, 40, 16, 40, 32, 16, 16);
+        clearOverlayRect(ctx, 40, 32, 16, 16);
+      }
+      if (parts.includes('left_leg')) {
+        drawLegacyOverlayRect(ctx, img, 16, 48, 0, 48, 16, 16);
+        clearOverlayRect(ctx, 0, 48, 16, 16);
+      }
+      if (parts.includes('left_arm')) {
+        drawLegacyOverlayRect(ctx, img, 32, 48, 48, 48, 16, 16);
+        clearOverlayRect(ctx, 48, 48, 16, 16);
+      }
+    }
+
+    return canvas.toDataURL('image/png');
+  } catch (err) {
+    console.warn('Failed rendering overlay-baked skin preview:', err);
+    return '';
+  }
+};
+
+const renderLegacySkinDataUrl = (img, overlayParts = [], {
+  armMirror = 'right',
+  legMirror = 'right',
+} = {}) => {
+  if (!isValidSkinImage(img)) return '';
+  const selectedArmMirror = normalizeLegacyMirrorSide(armMirror);
+  const selectedLegMirror = normalizeLegacyMirrorSide(legMirror);
+  const sourceWidth = Number(img.naturalWidth || img.width || 0);
+  const sourceHeight = Number(img.naturalHeight || img.height || 0);
+  if (sourceWidth !== 64 || (sourceHeight !== 64 && sourceHeight !== 32)) return '';
+  const parts = normalizeOverlayBakeParts(overlayParts, 'legacy', {
+    width: sourceWidth,
+    height: sourceHeight,
+  }, {
+    armMirror: selectedArmMirror,
+    legMirror: selectedLegMirror,
+  });
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, 64, 32);
+    ctx.drawImage(img, 0, 0, 64, 32, 0, 0, 64, 32);
+
+    if (sourceHeight >= 64) {
+      if (selectedLegMirror === 'left') drawLegacyOverlayRect(ctx, img, 0, 16, 16, 48, 16, 16);
+      if (selectedArmMirror === 'left') drawLegacyOverlayRect(ctx, img, 40, 16, 32, 48, 16, 16);
+    }
+
+    if (parts.includes('head')) {
+      drawLegacyOverlayRect(ctx, img, 0, 0, 32, 0, 32, 16);
+      ctx.clearRect(32, 0, 32, 16);
+    }
+
+    if (sourceHeight >= 64) {
+      if (parts.includes('right_leg')) drawLegacyOverlayRect(ctx, img, 0, 16, 0, 32, 16, 16);
+      if (parts.includes('body')) drawLegacyOverlayRect(ctx, img, 16, 16, 16, 32, 24, 16);
+      if (parts.includes('right_arm')) drawLegacyOverlayRect(ctx, img, 40, 16, 40, 32, 16, 16);
+      if (parts.includes('left_leg')) drawLegacyOverlayRect(ctx, img, 0, 16, 0, 48, 16, 16);
+      if (parts.includes('left_arm')) drawLegacyOverlayRect(ctx, img, 40, 16, 48, 48, 16, 16);
+    }
+
+    return canvas.toDataURL('image/png');
+  } catch (err) {
+    console.warn('Failed rendering legacy skin preview:', err);
+    return '';
+  }
+};
 
 const captureViewerCameraState = (viewer) => {
   const editor = viewer && viewer._skinEditorOwner;
@@ -196,7 +467,7 @@ const isValidCapeImage = (img) => {
   return width >= 64 && height >= 32 && width === height * 2 && (width % 64) === 0;
 };
 
-const skinViewerModel = (model) => model === 'slim' ? 'slim' : 'default';
+const skinViewerModel = (model) => normalizeSkinModel(model) === 'slim' ? 'slim' : 'default';
 
 const renderSkinPlaceholderInto = (target) => {
   if (!target) return;
@@ -212,6 +483,11 @@ const renderSkinPlaceholderInto = (target) => {
 const renderSkinViewerInto = async (editor, target, skinUrl, {
   capeUrl = '',
   model = 'classic',
+  textureType = 'default',
+  legacyPreview = false,
+  legacyOverlayParts = [],
+  legacyArmMirror = 'right',
+  legacyLegMirror = 'right',
   width = 128,
   height = 180,
   zoom = 0.82,
@@ -219,6 +495,7 @@ const renderSkinViewerInto = async (editor, target, skinUrl, {
   viewerKey = 'preview',
 } = {}) => {
   if (!target) return;
+  const normalizedModel = normalizeSkinModel(model);
   const renderToken = editor.renderToken || 0;
   const targetNonce = (target._skinEditorRenderNonce || 0) + 1;
   target._skinEditorRenderNonce = targetNonce;
@@ -245,6 +522,27 @@ const renderSkinViewerInto = async (editor, target, skinUrl, {
     renderSkinPlaceholderInto(target);
     return;
   }
+  let previewSkinImg = skinImg;
+  const skinDimensions = skinDimensionsFromImage(skinImg);
+  const overlayParts = normalizeOverlayBakeParts(legacyOverlayParts, textureType, skinDimensions, {
+    armMirror: legacyArmMirror,
+    legMirror: legacyLegMirror,
+  });
+  const normalizedTextureType = normalizeSkinTextureType(textureType, skinDimensions, overlayParts);
+  if (legacyPreview || normalizedTextureType === 'legacy') {
+    const legacyDataUrl = renderLegacySkinDataUrl(skinImg, overlayParts, {
+      armMirror: legacyArmMirror,
+      legMirror: legacyLegMirror,
+    });
+    const legacyImg = legacyDataUrl ? await loadImage(legacyDataUrl) : null;
+    if (!isEditorActive(editor) || renderToken !== editor.renderToken || target._skinEditorRenderNonce !== targetNonce || !target.isConnected) return;
+    if (isValidSkinImage(legacyImg)) previewSkinImg = legacyImg;
+  } else if (overlayParts.length > 0) {
+    const mergedDataUrl = renderOverlayMergedSkinDataUrl(skinImg, overlayParts);
+    const mergedImg = mergedDataUrl ? await loadImage(mergedDataUrl) : null;
+    if (!isEditorActive(editor) || renderToken !== editor.renderToken || target._skinEditorRenderNonce !== targetNonce || !target.isConnected) return;
+    if (isValidSkinImage(mergedImg)) previewSkinImg = mergedImg;
+  }
 
   try {
     const viewer = new window.skinview3d.SkinViewer({ canvas, width, height });
@@ -268,7 +566,7 @@ const renderSkinViewerInto = async (editor, target, skinUrl, {
       viewer.controls.enablePan = false;
     }
     restoreViewerCameraState(editor, viewer, viewerKey);
-    await viewer.loadSkin(skinImg, { model: skinViewerModel(model) });
+    await viewer.loadSkin(previewSkinImg, { model: skinViewerModel(normalizedModel) });
     if (isValidCapeImage(capeImg)) {
       await viewer.loadCape(capeImg);
     } else {
@@ -332,6 +630,7 @@ const drawCapeOnPlayerPreview = (ctx, capeImg, scale, side = 'front', offsetX = 
 const renderPlayerFrontPreview = (skinImg, capeImg, scale = 4, model = 'classic') => {
   if (!skinImg) return null;
   try {
+    const normalizedModel = normalizeSkinModel(model);
     const textureScale = skinImg.width / 64;
     const baseHeight = Math.round(skinImg.height / textureScale);
     const overlayInflate = Math.max(1, Math.round(scale * 0.25));
@@ -355,7 +654,7 @@ const renderPlayerFrontPreview = (skinImg, capeImg, scale = 4, model = 'classic'
     const headY = pad;
     const bodyX = pad + 4 * scale;
     const bodyY = pad + 8 * scale;
-    const isSlim = model === 'slim' && (skinImg.width === skinImg.height);
+    const isSlim = normalizedModel === 'slim' && (skinImg.width === skinImg.height);
     const armWidth = isSlim ? 3 : 4;
     const leftArmX = pad + 12 * scale;
     const rightArmX = pad + (isSlim ? 1 * scale : 0);
@@ -397,9 +696,10 @@ const renderPlayerFrontPreview = (skinImg, capeImg, scale = 4, model = 'classic'
 const renderPlayerBackPreview = (skinImg, capeImg, scale = 4, model = 'classic') => {
   if (!skinImg) return null;
   try {
+    const normalizedModel = normalizeSkinModel(model);
     const textureScale = skinImg.width / 64;
     const baseHeight = Math.round(skinImg.height / textureScale);
-    const isSlim = model === 'slim' && (skinImg.width === skinImg.height);
+    const isSlim = normalizedModel === 'slim' && (skinImg.width === skinImg.height);
     const armWidth = isSlim ? 3 : 4;
     const overlayInflate = Math.max(1, Math.round(scale * 0.25));
     const pad = overlayInflate;
@@ -476,9 +776,14 @@ const renderDualPreviewImages = (target, frontSrc, backSrc, alt, className) => {
 const renderSkinCardPreviewInto = async (editor, target, skinUrl, {
   capeUrl = '',
   model = 'classic',
+  textureType = 'default',
+  legacyOverlayParts = [],
+  legacyArmMirror = 'right',
+  legacyLegMirror = 'right',
   alt = '',
 } = {}) => {
   if (!target) return;
+  const normalizedModel = normalizeSkinModel(model);
   const renderToken = editor.renderToken || 0;
   target.innerHTML = '';
   const [skinImg, capeImg] = await Promise.all([
@@ -490,10 +795,31 @@ const renderSkinCardPreviewInto = async (editor, target, skinUrl, {
     renderSkinPlaceholderInto(target);
     return;
   }
+  let previewSkinImg = skinImg;
+  const skinDimensions = skinDimensionsFromImage(skinImg);
+  const overlayParts = normalizeOverlayBakeParts(legacyOverlayParts, textureType, skinDimensions, {
+    armMirror: legacyArmMirror,
+    legMirror: legacyLegMirror,
+  });
+  const normalizedTextureType = normalizeSkinTextureType(textureType, skinDimensions, overlayParts);
+  if (normalizedTextureType === 'legacy') {
+    const legacyDataUrl = renderLegacySkinDataUrl(skinImg, overlayParts, {
+      armMirror: legacyArmMirror,
+      legMirror: legacyLegMirror,
+    });
+    const legacyImg = legacyDataUrl ? await loadImage(legacyDataUrl) : null;
+    if (!isEditorActive(editor) || renderToken !== editor.renderToken || !target.isConnected) return;
+    if (isValidSkinImage(legacyImg)) previewSkinImg = legacyImg;
+  } else if (overlayParts.length > 0) {
+    const mergedDataUrl = renderOverlayMergedSkinDataUrl(skinImg, overlayParts);
+    const mergedImg = mergedDataUrl ? await loadImage(mergedDataUrl) : null;
+    if (!isEditorActive(editor) || renderToken !== editor.renderToken || !target.isConnected) return;
+    if (isValidSkinImage(mergedImg)) previewSkinImg = mergedImg;
+  }
   renderDualPreviewImages(
     target,
-    renderPlayerFrontPreview(skinImg, capeImg, 4, model),
-    renderPlayerBackPreview(skinImg, capeImg, 4, model),
+    renderPlayerFrontPreview(previewSkinImg, capeImg, 4, normalizedModel),
+    renderPlayerBackPreview(previewSkinImg, capeImg, 4, normalizedModel),
     alt || t('skinEditor.skinPreviewAlt'),
     'skin-editor-skin-preview'
   );
@@ -655,6 +981,8 @@ const createIconButton = (icon, label, { hoverIcon = '', active = false, activeI
 
 const createCurrentPanel = (editor) => {
   const profile = editor.profile || {};
+  const activeSkin = profile.active_skin || null;
+  const activeSkinModel = normalizeSkinModel(activeSkin && activeSkin.variant);
   const panel = createEl('section', 'skin-editor-current');
   const header = createEl('div', 'skin-editor-panel-header');
   header.appendChild(createEl('h3', '', t('skinEditor.current')));
@@ -667,18 +995,21 @@ const createCurrentPanel = (editor) => {
   const preview = createEl('div', 'skin-editor-current-preview');
   panel.appendChild(preview);
 
-  const activeSkin = profile.active_skin || null;
   const activeCape = profile.active_cape || null;
   renderSkinViewerInto(editor, preview,
     activeSkin ? textureUrlForEntry('skin', activeSkin, profile) : getTextureUrl('skin', profile.uuid || state.settingsState.uuid),
     {
       capeUrl: activeCape ? textureUrlForEntry('cape', activeCape, profile) : '',
-      model: activeSkin && activeSkin.variant || 'classic',
+      model: activeSkinModel,
       width: 220,
       height: 320,
       zoom: 0.85,
       interactive: true,
       viewerKey: 'current',
+      textureType: activeSkin && activeSkin.local ? activeSkin.texture_type : 'default',
+      legacyOverlayParts: activeSkin && activeSkin.local ? activeSkin.legacy_overlay_parts : [],
+      legacyArmMirror: activeSkin && activeSkin.local ? activeSkin.legacy_arm_mirror : 'right',
+      legacyLegMirror: activeSkin && activeSkin.local ? activeSkin.legacy_leg_mirror : 'right',
     }
   );
 
@@ -693,6 +1024,7 @@ const createCurrentPanel = (editor) => {
 
 const createSkinCard = (editor, entry, index) => {
   const profile = editor.profile || {};
+  const entryModel = normalizeSkinModel(entry.variant);
   const card = createEl('div', 'skin-editor-card');
   if (entry.active) card.classList.add('active');
   if (isDefaultSkinEntry(entry)) card.classList.add('default');
@@ -704,13 +1036,17 @@ const createSkinCard = (editor, entry, index) => {
   const skinCape = getSkinEntryCape(entry, profile);
   renderSkinCardPreviewInto(editor, preview, textureUrlForEntry('skin', entry, profile), {
     capeUrl: skinCape ? textureUrlForEntry('cape', skinCape, profile) : '',
-    model: entry.variant || 'classic',
+    model: entryModel,
+    textureType: entry.local ? entry.texture_type : 'default',
+    legacyOverlayParts: entry.local ? entry.legacy_overlay_parts : [],
+    legacyArmMirror: entry.local ? entry.legacy_arm_mirror : 'right',
+    legacyLegMirror: entry.local ? entry.legacy_leg_mirror : 'right',
     alt: entry.name || t('skinEditor.skin'),
   });
 
   const info = createEl('div', 'skin-editor-card-info');
   info.appendChild(createEl('strong', '', entry.name || t('skinEditor.skin')));
-  info.appendChild(createEl('span', '', (entry.variant === 'slim') ? t('skinEditor.modelSlim') : t('skinEditor.modelWide')));
+  info.appendChild(createEl('span', '', entryModel === 'slim' ? t('skinEditor.modelSlim') : t('skinEditor.modelWide')));
   card.appendChild(info);
 
   const actions = createEl('div', 'skin-editor-card-actions');
@@ -758,6 +1094,13 @@ const createSkinCard = (editor, entry, index) => {
     deleteBtn.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
+      if (isShiftDelete(event)) {
+        editor.pendingDeleteSkin = null;
+        editor.message = '';
+        editor.messageKind = '';
+        runTextureAction(editor, () => api('/api/account/microsoft/skin/delete', 'POST', { skin_id: entry.id }));
+        return;
+      }
       editor.pendingDeleteSkin = entry;
       editor.message = '';
       editor.messageKind = '';
@@ -866,15 +1209,48 @@ const createLibraryView = (editor) => {
   return root;
 };
 
-const createModelOption = (name, value, checked) => {
-  const label = createEl('label', 'skin-editor-model-option');
+const createSegmentOption = (name, value, checked, {
+  inputName,
+  className = 'skin-editor-model-option',
+  disabled = false,
+} = {}) => {
+  const label = createEl('label', className);
   const input = document.createElement('input');
   input.type = 'radio';
-  input.name = 'skin-editor-model';
+  input.name = inputName;
   input.value = value;
   input.checked = checked;
+  input.disabled = !!disabled;
   label.appendChild(input);
   label.appendChild(createEl('span', '', name));
+  return label;
+};
+
+const createModelOption = (name, value, checked) => createSegmentOption(name, value, checked, {
+  inputName: 'skin-editor-model',
+});
+
+const createTextureTypeOption = (type, checked, disabled) => createSegmentOption(t(type.labelKey), type.id, checked, {
+  inputName: 'skin-editor-texture-type',
+  className: 'skin-editor-texture-option',
+  disabled,
+});
+
+const createMirrorOption = (side, inputName, checked) => createSegmentOption(t(side.labelKey), side.id, checked, {
+  inputName,
+  className: 'skin-editor-mirror-option',
+});
+
+const createLegacyOverlayOption = (part, checked, disabled = false) => {
+  const label = createEl('label', 'skin-editor-overlay-option');
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.name = 'skin-editor-legacy-overlay';
+  input.value = part.id;
+  input.checked = checked;
+  input.disabled = !!disabled;
+  label.appendChild(input);
+  label.appendChild(createEl('span', '', t(part.labelKey)));
   return label;
 };
 
@@ -903,8 +1279,39 @@ const createFormView = (editor) => {
   const profile = editor.profile || {};
   const editingSkin = editor.editingSkin || null;
   const editingDefaultSkin = isDefaultSkinEntry(editingSkin);
+  const editingLocalSkin = !!(editingSkin && editingSkin.local);
+  const showTextureTypeSection = !editingDefaultSkin && (!editingSkin || editingLocalSkin);
   const draft = getFormDraft(editor);
   editor.selectedCapeId = draft.capeId || NONE_CAPE_ID;
+  const draftDimensions = () => ({
+    width: Number(draft.skinWidth || 0),
+    height: Number(draft.skinHeight || 0),
+  });
+  const initialDimensions = draftDimensions();
+  const initialTextureType = normalizeSkinTextureType(
+    draft.textureType,
+    initialDimensions,
+    draft.legacyOverlayParts,
+  );
+  draft.textureType = initialTextureType;
+  draft.legacyArmMirror = normalizeLegacyMirrorSide(draft.legacyArmMirror);
+  draft.legacyLegMirror = normalizeLegacyMirrorSide(draft.legacyLegMirror);
+  const initialLegacyOverlayParts = normalizeOverlayBakeParts(
+    draft.legacyOverlayParts,
+    initialTextureType,
+    initialDimensions,
+    {
+      armMirror: draft.legacyArmMirror,
+      legMirror: draft.legacyLegMirror,
+    },
+  );
+  draft.legacyOverlayParts = initialLegacyOverlayParts;
+  const textureTypeLocked = isLegacySkinDimensions(initialDimensions);
+  const textureTypeDisabled = !showTextureTypeSection || textureTypeLocked || !isModernSkinDimensions(initialDimensions);
+  const showOverlayBakeSection = showTextureTypeSection
+    && shouldShowOverlayBakeControls(initialDimensions);
+  const showLegacyDetailSection = showTextureTypeSection
+    && shouldShowLegacyDetailControls(initialDimensions, initialTextureType);
 
   const root = createEl('div', 'skin-editor skin-editor-form');
   editor.root = root;
@@ -944,6 +1351,68 @@ const createFormView = (editor) => {
   modelWrap.appendChild(modelOptions);
   formPanel.appendChild(modelWrap);
 
+  let textureTypeOptions = null;
+  if (showTextureTypeSection) {
+    const textureTypeWrap = createEl('div', 'skin-editor-field');
+    textureTypeWrap.appendChild(createEl('span', '', t('skinEditor.textureType')));
+    textureTypeOptions = createEl('div', 'skin-editor-texture-options');
+    SKIN_TEXTURE_TYPES.forEach((type) => {
+      textureTypeOptions.appendChild(createTextureTypeOption(
+        type,
+        initialTextureType === type.id,
+        textureTypeDisabled,
+      ));
+    });
+    textureTypeWrap.appendChild(textureTypeOptions);
+    formPanel.appendChild(textureTypeWrap);
+  }
+
+  let legacyOverlayOptions = null;
+  let legacyArmMirrorOptions = null;
+  let legacyLegMirrorOptions = null;
+  if (showLegacyDetailSection) {
+    const legacyArmMirrorWrap = createEl('div', 'skin-editor-field');
+    legacyArmMirrorWrap.appendChild(createEl('span', '', t('skinEditor.armMirror')));
+    legacyArmMirrorOptions = createEl('div', 'skin-editor-mirror-options');
+    LEGACY_MIRROR_OPTIONS.forEach((side) => {
+      legacyArmMirrorOptions.appendChild(createMirrorOption(
+        side,
+        'skin-editor-arm-mirror',
+        normalizeLegacyMirrorSide(draft.legacyArmMirror) === side.id,
+      ));
+    });
+    legacyArmMirrorWrap.appendChild(legacyArmMirrorOptions);
+    formPanel.appendChild(legacyArmMirrorWrap);
+
+    const legacyLegMirrorWrap = createEl('div', 'skin-editor-field');
+    legacyLegMirrorWrap.appendChild(createEl('span', '', t('skinEditor.legMirror')));
+    legacyLegMirrorOptions = createEl('div', 'skin-editor-mirror-options');
+    LEGACY_MIRROR_OPTIONS.forEach((side) => {
+      legacyLegMirrorOptions.appendChild(createMirrorOption(
+        side,
+        'skin-editor-leg-mirror',
+        normalizeLegacyMirrorSide(draft.legacyLegMirror) === side.id,
+      ));
+    });
+    legacyLegMirrorWrap.appendChild(legacyLegMirrorOptions);
+    formPanel.appendChild(legacyLegMirrorWrap);
+
+  }
+
+  if (showOverlayBakeSection) {
+    const legacyOverlayWrap = createEl('div', 'skin-editor-field');
+    legacyOverlayWrap.appendChild(createEl('span', '', t('skinEditor.overlayToFirstLayer')));
+    legacyOverlayOptions = createEl('div', 'skin-editor-overlay-options');
+    LEGACY_OVERLAY_PARTS.forEach((part) => {
+      legacyOverlayOptions.appendChild(createLegacyOverlayOption(
+        part,
+        initialLegacyOverlayParts.includes(part.id),
+      ));
+    });
+    legacyOverlayWrap.appendChild(legacyOverlayOptions);
+    formPanel.appendChild(legacyOverlayWrap);
+  }
+
   const fileRow = createEl('div', 'skin-editor-field');
   fileRow.appendChild(createEl('span', '', t('skinEditor.skinFile')));
   const filePickRow = createEl('div', 'skin-editor-file-row');
@@ -976,10 +1445,87 @@ const createFormView = (editor) => {
     const modelInput = root.querySelector('input[name="skin-editor-model"]:checked');
     return modelInput ? modelInput.value : 'classic';
   };
+  const currentTextureType = () => {
+    const dimensions = draftDimensions();
+    if (isLegacySkinDimensions(dimensions)) return 'legacy';
+    const textureInput = root.querySelector('input[name="skin-editor-texture-type"]:checked');
+    return normalizeSkinTextureType(
+      textureInput ? textureInput.value : draft.textureType,
+      dimensions,
+      draft.legacyOverlayParts,
+    );
+  };
+  const currentLegacyOverlayParts = () => Array.from(root.querySelectorAll('input[name="skin-editor-legacy-overlay"]:checked'))
+    .map((input) => input.value)
+    .filter((value) => LEGACY_OVERLAY_PART_IDS.has(value));
+  const currentMirrorSide = (inputName, fallback) => {
+    const input = root.querySelector(`input[name="${inputName}"]:checked`);
+    const value = input ? input.value : fallback;
+    return LEGACY_MIRROR_IDS.has(value) ? value : normalizeLegacyMirrorSide(value);
+  };
+  const setLegacyOverlaySelections = (parts) => {
+    const normalizedParts = normalizeLegacyOverlayParts(parts);
+    if (legacyOverlayOptions) {
+      legacyOverlayOptions.querySelectorAll('input[name="skin-editor-legacy-overlay"]').forEach((overlayInput) => {
+        overlayInput.checked = normalizedParts.includes(overlayInput.value);
+      });
+    }
+    draft.legacyOverlayParts = normalizedParts;
+    return normalizedParts;
+  };
+  const applyLegacyOverlayDefaultsForSwitch = () => {
+    const dimensions = draftDimensions();
+    if (!legacyOverlayOptions || !shouldShowOverlayBakeControls(dimensions)) return;
+    const defaultParts = normalizeOverlayBakeParts(
+      [
+        ...LEGACY_SWITCH_DEFAULT_OVERLAY_PARTS,
+        legacyMirrorOverlayPart('arm', draft.legacyArmMirror),
+        legacyMirrorOverlayPart('leg', draft.legacyLegMirror),
+      ],
+      'legacy',
+      dimensions,
+      {
+        armMirror: draft.legacyArmMirror,
+        legMirror: draft.legacyLegMirror,
+      },
+    );
+    setLegacyOverlaySelections(defaultParts);
+    draft.legacySwitchDefaultsArmed = true;
+  };
+  const clearLegacyOverlayDefaultsForSwitch = () => {
+    setLegacyOverlaySelections([]);
+    draft.legacySwitchDefaultsArmed = false;
+  };
   const syncDraft = () => {
+    const textureType = currentTextureType();
+    const dimensions = draftDimensions();
+    const dimensionsKnown = hasKnownSkinDimensions(dimensions);
+    const overlayControlsVisible = shouldShowOverlayBakeControls(dimensions);
+    const legacyDetailsVisible = shouldShowLegacyDetailControls(dimensions, textureType);
     draft.name = nameInput.value;
     draft.variant = currentModel();
     draft.capeId = editor.selectedCapeId || NONE_CAPE_ID;
+    draft.textureType = showTextureTypeSection ? textureType : 'default';
+    draft.legacyArmMirror = legacyDetailsVisible
+      ? (legacyArmMirrorOptions ? currentMirrorSide('skin-editor-arm-mirror', draft.legacyArmMirror) : normalizeLegacyMirrorSide(draft.legacyArmMirror))
+      : normalizeLegacyMirrorSide(draft.legacyArmMirror);
+    draft.legacyLegMirror = legacyDetailsVisible
+      ? (legacyLegMirrorOptions ? currentMirrorSide('skin-editor-leg-mirror', draft.legacyLegMirror) : normalizeLegacyMirrorSide(draft.legacyLegMirror))
+      : normalizeLegacyMirrorSide(draft.legacyLegMirror);
+    draft.legacyOverlayParts = overlayControlsVisible
+      ? normalizeOverlayBakeParts(
+        legacyOverlayOptions ? currentLegacyOverlayParts() : draft.legacyOverlayParts,
+        textureType,
+        dimensions,
+        {
+          armMirror: draft.legacyArmMirror,
+          legMirror: draft.legacyLegMirror,
+        },
+      )
+      : dimensionsKnown ? normalizeOverlayBakeParts(draft.legacyOverlayParts, textureType, dimensions, {
+        armMirror: draft.legacyArmMirror,
+        legMirror: draft.legacyLegMirror,
+      }) : normalizeLegacyOverlayParts(draft.legacyOverlayParts);
     editor.formDraft = draft;
   };
   const selectedCapeEntry = () => {
@@ -1000,6 +1546,24 @@ const createFormView = (editor) => {
     if (selectedSkinDataUrl) return selectedSkinDataUrl;
     return editingSkin ? textureUrlForEntry('skin', editingSkin, profile) : '';
   };
+  const inferSelectedSkinDimensions = async (skinUrl, { rerender = true } = {}) => {
+    const currentDimensions = draftDimensions();
+    if (hasKnownSkinDimensions(currentDimensions)) return false;
+    const cleanSkinUrl = String(skinUrl || '').trim();
+    if (!cleanSkinUrl || cleanSkinUrl === UNKNOWN_SKIN_PREVIEW_URL) return false;
+    const renderToken = editor.renderToken || 0;
+    const image = await loadImage(cleanSkinUrl);
+    if (!isEditorActive(editor) || renderToken !== (editor.renderToken || 0)) return false;
+    if (!isValidSkinImage(image)) return false;
+    const dimensions = skinDimensionsFromImage(image);
+    if (!hasKnownSkinDimensions(dimensions)) return false;
+    draft.skinWidth = dimensions.width;
+    draft.skinHeight = dimensions.height;
+    draft.textureType = normalizeSkinTextureType(draft.textureType, dimensions, draft.legacyOverlayParts);
+    editor.formDraft = draft;
+    if (rerender) renderEditor(editor);
+    return true;
+  };
   const renderUploadPreview = () => {
     const skinUrl = selectedSkinUrl();
     const previewSkinUrl = skinUrl || (!editingSkin ? UNKNOWN_SKIN_PREVIEW_URL : '');
@@ -1007,9 +1571,22 @@ const createFormView = (editor) => {
       renderSkinPlaceholderInto(preview);
       return;
     }
+    if (!hasKnownSkinDimensions(draftDimensions())) {
+      inferSelectedSkinDimensions(previewSkinUrl).catch(() => {});
+    }
+    const textureType = currentTextureType();
+    const overlayParts = normalizeOverlayBakeParts(draft.legacyOverlayParts, textureType, draftDimensions(), {
+      armMirror: draft.legacyArmMirror,
+      legMirror: draft.legacyLegMirror,
+    });
     renderSkinViewerInto(editor, preview, previewSkinUrl, {
       capeUrl: selectedCapeUrl(),
       model: currentModel(),
+      textureType,
+      legacyPreview: textureType === 'legacy',
+      legacyOverlayParts: overlayParts,
+      legacyArmMirror: draft.legacyArmMirror,
+      legacyLegMirror: draft.legacyLegMirror,
       width: 220,
       height: 320,
       zoom: 0.85,
@@ -1043,6 +1620,83 @@ const createFormView = (editor) => {
       renderUploadPreview();
     });
   });
+  if (textureTypeOptions) {
+    textureTypeOptions.querySelectorAll('input[name="skin-editor-texture-type"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        const previousTextureType = normalizeSkinTextureType(
+          draft.textureType,
+          draftDimensions(),
+          draft.legacyOverlayParts,
+        );
+        const nextTextureType = normalizeSkinTextureType(
+          input.value,
+          draftDimensions(),
+          draft.legacyOverlayParts,
+        );
+        if (previousTextureType !== 'legacy' && nextTextureType === 'legacy') {
+          applyLegacyOverlayDefaultsForSwitch();
+        } else if (previousTextureType === 'legacy' && nextTextureType !== 'legacy' && draft.legacySwitchDefaultsArmed) {
+          clearLegacyOverlayDefaultsForSwitch();
+        } else if (previousTextureType === 'legacy' && nextTextureType !== 'legacy') {
+          draft.legacySwitchDefaultsArmed = false;
+        }
+        syncDraft();
+        renderEditor(editor);
+      });
+    });
+  }
+  [legacyArmMirrorOptions, legacyLegMirrorOptions].filter(Boolean).forEach((options) => {
+    options.querySelectorAll('input[type="radio"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        if (legacyOverlayOptions && currentTextureType() === 'legacy') {
+          const nextArmMirror = legacyArmMirrorOptions
+            ? currentMirrorSide('skin-editor-arm-mirror', draft.legacyArmMirror)
+            : normalizeLegacyMirrorSide(draft.legacyArmMirror);
+          const nextLegMirror = legacyLegMirrorOptions
+            ? currentMirrorSide('skin-editor-leg-mirror', draft.legacyLegMirror)
+            : normalizeLegacyMirrorSide(draft.legacyLegMirror);
+          const syncedParts = normalizeOverlayBakeParts(
+            syncLegacyOverlayPartsToMirrors(
+              currentLegacyOverlayParts(),
+              {
+                previousArmMirror: draft.legacyArmMirror,
+                nextArmMirror,
+                previousLegMirror: draft.legacyLegMirror,
+                nextLegMirror,
+              },
+            ),
+            'legacy',
+            draftDimensions(),
+            {
+              armMirror: nextArmMirror,
+              legMirror: nextLegMirror,
+            },
+          );
+          setLegacyOverlaySelections(syncedParts);
+        }
+        syncDraft();
+        renderUploadPreview();
+      });
+    });
+  });
+  if (legacyOverlayOptions) {
+    legacyOverlayOptions.querySelectorAll('input[name="skin-editor-legacy-overlay"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        if (currentTextureType() === 'legacy' && draft.legacySwitchDefaultsArmed) {
+          draft.legacySwitchDefaultsArmed = false;
+        }
+        if (currentTextureType() === 'legacy' && input.checked) {
+          const oppositePartId = oppositeLegacyOverlayPart(input.value);
+          if (oppositePartId) {
+            const oppositeInput = legacyOverlayOptions.querySelector(`input[name="skin-editor-legacy-overlay"][value="${oppositePartId}"]`);
+            if (oppositeInput) oppositeInput.checked = false;
+          }
+        }
+        syncDraft();
+        renderUploadPreview();
+      });
+    });
+  }
 
   const actions = createEl('div', 'skin-editor-form-actions');
   const backBtn = createEl('button', '', t('common.back'));
@@ -1071,6 +1725,11 @@ const createFormView = (editor) => {
       return;
     }
 
+    if (!file) {
+      const inferred = await inferSelectedSkinDimensions(selectedSkinUrl(), { rerender: false });
+      if (inferred) syncDraft();
+    }
+
     if (file) {
       let dataUrl;
       try {
@@ -1088,9 +1747,13 @@ const createFormView = (editor) => {
         renderEditor(editor);
         return;
       }
+      const dimensions = skinDimensionsFromImage(image);
       draft.skinDataUrl = dataUrl;
       draft.fileBase64 = dataUrl.includes(',') ? dataUrl.split(',', 2)[1] : dataUrl;
       draft.fileName = file.name || 'skin.png';
+      draft.skinWidth = dimensions.width;
+      draft.skinHeight = dimensions.height;
+      draft.textureType = normalizeSkinTextureType(draft.textureType, dimensions, draft.legacyOverlayParts);
       selectedSkinDataUrl = dataUrl;
       syncDraft();
     }
@@ -1108,11 +1771,20 @@ const createFormView = (editor) => {
           cape_id: selectedCapePayloadId,
         });
       } else if (hasDraftSkin || (editingSkin && editingSkin.local && editingSkin.id)) {
+        const textureType = normalizeSkinTextureType(draft.textureType, draftDimensions(), draft.legacyOverlayParts);
+        const overlayParts = normalizeOverlayBakeParts(draft.legacyOverlayParts, textureType, draftDimensions(), {
+          armMirror: draft.legacyArmMirror,
+          legMirror: draft.legacyLegMirror,
+        });
         const payload = {
           skin_id: editingSkin && editingSkin.local ? editingSkin.id : '',
           name: draft.name,
           variant: draft.variant,
           cape_id: selectedCapePayloadId,
+          texture_type: textureType,
+          legacy_overlay_parts: shouldShowOverlayBakeControls(draftDimensions()) ? overlayParts : [],
+          legacy_arm_mirror: normalizeLegacyMirrorSide(draft.legacyArmMirror),
+          legacy_leg_mirror: normalizeLegacyMirrorSide(draft.legacyLegMirror),
           file_name: draft.fileName || 'skin.png',
         };
         if (hasDraftSkin) payload.file_base64 = draft.fileBase64;
@@ -1166,9 +1838,30 @@ const createFormView = (editor) => {
     draft.skinDataUrl = selectedSkinDataUrl;
     draft.fileBase64 = selectedSkinDataUrl.includes(',') ? selectedSkinDataUrl.split(',', 2)[1] : selectedSkinDataUrl;
     draft.fileName = file.name || 'skin.png';
-    syncDraft();
-    renderFilePickLabel();
-    renderUploadPreview();
+    const image = await loadImage(selectedSkinDataUrl);
+    if (!isValidSkinImage(image)) {
+      draft.skinDataUrl = '';
+      draft.fileBase64 = '';
+      draft.fileName = '';
+      draft.skinWidth = 0;
+      draft.skinHeight = 0;
+      editor.message = t('skinEditor.errors.invalidResolution');
+      editor.messageKind = 'error';
+      editor.formDraft = draft;
+      renderEditor(editor);
+      return;
+    }
+    const dimensions = skinDimensionsFromImage(image);
+    draft.skinWidth = dimensions.width;
+    draft.skinHeight = dimensions.height;
+    draft.textureType = normalizeSkinTextureType('', dimensions);
+    draft.legacyOverlayParts = [];
+    draft.legacyArmMirror = 'right';
+    draft.legacyLegMirror = 'right';
+    editor.message = '';
+    editor.messageKind = '';
+    editor.formDraft = draft;
+    renderEditor(editor);
   });
 
   root.appendChild(formPanel);

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 import shutil
 import threading
@@ -40,7 +41,41 @@ __all__ = [
 ]
 
 
-def _get_available_loader_catalog(folder: str):
+_LOADER_CATALOG_CACHE_TTL_SECONDS = 6 * 60 * 60
+_LOADER_CATALOG_CACHE: dict[str, dict[str, Any]] = {}
+_LOADER_CATALOG_CACHE_LOCK = threading.Lock()
+
+
+def _empty_loader_catalog():
+    available = {loader_type: [] for loader_type in VALID_LOADER_TYPES}
+    return available, {loader_type: 0 for loader_type in VALID_LOADER_TYPES}
+
+
+def _clone_loader_catalog(entry: dict[str, Any]):
+    return copy.deepcopy(entry.get("available") or {}), dict(entry.get("total_available") or {})
+
+
+def _active_loader_install_key(category: str, folder: str, loader_type: str, loader_version: str) -> str:
+    return f"{str(category or '').lower()}/{folder}/modloader-{loader_type}-{loader_version}"
+
+
+def _filter_active_loader_installs(installed: dict[str, list[dict[str, Any]]], category: str, folder: str):
+    with STATE.loader_install_lock:
+        active_keys = set(STATE.active_loader_install_keys)
+    filtered = {loader_type: [] for loader_type in VALID_LOADER_TYPES}
+    for loader_type in VALID_LOADER_TYPES:
+        for loader in installed.get(loader_type, []) or []:
+            loader_version = str((loader or {}).get("version") or "").strip()
+            if not loader_version:
+                continue
+            install_key = _active_loader_install_key(category, folder, loader_type, loader_version)
+            if install_key in active_keys:
+                continue
+            filtered[loader_type].append(loader)
+    return filtered
+
+
+def _fetch_available_loader_catalog(folder: str):
     fabric_loaders = core_modloaders.get_fabric_loaders_for_version(folder, stable_only=False)
     babric_loaders = core_modloaders.get_babric_loaders_for_version(folder, stable_only=False)
     forge_versions = core_modloaders.get_forge_versions_for_mc(folder)
@@ -87,6 +122,33 @@ def _get_available_loader_catalog(folder: str):
     return available, total_available
 
 
+def _get_available_loader_catalog(folder: str):
+    cache_key = str(folder or "").strip().lower()
+    now = time.time()
+    with _LOADER_CATALOG_CACHE_LOCK:
+        cached = _LOADER_CATALOG_CACHE.get(cache_key)
+        if cached and now - float(cached.get("updated_at") or 0) < _LOADER_CATALOG_CACHE_TTL_SECONDS:
+            return _clone_loader_catalog(cached)
+
+    try:
+        available, total_available = _fetch_available_loader_catalog(folder)
+    except Exception as e:
+        print(colorize_log(f"[api] Loader catalog fetch failed for {folder}: {e}"))
+        with _LOADER_CATALOG_CACHE_LOCK:
+            cached = _LOADER_CATALOG_CACHE.get(cache_key)
+            if cached:
+                return _clone_loader_catalog(cached)
+        return _empty_loader_catalog()
+
+    with _LOADER_CATALOG_CACHE_LOCK:
+        _LOADER_CATALOG_CACHE[cache_key] = {
+            "updated_at": now,
+            "available": copy.deepcopy(available),
+            "total_available": dict(total_available),
+        }
+    return available, total_available
+
+
 def api_loaders(version_key: str):
     if not version_key or "/" not in version_key:
         return {"ok": False, "error": "invalid version key"}
@@ -105,9 +167,10 @@ def api_loaders(version_key: str):
     if not category:
         return {"ok": False, "error": f"category not found: {category_input}"}
 
-    installed = get_version_loaders(category, folder)
+    installed = _filter_active_loader_installs(get_version_loaders(category, folder), category, folder)
 
-    loaders_base = os.path.join(get_clients_dir(), category, folder, "loaders")
+    resolved = _resolve_version_dir_secure(category, folder)
+    loaders_base = os.path.join(resolved.get("path") or "", "loaders") if resolved.get("ok") else ""
 
     for loader_type in installed:
         for loader in installed[loader_type]:
@@ -149,26 +212,7 @@ def api_loaders_installed(version_key: str):
             "installed": {},
         }
 
-    version_dir = resolved.get("path") or ""
-    loaders_dir = os.path.join(version_dir, "loaders")
-
-    installed = {loader_type: [] for loader_type in VALID_LOADER_TYPES}
-    if os.path.isdir(loaders_dir):
-        for loader_type in VALID_LOADER_TYPES:
-            type_dir = os.path.join(loaders_dir, loader_type)
-            if not os.path.isdir(type_dir):
-                continue
-
-            try:
-                versions = sorted(os.listdir(type_dir))
-            except Exception:
-                continue
-
-            for ver in versions:
-                ver_dir = os.path.join(type_dir, ver)
-                if not os.path.isdir(ver_dir):
-                    continue
-                installed[loader_type].append({"type": loader_type, "version": ver})
+    installed = _filter_active_loader_installs(get_version_loaders(category_input, folder), category_input, folder)
 
     return {
         "ok": True,
@@ -324,8 +368,12 @@ def api_delete_loader(data: Any):
         return {"ok": False, "error": "invalid loader version format"}
 
     try:
+        resolved = _resolve_version_dir_secure(category, folder)
+        if not resolved.get("ok"):
+            return {"ok": False, "error": resolved.get("error") or "version directory does not exist"}
+
         loader_path = os.path.join(
-            get_clients_dir(), category, folder, "loaders", loader_type, loader_version
+            resolved.get("path") or "", "loaders", loader_type, loader_version
         )
 
         if not os.path.isdir(loader_path):

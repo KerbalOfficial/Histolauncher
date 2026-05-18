@@ -17,7 +17,15 @@ import { closeAllActionOverflowMenus, initResponsiveActionOverflowMenus } from '
 
 import { initTooltips } from './tooltips.js';
 import { initI18n, t } from './i18n.js';
+import { initKeyboardMouse, syncKeyboardMouseFromSettings } from './keyboard-mouse.js';
 
+import {
+  initScreenshotsPage,
+  loadInstalledScreenshots,
+  refreshScreenshotsPageState,
+  rerenderScreenshotsPage,
+  updateScreenshotsBulkActionsUI,
+} from './screenshots.js';
 import { initWorldsPage, refreshWorldsPageState, loadInstalledWorlds, updateWorldsBulkActionsUI } from './worlds.js';
 
 import {
@@ -67,9 +75,11 @@ import {
   debug,
   refreshHomeGlobalMessage,
   updateHomeInfo,
+  updatePlaytimeStats,
   initSettings,
   refreshJavaRuntimeOptions,
   setHomeDeps,
+  startHomeLiveStream,
 } from './home.js';
 
 import { initSidebar } from './navigation.js';
@@ -294,6 +304,7 @@ const applyInitialData = async (
     profiles: Array.isArray(data.profiles) ? data.profiles : [],
     active_profile: data.active_profile || 'default',
   });
+  syncKeyboardMouseFromSettings();
 
   applyScopeProfilesState(
     'versions',
@@ -337,7 +348,7 @@ const applyInitialData = async (
 
   if (state.selectedVersion) {
     const selCard = document.querySelector(
-      `.version-card[data-full-id="${state.selectedVersion}"]`
+      `.version-card[data-full-id="${CSS.escape(state.selectedVersion)}"]`
     );
     $$('.version-card').forEach((c) => c.classList.remove('selected'));
     $$('.version-card[aria-current]').forEach((c) =>
@@ -366,11 +377,16 @@ const applyInitialData = async (
   const settingsPage = getEl('page-settings');
   const versionsPage = getEl('page-versions');
   const worldsPage = getEl('page-worlds');
+  const screenshotsPage = getEl('page-screenshots');
   const modsPage = getEl('page-mods');
 
   if (settingsPage && !settingsPage.classList.contains('hidden') && !state.javaRuntimesLoaded) {
     const ok = await refreshJavaRuntimeOptions(false);
     if (ok) state.javaRuntimesLoaded = true;
+  }
+
+  if (settingsPage && !settingsPage.classList.contains('hidden')) {
+    updatePlaytimeStats();
   }
 
   if (modsPage && !modsPage.classList.contains('hidden')) {
@@ -393,6 +409,15 @@ const applyInitialData = async (
       state.worldsPageDataLoaded = loaded !== false;
     } else if (preserveAvailableData) {
       await loadInstalledWorlds();
+    }
+  }
+
+  if (screenshotsPage && !screenshotsPage.classList.contains('hidden')) {
+    if (!state.screenshotsPageDataLoaded) {
+      const loaded = await refreshScreenshotsPageState();
+      state.screenshotsPageDataLoaded = loaded !== false;
+    } else if (preserveAvailableData) {
+      await loadInstalledScreenshots();
     }
   }
 
@@ -435,6 +460,7 @@ const init = async ({ preserveAvailableData = false } = {}) => {
     state.versionsLoadRequestId += 1;
     state.modsPageDataLoaded = false;
     state.worldsPageDataLoaded = false;
+    state.screenshotsPageDataLoaded = false;
     state.versionsAvailablePage = 1;
   }
 
@@ -539,37 +565,50 @@ const init = async ({ preserveAvailableData = false } = {}) => {
 // ---------------- Cleanup polling timers on page unload ----------------
 
 const clearAllPollers = () => {
-  // Clear all active polling timers to prevent orphaned timers
   for (const key in state.activeInstallPollers) {
     stopActiveInstallPoller(key);
   }
   debug('[cleanup] Cleared all active polling timers');
 };
 
-// Clean up polling timers when page unloads or refreshes
 window.addEventListener('beforeunload', clearAllPollers);
-window.addEventListener('unload', clearAllPollers);
 
 // ---------------- Settings Dropdowns ----------------
 
 const initSettingsDropdowns = () => {
   const titles = $$('.settings-dropdown-title');
 
-  titles.forEach((title) => {
+  titles.forEach((title, index) => {
     const content = title.nextElementSibling;
     if (!content || !content.classList.contains('settings-dropdown-content')) {
       return;
     }
 
+    const key = title.dataset.dropdownKey
+      || title.querySelector('[data-i18n]')?.getAttribute('data-i18n')
+      || `settings-dropdown-${index}`;
+    title.dataset.dropdownKey = key;
+
     if (!title.hasAttribute('role')) title.setAttribute('role', 'button');
     if (!title.hasAttribute('tabindex')) title.setAttribute('tabindex', '0');
 
     const indicator = title.querySelector('.dropdown-indicator');
-    const setExpanded = (expanded) => {
+    const setExpanded = (expanded, { persist = true } = {}) => {
       content.classList.toggle('collapsed', !expanded);
       if (indicator) indicator.textContent = expanded ? unicodeList.dropdown_open : unicodeList.dropdown_close;
       title.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      if (persist) state.settingsDropdownExpanded[key] = !!expanded;
     };
+
+    const hasStoredState = Object.prototype.hasOwnProperty.call(state.settingsDropdownExpanded, key);
+    const initialExpanded = hasStoredState
+      ? !!state.settingsDropdownExpanded[key]
+      : !content.classList.contains('collapsed');
+
+    if (title.dataset.dropdownBound === '1') {
+      setExpanded(initialExpanded, { persist: false });
+      return;
+    }
 
     const handleToggle = () => {
       const expanded = !content.classList.contains('collapsed');
@@ -584,7 +623,8 @@ const initSettingsDropdowns = () => {
       }
     });
 
-    setExpanded(!content.classList.contains('collapsed'));
+    title.dataset.dropdownBound = '1';
+    setExpanded(initialExpanded, { persist: false });
   });
 };
 
@@ -621,6 +661,7 @@ setLaunchDeps({
   normalizeStorageDirectoryMode,
   refreshCustomStorageDirectoryValidation,
   updateHomeInfo,
+  updatePlaytimeStats,
 });
 
 setProfilesDeps({
@@ -734,7 +775,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error('Failed to resolve CurseForge addon link:', e);
       }
 
-      window.open(normalizedHref, '_blank');
+      window.open(normalizedHref, '_blank', 'noopener,noreferrer');
       return;
     }
     const modrinthProject = resolveModrinthAddonLink(normalizedHref);
@@ -750,7 +791,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    window.open(normalizedHref, '_blank');
+    window.open(normalizedHref, '_blank', 'noopener,noreferrer');
   }, true);
 
   document.addEventListener('click', () => {
@@ -771,6 +812,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     initCategoryFilter();
     updateVersionsBulkActionsUI();
     updateWorldsBulkActionsUI();
+    updateScreenshotsBulkActionsUI();
+    rerenderScreenshotsPage();
     renderAllVersionSections();
     if (state.javaRuntimesLoaded) {
       refreshJavaRuntimeOptions(false).catch((err) => {
@@ -788,14 +831,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   initTooltips();
   applyAppearanceSettings(state.settingsState);
   initAppearanceObserver();
+  initKeyboardMouse();
   initLaunchButton();
   initRefreshButton();
   initSettingsInputs();
   initVersionsViewToggle();
   initVersionsExportImport();
   initWorldsPage();
+  initScreenshotsPage();
   initModsPage();
   initResponsiveActionOverflowMenus();
   updateSettingsValidationUI();
   init();
+  startHomeLiveStream();
 });

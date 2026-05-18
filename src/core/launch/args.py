@@ -3,7 +3,8 @@ from __future__ import annotations
 import os
 import re
 import zipfile
-from uuid import NAMESPACE_DNS, uuid3
+import hashlib
+import uuid
 
 from core.launch.paths import _load_data_ini  # noqa: F401  (re-export potential)
 from core.logger import colorize_log
@@ -142,8 +143,11 @@ def _resolve_runtime_main_class(
 
 
 def username_to_uuid(username: str) -> str:
-    offline_uuid = uuid3(NAMESPACE_DNS, "OfflinePlayer:" + username)
-    return str(offline_uuid).replace("-", "")
+    digest = hashlib.md5(("OfflinePlayer:" + str(username or "")).encode("utf-8")).digest()
+    uuid_bytes = bytearray(digest)
+    uuid_bytes[6] = (uuid_bytes[6] & 0x0F) | 0x30
+    uuid_bytes[8] = (uuid_bytes[8] & 0x3F) | 0x80
+    return str(uuid.UUID(bytes=bytes(uuid_bytes))).replace("-", "")
 
 
 def _expand_placeholders(args_str, version_identifier, game_dir, version_dir,

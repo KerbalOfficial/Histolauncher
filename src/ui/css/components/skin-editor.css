@@ -394,13 +394,24 @@
   font-style: normal;
 }
 
-.skin-editor-model-options {
+.skin-editor-model-options,
+.skin-editor-texture-options,
+.skin-editor-mirror-options {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.skin-editor-model-option {
+.skin-editor-overlay-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.skin-editor-model-option,
+.skin-editor-texture-option,
+.skin-editor-mirror-option,
+.skin-editor-overlay-option {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -410,11 +421,23 @@
   border: 3px solid var(--color-border-default);
   background: var(--color-surface-control);
   color: var(--color-text-secondary);
+  text-align: center;
 }
 
-.skin-editor-model-option:has(input:checked) {
+.skin-editor-model-option:has(input:checked),
+.skin-editor-texture-option:has(input:checked),
+.skin-editor-mirror-option:has(input:checked),
+.skin-editor-overlay-option:has(input:checked) {
   border-color: var(--color-focus);
   color: var(--color-text-title-strong);
+}
+
+.skin-editor-model-option:has(input:disabled),
+.skin-editor-texture-option:has(input:disabled),
+.skin-editor-mirror-option:has(input:disabled),
+.skin-editor-overlay-option:has(input:disabled) {
+  cursor: default;
+  opacity: 0.72;
 }
 
 .skin-editor-form-actions {
@@ -462,7 +485,10 @@
 @media (max-width: 520px) {
   .skin-editor-skin-grid,
   .skin-editor-cape-grid,
-  .skin-editor-model-options {
+  .skin-editor-model-options,
+  .skin-editor-texture-options,
+  .skin-editor-mirror-options,
+  .skin-editor-overlay-options {
     grid-template-columns: 1fr;
   }
 

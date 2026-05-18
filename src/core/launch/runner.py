@@ -46,6 +46,7 @@ from core.launch.legacy import (
     _prepare_legacy_forge_runtime_files,
     _prepare_legacy_modloader_runtime_directory,
     _prepare_legacy_options_file,
+    _prepare_legacy_unsigned_client_jar,
     _stage_legacy_fml_libraries,
 )
 from core.launch.loader import (
@@ -64,6 +65,7 @@ from core.launch.loader import (
 )
 from core.launch.mods import (
     _cleanup_copied_mods,
+    _is_supported_mod_archive,
     _is_truthy_setting,
     _prepare_modloader_overwrite_layer,
     _stage_addons_for_launch,
@@ -84,7 +86,7 @@ from core.launch.natives import (
     _set_or_append_cli_arg,
 )
 from core.launch.paths import (
-    _ensure_neoforge_early_window_disabled,
+    _restore_neoforge_early_window,
     _extract_mc_version_string,
     _load_data_ini,
     _resolve_game_dir,
@@ -119,6 +121,26 @@ def _positive_int_setting(value, default: str) -> str:
     return default
 
 
+def _collect_game_mod_java_scan_paths(game_dir: str) -> list[str]:
+    if not game_dir:
+        return []
+    mods_dir = os.path.join(game_dir, "mods")
+    if not os.path.isdir(mods_dir):
+        return []
+
+    paths: list[str] = []
+    try:
+        for filename in sorted(os.listdir(mods_dir), key=lambda value: value.lower()):
+            if not _is_supported_mod_archive(filename):
+                continue
+            path = os.path.join(mods_dir, filename)
+            if os.path.isfile(path):
+                paths.append(path)
+    except OSError:
+        return paths
+    return paths
+
+
 def _remove_cli_flag(args: list, flag: str, *, takes_value: bool = False) -> None:
     i = 0
     while i < len(args):
@@ -148,15 +170,7 @@ def _apply_window_launch_settings(cmd: list, global_settings: dict, meta: dict) 
     _set_or_append_cli_arg(cmd, "--width", width)
     _set_or_append_cli_arg(cmd, "--height", height)
 
-    fullscreen_raw = str((meta or {}).get("launch_fullscreen") or "").strip()
-    fullscreen_enabled = (
-        fullscreen_raw == "1"
-        if fullscreen_raw
-        else _is_truthy_setting((global_settings or {}).get("game_fullscreen", "0"))
-    )
     _remove_cli_flag(cmd, "--fullscreen", takes_value=False)
-    if fullscreen_enabled:
-        cmd.append("--fullscreen")
 
     demo_raw = str((meta or {}).get("launch_demo") or "").strip()
     demo_enabled = (
@@ -169,12 +183,126 @@ def _apply_window_launch_settings(cmd: list, global_settings: dict, meta: dict) 
         cmd.append("--demo")
 
 
+def _prewarm_authlib_textures_for_launch(ygg_port: int, launch_auth_info: dict) -> None:
+    if not ygg_port or ygg_port <= 0:
+        return
+    try:
+        from server import yggdrasil as _ygg
+
+        result = _ygg.prewarm_authlib_texture_properties(
+            port=ygg_port,
+            target_uuid_hex=str((launch_auth_info or {}).get("uuid_hex") or ""),
+            target_username=str((launch_auth_info or {}).get("username") or ""),
+            wait_seconds=0.0,
+        )
+        if result.get("ready"):
+            textures = result.get("textures") if isinstance(result.get("textures"), dict) else {}
+            ready_count = int((textures or {}).get("ready") or 0)
+            total_count = int((textures or {}).get("urls") or 0)
+            if total_count:
+                print(colorize_log(
+                    f"[launcher] Authlib texture profile and PNG cache prewarmed ({ready_count}/{total_count})"
+                ))
+            else:
+                print(colorize_log("[launcher] Authlib texture profile cache prewarmed"))
+        elif result.get("profile_ready"):
+            print(colorize_log("[launcher] Authlib texture profile cache prewarmed; PNG cache still warming"))
+        elif result.get("already_running"):
+            print(colorize_log("[launcher] Authlib texture profile cache prewarm already running"))
+        else:
+            print(colorize_log("[launcher] Authlib texture profile cache prewarm continuing in background"))
+    except Exception as e:
+        print(colorize_log(f"[launcher] Warning: authlib texture prewarm failed: {e}"))
+
+
 def _is_direct_legacy_forge_launch(loader_key: str, legacy_runtime: bool, main_class: str) -> bool:
     return (
         loader_key == "forge"
         and legacy_runtime
         and str(main_class or "").strip() == "net.minecraft.client.Minecraft"
     )
+
+
+def _make_local_shim_temp_dir() -> str:
+    default_tmp = tempfile.gettempdir()
+    if not default_tmp.startswith("\\\\"):
+        return tempfile.mkdtemp(prefix="hl_legacy_forge_appdata_")
+
+    local_appdata = os.environ.get("LOCALAPPDATA", "")
+    if local_appdata and not local_appdata.startswith("\\\\"):
+        local_tmp = os.path.join(local_appdata, "Temp")
+        try:
+            os.makedirs(local_tmp, exist_ok=True)
+            return tempfile.mkdtemp(prefix="hl_legacy_forge_appdata_", dir=local_tmp)
+        except OSError:
+            pass
+
+    return tempfile.mkdtemp(prefix="hl_legacy_forge_appdata_")
+
+
+def _create_ntfs_junction(link_path: str, target_path: str) -> None:
+    import ctypes
+    import struct
+
+    GENERIC_WRITE                = 0x40000000
+    FILE_SHARE_READ              = 0x00000001
+    FILE_SHARE_WRITE             = 0x00000002
+    OPEN_EXISTING                = 3
+    FILE_FLAG_BACKUP_SEMANTICS   = 0x02000000
+    FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
+    IO_REPARSE_TAG_MOUNT_POINT   = 0xA0000003
+    FSCTL_SET_REPARSE_POINT      = 0x000900A4
+
+    abs_target = os.path.abspath(target_path)
+    if abs_target.startswith("\\\\"):
+        subst = "\\??\\" + "UNC\\" + abs_target[2:]
+    else:
+        subst = "\\??\\" + abs_target
+
+    subst_b  = subst.encode("utf-16-le")
+    print_b  = abs_target.encode("utf-16-le")
+    path_buf = subst_b + b"\x00\x00" + print_b + b"\x00\x00"
+
+    rdb = struct.pack(
+        "<IHHHHHH",
+        IO_REPARSE_TAG_MOUNT_POINT,
+        8 + len(path_buf),
+        0,
+        0,            len(subst_b),
+        len(subst_b) + 2, len(print_b),
+    ) + path_buf
+
+    os.mkdir(link_path)
+    k32 = ctypes.windll.kernel32
+    h = k32.CreateFileW(
+        link_path,
+        GENERIC_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        None, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT,
+        None,
+    )
+    if h == -1:
+        err = ctypes.GetLastError()
+        try:
+            os.rmdir(link_path)
+        except OSError:
+            pass
+        raise OSError(err, f"CreateFileW failed (error {err})")
+
+    buf = ctypes.create_string_buffer(rdb)
+    try:
+        ok = k32.DeviceIoControl(
+            h, FSCTL_SET_REPARSE_POINT,
+            buf, len(rdb),
+            None, 0,
+            ctypes.byref(ctypes.c_ulong(0)), None,
+        )
+        if not ok:
+            err = ctypes.GetLastError()
+            raise OSError(err, f"DeviceIoControl(FSCTL_SET_REPARSE_POINT) failed (error {err})")
+    finally:
+        k32.CloseHandle(h)
 
 
 def _prepare_legacy_forge_appdata_shim(game_dir: str) -> str:
@@ -190,26 +318,38 @@ def _prepare_legacy_forge_appdata_shim(game_dir: str) -> str:
         except Exception:
             pass
 
-    shim_root = tempfile.mkdtemp(prefix="hl_legacy_forge_appdata_")
+    shim_root = _make_local_shim_temp_dir()
     link_path = os.path.join(shim_root, ".minecraft")
+
     try:
-        result = subprocess.run(
-            ["cmd", "/c", "mklink", "/J", link_path, game_dir],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            **no_window_kwargs(),
-        )
-        if result.returncode == 0 and os.path.isdir(link_path):
+        _create_ntfs_junction(link_path, game_dir)
+        if os.path.isdir(link_path):
             print(colorize_log(
                 f"[launcher] Created legacy Forge APPDATA shim: {link_path} -> {game_dir}"
             ))
             return shim_root
-        detail = (result.stderr or result.stdout or "junction command failed").strip()
-        print(colorize_log(f"[launcher] Warning: Could not create legacy Forge APPDATA shim: {detail}"))
-    except Exception as e:
-        print(colorize_log(f"[launcher] Warning: Could not create legacy Forge APPDATA shim: {e}"))
+    except OSError as e:
+        print(colorize_log(
+            f"[launcher] Warning: NTFS junction for legacy Forge APPDATA shim failed: {e}"
+            " — trying symlink fallback"
+        ))
 
+    try:
+        os.symlink(game_dir, link_path, target_is_directory=True)
+        if os.path.isdir(link_path):
+            print(colorize_log(
+                f"[launcher] Created legacy Forge APPDATA shim (symlink): {link_path} -> {game_dir}"
+            ))
+            return shim_root
+    except (OSError, NotImplementedError):
+        pass
+
+    print(colorize_log(
+        "[launcher] Warning: Could not redirect APPDATA for legacy Forge "
+        "(NTFS junction and symlink both failed). "
+        "Old Forge will write to %APPDATA%\\.minecraft instead of the configured storage directory. "
+        "If your storage directory is on a network share, move it to a local drive."
+    ))
     _cleanup_legacy_forge_appdata_shim(shim_root)
     return ""
 
@@ -219,17 +359,12 @@ def _cleanup_legacy_forge_appdata_shim(shim_root: str) -> None:
         return
     link_path = os.path.join(shim_root, ".minecraft")
     try:
-        if os.path.isdir(link_path):
-            subprocess.run(
-                ["cmd", "/c", "rmdir", link_path],
-                capture_output=True,
-                text=True,
-                timeout=10,
-                **no_window_kwargs(),
-            )
-    except Exception as e:
+        os.rmdir(link_path)
+    except FileNotFoundError:
+        pass
+    except OSError as e:
         print(colorize_log(f"[launcher] Warning: Could not remove legacy Forge APPDATA junction: {e}"))
-    if os.path.isdir(link_path):
+    if os.path.exists(link_path) or os.path.islink(link_path):
         try:
             os.rmdir(shim_root)
         except Exception:
@@ -260,6 +395,9 @@ def _launch_version_once(
     modloader_overwrite_dir_override=None,
     track_copied_mods=True,
     notify_on_crash=True,
+    server_address=None,
+    server_port=None,
+    server_mppass=None,
 ):
     base_dir = get_base_dir()
     version_dir = _resolve_version_dir(version_identifier)
@@ -482,6 +620,23 @@ def _launch_version_once(
 
     legacy_direct_buffer_patch = ""
     if _is_legacy_pre16_runtime(version_identifier):
+        unsigned_client_rel = _prepare_legacy_unsigned_client_jar(version_dir)
+        if unsigned_client_rel:
+            updated_entries: list = []
+            replaced_client = False
+            for entry in classpath_entries:
+                entry_norm = (entry or "").replace("\\", "/").strip().lower()
+                if entry_norm in ("client.jar", "./client.jar"):
+                    updated_entries.append(unsigned_client_rel)
+                    replaced_client = True
+                else:
+                    updated_entries.append(entry)
+            if replaced_client:
+                classpath_entries = updated_entries
+                print(colorize_log(
+                    f"[launcher] Using unsigned legacy client.jar for compatibility: {unsigned_client_rel}"
+                ))
+
         legacy_applet_window_patch = _prepare_legacy_applet_window_patch(version_dir)
         if legacy_applet_window_patch and legacy_applet_window_patch not in classpath_entries:
             classpath_entries.insert(0, legacy_applet_window_patch)
@@ -492,8 +647,31 @@ def _launch_version_once(
 
     classpath = _join_classpath(version_dir, classpath_entries)
     username = username_override or global_settings.get("username", "Player")
-    min_ram = (meta.get("launch_min_ram") or global_settings.get("min_ram") or "2048M")
-    max_ram = (meta.get("launch_max_ram") or global_settings.get("max_ram") or "4096M")
+    auto_launch_settings: dict = {}
+    auto_optimize_launch = _is_truthy_setting(
+        global_settings.get("auto_optimize_launch_settings", "1")
+    )
+    if auto_optimize_launch:
+        try:
+            from core.settings.smart import recommend_smart_settings
+
+            auto_launch_settings = recommend_smart_settings(global_settings)
+        except Exception as exc:
+            print(colorize_log(f"[launcher] Auto Optimize failed; using saved JVM settings: {exc}"))
+            auto_launch_settings = {}
+
+    min_ram = (
+        meta.get("launch_min_ram")
+        or auto_launch_settings.get("min_ram")
+        or global_settings.get("min_ram")
+        or "2048M"
+    )
+    max_ram = (
+        meta.get("launch_max_ram")
+        or auto_launch_settings.get("max_ram")
+        or global_settings.get("max_ram")
+        or "4096M"
+    )
     selected_java_setting = (global_settings.get("java_path") or "").strip()
     if java_runtime_override:
         java_executable = str(java_runtime_override).strip()
@@ -508,12 +686,20 @@ def _launch_version_once(
     global_extra_jvm_args_raw = (
         meta.get("launch_extra_jvm_args")
         if str(meta.get("launch_extra_jvm_args") or "").strip()
-        else global_settings.get("extra_jvm_args")
+        else auto_launch_settings.get("extra_jvm_args")
+        or global_settings.get("extra_jvm_args")
         or ""
     ).strip()
+    if auto_launch_settings:
+        memory = auto_launch_settings.get("memory") if isinstance(auto_launch_settings.get("memory"), dict) else {}
+        print(colorize_log(
+            "[launcher] Auto Optimize selected JVM settings: "
+            f"-Xms{min_ram} -Xmx{max_ram} "
+            f"({int((memory or {}).get('available_mb') or 0)} MB available)"
+        ))
     game_dir = _resolve_game_dir(global_settings, version_dir)
     if loader and loader.lower() == "neoforge":
-        _ensure_neoforge_early_window_disabled(game_dir)
+        _restore_neoforge_early_window(game_dir)
 
     assets_root_override = _prepare_legacy_assets_directory(version_identifier, version_dir, game_dir, meta)
     if assets_root_override:
@@ -682,8 +868,32 @@ def _launch_version_once(
 
     native_folder = meta.get("native_subfolder") or _native_subfolder_for_platform()
     native_path = os.path.join(version_dir, native_folder)
+    refresh_native_binaries = False
+    if loader:
+        loader_type_for_natives = str(loader or "").strip().lower()
+        loader_prefix = f"loaders/{loader_type_for_natives}/"
+        loader_has_native_jars = any(
+            str(entry or "").replace("\\", "/").lower().startswith(loader_prefix)
+            and _is_platform_specific_runtime_jar(os.path.basename(entry))
+            for entry in classpath_entries
+        )
+        actual_loader_version = loader_version or _get_loader_version(
+            version_dir, loader_type_for_natives
+        )
+        if loader_has_native_jars and actual_loader_version:
+            native_path = os.path.join(
+                version_dir,
+                "loaders",
+                loader_type_for_natives,
+                actual_loader_version,
+                native_folder,
+            )
+            refresh_native_binaries = True
+            print(colorize_log(
+                f"[launcher] Using isolated {loader_type_for_natives} native runtime directory"
+            ))
     if any(_is_platform_specific_runtime_jar(os.path.basename(entry)) for entry in classpath_entries):
-        if not _native_directory_has_binaries(native_path):
+        if refresh_native_binaries or not _native_directory_has_binaries(native_path):
             used_jars, extracted_files = _extract_current_platform_native_binaries(
                 version_dir, classpath_entries, native_path,
             )
@@ -1037,6 +1247,15 @@ def _launch_version_once(
     if launch_auth_info is None:
         launch_auth_info = get_launch_auth_info()
     username = launch_auth_info["username"]
+    _prewarm_authlib_textures_for_launch(ygg_port, launch_auth_info)
+    server_host = str(server_address or "").strip()
+    try:
+        server_port_value = int(server_port or 25565)
+    except (TypeError, ValueError):
+        server_port_value = 25565
+    if not (1 <= server_port_value <= 65535):
+        server_port_value = 25565
+    server_mppass_value = str(server_mppass or "").strip()
 
     expanded_game_args: list = []
     extra = meta.get("extra_jvm_args")
@@ -1107,6 +1326,13 @@ def _launch_version_once(
 
     if has_flag_style_game_args:
         _apply_window_launch_settings(cmd, global_settings, meta)
+
+    if server_host and has_flag_style_game_args and not _is_legacy_pre16_runtime(version_identifier):
+        _set_or_append_cli_arg(cmd, "--server", server_host)
+        _set_or_append_cli_arg(cmd, "--port", str(server_port_value))
+        print(colorize_log(
+            f"[launcher] Connecting to server: {server_host}:{server_port_value}"
+        ))
 
     if loader and loader.lower() == "forge" and main_class == "cpw.mods.modlauncher.Launcher":
         mc_ver = (
@@ -1396,16 +1622,41 @@ def _launch_version_once(
     # Suppress the stray Windows console java.exe would otherwise allocate
     # when pythonw (no console) is the parent process.
     _popen_kwargs = no_window_kwargs()
+    if server_host and _is_legacy_pre16_runtime(version_identifier):
+        launch_env = _popen_kwargs.get("env") or os.environ.copy()
+        launch_env["HISTOLAUNCHER_SERVER_HOST"] = server_host
+        launch_env["HISTOLAUNCHER_SERVER_PORT"] = str(server_port_value)
+        if server_mppass_value:
+            launch_env["HISTOLAUNCHER_SERVER_MPPASS"] = server_mppass_value
+        else:
+            launch_env.pop("HISTOLAUNCHER_SERVER_MPPASS", None)
+        _popen_kwargs["env"] = launch_env
+        print(colorize_log(
+            f"[launcher] Prepared legacy applet server parameters for {server_host}:{server_port_value}"
+        ))
     legacy_forge_appdata_shim = ""
     if _is_direct_legacy_forge_launch(loader_key, legacy_runtime, main_class):
         legacy_forge_appdata_shim = _prepare_legacy_forge_appdata_shim(game_dir)
         if legacy_forge_appdata_shim:
-            launch_env = os.environ.copy()
+            launch_env = _popen_kwargs.get("env") or os.environ.copy()
             launch_env["APPDATA"] = legacy_forge_appdata_shim
             _popen_kwargs["env"] = launch_env
             print(colorize_log(
                 f"[launcher] Redirecting legacy Forge APPDATA to selected game directory via {legacy_forge_appdata_shim}"
             ))
+    if ygg_port > 0 and launch_auth_info:
+        launch_env = _popen_kwargs.get("env") or os.environ.copy()
+        launch_env["HISTOLAUNCHER_AUTHLIB_PRELOAD_UUID"] = str(
+            (launch_auth_info or {}).get("uuid_hex") or ""
+        )
+        launch_env["HISTOLAUNCHER_AUTHLIB_PRELOAD_NAME"] = str(
+            (launch_auth_info or {}).get("username") or ""
+        )
+        launch_env["HISTOLAUNCHER_AUTHLIB_ACCOUNT_TYPE"] = str(
+            global_settings.get("account_type") or "Local"
+        )
+        launch_env["HISTOLAUNCHER_PORT"] = str(ygg_port)
+        _popen_kwargs["env"] = launch_env
     try:
         log_file_path, log_file = _create_version_log_file(version_identifier)
 
@@ -1456,6 +1707,7 @@ def _launch_version_once(
             log_file_path,
             tracked_copied_mods,
             notify_on_crash=notify_on_crash,
+            loader=loader_key or None,
         )
 
         print(colorize_log(f"[launcher] Process launched with ID: {process_id}"))
@@ -1487,13 +1739,18 @@ def _classify_auto_java_attempt_failure(log_text: str) -> str:
     if (
         "unsupportedclassversionerror" in lower
         or "has been compiled by a more recent version" in lower
-        or "class file version" in lower and "only recognizes class file versions up to" in lower
+        or (
+            "class file version" in lower
+            and "only recognizes class file versions up to" in lower
+        )
     ):
         return "java_too_old"
     if (
         "unrecognized vm option" in lower
         or "unrecognized option:" in lower
         or "invalid maximum heap size" in lower
+        or "too small initial heap" in lower
+        or "invalid initial heap size" in lower
         or "could not reserve enough space for object heap" in lower
         or "could not create the java virtual machine" in lower
     ):
@@ -1502,8 +1759,13 @@ def _classify_auto_java_attempt_failure(log_text: str) -> str:
         "---- minecraft crash report ----" in lower
         or "exception in thread" in lower
         or "net.minecraftforge.fml.loading.modloadingworker" in lower
+        or "net.neoforged.fml.loading" in lower
         or "modloadingexception" in lower
-        or "fabricloader" in lower and "exception" in lower
+        or "modresolutionexception" in lower
+        or "incompatible mods found" in lower
+        or "mixinapplyerror" in lower
+        or ("fabricloader" in lower and "exception" in lower)
+        or ("quiltloader" in lower and "exception" in lower)
     ):
         return "minecraft_crash"
     return "unknown"
@@ -1512,44 +1774,35 @@ def _classify_auto_java_attempt_failure(log_text: str) -> str:
 def _auto_java_attempt_message(failure_kind: str, java_display: str, log_path: str) -> str:
     if failure_kind == "jvm_configuration":
         return (
-            f"Auto Java selected {java_display}, but the JVM rejected the launch options.\n"
-            "Changing Java versions is unlikely to help until the JVM settings are fixed."
+            f"<i>Auto Java selected {java_display}, but the JVM rejected the launch options.\n"
+            "Changing Java versions may not help, try fixing the JVM settings first and try again.</i>"
         )
     if failure_kind == "minecraft_crash":
         return (
-            f"Auto Java selected {java_display}, but Minecraft crashed during startup.\n"
-            "This does not look like a Java version mismatch, so Auto stopped trying other runtimes."
+            f"<i>Auto Java selected {java_display}, but Minecraft crashed during startup.\n"
+            "This does not look like a Java version mismatch, so Auto stopped trying other runtimes.</i>"
         )
     return (
-        f"Auto Java selected {java_display}, but the game exited during startup.\n"
-        "Auto stopped here so the first useful crash log is easier to debug."
-    ) + (f"\nCrash log: {log_path}" if log_path else "")
+        f"<i>Auto Java selected {java_display}, but the game exited during startup.\n"
+        "Auto stopped here so you can review the crash details (if any).</i>"
+    )
 
 
-def launch_version(version_identifier, username_override=None, loader=None, loader_version=None):
+def launch_version(
+    version_identifier,
+    username_override=None,
+    loader=None,
+    loader_version=None,
+    server_address=None,
+    server_port=None,
+    server_mppass=None,
+):
     version_dir = _resolve_version_dir(version_identifier)
     if not version_dir:
         _set_last_launch_error(
             version_identifier, f"Version directory not found for {version_identifier}"
         )
         return False
-
-    try:
-        from server import yggdrasil as _ygg
-        from server.yggdrasil import _get_username_and_uuid
-
-        try:
-            _uname, _uhex = _get_username_and_uuid()
-        except Exception:
-            _uname, _uhex = "", ""
-        threading.Thread(
-            target=_ygg.cache_textures,
-            args=(_uhex, _uname),
-            kwargs={"probe_remote": True},
-            daemon=True,
-        ).start()
-    except Exception:
-        pass
 
     global_settings = load_global_settings() or {}
     game_dir, game_dir_error = _resolve_game_dir_with_error(global_settings, version_dir)
@@ -1570,8 +1823,37 @@ def launch_version(version_identifier, username_override=None, loader=None, load
         loader_key and (loader_key == "modloader" or allow_override_for_all_modloaders)
     )
 
-    candidates, target_java_major = _resolve_java_launch_candidates(selected_mode, version_dir)
+    modloader_overwrite_dir = ""
+    if allow_overwrite_classpath_for_loader:
+        modloader_overwrite_dir = _prepare_modloader_overwrite_layer(loader_key)
+
+    copied_mods = []
+    if game_dir:
+        copied_mods = _stage_addons_for_launch(game_dir, loader)
+    if modloader_overwrite_dir and os.path.isdir(modloader_overwrite_dir):
+        copied_mods.append(modloader_overwrite_dir)
+
+    java_scan_paths = []
+    seen_java_scan_paths = set()
+    for scan_path in [*copied_mods, *_collect_game_mod_java_scan_paths(game_dir)]:
+        if not scan_path:
+            continue
+        if not os.path.isdir(scan_path) and not _is_supported_mod_archive(os.path.basename(scan_path)):
+            continue
+        normalized_scan_path = os.path.normcase(os.path.normpath(scan_path))
+        if normalized_scan_path in seen_java_scan_paths:
+            continue
+        seen_java_scan_paths.add(normalized_scan_path)
+        java_scan_paths.append(scan_path)
+
+    candidates, target_java_major = _resolve_java_launch_candidates(
+        selected_mode,
+        version_dir,
+        java_scan_paths,
+    )
     if not candidates:
+        if copied_mods:
+            _cleanup_copied_mods(copied_mods)
         if selected_mode == JAVA_RUNTIME_MODE_AUTO and target_java_major > 0:
             install_java_major = suggest_java_feature_version(target_java_major)
             _set_last_launch_diagnostic(
@@ -1587,7 +1869,7 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             _set_last_launch_error(
                 version_identifier,
                 f"Auto Java selection could not find a compatible runtime for <b>{version_identifier}</b>.\n\n"
-                f"The version targets <b>Java {target_java_major}</b>.\n\n"
+                f"The launch files target <b>Java {target_java_major}</b>.\n\n"
                 f"Open the Java Runtime dropdown in Settings and choose <i>'+ Install Java'</i> to install <b>Java {install_java_major}</b> or newer.",
             )
             return False
@@ -1595,16 +1877,6 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             version_identifier, "No Java runtime candidates were found for launch."
         )
         return False
-
-    modloader_overwrite_dir = ""
-    if allow_overwrite_classpath_for_loader:
-        modloader_overwrite_dir = _prepare_modloader_overwrite_layer(loader_key)
-
-    copied_mods = []
-    if game_dir:
-        copied_mods = _stage_addons_for_launch(game_dir, loader)
-    if modloader_overwrite_dir and os.path.isdir(modloader_overwrite_dir):
-        copied_mods.append(modloader_overwrite_dir)
 
     auto_mode = selected_mode == JAVA_RUNTIME_MODE_AUTO
     tried_labels: list = []
@@ -1638,6 +1910,9 @@ def launch_version(version_identifier, username_override=None, loader=None, load
             modloader_overwrite_dir_override=modloader_overwrite_dir,
             track_copied_mods=not auto_mode,
             notify_on_crash=not auto_mode,
+            server_address=server_address,
+            server_port=server_port,
+            server_mppass=server_mppass,
         )
 
         if not process_id:

@@ -14,7 +14,7 @@ from core.version_manager import get_clients_dir, scan_categories
 
 from server.api._helpers import (
     _is_enabled_setting,
-    _is_path_within,
+    _resolve_version_dir_secure,
     _normalize_operation_id,
     _cancel_operation_request,
     _update_rpc_install_presence,
@@ -259,19 +259,17 @@ def api_delete_version(data):
     if not _validate_version_string(folder):
         return {"ok": False, "error": "invalid folder format"}
 
-    clients_dir = get_clients_dir()
-    version_dir = os.path.join(clients_dir, category.lower(), folder)
+    resolved = _resolve_version_dir_secure(category, folder)
+    if not resolved.get("ok"):
+        return {"ok": False, "error": resolved.get("error") or "version directory does not exist"}
 
-    if not _is_path_within(clients_dir, version_dir):
-        return {"ok": False, "error": "invalid version path"}
-
-    if not os.path.isdir(version_dir):
-        return {"ok": False, "error": "version directory does not exist"}
+    version_dir = resolved.get("path") or ""
 
     try:
         shutil.rmtree(version_dir)
         version_key = f"{category.lower()}/{folder}"
         _progress.delete_progress(version_key)
+        _progress.delete_progress(f"{category}/{folder}")
         scan_categories(force_refresh=True)
         invalidate_available_versions_cache()
         return {"ok": True}
