@@ -9,9 +9,11 @@ from core.downloader._legacy.loaders.forge._const import (
 )
 from core.downloader._legacy.loaders.forge._context import ForgeContext
 
+from core.logger import safe_print
+
 
 def extract_service_providers(ctx: ForgeContext) -> None:
-    print("[forge] Extracting service providers from Forge JARs...")
+    safe_print("[forge] Extracting service providers from Forge JARs...")
     services_dest = os.path.join(ctx.loader_dest_dir, "META-INF", "services")
     os.makedirs(services_dest, exist_ok=True)
 
@@ -20,7 +22,7 @@ def extract_service_providers(ctx: ForgeContext) -> None:
         jar_files = [
             f for f in os.listdir(ctx.loader_dest_dir) if f.endswith(".jar")
         ]
-        print(
+        safe_print(
             f"[forge] Found {len(jar_files)} JARs to scan for service providers"
         )
         for jar_filename in sorted(jar_files):
@@ -39,7 +41,7 @@ def extract_service_providers(ctx: ForgeContext) -> None:
                                     with open(service_file, "wb") as f:
                                         f.write(content)
                                     services_copied += 1
-                                    print(
+                                    safe_print(
                                         "[forge] Extracted service from "
                                         f"{jar_filename}: {service_name}"
                                     )
@@ -47,21 +49,21 @@ def extract_service_providers(ctx: ForgeContext) -> None:
                 pass
 
         if services_copied > 0:
-            print(
+            safe_print(
                 f"[forge] Total: {services_copied} service provider files "
                 "extracted"
             )
         else:
-            print(
+            safe_print(
                 "[forge] Note: No service providers found in JARs (they may "
                 "still be discoverable)"
             )
     except Exception as e:
-        print(f"[forge] Warning: Error extracting service providers: {e}")
+        safe_print(f"[forge] Warning: Error extracting service providers: {e}")
 
 
 def extract_bootstrap_configs(ctx: ForgeContext) -> None:
-    print("[forge] Extracting bootstrap configuration files...")
+    safe_print("[forge] Extracting bootstrap configuration files...")
     bootstrap_extracted = False
     try:
         if not ctx.is_installer_archive:
@@ -86,13 +88,13 @@ def extract_bootstrap_configs(ctx: ForgeContext) -> None:
                         dst_path = os.path.join(ctx.loader_dest_dir, basename)
                         with open(dst_path, "wb") as f:
                             f.write(content)
-                        print(
+                        safe_print(
                             "[forge] Extracted critical bootstrap file: "
                             f"{basename}"
                         )
                         bootstrap_extracted = True
                     except Exception as e:
-                        print(
+                        safe_print(
                             f"[forge] Warning: Could not extract {entry}: {e}"
                         )
 
@@ -114,7 +116,7 @@ def extract_bootstrap_configs(ctx: ForgeContext) -> None:
                             )
                             with open(sub_path, "wb") as f:
                                 f.write(content)
-                            print(
+                            safe_print(
                                 "[forge] Extracted bootstrap config: "
                                 f"{os.path.basename(entry)}"
                             )
@@ -122,21 +124,21 @@ def extract_bootstrap_configs(ctx: ForgeContext) -> None:
                             pass
 
         if bootstrap_extracted:
-            print("[forge] Bootstrap files extracted successfully")
+            safe_print("[forge] Bootstrap files extracted successfully")
         else:
-            print("[forge] Note: No explicit bootstrap-shim.list found")
-            print(
+            safe_print("[forge] Note: No explicit bootstrap-shim.list found")
+            safe_print(
                 "[forge] This is normal for Forge 36.x - using extracted "
                 "JARs for bootstrap"
             )
     except Exception as e:
-        print(f"[forge] Warning: Could not extract bootstrap files: {e}")
+        safe_print(f"[forge] Warning: Could not extract bootstrap files: {e}")
 
 
 def patch_or_create_log4j_config(ctx: ForgeContext) -> None:
     log4j_config_path = os.path.join(ctx.loader_dest_dir, "log4j2.xml")
     if not os.path.exists(log4j_config_path):
-        print(
+        safe_print(
             "[forge] log4j2.xml not found at top level, searching Forge JARs..."
         )
         forge_jars = [
@@ -162,7 +164,7 @@ def patch_or_create_log4j_config(ctx: ForgeContext) -> None:
                                 )
                                 with open(dst_path, "wb") as f:
                                     f.write(content)
-                                print(
+                                safe_print(
                                     f"[forge] Extracted {config_name} from "
                                     f"{jar_file}"
                                 )
@@ -185,27 +187,27 @@ def patch_or_create_log4j_config(ctx: ForgeContext) -> None:
                 m in log4j_content for m in LOG4J_INCOMPATIBLE_MARKERS
             )
             if has_incompatible:
-                print("[forge] Detected incompatible log4j2.xml components")
-                print("[forge] Replacing with compatible fallback...")
+                safe_print("[forge] Detected incompatible log4j2.xml components")
+                safe_print("[forge] Replacing with compatible fallback...")
                 with open(log4j_config_path, "w") as f:
                     f.write(FALLBACK_LOG4J_XML)
-                print("[forge] Replaced with compatible log4j2.xml")
+                safe_print("[forge] Replaced with compatible log4j2.xml")
         except Exception as e:
-            print(f"[forge] Could not check log4j2.xml: {e}")
+            safe_print(f"[forge] Could not check log4j2.xml: {e}")
 
     if not os.path.exists(log4j_config_path):
-        print("[forge] WARNING: log4j2.xml not found in any Forge JAR")
-        print("[forge] Creating compatible log4j2.xml configuration...")
+        safe_print("[forge] WARNING: log4j2.xml not found in any Forge JAR")
+        safe_print("[forge] Creating compatible log4j2.xml configuration...")
         try:
             with open(log4j_config_path, "w") as f:
                 f.write(FALLBACK_LOG4J_XML)
-            print(
+            safe_print(
                 "[forge] Created compatible log4j2.xml (using standard "
                 "appenders)"
             )
             ctx.files_copied += 1
         except Exception as e:
-            print(f"[forge] Failed to create log4j2.xml: {e}")
+            safe_print(f"[forge] Failed to create log4j2.xml: {e}")
 
 
 __all__ = [

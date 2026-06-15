@@ -10,7 +10,7 @@ from typing import Any
 from core.downloader.installers.loaders import dispatch as core_downloader
 from core import modloaders as core_modloaders
 from core.discord_rpc import set_install_presence
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.notifications import send_desktop_notification
 from core.version_manager import get_clients_dir, get_version_loaders, scan_categories
 
@@ -77,8 +77,11 @@ def _filter_active_loader_installs(installed: dict[str, list[dict[str, Any]]], c
 
 def _fetch_available_loader_catalog(folder: str):
     fabric_loaders = core_modloaders.get_fabric_loaders_for_version(folder, stable_only=False)
+    legacyfabric_loaders = core_modloaders.get_legacyfabric_loaders_for_version(folder, stable_only=False)
     babric_loaders = core_modloaders.get_babric_loaders_for_version(folder, stable_only=False)
+    ornithe_loaders = core_modloaders.get_ornithe_loaders_for_version(folder, stable_only=False)
     forge_versions = core_modloaders.get_forge_versions_for_mc(folder)
+    liteloader_versions = core_modloaders.get_liteloader_versions_for_mc(folder)
     modloader_versions = core_modloaders.get_modloader_versions_for_mc(folder)
     quilt_loaders = core_modloaders.get_quilt_loaders_for_version(folder, stable_only=False)
     neoforge_versions = core_modloaders.get_neoforge_versions_for_mc(folder)
@@ -92,15 +95,30 @@ def _fetch_available_loader_catalog(folder: str):
             for loader in fabric_loaders
             if loader.get("version")
         ],
+        "legacyfabric": [
+            {"version": loader.get("version"), "stable": loader.get("stable", False)}
+            for loader in legacyfabric_loaders
+            if loader.get("version")
+        ],
         "babric": [
             {"version": loader.get("version"), "stable": loader.get("stable", False)}
             for loader in babric_loaders
+            if loader.get("version")
+        ],
+        "ornithe": [
+            {"version": loader.get("version"), "stable": loader.get("stable", False)}
+            for loader in ornithe_loaders
             if loader.get("version")
         ],
         "forge": [
             {"version": fv.get("forge_version")}
             for fv in forge_versions
             if fv.get("forge_version")
+        ],
+        "liteloader": [
+            {"version": ll.get("version"), "stable": ll.get("stable", False)}
+            for ll in liteloader_versions
+            if ll.get("version")
         ],
         "modloader": [
             {"version": ml.get("modloader_version"), "stable": True}
@@ -133,7 +151,7 @@ def _get_available_loader_catalog(folder: str):
     try:
         available, total_available = _fetch_available_loader_catalog(folder)
     except Exception as e:
-        print(colorize_log(f"[api] Loader catalog fetch failed for {folder}: {e}"))
+        safe_print(f"[api] Loader catalog fetch failed for {folder}: {e}")
         with _LOADER_CATALOG_CACHE_LOCK:
             cached = _LOADER_CATALOG_CACHE.get(cache_key)
             if cached:
@@ -316,17 +334,17 @@ def api_install_loader(data: Any):
                         icon_kind="installed",
                     )
                 except Exception as e:
-                    print(colorize_log(f"[api] Could not send notification: {e}"))
+                    safe_print(f"[api] Could not send notification: {e}")
 
-                print(colorize_log(
+                safe_print(
                     f"[api] {_loader_display_name(loader_type)} {loader_version} "
                     f"installed successfully for {install_key}"
-                ))
+                )
             else:
                 error_msg = result.get("error", "Unknown error")
-                print(colorize_log(f"[api] Failed to install {loader_type} loader: {error_msg}"))
+                safe_print(f"[api] Failed to install {loader_type} loader: {error_msg}")
         except Exception as e:
-            print(colorize_log(f"[api] Exception during loader installation: {e}"))
+            safe_print(f"[api] Exception during loader installation: {e}")
         finally:
             with STATE.loader_install_lock:
                 STATE.active_loader_install_keys.discard(install_key)
@@ -380,9 +398,9 @@ def api_delete_loader(data: Any):
             return {"ok": False, "error": f"Loader directory not found: {loader_path}"}
 
         shutil.rmtree(loader_path)
-        print(colorize_log(
+        safe_print(
             f"[api] Deleted {loader_type} loader {loader_version} for {category}/{folder}"
-        ))
+        )
 
         scan_categories(force_refresh=True)
 

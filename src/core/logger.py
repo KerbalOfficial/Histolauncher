@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
+import re
 import sys
+import threading
 from datetime import datetime
 from typing import Final
 
@@ -40,7 +43,7 @@ TAG_COLORS: Final[dict[str, str]] = {
     "version_manager": Colors.CYAN,
     "downloader": Colors.MAGENTA,
     "modloaders": Colors.BLUE,
-    "mods": Colors.GREEN,
+    "addons": Colors.GREEN,
     "progress": Colors.BRIGHT_MAGENTA,
     "microsoft_auth": Colors.RED,
 }
@@ -48,6 +51,8 @@ TAG_COLORS: Final[dict[str, str]] = {
 
 class SafeStreamHandler(logging.StreamHandler):
     def emit(self, record: logging.LogRecord) -> None:
+        if _console_quiet.is_set():
+            return
         try:
             super().emit(record)
         except UnicodeEncodeError:
@@ -60,16 +65,90 @@ class SafeStreamHandler(logging.StreamHandler):
                 self.handleError(record)
 
 
-def _safe_print(message: object) -> None:
+def safe_print(*args: object, **kwargs: object) -> None:
+    sep = str(kwargs.get("sep", " ")) if kwargs.get("sep") is not None else " "
+    plain = sep.join(str(a) for a in args)
+    _append_safe_print_log(plain)
+
+    if _console_quiet.is_set():
+        return
+
+    prev = getattr(_safe_print_local, "active", False)
+    _safe_print_local.active = True
     try:
-        print(message)
-    except UnicodeEncodeError:
-        stream = getattr(sys, "stdout", None)
-        if stream is None:
-            return
-        safe_message = str(message).encode("utf-8", errors="replace").decode("utf-8")
-        stream.write(safe_message + "\n")
-        stream.flush()
+        try:
+            if len(args) == 1:
+                print(colorize_log(args[0]), **kwargs)  # type: ignore[arg-type]
+            else:
+                print(*args, **kwargs)  # type: ignore[arg-type]
+        except UnicodeEncodeError:
+            stream = kwargs.get("file") or getattr(sys, "stdout", None)
+            if stream is None:
+                return
+            end = str(kwargs.get("end", "\n"))
+            safe_message = plain.encode("utf-8", errors="replace").decode("utf-8")
+            try:
+                stream.write(safe_message + end)
+                if kwargs.get("flush"):
+                    stream.flush()
+            except Exception:
+                pass
+    finally:
+        _safe_print_local.active = prev
+
+
+_safe_print_local = threading.local()
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+_safe_print_log_path: str | None = None
+_safe_print_log_resolved = False
+_safe_print_log_lock = threading.Lock()
+_console_quiet = threading.Event()
+
+
+def set_console_quiet(quiet: bool) -> None:
+    if quiet:
+        _console_quiet.set()
+    else:
+        _console_quiet.clear()
+
+
+def is_console_quiet() -> bool:
+    return _console_quiet.is_set()
+
+
+def is_in_safe_print() -> bool:
+    return bool(getattr(_safe_print_local, "active", False))
+
+
+@contextlib.contextmanager
+def safe_print_context():
+    prev = getattr(_safe_print_local, "active", False)
+    _safe_print_local.active = True
+    try:
+        yield
+    finally:
+        _safe_print_local.active = prev
+
+
+def _append_safe_print_log(message: str) -> None:
+    global _safe_print_log_path, _safe_print_log_resolved
+    if not _safe_print_log_resolved:
+        with _safe_print_log_lock:
+            if not _safe_print_log_resolved:
+                _safe_print_log_path = _resolve_log_file()
+                _safe_print_log_resolved = True
+    path = _safe_print_log_path
+    if not path:
+        return
+    try:
+        plain = _ANSI_RE.sub("", message)
+        line = f"{datetime.now():%Y-%m-%d %H:%M:%S} {plain}\n"
+        with _safe_print_log_lock:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "a", encoding="utf-8", errors="replace") as f:
+                f.write(line)
+    except Exception:
+        pass
 
 
 def _resolve_log_file() -> str | None:
@@ -166,19 +245,19 @@ def colorize_log(message: str) -> str:
 
 
 def log_success(message: str) -> None:
-    _safe_print(f"{Colors.BRIGHT_GREEN}[OK] {message}{Colors.RESET}")
+    safe_print(f"{Colors.BRIGHT_GREEN}[OK] {message}{Colors.RESET}")
 
 
 def log_error(message: str) -> None:
-    _safe_print(f"{Colors.BRIGHT_RED}[ERR] {message}{Colors.RESET}")
+    safe_print(f"{Colors.BRIGHT_RED}[ERR] {message}{Colors.RESET}")
 
 
 def log_warning(message: str) -> None:
-    _safe_print(f"{Colors.BRIGHT_YELLOW}[WARN] {message}{Colors.RESET}")
+    safe_print(f"{Colors.BRIGHT_YELLOW}[WARN] {message}{Colors.RESET}")
 
 
 def log_info(message: str) -> None:
-    _safe_print(f"{Colors.BRIGHT_CYAN}[INFO] {message}{Colors.RESET}")
+    safe_print(f"{Colors.BRIGHT_CYAN}[INFO] {message}{Colors.RESET}")
 
 
 def dim_line(message: str) -> str:

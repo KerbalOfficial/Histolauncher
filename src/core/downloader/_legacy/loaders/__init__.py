@@ -13,7 +13,7 @@ from core.downloader._legacy.progress import (
     delete_progress,
     write_progress,
 )
-from core.logger import colorize_log
+from core.logger import safe_print
 
 
 def _resolve_loader_name() -> str:
@@ -103,9 +103,9 @@ def download_legacy_forge(
     except RuntimeError as e:
         if "cancel" in str(e).lower():
             error_msg = "Loader installation cancelled by user"
-            print(colorize_log(
+            safe_print(
                 f"[downloader] {loader_name} loader installation cancelled"
-            ))
+            )
             try:
                 if loaders_dir:
                     loader_dir = os.path.join(
@@ -116,9 +116,9 @@ def download_legacy_forge(
                         if os.path.exists(version_dir):
                             shutil.rmtree(version_dir, ignore_errors=True)
             except Exception as cleanup_err:
-                print(colorize_log(
+                safe_print(
                     f"[downloader] Warning: Could not clean up partial loader: {cleanup_err}"
-                ))
+                )
 
             write_progress(
                 version_key,
@@ -133,9 +133,9 @@ def download_legacy_forge(
             return {"ok": False, "error": error_msg}
 
         error_msg = f"Failed to install loader: {e}"
-        print(colorize_log(
+        safe_print(
             f"[downloader] Error installing {loader_name} loader: {e}"
-        ))
+        )
         write_progress(
             version_key,
             {
@@ -150,9 +150,9 @@ def download_legacy_forge(
 
     except Exception as e:
         error_msg = f"Failed to install loader: {e}"
-        print(colorize_log(
+        safe_print(
             f"[downloader] Error installing {loader_name} loader: {e}"
-        ))
+        )
         write_progress(
             version_key,
             {

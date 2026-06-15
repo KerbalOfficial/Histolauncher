@@ -266,8 +266,6 @@
       "customVersionFolder": "Özel (sürüme özel klasör)",
       "launchSettings": "Başlatma ayarları",
       "useGlobal": "Genel ayarı kullan",
-      "overrideFullscreen": "Tam ekran geçersiz kılma",
-      "fullscreen": "Tam ekran",
       "overrideDemoMode": "Demo Modu geçersiz kılma",
       "demoMode": "Demo Modu",
       "minimumRamOverride": "Minimum RAM geçersiz kılma",
@@ -419,10 +417,14 @@
     "typeModpacks": "Mod Paketleri",
     "typeResourcePacks": "Kaynak Paketleri",
     "typeShaderPacks": "Shader Paketleri",
+    "typeDatapacks": "Veri Paketleri",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "Shader Paketi İçe Aktar",
         "emptyInstalled": "Yüklü shader paketi yok",
         "emptyAvailable": "Shader paketi bulunamadı"
+      },
+      "datapacks": {
+        "label": "Veri Paketleri",
+        "singular": "veri paketi",
+        "singularTitle": "Veri Paketi",
+        "plural": "veri paketleri",
+        "pluralTitle": "Veri Paketleri",
+        "importTitle": "Veri Paketi İçe Aktar",
+        "emptyInstalled": "Yüklü veri paketi yok",
+        "emptyAvailable": "Veri paketi bulunamadı"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "Dünyaya Uygula",
+      "manageWorlds": "Dünyaları Yönet",
+      "appliedWorlds": "Uygulandığı yer: {worlds}",
+      "noAppliedWorlds": "Hiçbir dünyaya uygulanmadı",
+      "applyTitle": "Veri Paketini Dünyaya Uygula",
+      "applyPrompt": "<b>{datapack}</b> için dünya depolama konumunu ve dünyaları seçin.",
+      "storageLabel": "Dünya depolama:",
+      "customFolderLabel": "Özel klasör:",
+      "selectFolder": "Klasör Seç",
+      "worldsLabel": "Dünyalar:",
+      "noWorlds": "Bu depolama konumunda hiçbir dünya bulunamadı.",
+      "applyFailed": "Veri paketi uygulanamadı.",
+      "applySuccess": "Veri paketi {count} dünyaya uygulandı.",
+      "removeFailed": "Veri paketi dünyadan kaldırılamadı.",
+      "removeSuccess": "Veri paketi {world} dünyasından kaldırıldı.",
+      "manageTitle": "Dünya Dağıtımları",
+      "managePrompt": "<b>{datapack}</b> veri paketi şu dünyalara uygulanmış:",
+      "removeFromWorld": "Kaldır",
+      "selectWorlds": "En az bir dünya seçin."
     },
     "import": {
       "selectLoaderForFile": "\"{file}\" için mod yükleyicisini seçin:",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "İçe aktarılıyor...",
+      "importButton": "İçe Aktar",
+      "successTitle": "İçe Aktarma Başarılı",
+      "successMessage": "{addon} başarıyla içe aktarıldı.",
+      "errorTitle": "İçe Aktarma Hatası",
+      "failedMessage": "{addon} içe aktarılamadı.",
+      "modpackImporting": "Mod paketi içe aktarılıyor...",
+      "modpackImportingPercent": "Mod paketi içe aktarılıyor... %{percent}",
+      "modpackCancelling": "Mod paketi içe aktarımı iptal ediliyor...",
+      "modpackSuccess": "<b>{name}</b> mod paketi başarıyla içe aktarıldı.",
+      "modpackDetectedFormat": "<br><br>Algılanan biçim: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>Aşağıdaki bağımsız modlar, mod paketiyle çakıştığı için devre dışı bırakıldı:<br>",
+      "modpackWarnings": "<br><br>İçe aktarma uyarıları:<br>",
+      "modpackMoreWarnings": "<br>...ve {count} uyarı daha.",
+      "modpackCancelledTitle": "İçe Aktarma İptal Edildi",
+      "modpackCancelledMessage": "Mod paketi içe aktarımını iptal ettiniz.",
+      "modpackFailed": "Mod paketi içe aktarılamadı.",
+      "modpackNetworkError": "Mod paketi içe aktarılırken ağ hatası oluştu."
     },
     "status": {
       "installed": "Yüklü",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "{count} {addon} silindi.<br><br>Hatalar:<br>{failures}",
       "confirmMessage": "Seçili {count} {addon} silinsin mi?<br><i>Bu işlem geri alınamaz!</i>"
     },
+    "bulkMove": {
+      "title": "Modları Toplu Taşı",
+      "noSelected": "Yüklü mod seçilmedi.",
+      "prompt": "Seçili {count} modu şuraya taşı:",
+      "moveButton": "Taşı",
+      "movingProgress": "Seçili modlar taşınıyor... ({current}/{total})",
+      "cancelling": "Geçerli mod tamamlandıktan sonra toplu taşıma iptal ediliyor...",
+      "moveFailed": "taşıma başarısız",
+      "requestFailed": "istek başarısız",
+      "skippedSuffix": ", {count} atlandı",
+      "cancelledTitle": "Toplu Taşıma İptal Edildi",
+      "cancelledMessage": "İptalden önce {moved} mod taşındı{skipped}.{failures}",
+      "failuresCountSuffix": "<br><br>Hatalar: {count}",
+      "completeTitle": "Toplu Taşıma Tamamlandı",
+      "completeMessage": "{moved} mod taşındı{skipped}.",
+      "finishedWithErrorsTitle": "Toplu Taşıma Hatalarla Tamamlandı",
+      "finishedWithErrorsMessage": "{moved} mod taşındı{skipped}.<br><br>Hatalar:<br>{preview}{more}",
+      "moreFailures": "<br>...ve {count} tane daha."
+    },
+    "modpackDetail": {
+      "loader": "Yükleyici: {loader}",
+      "version": "Sürüm: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "Yazar: {author}",
+      "modsCount": "Modlar: {count}",
+      "resourcePacksCount": "Kaynak Paketleri: {count}",
+      "shaderPacksCount": "Shader Paketleri: {count}",
+      "datapacksCount": "Veri Paketleri: {count}",
+      "notAvailable": "Yok"
+    },
+    "modpackActions": {
+      "deleteFailed": "Mod paketi silinemedi.",
+      "cannotEnableTitle": "Etkinleştirilemiyor",
+      "cannotEnableMessage": "Bu mod, <b>{name}</b> mod paketi tarafından yönetiliyor. Önce o mod paketini devre dışı bırakın veya silin."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "CurseForge bir API anahtarı gerektirir. CurseForge sağlayıcısını kullanmak için bir anahtar ekleyin veya Modrinth'e geçin.",
+      "providerError": "Sağlayıcı hatası: {error}"
+    },
     "detail": {
       "loadingDetails": "{addon} ayrıntıları yükleniyor...",
       "screenshots": "Ekran Görüntüleri",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "Mod Paketini Dışa Aktar",
-      "selectFormat": "Dışa aktarılacak mod paketi biçimini seçin:",
-      "selectLoader": "Bu mod paketi için mod yükleyicisini seçin:",
+      "tabs": {
+        "metadata": "Üst Veri",
+        "mods": "Modlar",
+        "resourcepacks": "Kaynak Paketleri",
+        "shaderpacks": "Shader Paketleri",
+        "datapacks": "Veri Paketleri",
+        "export": "Dışa Aktar"
+      },
+      "selectFormat": "Dışa aktarılacak mod paketi biçimini seçin",
+      "selectLoader": "Bu mod paketi için mod yükleyicisini seçin",
+      "minecraftVersion": "Minecraft sürümü",
+      "minecraftVersionHint": "Mod paketi için kullanılacak Minecraft sürümü.",
+      "loaderVersion": "Yükleyici sürümü",
+      "loaderVersionHint": "Mod paketi için kullanılacak yükleyici sürümü.",
+      "vanillaModsHint": "Vanilya mod paketleri mod içermez. Diğer sekmelerden kaynak paketleri, shader paketleri ve/veya veri paketleri seçin.",
       "noLoaderMods": "Yüklü {loader} modu yok. Önce birkaç mod yükleyin.",
       "selectMods": "Dahil edilecek modları seçin ({count} kullanılabilir {loader} modu):",
       "disabledHint": "İsteğe bağlı: modları mod paketinde devre dışı olarak işaretleyin; böylece dahil edilirler ama varsayılan olarak etkin olmazlar.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "Kaynak klasörü güncellenemedi",
       "failedSaveSourceFolder": "Kaynak klasörü ayarı kaydedilemedi.",
       "selectAtLeastOneMod": "En az bir mod seçin.",
+      "selectAtLeastOneItem": "En az bir mod, kaynak paketi, shader paketi veya veri paketi seçin.",
+      "selectMinecraftVersion": "Bir Minecraft sürümü seçin",
+      "selectLoaderVersion": "Bir yükleyici sürümü seçin",
+      "validationErrorBanner": "Lütfen aşağıda vurgulanan sorunları düzeltip tekrar deneyin.",
+      "externalVersionRequired": "Modrinth/CurseForge dışa aktarımları için bir Minecraft sürümü girin (veya sürüm meta verisi olan içerik seçin).",
+      "externalLoaderVersionRequired": "Bir mod yükleyici kullanırken Modrinth/CurseForge dışa aktarımları için bir yükleyici sürümü girin.",
       "selectOptionalAddons": "Pakete dahil edilecek isteğe bağlı {plural} öğelerini seçin ({count} kullanılabilir):",
       "noOptionalAddons": "Yüklü {plural} yok. Hiçbirini dahil etmeden devam edebilirsiniz.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "Bir mod paketi açıklaması..."
       },
       "summary": "{format} {extension} | {mods} mod | {resourcepacks} kaynak paketi | {shaderpacks} shader paketi | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "Yükleyici {version}",
       "validation": {
         "nameLength": "Ad 1-64 karakter arasında olmalıdır.",
         "nameForbidden": "Ad yasaklı karakterler içeriyor.",
@@ -1014,13 +1125,25 @@
       "description": "Hafif ve hızlı",
       "subtitle": "Çoğunlukla oyun optimizasyonu için kullanılır"
     },
+    "legacyfabric": {
+      "description": "Eski sürümler için Fabric",
+      "subtitle": "Minecraft 1.3 - 1.13.2 destekleyen bir Fabric uyarlaması"
+    },
     "babric": {
       "description": "Minecraft Beta Fabric çatalı",
       "subtitle": "Beta 1.7.3 desteği için Fabric'in çatallanmış sürümü"
     },
+    "ornithe": {
+      "description": "Eski Minecraft için Fabric",
+      "subtitle": "Alpha'dan 1.14.x'e uzanan Fabric tabanlı araç zinciri"
+    },
     "forge": {
       "description": "Kapsamlı mod desteği ve popüler",
       "subtitle": "Çoğunlukla oyun modifikasyonları için kullanılır"
+    },
+    "liteloader": {
+      "description": "Hafif istemci modları",
+      "subtitle": "Minecraft 1.5.2 - 1.12.2 için tweak tarzı modlar"
     },
     "modloader": {
       "description": "Eski jar-mod çalışma zamanı",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "Esnek ve modern",
       "subtitle": "Çoğunlukla hafif modern modlama için kullanılır"
+    },
+    "vanilla": {
+      "description": "Mod yükleyici yok",
+      "subtitle": "Yalnızca kaynak paketleri, shader paketleri ve veri paketleri"
     },
     "fallback": {
       "description": "Özel yükleyici",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "Yaban Mersini (Açık)",
         "leafDark": "Yaprak (Koyu)",
         "leafLight": "Yaprak (Açık)",
+        "orangeDark": "Turuncu (Koyu)",
+        "orangeLight": "Turuncu (Açık)",
+        "midnightDark": "Gece Yarısı (Koyu)",
+        "midnightLight": "Gece Yarısı (Açık)",
+        "graphiteDark": "Grafit (Koyu)",
+        "graphiteLight": "Grafit (Açık)",
+        "oceanDark": "Okyanus (Koyu)",
+        "oceanLight": "Okyanus (Açık)",
+        "amethystDark": "Ametist (Koyu)",
+        "amethystLight": "Ametist (Açık)",
         "aeroDark": "Aero cam (Koyu)",
-        "aeroLight": "Aero cam (Açık)"
+        "aeroLight": "Aero cam (Açık)",
+        "custom": "Özel"
+      },
+      "themeBase": "Temel tema:",
+      "themeEditor": {
+        "dockTitle": "Tema düzenleyici",
+        "openDock": "Tema düzenleyiciyi aç",
+        "hint": "Bir temel tema seçin, ardından aşağıdaki renkleri tek tek ayarlayın. Geçersiz kılmalar profilinizle birlikte kaydedilir.",
+        "resetAll": "Tüm geçersiz kılmaları sıfırla",
+        "export": "Tema JSON'unu kopyala",
+        "import": "Tema JSON'u içe aktar",
+        "resetToken": "Sıfırla",
+        "resetTokenTooltip": "Bu renk geçersiz kılmasını kaldırın ve temel tema değerini kullanın",
+        "groups": {
+          "app": "Uygulama arka planı",
+          "text": "Metin",
+          "links": "Bağlantılar ve odak",
+          "surfaces": "Yüzeyler",
+          "borders": "Kenarlıklar",
+          "overlays": "Yer paylaşımları ve ipuçları",
+          "buttons": "Düğmeler",
+          "semantic": "Başarı, tehlike, uyarı ve bilgi",
+          "messages": "Mesaj kutuları",
+          "states": "Seçim ve vurgular",
+          "scrollbars": "Kaydırma çubukları",
+          "badges": "Rozetler",
+          "loaders": "Mod yükleyici vurguları"
+        }
       },
       "uiSizes": {
         "small": "Küçük",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "Oyuna ayrılan maksimum RAM\n  - Pozitif bir sayı olmalıdır\n  - Minimum RAM'den büyük olmalıdır\n  - En az 1 bayt olmalıdır\n\nÖrnek biçim: 256, 256M, 2G vb.\n\n(performans ipucu: daha iyi performans için daha fazla RAM ayırın ve daha az kare düşüşü için minimum RAM ile eşleştirin)",
       "resolution": "Çözünürlük:",
       "resolutionTooltip": "Genişlik ve yükseklik başlatma argümanlarını destekleyen sürümlerde kullanılan varsayılan oyun penceresi boyutu.",
-      "fullscreen": "Tam ekran:",
-      "fullscreenTooltip": "Desteklenen sürümleri varsayılan olarak tam ekranda başlat.",
       "demoMode": "Demo Modu:",
       "demoModeTooltip": "Desteklenen sürümleri Minecraft Demo Modu etkin olarak başlat.",
       "storageDir": "Depolama dizini:",

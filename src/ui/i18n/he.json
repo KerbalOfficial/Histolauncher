@@ -266,8 +266,6 @@
       "customVersionFolder": "מותאם אישית (תיקייה ייעודית לגרסה)",
       "launchSettings": "הגדרות הפעלה",
       "useGlobal": "השתמש בגלובלי",
-      "overrideFullscreen": "דריסת מסך מלא",
-      "fullscreen": "מסך מלא",
       "overrideDemoMode": "דריסת מצב דמו",
       "demoMode": "מצב דמו",
       "minimumRamOverride": "דריסת RAM מינימלי",
@@ -419,10 +417,14 @@
     "typeModpacks": "חבילות מודים",
     "typeResourcePacks": "חבילות משאבים",
     "typeShaderPacks": "חבילות שיידרים",
+    "typeDatapacks": "חבילות נתונים",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "ייבוא חבילת שיידרים",
         "emptyInstalled": "אין חבילות שיידרים מותקנות",
         "emptyAvailable": "לא נמצאו חבילות שיידרים"
+      },
+      "datapacks": {
+        "label": "חבילות נתונים",
+        "singular": "חבילת נתונים",
+        "singularTitle": "חבילת נתונים",
+        "plural": "חבילות נתונים",
+        "pluralTitle": "חבילות נתונים",
+        "importTitle": "ייבוא חבילת נתונים",
+        "emptyInstalled": "אין חבילות נתונים מותקנות",
+        "emptyAvailable": "לא נמצאו חבילות נתונים"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "החל על עולם",
+      "manageWorlds": "ניהול עולמות",
+      "appliedWorlds": "הוחל על: {worlds}",
+      "noAppliedWorlds": "לא הוחל על אף עולם",
+      "applyTitle": "החל חבילת נתונים על עולם",
+      "applyPrompt": "בחר את מאגר העולמות ואת העולמות עבור <b>{datapack}</b>.",
+      "storageLabel": "מאגר עולמות:",
+      "customFolderLabel": "תיקייה מותאמת אישית:",
+      "selectFolder": "בחר תיקייה",
+      "worldsLabel": "עולמות:",
+      "noWorlds": "לא נמצאו עולמות במיקום אחסון זה.",
+      "applyFailed": "החלת חבילת הנתונים נכשלה.",
+      "applySuccess": "חבילת הנתונים הוחלה על {count} עולמות.",
+      "removeFailed": "הסרת חבילת הנתונים מהעולם נכשלה.",
+      "removeSuccess": "חבילת הנתונים הוסרה מ-{world}.",
+      "manageTitle": "פריסות בעולמות",
+      "managePrompt": "חבילת הנתונים <b>{datapack}</b> הוחלה על העולמות הבאים:",
+      "removeFromWorld": "הסר",
+      "selectWorlds": "בחר לפחות עולם אחד."
     },
     "import": {
       "selectLoaderForFile": "בחר את טוען המודים עבור \"{file}\":",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "מייבא...",
+      "importButton": "ייבוא",
+      "successTitle": "הייבוא הצליח",
+      "successMessage": "{addon} יובא בהצלחה.",
+      "errorTitle": "שגיאת ייבוא",
+      "failedMessage": "ייבוא {addon} נכשל.",
+      "modpackImporting": "מייבא חבילת מודים...",
+      "modpackImportingPercent": "מייבא חבילת מודים... {percent}%",
+      "modpackCancelling": "מבטל את ייבוא חבילת המודים...",
+      "modpackSuccess": "חבילת המודים <b>{name}</b> יובאה בהצלחה.",
+      "modpackDetectedFormat": "<br><br>פורמט שזוהה: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>המודים העצמאיים הבאים הושבתו מכיוון שהם מתנגשים עם חבילת המודים:<br>",
+      "modpackWarnings": "<br><br>אזהרות ייבוא:<br>",
+      "modpackMoreWarnings": "<br>...ועוד {count} אזהרות.",
+      "modpackCancelledTitle": "הייבוא בוטל",
+      "modpackCancelledMessage": "ביטלת את ייבוא חבילת המודים.",
+      "modpackFailed": "ייבוא חבילת המודים נכשל.",
+      "modpackNetworkError": "שגיאת רשת בעת ייבוא חבילת המודים."
     },
     "status": {
       "installed": "מותקן",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "נמחקו {count} {addon}.<br><br>כשלים:<br>{failures}",
       "confirmMessage": "למחוק {count} {addon} שנבחרו?<br><i>לא ניתן לבטל פעולה זו!</i>"
     },
+    "bulkMove": {
+      "title": "העברת מודים בכמות גדולה",
+      "noSelected": "לא נבחרו מודים מותקנים.",
+      "prompt": "העבר {count} מודים שנבחרו אל:",
+      "moveButton": "העבר",
+      "movingProgress": "מעביר את המודים שנבחרו... ({current}/{total})",
+      "cancelling": "מבטל את ההעברה ההמונית לאחר סיום המוד הנוכחי...",
+      "moveFailed": "ההעברה נכשלה",
+      "requestFailed": "הבקשה נכשלה",
+      "skippedSuffix": ", {count} דולגו",
+      "cancelledTitle": "ההעברה ההמונית בוטלה",
+      "cancelledMessage": "{moved} מודים הועברו{skipped} לפני הביטול.{failures}",
+      "failuresCountSuffix": "<br><br>כשלים: {count}",
+      "completeTitle": "ההעברה ההמונית הושלמה",
+      "completeMessage": "{moved} מודים הועברו{skipped}.",
+      "finishedWithErrorsTitle": "ההעברה ההמונית הסתיימה עם שגיאות",
+      "finishedWithErrorsMessage": "{moved} מודים הועברו{skipped}.<br><br>כשלים:<br>{preview}{more}",
+      "moreFailures": "<br>...ועוד {count}."
+    },
+    "modpackDetail": {
+      "loader": "מטעין: {loader}",
+      "version": "גרסה: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "יוצר: {author}",
+      "modsCount": "מודים: {count}",
+      "resourcePacksCount": "חבילות משאבים: {count}",
+      "shaderPacksCount": "חבילות שיידרים: {count}",
+      "datapacksCount": "חבילות נתונים: {count}",
+      "notAvailable": "לא זמין"
+    },
+    "modpackActions": {
+      "deleteFailed": "מחיקת חבילת המודים נכשלה.",
+      "cannotEnableTitle": "לא ניתן להפעיל",
+      "cannotEnableMessage": "מוד זה מנוהל על ידי חבילת המודים <b>{name}</b>. השבת או מחק תחילה את חבילת המודים הזו."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "CurseForge דורש מפתח API. הוסף מפתח כדי להשתמש בספק CurseForge, או עבור אל Modrinth.",
+      "providerError": "שגיאת ספק: {error}"
+    },
     "detail": {
       "loadingDetails": "טוען פרטי {addon}...",
       "screenshots": "צילומי מסך",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "ייצוא חבילת מודים",
-      "selectFormat": "בחר את פורמט חבילת המודים לייצוא:",
-      "selectLoader": "בחר את טוען המודים עבור חבילת המודים הזו:",
+      "tabs": {
+        "metadata": "מטא-נתונים",
+        "mods": "מודים",
+        "resourcepacks": "חבילות משאבים",
+        "shaderpacks": "חבילות שיידרים",
+        "datapacks": "חבילות נתונים",
+        "export": "ייצוא"
+      },
+      "selectFormat": "בחר את פורמט חבילת המודים לייצוא",
+      "selectLoader": "בחר את טוען המודים עבור חבילת המודים הזו",
+      "minecraftVersion": "גרסת Minecraft",
+      "minecraftVersionHint": "גרסת Minecraft שתשמש עבור חבילת המודים.",
+      "loaderVersion": "גרסת המטעין",
+      "loaderVersionHint": "גרסת המטעין שתשמש עבור חבילת המודים.",
+      "vanillaModsHint": "חבילות מודים מסוג Vanilla אינן כוללות מודים. בחר חבילות משאבים, חבילות שיידרים ו/או חבילות נתונים בלשוניות האחרות.",
       "noLoaderMods": "אין מודי {loader} מותקנים. התקן קודם כמה מודים.",
       "selectMods": "בחר מודים לכלול ({count} מודי {loader} זמינים):",
       "disabledHint": "אופציונלי: סמן מודים כמושבתים בחבילת המודים כדי שהם ייכללו אך לא יהיו פעילים כברירת מחדל.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "עדכון תיקיית המקור נכשל",
       "failedSaveSourceFolder": "שמירת הגדרת תיקיית המקור נכשלה.",
       "selectAtLeastOneMod": "בחר לפחות מוד אחד.",
+      "selectAtLeastOneItem": "בחר לפחות מוד אחד, חבילת משאבים, חבילת שיידרים או חבילת נתונים.",
+      "selectMinecraftVersion": "בחר גרסת Minecraft",
+      "selectLoaderVersion": "בחר גרסת מטעין",
+      "validationErrorBanner": "נא לתקן את הבעיות המודגשות למטה ולנסות שוב.",
+      "externalVersionRequired": "הזן גרסת Minecraft עבור ייצוא ל-Modrinth/CurseForge (או בחר תוכן עם מטא-נתוני גרסה).",
+      "externalLoaderVersionRequired": "הזן גרסת מטעין עבור ייצוא ל-Modrinth/CurseForge בעת שימוש במטעין מודים.",
       "selectOptionalAddons": "בחר {plural} אופציונליים לצירוף ({count} זמינים):",
       "noOptionalAddons": "אין {plural} מותקנים. אפשר להמשיך בלי לצרף דבר.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "תיאור חבילת מודים..."
       },
       "summary": "{format} {extension} | {mods} מודים | {resourcepacks} חבילות משאבים | {shaderpacks} חבילות שיידרים | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "מטעין {version}",
       "validation": {
         "nameLength": "השם חייב להיות באורך 1-64 תווים.",
         "nameForbidden": "השם מכיל תווים אסורים.",
@@ -1014,13 +1125,25 @@
       "description": "קל ומהיר",
       "subtitle": "משמש בעיקר לאופטימיזציית משחק"
     },
+    "legacyfabric": {
+      "description": "Fabric לגרסאות ישנות יותר",
+      "subtitle": "פורט של Fabric התומך ב-Minecraft 1.3 - 1.13.2"
+    },
     "babric": {
       "description": "Fork של Fabric עבור Minecraft Beta",
       "subtitle": "Fork של Fabric לתמיכה ב-Beta 1.7.3"
     },
+    "ornithe": {
+      "description": "Fabric ל-Minecraft ישן",
+      "subtitle": "ערכת כלים מבוססת Fabric המשתרעת מ-Alpha ועד 1.14.x"
+    },
     "forge": {
       "description": "פופולרי ולמודים מלאים",
       "subtitle": "משמש בעיקר לשינויי משחק"
+    },
+    "liteloader": {
+      "description": "מודי לקוח קלי משקל",
+      "subtitle": "מודים בסגנון tweak ל-Minecraft 1.5.2 - 1.12.2"
     },
     "modloader": {
       "description": "Runtime ישן ל-jar-mod",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "גמיש ומודרני",
       "subtitle": "משמש בעיקר למודינג מודרני קל"
+    },
+    "vanilla": {
+      "description": "ללא מטעין מודים",
+      "subtitle": "חבילות משאבים, חבילות שיידרים וחבילות נתונים בלבד"
     },
     "fallback": {
       "description": "טוען מותאם אישית",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "אוכמנית (בהיר)",
         "leafDark": "עלה (כהה)",
         "leafLight": "עלה (בהיר)",
+        "orangeDark": "כתום (כהה)",
+        "orangeLight": "כתום (בהיר)",
+        "midnightDark": "חצות (כהה)",
+        "midnightLight": "חצות (בהיר)",
+        "graphiteDark": "גרפיט (כהה)",
+        "graphiteLight": "גרפיט (בהיר)",
+        "oceanDark": "אוקיינוס (כהה)",
+        "oceanLight": "אוקיינוס (בהיר)",
+        "amethystDark": "אמטיסט (כהה)",
+        "amethystLight": "אמטיסט (בהיר)",
         "aeroDark": "זכוכית Aero (כהה)",
-        "aeroLight": "זכוכית Aero (בהיר)"
+        "aeroLight": "זכוכית Aero (בהיר)",
+        "custom": "מותאם אישית"
+      },
+      "themeBase": "ערכת נושא בסיסית:",
+      "themeEditor": {
+        "dockTitle": "עורך ערכות נושא",
+        "openDock": "פתח את עורך ערכות הנושא",
+        "hint": "בחר ערכת נושא בסיסית, ולאחר מכן התאם את הצבעים הבודדים למטה. ההתאמות נשמרות עם הפרופיל שלך.",
+        "resetAll": "אפס את כל ההתאמות",
+        "export": "העתק JSON של ערכת הנושא",
+        "import": "ייבא JSON של ערכת נושא",
+        "resetToken": "אפס",
+        "resetTokenTooltip": "הסר את התאמת הצבע הזו והשתמש בערך של ערכת הנושא הבסיסית",
+        "groups": {
+          "app": "רקע האפליקציה",
+          "text": "טקסט",
+          "links": "קישורים ומיקוד",
+          "surfaces": "משטחים",
+          "borders": "גבולות",
+          "overlays": "שכבות-על ותיאורי כלים",
+          "buttons": "כפתורים",
+          "semantic": "הצלחה, סכנה, אזהרה ומידע",
+          "messages": "תיבות הודעה",
+          "states": "בחירה והדגשות",
+          "scrollbars": "פסי גלילה",
+          "badges": "תגים",
+          "loaders": "צבעי הדגשה של מטעיני מודים"
+        }
       },
       "uiSizes": {
         "small": "קטן",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "RAM מקסימלי שמוקצה למשחק\n  - חייב להיות מספר חיובי\n  - חייב להיות גדול מ-RAM מינימלי\n  - חייב להיות לפחות 1 בייט\n\nפורמט לדוגמה: 256, 256M, 2G וכו'.\n\n(טיפ ביצועים: הקצה יותר RAM לביצועים טובים יותר, וגם התאם אותו ל-RAM המינימלי כדי להפחית נפילות פריימים)",
       "resolution": "רזולוציה:",
       "resolutionTooltip": "גודל חלון המשחק כברירת מחדל עבור גרסאות שתומכות בארגומנטים של רוחב וגובה בעת הפעלה.",
-      "fullscreen": "מסך מלא:",
-      "fullscreenTooltip": "הפעל גרסאות נתמכות במסך מלא כברירת מחדל.",
       "demoMode": "מצב דמו:",
       "demoModeTooltip": "הפעל גרסאות נתמכות עם מצב הדמו של Minecraft מופעל.",
       "storageDir": "תיקיית אחסון:",

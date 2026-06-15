@@ -266,8 +266,6 @@
       "customVersionFolder": "Egyéni (verzióhoz tartozó mappa)",
       "launchSettings": "Indítási beállítások",
       "useGlobal": "Globális használata",
-      "overrideFullscreen": "Teljes képernyő felülírása",
-      "fullscreen": "Teljes képernyő",
       "overrideDemoMode": "Demo mód felülírása",
       "demoMode": "Demo mód",
       "minimumRamOverride": "Minimum RAM felülírása",
@@ -419,10 +417,14 @@
     "typeModpacks": "Modcsomagok",
     "typeResourcePacks": "Erőforráscsomagok",
     "typeShaderPacks": "Shadercsomagok",
+    "typeDatapacks": "Adatcsomagok",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "Shadercsomag importálása",
         "emptyInstalled": "Nincs telepített shadercsomag",
         "emptyAvailable": "Nem található shadercsomag"
+      },
+      "datapacks": {
+        "label": "Adatcsomagok",
+        "singular": "adatcsomag",
+        "singularTitle": "Adatcsomag",
+        "plural": "adatcsomagok",
+        "pluralTitle": "Adatcsomagok",
+        "importTitle": "Adatcsomag importálása",
+        "emptyInstalled": "Nincs telepített adatcsomag",
+        "emptyAvailable": "Nem található adatcsomag"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "Alkalmazás világra",
+      "manageWorlds": "Világok kezelése",
+      "appliedWorlds": "Alkalmazva erre: {worlds}",
+      "noAppliedWorlds": "Nincs egyetlen világra sem alkalmazva",
+      "applyTitle": "Adatcsomag alkalmazása világra",
+      "applyPrompt": "Válaszd ki a világok tárhelyét és a világokat a következőhöz: <b>{datapack}</b>.",
+      "storageLabel": "Világok tárhelye:",
+      "customFolderLabel": "Egyéni mappa:",
+      "selectFolder": "Mappa kiválasztása",
+      "worldsLabel": "Világok:",
+      "noWorlds": "Ezen a tárhelyen nem található világ.",
+      "applyFailed": "Az adatcsomag alkalmazása nem sikerült.",
+      "applySuccess": "Az adatcsomag alkalmazva {count} világra.",
+      "removeFailed": "Az adatcsomag eltávolítása a világból nem sikerült.",
+      "removeSuccess": "Adatcsomag eltávolítva innen: {world}.",
+      "manageTitle": "Telepítések a világokban",
+      "managePrompt": "Az <b>{datapack}</b> adatcsomag a következő világokra van alkalmazva:",
+      "removeFromWorld": "Eltávolítás",
+      "selectWorlds": "Válassz ki legalább egy világot."
     },
     "import": {
       "selectLoaderForFile": "Válaszd ki a modbetöltőt ehhez: \"{file}\":",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "Importálás...",
+      "importButton": "Importálás",
+      "successTitle": "Sikeres importálás",
+      "successMessage": "A(z) {addon} sikeresen importálva.",
+      "errorTitle": "Importálási hiba",
+      "failedMessage": "A(z) {addon} importálása nem sikerült.",
+      "modpackImporting": "Modcsomag importálása...",
+      "modpackImportingPercent": "Modcsomag importálása... {percent}%",
+      "modpackCancelling": "Modcsomag importálásának megszakítása...",
+      "modpackSuccess": "A(z) <b>{name}</b> modcsomag sikeresen importálva.",
+      "modpackDetectedFormat": "<br><br>Észlelt formátum: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>A következő önálló modok le lettek tiltva, mert ütköznek a modcsomaggal:<br>",
+      "modpackWarnings": "<br><br>Importálási figyelmeztetések:<br>",
+      "modpackMoreWarnings": "<br>...és további {count} figyelmeztetés.",
+      "modpackCancelledTitle": "Importálás megszakítva",
+      "modpackCancelledMessage": "Megszakítottad a modcsomag importálását.",
+      "modpackFailed": "A modcsomag importálása nem sikerült.",
+      "modpackNetworkError": "Hálózati hiba a modcsomag importálása közben."
     },
     "status": {
       "installed": "Telepítve",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "{count} {addon} törölve.<br><br>Hibák:<br>{failures}",
       "confirmMessage": "Törlöd a kijelölt {count} {addon} elemet?<br><i>Ez nem vonható vissza!</i>"
     },
+    "bulkMove": {
+      "title": "Modok tömeges áthelyezése",
+      "noSelected": "Nincs kijelölve telepített mod.",
+      "prompt": "{count} kijelölt mod áthelyezése ide:",
+      "moveButton": "Áthelyezés",
+      "movingProgress": "Kijelölt modok áthelyezése... ({current}/{total})",
+      "cancelling": "A tömeges áthelyezés megszakítása az aktuális mod befejezése után...",
+      "moveFailed": "az áthelyezés sikertelen",
+      "requestFailed": "a kérés sikertelen",
+      "skippedSuffix": ", {count} kihagyva",
+      "cancelledTitle": "Tömeges áthelyezés megszakítva",
+      "cancelledMessage": "{moved} mod áthelyezve{skipped} a megszakítás előtt.{failures}",
+      "failuresCountSuffix": "<br><br>Hibák: {count}",
+      "completeTitle": "Tömeges áthelyezés befejezve",
+      "completeMessage": "{moved} mod áthelyezve{skipped}.",
+      "finishedWithErrorsTitle": "Tömeges áthelyezés hibákkal fejeződött be",
+      "finishedWithErrorsMessage": "{moved} mod áthelyezve{skipped}.<br><br>Hibák:<br>{preview}{more}",
+      "moreFailures": "<br>...és további {count}."
+    },
+    "modpackDetail": {
+      "loader": "Betöltő: {loader}",
+      "version": "Verzió: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "Szerző: {author}",
+      "modsCount": "Modok: {count}",
+      "resourcePacksCount": "Erőforráscsomagok: {count}",
+      "shaderPacksCount": "Shadercsomagok: {count}",
+      "datapacksCount": "Adatcsomagok: {count}",
+      "notAvailable": "N/A"
+    },
+    "modpackActions": {
+      "deleteFailed": "A modcsomag törlése nem sikerült.",
+      "cannotEnableTitle": "Nem engedélyezhető",
+      "cannotEnableMessage": "Ezt a modot a(z) <b>{name}</b> modcsomag kezeli. Először tiltsd le vagy töröld azt a modcsomagot."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "A CurseForge API-kulcsot igényel. Adj hozzá egy kulcsot a CurseForge szolgáltató használatához, vagy válts a Modrinth-re.",
+      "providerError": "Szolgáltatói hiba: {error}"
+    },
     "detail": {
       "loadingDetails": "{addon} részleteinek betöltése...",
       "screenshots": "Képernyőképek",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "Modcsomag exportálása",
-      "selectFormat": "Válaszd ki az exportálandó modcsomag formátumát:",
-      "selectLoader": "Válaszd ki a modcsomag modbetöltőjét:",
+      "tabs": {
+        "metadata": "Metaadatok",
+        "mods": "Modok",
+        "resourcepacks": "Erőforráscsomagok",
+        "shaderpacks": "Shadercsomagok",
+        "datapacks": "Adatcsomagok",
+        "export": "Exportálás"
+      },
+      "selectFormat": "Válaszd ki az exportálandó modcsomag formátumát",
+      "selectLoader": "Válaszd ki a modcsomag modbetöltőjét",
+      "minecraftVersion": "Minecraft-verzió",
+      "minecraftVersionHint": "A modcsomaghoz használandó Minecraft-verzió.",
+      "loaderVersion": "Betöltő verziója",
+      "loaderVersionHint": "A modcsomaghoz használandó betöltő verziója.",
+      "vanillaModsHint": "A vanilla modcsomagok nem tartalmaznak modokat. Válassz erőforráscsomagokat, shadercsomagokat és/vagy adatcsomagokat a többi lapon.",
       "noLoaderMods": "Nincs telepített {loader} mod. Először telepíts néhány modot.",
       "selectMods": "Válaszd ki a belefoglalni kívánt modokat ({count} {loader} mod elérhető):",
       "disabledHint": "Opcionális: jelöld a modokat letiltottnak a modcsomagban, így bekerülnek, de alapból nem lesznek aktívak.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "Nem sikerült frissíteni a forrásmappát",
       "failedSaveSourceFolder": "Nem sikerült menteni a forrásmappa beállítását.",
       "selectAtLeastOneMod": "Válassz ki legalább egy modot.",
+      "selectAtLeastOneItem": "Válassz ki legalább egy modot, erőforráscsomagot, shadercsomagot vagy adatcsomagot.",
+      "selectMinecraftVersion": "Válassz egy Minecraft-verziót",
+      "selectLoaderVersion": "Válassz egy betöltőverziót",
+      "validationErrorBanner": "Javítsd ki az alább kiemelt problémákat, majd próbáld újra.",
+      "externalVersionRequired": "Adj meg egy Minecraft-verziót a Modrinth/CurseForge exportokhoz (vagy válassz verzió-metaadatokkal rendelkező tartalmat).",
+      "externalLoaderVersionRequired": "Adj meg egy betöltőverziót a Modrinth/CurseForge exportokhoz, ha modbetöltőt használsz.",
       "selectOptionalAddons": "Válaszd ki a csomagolandó opcionális {plural} elemeket ({count} elérhető):",
       "noOptionalAddons": "Nincs telepített {plural}. Folytathatod anélkül, hogy bármit becsomagolnál.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "Modcsomag leírása..."
       },
       "summary": "{format} {extension} | {mods} mod | {resourcepacks} erőforráscsomag | {shaderpacks} shadercsomag | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "Betöltő {version}",
       "validation": {
         "nameLength": "A névnek 1-64 karakter hosszúnak kell lennie.",
         "nameForbidden": "A név tiltott karaktereket tartalmaz.",
@@ -1014,13 +1125,25 @@
       "description": "Könnyű és gyors",
       "subtitle": "Leginkább játékoptimalizálásra használják"
     },
+    "legacyfabric": {
+      "description": "Fabric a régebbi verziókhoz",
+      "subtitle": "Fabric-port, amely a Minecraft 1.3 - 1.13.2 verziókat támogatja"
+    },
     "babric": {
       "description": "Minecraft Beta Fabric fork",
       "subtitle": "Fabric fork a Beta 1.7.3 támogatásához"
     },
+    "ornithe": {
+      "description": "Fabric a régi Minecrafthoz",
+      "subtitle": "Fabric-alapú eszközlánc az Alphától az 1.14.x-ig"
+    },
     "forge": {
       "description": "Teljes modolás és népszerű",
       "subtitle": "Leginkább játékmódosításokra használják"
+    },
+    "liteloader": {
+      "description": "Könnyűsúlyú kliensmodok",
+      "subtitle": "Tweak-jellegű modok a Minecraft 1.5.2 - 1.12.2 verziókhoz"
     },
     "modloader": {
       "description": "Régi jar-mod runtime",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "Rugalmas és modern",
       "subtitle": "Leginkább könnyű modern modolásra használják"
+    },
+    "vanilla": {
+      "description": "Nincs modbetöltő",
+      "subtitle": "Csak erőforráscsomagok, shadercsomagok és adatcsomagok"
     },
     "fallback": {
       "description": "Egyéni betöltő",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "Áfonya (világos)",
         "leafDark": "Levél (sötét)",
         "leafLight": "Levél (világos)",
+        "orangeDark": "Narancs (Sötét)",
+        "orangeLight": "Narancs (Világos)",
+        "midnightDark": "Éjfél (Sötét)",
+        "midnightLight": "Éjfél (Világos)",
+        "graphiteDark": "Grafit (Sötét)",
+        "graphiteLight": "Grafit (Világos)",
+        "oceanDark": "Óceán (Sötét)",
+        "oceanLight": "Óceán (Világos)",
+        "amethystDark": "Ametiszt (Sötét)",
+        "amethystLight": "Ametiszt (Világos)",
         "aeroDark": "Aero üveg (sötét)",
-        "aeroLight": "Aero üveg (világos)"
+        "aeroLight": "Aero üveg (világos)",
+        "custom": "Egyéni"
+      },
+      "themeBase": "Alaptéma:",
+      "themeEditor": {
+        "dockTitle": "Témaszerkesztő",
+        "openDock": "Témaszerkesztő megnyitása",
+        "hint": "Válassz egy alaptémát, majd állítsd be az egyes színeket alább. A felülbírálások a profiloddal együtt mentődnek.",
+        "resetAll": "Összes felülbírálás visszaállítása",
+        "export": "Téma JSON másolása",
+        "import": "Téma JSON importálása",
+        "resetToken": "Visszaállítás",
+        "resetTokenTooltip": "A színfelülbírálás eltávolítása és az alaptéma értékének használata",
+        "groups": {
+          "app": "Alkalmazás háttere",
+          "text": "Szöveg",
+          "links": "Hivatkozások és fókusz",
+          "surfaces": "Felületek",
+          "borders": "Szegélyek",
+          "overlays": "Rátétek és elemleírások",
+          "buttons": "Gombok",
+          "semantic": "Siker, veszély, figyelmeztetés és információ",
+          "messages": "Üzenetablakok",
+          "states": "Kijelölés és kiemelések",
+          "scrollbars": "Görgetősávok",
+          "badges": "Jelvények",
+          "loaders": "Modbetöltő-kiemelések"
+        }
       },
       "uiSizes": {
         "small": "Kicsi",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "A játékhoz rendelt maximum RAM\n  - Pozitív számnak kell lennie\n  - Nagyobbnak kell lennie a minimum RAM-nál\n  - Legalább 1 bájt kell legyen\n\nPélda formátum: 256, 256M, 2G stb.\n\n(teljesítménytipp: több RAM jobb teljesítményt adhat, és a kevesebb képkockaeséshez igazítsd a minimum RAM-hoz)",
       "resolution": "Felbontás:",
       "resolutionTooltip": "Az alapértelmezett játékablak-méret azoknál a verzióknál, amelyek támogatják a szélesség és magasság indítási argumentumokat.",
-      "fullscreen": "Teljes képernyő:",
-      "fullscreenTooltip": "A támogatott verziók alapértelmezett indítása teljes képernyőn.",
       "demoMode": "Demo mód:",
       "demoModeTooltip": "A támogatott verziók indítása bekapcsolt Minecraft Demo móddal.",
       "storageDir": "Tárolási mappa:",

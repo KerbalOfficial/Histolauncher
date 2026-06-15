@@ -19,7 +19,7 @@ from core.downloader.progress import (
     delete_progress,
     write_progress_dict,
 )
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import get_versions_profile_dir
 from core.version_manager import ensure_loaders_dir
 
@@ -44,9 +44,9 @@ def _ensure_vanilla_installed(
     if fake_mc_mod.vanilla_artifacts_present(category, mc_version):
         return
 
-    print(colorize_log(
+    safe_print(
         f"[loader-pipeline] vanilla {category}/{mc_version} missing — installing first"
-    ))
+    )
     tracker.update("download", 0,
                    f"Installing vanilla {mc_version} (required for loader)...")
 
@@ -58,17 +58,6 @@ def _ensure_vanilla_installed(
         full_assets=False,
         background=True,
     )
-    if sub_job is None:
-        deadline = time.time() + 1800
-        while time.time() < deadline:
-            job.checkpoint()
-            if fake_mc_mod.vanilla_artifacts_present(category, mc_version):
-                return
-            time.sleep(0.5)
-        raise DownloadFailed(
-            f"Timed out waiting for concurrent vanilla install of {mc_version}",
-            url=None,
-        )
 
     while sub_job.state not in (JobState.COMPLETED, JobState.CANCELLED, JobState.FAILED):
         try:
@@ -135,54 +124,65 @@ def run_loader_install(
             job=job, mc_version=mc_version, category=category, tracker=tracker,
         )
 
-        # ---- resolve_installer ----------------------------------------------
-        job.checkpoint()
-        tracker.update("download", 25,
-                       f"Resolving {spec.display_name} installer URL...")
-        installer_url = spec.resolve_installer_url(mc_version, loader_version)
-
-        # ---- download_installer ---------------------------------------------
-        job.checkpoint()
-        tracker.update("download", 50,
-                       f"Downloading {spec.display_name} installer JAR...")
-        installer_jar = download_installer_jar(
-            installer_url, cancel_check=job.checkpoint
-        )
-
-        # ---- run_installer ---------------------------------------------------
-        job.checkpoint()
-        tracker.update("downloading_libs", 0,
-                       f"Running {spec.display_name} installer (Java)...")
-        fake_dir = tempfile.mkdtemp(prefix=f"histolauncher-{spec.name}-")
-        fake_mc_mod.build(
-            fake_mc_dir=fake_dir, mc_version=mc_version, category=category,
-        )
-
-        def _line_sink(line: str) -> None:
-            # Surface a brief snippet of installer output as the progress message
-            # so the UI shows real-time activity.
-            tracker.update(
-                "downloading_libs", 25,
-                f"{spec.display_name} installer: {line[:80]}",
-            )
-
-        try:
-            run_installer_jar(
-                installer_jar,
-                spec.build_cli_args(mc_version, loader_version, fake_dir),
-                cwd=fake_dir,
-                cancel_check=job.checkpoint,
-                line_sink=_line_sink,
-            )
-        except DownloadFailed as exc:
-            if getattr(spec, "fallback_install", None) is not None:
-                tracker.update(
-                    "downloading_libs", 30,
-                    f"{spec.display_name} installer failed, falling back to metadata mode...",
+        if getattr(spec, "metadata_only", False):
+            # ---- metadata-only install (no installer JAR) -------------------
+            job.checkpoint()
+            tracker.update("downloading_libs", 20,
+                           f"Fetching {spec.display_name} profile metadata...")
+            fake_dir = tempfile.mkdtemp(prefix=f"histolauncher-{spec.name}-")
+            if spec.fallback_install is None:
+                raise DownloadFailed(
+                    f"{spec.display_name} has no metadata installer configured",
+                    url=None,
                 )
-                spec.fallback_install(mc_version, loader_version, fake_dir)
-            else:
-                raise exc
+            spec.fallback_install(mc_version, loader_version, fake_dir)
+        else:
+            # ---- resolve_installer ------------------------------------------
+            job.checkpoint()
+            tracker.update("download", 25,
+                           f"Resolving {spec.display_name} installer URL...")
+            installer_url = spec.resolve_installer_url(mc_version, loader_version)
+
+            # ---- download_installer -----------------------------------------
+            job.checkpoint()
+            tracker.update("download", 50,
+                           f"Downloading {spec.display_name} installer JAR...")
+            installer_jar = download_installer_jar(
+                installer_url, cancel_check=job.checkpoint
+            )
+
+            # ---- run_installer ----------------------------------------------
+            job.checkpoint()
+            tracker.update("downloading_libs", 0,
+                           f"Running {spec.display_name} installer (Java)...")
+            fake_dir = tempfile.mkdtemp(prefix=f"histolauncher-{spec.name}-")
+            fake_mc_mod.build(
+                fake_mc_dir=fake_dir, mc_version=mc_version, category=category,
+            )
+
+            def _line_sink(line: str) -> None:
+                tracker.update(
+                    "downloading_libs", 25,
+                    f"{spec.display_name} installer: {line[:80]}",
+                )
+
+            try:
+                run_installer_jar(
+                    installer_jar,
+                    spec.build_cli_args(mc_version, loader_version, fake_dir),
+                    cwd=fake_dir,
+                    cancel_check=job.checkpoint,
+                    line_sink=_line_sink,
+                )
+            except DownloadFailed as exc:
+                if getattr(spec, "fallback_install", None) is not None:
+                    tracker.update(
+                        "downloading_libs", 30,
+                        f"{spec.display_name} installer failed, falling back to metadata mode...",
+                    )
+                    spec.fallback_install(mc_version, loader_version, fake_dir)
+                else:
+                    raise exc
 
         # ---- import_profile + download_libraries -----------------------------
         job.checkpoint()
@@ -216,7 +216,6 @@ def run_loader_install(
             )
 
         # ---- finalize --------------------------------------------------------
-        # Copy profile JSON to .metadata/version.json (where launch reads it).
         metadata_dir = os.path.join(install_dir, ".metadata")
         os.makedirs(metadata_dir, exist_ok=True)
         shutil.copy2(
@@ -231,15 +230,15 @@ def run_loader_install(
             profile_id=result.profile_id,
             main_class=result.main_class,
         )
-        
+
         if spec.name in ("fabric", "babric", "quilt"):
             tracker.update("finalize", 95, f"Setting up {spec.display_name} mappings...")
             from core.downloader.yarn import _download_yarn_mappings
             job.checkpoint()
             yarn_val = _download_yarn_mappings(install_dir, mc_version, "")
             if yarn_val:
-                print(colorize_log(f"[launcher] Acquired yarn mappings during install: {yarn_val}"))
-        
+                safe_print(f"[launcher] Acquired yarn mappings during install: {yarn_val}")
+
         tracker.finish(status="installed",
                        message=f"{spec.display_name} {loader_version} installed")
 

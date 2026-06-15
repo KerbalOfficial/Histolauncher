@@ -49,7 +49,6 @@ class DownloadState:
             self.file_locks.clear()
 
 
-#: Singleton state used by the entire downloader package.
 STATE = DownloadState()
 
 

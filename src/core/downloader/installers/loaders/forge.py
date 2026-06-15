@@ -14,7 +14,7 @@ from core.downloader.installers.loaders import _lib_harvest, fake_mc_dir as fake
 from core.downloader.installers.loaders.installer_runner import run_installer_jar
 from core.downloader.jobs import Job
 from core.downloader.progress import LOADER_STAGES, ProgressTracker
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.zip_utils import safe_extract_zip
 
 
@@ -92,12 +92,12 @@ def _try_download_installer(
             or "forge-artifact.jar"
         )
         if "-installer.jar" not in name.lower():
-            print(colorize_log(
+            safe_print(
                 f"[forge] skipping non-installer artifact {name}"
-            ))
+            )
             continue
         path = os.path.join(dest_dir, name)
-        print(colorize_log(f"[forge] downloading installer from {url}"))
+        safe_print(f"[forge] downloading installer from {url}")
 
         def _progress(done: int, total: int, *, _name: str = name) -> None:
             job.checkpoint()
@@ -120,7 +120,7 @@ def _try_download_installer(
             raise
         except Exception as exc:
             last_error = exc
-            print(colorize_log(f"[forge] {url} failed: {exc}"))
+            safe_print(f"[forge] {url} failed: {exc}")
             try:
                 os.remove(path)
             except OSError:
@@ -169,9 +169,9 @@ def _pre_stage_bundled_libs(
                     try:
                         shutil.copy2(src, dst)
                     except Exception as exc:
-                        print(colorize_log(
+                        safe_print(
                             f"[forge] could not stage {fn}: {exc}"
-                        ))
+                        )
                 jars_staged += 1
 
         configs_copied = 0
@@ -297,13 +297,13 @@ def _harden_log4j2(install_dir: str) -> None:
                 try:
                     with open(path, "w", encoding="utf-8") as fp:
                         fp.write(_FALLBACK_LOG4J_XML)
-                    print(colorize_log(
+                    safe_print(
                         f"[forge] hardened incompatible log4j2.xml at {path}"
-                    ))
+                    )
                 except OSError as exc:
-                    print(colorize_log(
+                    safe_print(
                         f"[forge] could not harden {path}: {exc}"
-                    ))
+                    )
 
 
 _MAVEN_REPO_FALLBACKS: Tuple[str, ...] = (
@@ -348,9 +348,9 @@ def _download_metadata_libraries(
     downloaded = 0
     skipped = 0
     total = len(libraries)
-    print(colorize_log(
+    safe_print(
         f"[forge] resolving {total} libraries from version.json metadata"
-    ))
+    )
 
     for idx, lib in enumerate(libraries, 1):
         job.checkpoint()
@@ -360,13 +360,11 @@ def _download_metadata_libraries(
         if not name:
             continue
 
-        # Skip Forge's own client artifact (the installer/processor produces it).
         lower = name.lower()
         if "net.minecraftforge:forge:" in lower and ":client" in lower:
             skipped += 1
             continue
 
-        # Try the explicit download.artifact first; fall back to maven coords.
         artifact = (lib.get("downloads") or {}).get("artifact") or {}
         url = str(artifact.get("url") or "").strip()
         sha1 = str(artifact.get("sha1") or "").strip() or None
@@ -377,13 +375,12 @@ def _download_metadata_libraries(
             group, artname, ver, jar_name = parsed
             rel_path = f"{group}/{artname}/{ver}/{jar_name}"
         if not rel_path:
-            print(colorize_log(f"[forge] skipping unparseable library: {name}"))
+            safe_print(f"[forge] skipping unparseable library: {name}")
             skipped += 1
             continue
 
         dest = os.path.join(dest_libs_dir, rel_path.replace("/", os.sep))
 
-        # Already present + valid → skip.
         if os.path.isfile(dest):
             if not sha1 or os.path.getsize(dest) > 0:
                 if not sha1:
@@ -399,7 +396,6 @@ def _download_metadata_libraries(
 
         os.makedirs(os.path.dirname(dest), exist_ok=True)
 
-        # Build URL fallback list (explicit URL first, then standard repos).
         urls: List[str] = []
         if url:
             urls.append(url)
@@ -409,7 +405,7 @@ def _download_metadata_libraries(
                 if candidate not in urls:
                     urls.append(candidate)
         if not urls:
-            print(colorize_log(f"[forge] no URL for {name}"))
+            safe_print(f"[forge] no URL for {name}")
             skipped += 1
             continue
 
@@ -439,9 +435,9 @@ def _download_metadata_libraries(
         if success:
             downloaded += 1
         else:
-            print(colorize_log(
+            safe_print(
                 f"[forge] could not download {name}: {last_err}"
-            ))
+            )
             skipped += 1
 
     return (downloaded, skipped)
@@ -517,10 +513,10 @@ def install_forge(
                 fake_libs_dir=fake_libs_dir,
                 loader_libs_dir=loader_libs_dir,
             )
-            print(colorize_log(
+            safe_print(
                 f"[forge] staged {jars_staged} embedded JARs, "
                 f"{configs_copied} config files"
-            ))
+            )
 
             # ---- predict profile id + persist install_profile.json -------
             fallback_id = f"{mc_version}-forge-{loader_version}"
@@ -528,7 +524,6 @@ def install_forge(
                 installer_path, fallback=fallback_id,
             )
 
-            # Re-extract just to grab install_profile.json for metadata.
             install_profile_data: Optional[Dict] = None
             try:
                 with zipfile.ZipFile(installer_path, "r") as zf:
@@ -543,7 +538,6 @@ def install_forge(
             except Exception:
                 pass
 
-            # Pre-download client.jar into fake_mc if needed (Forge installer processors need it)
             fake_client_jar = os.path.join(fake_dir, "versions", mc_version, f"{mc_version}.jar")
             if not os.path.exists(fake_client_jar):
                 tracker.update("downloading_libs", 5, f"Downloading vanilla {mc_version}.jar for Forge installer...")
@@ -557,7 +551,7 @@ def install_forge(
                         if client_dl_url:
                             CLIENT.download(client_dl_url, fake_client_jar, cancel_check=job.checkpoint)
                 except Exception as exc:
-                    print(colorize_log(f"[forge] failed downloading vanilla client.jar: {exc}"))
+                    safe_print(f"[forge] failed downloading vanilla client.jar: {exc}")
 
             if embedded_version_data is not None:
                 try:
@@ -574,12 +568,6 @@ def install_forge(
             )
 
             # ---- pre-download libraries declared in version.json ---------
-            # The Java installer needs many libs at runtime; downloading them
-            # ourselves ensures the install completes even if the installer
-            # subprocess silently fails (wrong Java version, sandboxed net,
-            # cert issues). Goes into fake_libs_dir so the installer sees
-            # them as already-present; the post-install harvest pass moves
-            # them into loader_libs_dir + the central library store.
             metadata_lib_downloads = 0
             metadata_lib_skipped = 0
             if embedded_version_data:
@@ -593,7 +581,7 @@ def install_forge(
                 )
                 metadata_lib_downloads += d1
                 metadata_lib_skipped += s1
-                
+
             if install_profile_data:
                 d2, s2 = _download_metadata_libraries(
                     version_data=install_profile_data,
@@ -603,12 +591,12 @@ def install_forge(
                 )
                 metadata_lib_downloads += d2
                 metadata_lib_skipped += s2
-                
+
             if embedded_version_data or install_profile_data:
-                print(colorize_log(
+                safe_print(
                     f"[forge] metadata libs: {metadata_lib_downloads} downloaded, "
                     f"{metadata_lib_skipped} skipped"
-                ))
+                )
 
             before_snapshot = _snapshot_lib_sizes(fake_libs_dir)
 
@@ -628,10 +616,6 @@ def install_forge(
                 fake_libs_dir=fake_libs_dir,
                 before_snapshot=before_snapshot,
             )
-            # Even if the Java installer failed entirely, we have a viable
-            # install when the embedded version.json is present and we managed
-            # to download (almost) every library it declares. The launch
-            # system needs the profile + libs, not the installer's blessing.
             metadata_install_viable = bool(
                 embedded_version_data
                 and metadata_lib_downloads > 0
@@ -737,10 +721,10 @@ def install_forge(
                 f"({new_jars} new / {replaced_jars} updated libs)"
             ),
         )
-        print(colorize_log(
+        safe_print(
             f"[forge] {loader_version} installed: "
             f"{new_jars} new, {replaced_jars} replaced"
-        ))
+        )
 
     except DownloadCancelled:
         tracker.finish(status="cancelled",
@@ -798,7 +782,7 @@ def _run_with_variants(
             raise
 
         if rc != 0 and out_lines:
-            print(colorize_log(f"[forge] (variant {i}) Java installer failed with code {rc}. Output:\n" + "\n".join(out_lines)))
+            safe_print(f"[forge] (variant {i}) Java installer failed with code {rc}. Output:\n" + "\n".join(out_lines))
 
         combined = "\n".join(out_lines).lower()
         if any(m in combined for m in _NETWORK_FAILURE_MARKERS):
@@ -837,12 +821,9 @@ def _run_with_variants(
                 raise
 
             if rc != 0 and out_lines_offline:
-                print(colorize_log(f"[forge] (variant {i} offline) Java installer failed with code {rc}. Output:\n" + "\n".join(out_lines_offline)))
+                safe_print(f"[forge] (variant {i} offline) Java installer failed with code {rc}. Output:\n" + "\n".join(out_lines_offline))
 
-        if rc != 0 and out_lines:
-            print(colorize_log(f"[forge] (variant {i} offline) Java installer failed with code {rc}. Output:\n" + "\n".join(out_lines)))
-        
-        if rc == 0 and _has_installer_output(
+            if rc == 0 and _has_installer_output(
                 expected_profile_json=expected_profile_json,
                 fake_libs_dir=fake_libs_dir,
                 before_snapshot=before_snapshot,

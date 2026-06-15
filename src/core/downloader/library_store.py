@@ -5,7 +5,7 @@ import shutil
 from typing import Optional
 
 from core.downloader._paths import LIBRARY_STORE_DIR
-from core.logger import colorize_log
+from core.logger import safe_print
 
 
 def store_path_for(artifact_path: str) -> str:
@@ -52,9 +52,9 @@ def link_into_version(
         try:
             os.remove(version_dest)
         except OSError as exc:
-            print(colorize_log(
+            safe_print(
                 f"[lib-store] could not replace {version_dest}: {exc}; copying"
-            ))
+            )
             _copy(store_file, version_dest, chunk_size)
             return
 
@@ -62,9 +62,9 @@ def link_into_version(
         os.link(store_file, version_dest)
         return
     except (OSError, NotImplementedError) as exc:
-        print(colorize_log(
+        safe_print(
             f"[lib-store] hardlink failed ({exc}); copying {os.path.basename(version_dest)}"
-        ))
+        )
         _copy(store_file, version_dest, chunk_size)
 
 

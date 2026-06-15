@@ -295,6 +295,7 @@
             <option value="modpacks" data-i18n="mods.typeModpacks">Modpacks</option>
             <option value="resourcepacks" data-i18n="mods.typeResourcePacks">Resource Packs</option>
             <option value="shaderpacks" data-i18n="mods.typeShaderPacks">Shader Packs</option>
+            <option value="datapacks" data-i18n="mods.typeDatapacks">Datapacks</option>
           </select>
 
           <div class="view-toggle">
@@ -363,8 +364,11 @@
             <select id="mods-loader-select">
               <option value="" data-i18n="common.all">All</option>
               <option value="fabric" data-i18n="mods.loaderFabric">Fabric</option>
+              <option value="legacyfabric" data-i18n="mods.loaderLegacyfabric">Legacy Fabric</option>
               <option value="babric" data-i18n="mods.loaderBabric">Babric</option>
+              <option value="ornithe" data-i18n="mods.loaderOrnithe">Ornithe</option>
               <option value="forge" data-i18n="mods.loaderForge">Forge</option>
+              <option value="liteloader" data-i18n="mods.loaderLiteloader">LiteLoader</option>
               <option value="modloader" data-i18n="mods.loaderModloader">ModLoader</option>
               <option value="neoforge" data-i18n="mods.loaderNeoforge">NeoForge</option>
               <option value="quilt" data-i18n="mods.loaderQuilt">Quilt</option>
@@ -778,9 +782,21 @@
             <option value="blueberry-light" data-i18n="settings.appearance.themes.blueberryLight">Blueberry (Light)</option>
             <option value="leaf-dark" data-i18n="settings.appearance.themes.leafDark">Leaf (Dark)</option>
             <option value="leaf-light" data-i18n="settings.appearance.themes.leafLight">Leaf (Light)</option>
+            <option value="orange-dark" data-i18n="settings.appearance.themes.orangeDark">Orange (Dark)</option>
+            <option value="orange-light" data-i18n="settings.appearance.themes.orangeLight">Orange (Light)</option>
+            <option value="midnight-dark" data-i18n="settings.appearance.themes.midnightDark">Midnight (Dark)</option>
+            <option value="midnight-light" data-i18n="settings.appearance.themes.midnightLight">Midnight (Light)</option>
+            <option value="graphite-dark" data-i18n="settings.appearance.themes.graphiteDark">Graphite (Dark)</option>
+            <option value="graphite-light" data-i18n="settings.appearance.themes.graphiteLight">Graphite (Light)</option>
+            <option value="ocean-dark" data-i18n="settings.appearance.themes.oceanDark">Ocean (Dark)</option>
+            <option value="ocean-light" data-i18n="settings.appearance.themes.oceanLight">Ocean (Light)</option>
+            <option value="amethyst-dark" data-i18n="settings.appearance.themes.amethystDark">Amethyst (Dark)</option>
+            <option value="amethyst-light" data-i18n="settings.appearance.themes.amethystLight">Amethyst (Light)</option>
             <option value="aero-dark" data-i18n="settings.appearance.themes.aeroDark">Aero glass (Dark)</option>
             <option value="aero-light" data-i18n="settings.appearance.themes.aeroLight">Aero glass (Light)</option>
+            <option value="custom" data-i18n="settings.appearance.themes.custom">Custom</option>
           </select>
+          <button id="theme-editor-open-dock" type="button" data-i18n="settings.appearance.themeEditor.openDock">Open theme editor</button>
         </div>
         <div class="row">
           <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.appearance.uiSizeTooltip" data-tooltip="Scale launcher text, controls, icons, and navigation."/>
@@ -964,6 +980,39 @@
     </div>
 
   </main>
+
+  <!-- THEME EDITOR DOCK -->
+  <div id="theme-editor-dock" class="theme-editor-dock hidden" hidden>
+    <div id="theme-editor-dock-handle" class="theme-editor-dock-header">
+      <span class="theme-editor-dock-title" data-i18n="settings.appearance.themeEditor.dockTitle">Theme editor</span>
+      <div class="theme-editor-dock-controls">
+        <button id="theme-editor-dock-collapse" type="button" class="theme-editor-dock-btn" aria-expanded="true" title="Collapse">−</button>
+        <button id="theme-editor-dock-close" type="button" class="theme-editor-dock-btn" title="Close">×</button>
+      </div>
+    </div>
+    <div id="theme-editor-dock-body" class="theme-editor-dock-body">
+      <div class="row theme-editor-base-row">
+        <label for="settings-launcher-theme-base" data-i18n="settings.appearance.themeBase">Base theme:</label>
+        <select id="settings-launcher-theme-base"></select>
+      </div>
+      <div class="theme-editor-actions">
+        <button id="theme-editor-reset-all" type="button" data-i18n="settings.appearance.themeEditor.resetAll">Reset all overrides</button>
+        <button id="theme-editor-export" type="button" data-i18n="settings.appearance.themeEditor.export">Copy theme JSON</button>
+        <button id="theme-editor-import" type="button" data-i18n="settings.appearance.themeEditor.import">Import theme JSON</button>
+        <input id="theme-editor-import-input" type="file" accept="application/json,.json" hidden>
+      </div>
+      <p class="theme-editor-hint" data-i18n="settings.appearance.themeEditor.hint">Pick a base theme, then tweak individual colors below. Overrides are saved with your profile.</p>
+      <div id="theme-editor-groups" class="theme-editor-groups"></div>
+    </div>
+    <div class="theme-editor-dock-resize-handle theme-editor-dock-resize-n" data-resize="n" aria-hidden="true"></div>
+    <div class="theme-editor-dock-resize-handle theme-editor-dock-resize-s" data-resize="s" aria-hidden="true"></div>
+    <div class="theme-editor-dock-resize-handle theme-editor-dock-resize-e" data-resize="e" aria-hidden="true"></div>
+    <div class="theme-editor-dock-resize-handle theme-editor-dock-resize-w" data-resize="w" aria-hidden="true"></div>
+    <div class="theme-editor-dock-resize-handle theme-editor-dock-resize-ne" data-resize="ne" aria-hidden="true"></div>
+    <div class="theme-editor-dock-resize-handle theme-editor-dock-resize-nw" data-resize="nw" aria-hidden="true"></div>
+    <div class="theme-editor-dock-resize-handle theme-editor-dock-resize-se" data-resize="se" aria-hidden="true"></div>
+    <div class="theme-editor-dock-resize-handle theme-editor-dock-resize-sw" data-resize="sw" aria-hidden="true"></div>
+  </div>
 
   <!-- MESSAGE BOX -->
   <div id="msgbox-overlay" class="loading-overlay hidden">

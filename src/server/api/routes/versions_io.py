@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import get_base_dir
 from core.version_manager import get_clients_dir, scan_categories
 from core.zip_utils import ZipSecurityError, safe_extract_zip
@@ -74,11 +74,11 @@ def api_export_versions(data):
         else:
             compress_type = zipfile.ZIP_DEFLATED
 
-        print(colorize_log(f"[api] Starting export of {category}/{folder}..."))
-        print(colorize_log(
+        safe_print(f"[api] Starting export of {category}/{folder}...")
+        safe_print(
             f"[api] Export options: loaders={include_loaders}, assets={include_assets}, "
             f"config={include_config}, compression={compression}"
-        ))
+        )
 
         resolved = _resolve_version_dir_secure(category, folder)
         if not resolved.get("ok"):
@@ -92,7 +92,7 @@ def api_export_versions(data):
             temp_path = tmp_file.name
 
         try:
-            print(colorize_log(f"[api] Scanning files in {version_path}..."))
+            safe_print(f"[api] Scanning files in {version_path}...")
             file_count = 0
 
             with zipfile.ZipFile(temp_path, "w", compress_type) as zipf:
@@ -141,14 +141,14 @@ def api_export_versions(data):
                             zipf.writestr(arcname, modified_data)
 
                             file_size_kb = len(modified_data) / 1024
-                            print(colorize_log(
+                            safe_print(
                                 f"[api]   Adding: {arcname} ({file_size_kb:.1f} KB)"
-                            ))
+                            )
                         else:
                             file_size_kb = os.path.getsize(file_path) / 1024
-                            print(colorize_log(
+                            safe_print(
                                 f"[api]   Adding: {arcname} ({file_size_kb:.1f} KB)"
-                            ))
+                            )
                             zipf.write(file_path, arcname)
 
                         file_count += 1
@@ -157,7 +157,7 @@ def api_export_versions(data):
                     base_dir = get_base_dir()
                     assets_path = os.path.join(base_dir, "assets")
                     if os.path.isdir(assets_path):
-                        print(colorize_log("[api] Including assets directory..."))
+                        safe_print("[api] Including assets directory...")
                         for root, dirs, files in os.walk(assets_path):
                             for file in files:
                                 _raise_if_operation_cancelled(operation_id)
@@ -166,22 +166,22 @@ def api_export_versions(data):
                                     "assets", os.path.relpath(file_path, assets_path)
                                 )
                                 file_size_kb = os.path.getsize(file_path) / 1024
-                                print(colorize_log(
+                                safe_print(
                                     f"[api]   Adding: {arcname} ({file_size_kb:.1f} KB)"
-                                ))
+                                )
                                 zipf.write(file_path, arcname)
                                 file_count += 1
 
             zip_size_mb = os.path.getsize(temp_path) / 1024 / 1024
-            print(colorize_log(
+            safe_print(
                 f"[api] Successfully created ZIP: {file_count} files, {zip_size_mb:.2f} MB"
-            ))
+            )
 
             filename = f"{folder}.hlvdf"
-            print(colorize_log(f"[api] Temporary file saved to {temp_path}..."))
+            safe_print(f"[api] Temporary file saved to {temp_path}...")
 
             try:
-                print(colorize_log("[api] Opening file save dialog..."))
+                safe_print("[api] Opening file save dialog...")
                 _raise_if_operation_cancelled(operation_id)
 
                 save_path = save_native_file_picker(
@@ -200,17 +200,17 @@ def api_export_versions(data):
 
                 if save_path:
                     _raise_if_operation_cancelled(operation_id)
-                    print(colorize_log(f"[api] Copying file to {save_path}..."))
+                    safe_print(f"[api] Copying file to {save_path}...")
                     shutil.copy2(temp_path, save_path)
 
                     try:
                         os.remove(temp_path)
-                        print(colorize_log("[api] Cleaned up temporary file"))
+                        safe_print("[api] Cleaned up temporary file")
                     except Exception:
                         pass
 
-                    print(colorize_log("[api] [OK] Export completed successfully!"))
-                    print(colorize_log(f"[api] File saved to: {save_path}"))
+                    safe_print("[api] [OK] Export completed successfully!")
+                    safe_print(f"[api] File saved to: {save_path}")
 
                     return {
                         "ok": True,
@@ -220,7 +220,7 @@ def api_export_versions(data):
                         "message": f"Successfully exported {category}/{folder}",
                     }
                 else:
-                    print(colorize_log("[api] Export cancelled by user"))
+                    safe_print("[api] Export cancelled by user")
                     try:
                         os.remove(temp_path)
                     except Exception:
@@ -232,9 +232,9 @@ def api_export_versions(data):
                     }
 
             except ImportError:
-                print(colorize_log(
+                safe_print(
                     "[api] tkinter not available, using Downloads folder fallback"
-                ))
+                )
                 _raise_if_operation_cancelled(operation_id)
 
                 downloads_dir = os.path.expanduser("~/Downloads")
@@ -250,17 +250,17 @@ def api_export_versions(data):
                     counter += 1
 
                 _raise_if_operation_cancelled(operation_id)
-                print(colorize_log(f"[api] Copying file to {save_path}..."))
+                safe_print(f"[api] Copying file to {save_path}...")
                 shutil.copy2(temp_path, save_path)
 
                 try:
                     os.remove(temp_path)
-                    print(colorize_log("[api] Cleaned up temporary file"))
+                    safe_print("[api] Cleaned up temporary file")
                 except Exception:
                     pass
 
-                print(colorize_log("[api] [OK] Export completed successfully!"))
-                print(colorize_log(f"[api] File saved to: {save_path}"))
+                safe_print("[api] [OK] Export completed successfully!")
+                safe_print(f"[api] File saved to: {save_path}")
 
                 try:
                     import platform
@@ -291,7 +291,7 @@ def api_export_versions(data):
                 pass
             raise
         except Exception as zip_err:
-            print(colorize_log(f"[api] [FAILED] Export failed: {str(zip_err)}"))
+            safe_print(f"[api] [FAILED] Export failed: {str(zip_err)}")
             try:
                 if "temp_path" in locals():
                     os.remove(temp_path)
@@ -308,7 +308,7 @@ def api_export_versions(data):
     except Exception as e:
         import traceback
 
-        print(colorize_log(f"[api] [FAILED] Export error: {str(e)}"))
+        safe_print(f"[api] [FAILED] Export error: {str(e)}")
         traceback.print_exc()
         return {"ok": False, "error": f"Failed to export version: {str(e)}"}
     finally:
@@ -356,17 +356,17 @@ def api_import_versions_select(data):
             "error": "Import cancelled by user",
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to select version import file: {e}"))
+        safe_print(f"[api] Failed to select version import file: {e}")
         return {"ok": False, "error": str(e)}
 
 
 def api_import_versions(data):
     operation_id = ""
     try:
-        print(colorize_log(
+        safe_print(
             f"[api] api_import_versions called with data type: {type(data)}, "
             f"data: {str(data)[:200] if data else 'None'}"
-        ))
+        )
 
         if not isinstance(data, dict):
             return {"ok": False, "error": "invalid request"}
@@ -392,7 +392,7 @@ def api_import_versions(data):
             zip_bytes = base64.b64decode(zip_data_base64)
 
         zip_len = os.path.getsize(zip_path) if zip_path else (len(zip_bytes) if isinstance(zip_bytes, (bytes, bytearray)) else 0)
-        print(colorize_log(f"[api] version_name: '{version_name}', zip bytes length: {zip_len}"))
+        safe_print(f"[api] version_name: '{version_name}', zip bytes length: {zip_len}")
 
         if not version_name or (not zip_path and not zip_bytes):
             return {"ok": False, "error": "missing version_name or zip data"}
@@ -431,16 +431,16 @@ def api_import_versions(data):
                                     k, v = line.split("=", 1)
                                     existing_data[k.strip()] = v.strip()
                     except Exception as read_err:
-                        print(colorize_log(
+                        safe_print(
                             f"[api] Warning: Could not read data.ini from ZIP: {str(read_err)}"
-                        ))
+                        )
 
             category = existing_data.get("category", "").strip()
 
             if not category:
-                print(colorize_log(
+                safe_print(
                     "[api] Warning: No category found in data.ini, defaulting to Release"
-                ))
+                )
                 category = "Release"
 
             if not _validate_category_string(category):
@@ -496,10 +496,10 @@ def api_import_versions(data):
 
             old_md_version = existing_data.get("md_version", "missing").strip()
             if not old_md_version or old_md_version == "missing":
-                print(colorize_log(
+                safe_print(
                     f"[api] Auto-upgrading old version from no metadata version to "
                     f"{CURRENT_MD_VERSION}"
-                ))
+                )
 
             data_ini_path = os.path.join(version_path, "data.ini")
             if os.path.exists(data_ini_path):
@@ -526,7 +526,7 @@ def api_import_versions(data):
 
             scan_categories(force_refresh=True)
 
-            print(colorize_log(f"[api] [OK] Imported version: {category}/{version_name}"))
+            safe_print(f"[api] [OK] Imported version: {category}/{version_name}")
 
             return {
                 "ok": True,
@@ -561,7 +561,7 @@ def api_import_versions(data):
                     shutil.rmtree(version_path, ignore_errors=True)
             except Exception:
                 pass
-            print(colorize_log(f"[api] [FAILED] Import failed: {str(zip_err)}"))
+            safe_print(f"[api] [FAILED] Import failed: {str(zip_err)}")
             return {"ok": False, "error": f"Failed to extract ZIP: {str(zip_err)}"}
 
     except CancelledOperationError:
@@ -573,7 +573,7 @@ def api_import_versions(data):
     except Exception as e:
         import traceback
 
-        print(colorize_log(f"[api] [FAILED] Import error: {str(e)}"))
+        safe_print(f"[api] [FAILED] Import error: {str(e)}")
         traceback.print_exc()
         return {"ok": False, "error": f"Failed to import version: {str(e)}"}
     finally:

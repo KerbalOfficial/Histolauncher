@@ -10,7 +10,7 @@ from collections import Counter
 from typing import Any, Callable
 
 from core.java import detect_java_runtimes
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import (
     get_active_profile_id,
     get_active_scope_profile_id,
@@ -77,7 +77,6 @@ def _redact_settings(settings: dict[str, Any]) -> dict[str, Any]:
         "max_ram": settings.get("max_ram", ""),
         "game_resolution_width": settings.get("game_resolution_width", ""),
         "game_resolution_height": settings.get("game_resolution_height", ""),
-        "game_fullscreen": settings.get("game_fullscreen", ""),
         "game_demo_mode": settings.get("game_demo_mode", ""),
         "storage_directory": settings.get("storage_directory", ""),
         "custom_storage_directory": _redact_path(custom_storage),
@@ -101,7 +100,7 @@ def _safe_section(name: str, builder: Callable[[], Any]) -> Any:
     try:
         return builder()
     except Exception as exc:
-        print(colorize_log(f"[diagnostics] Failed to build {name}: {exc}"))
+        safe_print(f"[diagnostics] Failed to build {name}: {exc}")
         return {"error": str(exc)}
 
 
@@ -332,7 +331,7 @@ def _save_report_to_disk(report_text: str) -> tuple[bool, bool, str, str]:
         )
     except Exception as exc:
         dialog_failed = True
-        print(colorize_log(f"[diagnostics] Save dialog unavailable, using fallback path: {exc}"))
+        safe_print(f"[diagnostics] Save dialog unavailable, using fallback path: {exc}")
 
     if not save_path and not dialog_failed:
         return False, True, "", ""
@@ -372,5 +371,5 @@ def api_diagnostics_report(data: Any = None):
 
         return response
     except Exception as exc:
-        print(colorize_log(f"[diagnostics] Failed to build diagnostics report: {exc}"))
+        safe_print(f"[diagnostics] Failed to build diagnostics report: {exc}")
         return {"ok": False, "error": str(exc)}

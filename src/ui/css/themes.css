@@ -177,6 +177,14 @@
   --color-loader-quilt-button-border: #7c3aed;
   --color-loader-quilt-button-text: #4c1d95;
   --color-loader-quilt-button-hover: #d8b4fe;
+  --color-loader-ornithe-button-bg: #f7d5ee;
+  --color-loader-ornithe-button-border: #a8389a;
+  --color-loader-ornithe-button-text: #6b1d5f;
+  --color-loader-ornithe-button-hover: #f0bce2;
+  --color-loader-liteloader-button-bg: #d6e6f4;
+  --color-loader-liteloader-button-border: #5a82a6;
+  --color-loader-liteloader-button-text: #1e3a5f;
+  --color-loader-liteloader-button-hover: #c0d8ee;
 
   --color-loader-fabric-card-bg: #fefce8;
   --color-loader-fabric-card-border: #a3976e;
@@ -186,6 +194,10 @@
   --color-loader-forge-card-border: #93c5fd;
   --color-loader-forge-card-hover: #dbeafe;
   --color-loader-forge-card-hover-border: #60a5fa;
+  --color-loader-liteloader-card-bg: #eff5fb;
+  --color-loader-liteloader-card-border: #9cc0dd;
+  --color-loader-liteloader-card-hover: #ddeaf6;
+  --color-loader-liteloader-card-hover-border: #6f9cc4;
   --color-loader-modloader-card-bg: #f3f4f6;
   --color-loader-modloader-card-border: #9ca3af;
   --color-loader-modloader-card-hover: #e5e7eb;
@@ -198,6 +210,10 @@
   --color-loader-quilt-card-border: #c4b5fd;
   --color-loader-quilt-card-hover: #f3e8ff;
   --color-loader-quilt-card-hover-border: #a78bfa;
+  --color-loader-ornithe-card-bg: #fdf5fb;
+  --color-loader-ornithe-card-border: #e0b5d4;
+  --color-loader-ornithe-card-hover: #f9e8f4;
+  --color-loader-ornithe-card-hover-border: #c98bbb;
 }
 
 :root[data-theme="dark-contrast"] {
@@ -508,6 +524,146 @@
   --color-focus: #38bdf8;
 }
 
+:root[data-theme="orange-dark"] {
+  --color-app-bg: #1c1008;
+  --color-surface-panel: #120a04;
+  --color-surface-card: #2a1608;
+  --color-surface-card-hover: #381d0a;
+  --color-surface-input: #462510;
+  --color-border-strong: #c45e12;
+  --color-border-default: #e07b1a;
+  --color-border-input-strong: #8a3d08;
+  --color-link: #ff8800;
+  --color-link-hover: #ffaa33;
+  --color-focus: #ff7700;
+}
+
+:root[data-theme="orange-light"] {
+  --color-app-bg: #fff0e0;
+  --color-surface-panel: #ffd9b3;
+  --color-surface-card: #fff8f0;
+  --color-surface-card-hover: #ffe8cc;
+  --color-surface-input: #ffffff;
+  --color-border-strong: #e85d04;
+  --color-border-default: #f97316;
+  --color-border-input-strong: #ea580c;
+  --color-link: #ea580c;
+  --color-link-hover: #c2410c;
+  --color-focus: #ea580c;
+}
+
+:root[data-theme="midnight-dark"] {
+  --color-app-bg: #0f0f1a;
+  --color-surface-panel: #090912;
+  --color-surface-card: #18182b;
+  --color-surface-card-hover: #222238;
+  --color-surface-input: #2a2a42;
+  --color-border-strong: #4f4f7a;
+  --color-border-default: #636393;
+  --color-border-input-strong: #353552;
+  --color-link: #818cf8;
+  --color-link-hover: #a5b4fc;
+  --color-focus: #6366f1;
+}
+
+:root[data-theme="midnight-light"] {
+  --color-app-bg: #eef2ff;
+  --color-surface-panel: #e0e7ff;
+  --color-surface-card: #f8faff;
+  --color-surface-card-hover: #e8edff;
+  --color-surface-input: #ffffff;
+  --color-border-strong: #5b67a8;
+  --color-border-default: #7481b8;
+  --color-border-input-strong: #5b67a8;
+  --color-link: #4338ca;
+  --color-link-hover: #4f46e5;
+  --color-focus: #4338ca;
+}
+
+:root[data-theme="graphite-dark"] {
+  --color-app-bg: #18181b;
+  --color-surface-panel: #101012;
+  --color-surface-card: #27272a;
+  --color-surface-card-hover: #323235;
+  --color-surface-input: #3f3f46;
+  --color-border-strong: #71717a;
+  --color-border-default: #86868f;
+  --color-border-input-strong: #52525b;
+  --color-link: #a1a1aa;
+  --color-link-hover: #d4d4d8;
+  --color-focus: #71717a;
+}
+
+:root[data-theme="graphite-light"] {
+  --color-app-bg: #fafafa;
+  --color-surface-panel: #f4f4f5;
+  --color-surface-card: #ffffff;
+  --color-surface-card-hover: #f4f4f5;
+  --color-surface-input: #ffffff;
+  --color-border-strong: #71717a;
+  --color-border-default: #a1a1aa;
+  --color-border-input-strong: #71717a;
+  --color-link: #52525b;
+  --color-link-hover: #3f3f46;
+  --color-focus: #52525b;
+}
+
+:root[data-theme="ocean-dark"] {
+  --color-app-bg: #0c1917;
+  --color-surface-panel: #071210;
+  --color-surface-card: #132825;
+  --color-surface-card-hover: #1a3531;
+  --color-surface-input: #21423d;
+  --color-border-strong: #3d7a72;
+  --color-border-default: #529489;
+  --color-border-input-strong: #2a5a53;
+  --color-link: #2dd4bf;
+  --color-link-hover: #5eead4;
+  --color-focus: #14b8a6;
+}
+
+:root[data-theme="ocean-light"] {
+  --color-app-bg: #ecfdf5;
+  --color-surface-panel: #d1fae5;
+  --color-surface-card: #f8fffc;
+  --color-surface-card-hover: #e3fbf2;
+  --color-surface-input: #ffffff;
+  --color-border-strong: #3d8a7a;
+  --color-border-default: #56a392;
+  --color-border-input-strong: #3d8a7a;
+  --color-link: #0f766e;
+  --color-link-hover: #115e59;
+  --color-focus: #0f766e;
+}
+
+:root[data-theme="amethyst-dark"] {
+  --color-app-bg: #1a1225;
+  --color-surface-panel: #100a18;
+  --color-surface-card: #261a36;
+  --color-surface-card-hover: #312244;
+  --color-surface-input: #3c2a52;
+  --color-border-strong: #7c5498;
+  --color-border-default: #9468b0;
+  --color-border-input-strong: #553872;
+  --color-link: #c084fc;
+  --color-link-hover: #d8b4fe;
+  --color-focus: #a855f7;
+}
+
+:root[data-theme="amethyst-light"] {
+  --color-app-bg: #faf5ff;
+  --color-surface-panel: #f3e8ff;
+  --color-surface-card: #fefbff;
+  --color-surface-card-hover: #f5ebff;
+  --color-surface-input: #ffffff;
+  --color-border-strong: #9b6bb8;
+  --color-border-default: #b084c9;
+  --color-border-input-strong: #9b6bb8;
+  --color-link: #9333ea;
+  --color-link-hover: #7e22ce;
+  --color-focus: #9333ea;
+}
+
 :root[data-theme="aero-light"] {
   --color-app-bg: #e8f5fb;
   --color-text-primary: #102331;
@@ -630,6 +786,10 @@
   --color-loader-forge-card-border: #7c9bc1;
   --color-loader-forge-card-hover: #c2d4ea;
   --color-loader-forge-card-hover-border: #4f73a0;
+  --color-loader-liteloader-card-bg: #dbe7f2;
+  --color-loader-liteloader-card-border: #7da3c4;
+  --color-loader-liteloader-card-hover: #c8dbeb;
+  --color-loader-liteloader-card-hover-border: #517da3;
   --color-loader-modloader-card-bg: #e1e3e5;
   --color-loader-modloader-card-border: #a3a8ad;
   --color-loader-modloader-card-hover: #cdd1d5;
@@ -642,6 +802,10 @@
   --color-loader-quilt-card-border: #9b73c0;
   --color-loader-quilt-card-hover: #d9bce8;
   --color-loader-quilt-card-hover-border: #6b4593;
+  --color-loader-ornithe-card-bg: #f3d8ec;
+  --color-loader-ornithe-card-border: #b573a6;
+  --color-loader-ornithe-card-hover: #e8bcdc;
+  --color-loader-ornithe-card-hover-border: #8f457e;
   --color-favorite-bg: #fff7d1;
   --color-favorite-hover-bg: #fffae9;
   --color-recent-bg: #fff3cf;

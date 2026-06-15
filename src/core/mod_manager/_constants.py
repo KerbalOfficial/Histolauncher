@@ -15,6 +15,7 @@ DIRECT_MODRINTH_API_BASE = "https://api.modrinth.com/v2"
 CURSEFORGE_MINECRAFT_GAME_ID = 432
 
 CURSEFORGE_MODLOADER_TYPE_FORGE = 1
+CURSEFORGE_MODLOADER_TYPE_LITELOADER = 3
 CURSEFORGE_MODLOADER_TYPE_FABRIC = 4
 CURSEFORGE_MODLOADER_TYPE_QUILT = 5
 CURSEFORGE_MODLOADER_TYPE_NEOFORGE = 6
@@ -30,22 +31,38 @@ _MODRINTH_CACHE_LOCK = threading.Lock()
 _MODRINTH_SEARCH_TTL = 120
 _MODRINTH_DETAIL_TTL = 300
 
-SUPPORTED_MOD_LOADERS = ("fabric", "babric", "forge", "modloader", "neoforge", "quilt")
+SUPPORTED_MOD_LOADERS = (
+    "vanilla",
+    "fabric",
+    "legacyfabric",
+    "babric",
+    "ornithe",
+    "forge",
+    "liteloader",
+    "modloader",
+    "neoforge",
+    "quilt",
+)
+CURSEFORGE_MODPACK_LOADERS = frozenset({"vanilla", "fabric", "forge", "neoforge", "quilt"})
+CURSEFORGE_ADDON_SEARCH_LOADERS = frozenset({"fabric", "forge", "liteloader", "neoforge", "quilt"})
 SUPPORTED_SHADER_TYPES = ("optifine", "iris")
-SUPPORTED_ADDON_TYPES = ("mods", "resourcepacks", "shaderpacks", "modpacks")
+SUPPORTED_ADDON_TYPES = ("mods", "resourcepacks", "shaderpacks", "modpacks", "datapacks")
 
 ADDON_STORAGE_DIRS = {
     "mods": "mods",
     "resourcepacks": "resourcepacks",
     "shaderpacks": "shaderpacks",
     "modpacks": "modpacks",
+    "datapacks": "datapacks",
 }
 
 ADDON_IMPORT_EXTENSIONS = {
-    "mods": {".jar", ".zip"},
+    # .litemod is LiteLoader's mod archive format (a zip with a custom extension).
+    "mods": {".jar", ".zip", ".litemod"},
     "resourcepacks": {".zip"},
     "shaderpacks": {".zip"},
     "modpacks": {".hlmp", ".mrpack", ".zip"},
+    "datapacks": {".zip"},
 }
 
 MODRINTH_PROJECT_TYPES = {
@@ -53,13 +70,14 @@ MODRINTH_PROJECT_TYPES = {
     "resourcepacks": "resourcepack",
     "shaderpacks": "shader",
     "modpacks": "modpack",
+    "datapacks": "datapack",
 }
 
 _CURSEFORGE_CLASS_ID_CACHE: Dict[str, Optional[int]] = {}
 _CURSEFORGE_CLASS_ID_CACHE_LOCK = threading.Lock()
 
 _MAX_SAFE_COMPONENT_LENGTH = 128
-_SUPPORTED_MOD_ARCHIVE_EXTENSIONS = {".jar", ".zip"}
+_SUPPORTED_MOD_ARCHIVE_EXTENSIONS = {".jar", ".zip", ".litemod"}
 
 
 class ExternalModpackImportError(RuntimeError):

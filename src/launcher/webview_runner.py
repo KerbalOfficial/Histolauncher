@@ -6,7 +6,7 @@ import urllib.request
 import webbrowser
 from tkinter import ttk
 
-from core.logger import colorize_log, dim_line
+from core.logger import safe_print, dim_line
 
 from launcher._constants import ICO_PATH, PNG_ICON_PATH
 from launcher.i18n import t, tk_direction_options
@@ -48,14 +48,14 @@ def open_in_browser(port):
     url = f"http://127.0.0.1:{port}/"
     try:
         webbrowser.open_new_tab(url)
-        print(colorize_log(
+        safe_print(
             f"[launcher] Opened launcher in default browser: {url}"
-        ))
+        )
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Failed to open default browser! ({e}) You MUST "
             f"manually go to your browser and enter this link: {url}"
-        ))
+        )
 
 
 def open_with_webview(
@@ -122,10 +122,10 @@ def open_with_webview(
         except Exception:
             pass
         window.events.loaded += _on_webview_ready
-        print(colorize_log(
+        safe_print(
             f"[launcher] Opened launcher in pywebview window: {url}"
-        ))
-        print(dim_line("------------------------------------------------"))
+        )
+        safe_print(dim_line("------------------------------------------------"))
         if splash is not None:
             splash.close()
         start_kwargs = {"user_agent": "Histolauncher/1.0"}
@@ -138,8 +138,8 @@ def open_with_webview(
             webview.start(**start_kwargs)
         return True
     except Exception as e:
-        print(colorize_log(f"[launcher] pywebview failed to open window: {e}"))
-        print(dim_line("------------------------------------------------"))
+        safe_print(f"[launcher] pywebview failed to open window: {e}")
+        safe_print(dim_line("------------------------------------------------"))
         if splash is not None:
             splash.close(ensure_minimum=False)
         return False

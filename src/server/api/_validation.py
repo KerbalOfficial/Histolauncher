@@ -15,6 +15,7 @@ from server.api._constants import (
     VALID_ADDON_TYPES,
     VALID_LOADER_TYPES,
     VALID_MOD_LOADERS,
+    VALID_MODPACK_LOADERS,
 )
 
 
@@ -64,6 +65,10 @@ def _validate_mod_loader_type(loader_type: str) -> bool:
     return loader_type in VALID_MOD_LOADERS
 
 
+def _validate_modpack_loader_type(loader_type: str) -> bool:
+    return str(loader_type or "").strip().lower() in VALID_MODPACK_LOADERS
+
+
 def _normalize_addon_type(addon_type: Any) -> str:
     raw = str(addon_type or "mods").strip().lower()
     aliases = {
@@ -83,6 +88,10 @@ def _normalize_addon_type(addon_type: Any) -> str:
         "modpacks": "modpacks",
         "mod-pack": "modpacks",
         "mod-packs": "modpacks",
+        "datapack": "datapacks",
+        "datapacks": "datapacks",
+        "data-pack": "datapacks",
+        "data-packs": "datapacks",
     }
     normalized = aliases.get(raw, raw)
     return normalized if normalized in VALID_ADDON_TYPES else "mods"
@@ -172,7 +181,7 @@ def _validate_addon_filename(
 
     normalized_type = _normalize_addon_type(addon_type)
     if normalized_type == "mods":
-        allowed_exts = {".jar", ".zip"}
+        allowed_exts = {".jar", ".zip", ".litemod"}
     elif normalized_type == "modpacks":
         allowed_exts = {".hlmp", ".mrpack", ".zip"}
     else:

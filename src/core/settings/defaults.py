@@ -19,7 +19,6 @@ DEFAULTS: Final[dict[str, dict[str, str]]] = {
         "max_ram": "4096M",
         "game_resolution_width": "854",
         "game_resolution_height": "480",
-        "game_fullscreen": "0",
         "game_demo_mode": "0",
         "auto_optimize_launch_settings": "1",
         "extra_jvm_args": "",
@@ -30,6 +29,8 @@ DEFAULTS: Final[dict[str, dict[str, str]]] = {
     },
     "appearance": {
         "launcher_theme": "dark",
+        "launcher_theme_base": "dark",
+        "launcher_theme_overrides": "",
         "launcher_ui_size": "normal",
         "launcher_language": "en",
         "layout_density": "comfortable",

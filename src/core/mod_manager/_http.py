@@ -24,7 +24,7 @@ from core.mod_manager._validation import _normalize_download_url
 
 
 # ---------------------------------------------------------------------------
-# Cache helpers (Modrinth)
+# cache helpers (Modrinth)
 # ---------------------------------------------------------------------------
 
 
@@ -69,7 +69,7 @@ def _sleep_with_cancel(
 
 
 # ---------------------------------------------------------------------------
-# Status / response helpers
+# status / response helpers
 # ---------------------------------------------------------------------------
 
 
@@ -82,7 +82,9 @@ def _is_retryable_http_status(status_code: int) -> bool:
 
 
 def _modrinth_response_looks_like_project(
-    payload: Any, expected_project_type: str = "",
+    payload: Any,
+    expected_project_type: str = "",
+    alternate_project_types: tuple[str, ...] = (),
 ) -> bool:
     if not isinstance(payload, dict):
         return False
@@ -90,7 +92,9 @@ def _modrinth_response_looks_like_project(
         return False
     project_type = str(payload.get("project_type") or "").strip().lower()
     expected = str(expected_project_type or "").strip().lower()
-    if expected and project_type and project_type != expected:
+    allowed_types = {expected, *(str(value or "").strip().lower() for value in alternate_project_types)}
+    allowed_types.discard("")
+    if allowed_types and project_type and project_type not in allowed_types:
         return False
     if not expected and project_type and project_type != "mod":
         return False
@@ -244,7 +248,7 @@ def _modrinth_request(
 
 
 # ---------------------------------------------------------------------------
-# Binary file fetch (modpack imports)
+# binary file fetch (modpack imports)
 # ---------------------------------------------------------------------------
 
 

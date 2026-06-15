@@ -136,10 +136,16 @@ def replace_world_icon(
         return {"ok": False, "error": "World icon PNG must be exactly 64x64 pixels."}
 
     icon_path = os.path.join(world_dir, "icon.png")
+    tmp_path = f"{icon_path}.{os.getpid()}.tmp"
     try:
-        with open(icon_path, "wb") as f:
+        with open(tmp_path, "wb") as f:
             f.write(payload)
+        os.replace(tmp_path, icon_path)
     except Exception as e:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
         return {"ok": False, "error": f"Failed to save world icon: {e}"}
 
     detail = _world_metadata_from_dir(world_dir, storage_label=str(resolved.get("storage_label") or ""))

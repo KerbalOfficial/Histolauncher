@@ -79,7 +79,6 @@
 .global-message-float::-webkit-scrollbar-track {
   background: var(--color-scrollbar-info-track);
   border: 2px solid var(--color-scrollbar-info-track-border);
-  border-radius: 0 !important;
 }
 
 .global-message-warning::-webkit-scrollbar-track {
@@ -95,7 +94,6 @@
 .global-message-float::-webkit-scrollbar-thumb {
   background: var(--color-scrollbar-info-thumb);
   border: 2px solid var(--color-scrollbar-info-thumb-border);
-  border-radius: 0 !important;
   -webkit-appearance: none;
 }
 
@@ -111,7 +109,6 @@
 
 .global-message-float::-webkit-scrollbar-thumb:hover {
   background: var(--color-scrollbar-info-thumb-hover);
-  border-radius: 0 !important;
 }
 
 .global-message-warning::-webkit-scrollbar-thumb:hover {

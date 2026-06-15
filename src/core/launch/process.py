@@ -23,7 +23,7 @@ from core.java.classfile_inspector import (
 from core.launch.mods import _cleanup_copied_mods
 from core.launch.state import STATE
 from core.subprocess_utils import no_window_kwargs
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.notifications import send_desktop_notification
 from core.settings import get_base_dir, get_versions_profile_dir
 
@@ -116,6 +116,21 @@ def _legacy_exit_looks_like_normal_close(snapshot: dict, exit_code) -> bool:
     return elapsed >= _LEGACY_NORMAL_EXIT_MIN_SECONDS and not _log_has_crash_markers(str((snapshot or {}).get("log_path") or ""))
 
 
+_PROCESS_REAP_DELAY_S = 120.0
+
+
+def _schedule_process_reap(process_id) -> None:
+    def _reap() -> None:
+        with STATE.process_lock:
+            proc_info = STATE.active_processes.get(process_id)
+            if proc_info and proc_info.get("status") == "exited":
+                STATE.active_processes.pop(process_id, None)
+
+    timer = threading.Timer(_PROCESS_REAP_DELAY_S, _reap)
+    timer.daemon = True
+    timer.start()
+
+
 def _finalize_process_exit(process_id, exit_code=None):
     cleanup_files = []
     snapshot = None
@@ -168,7 +183,7 @@ def _finalize_process_exit(process_id, exit_code=None):
                 icon_kind="failed",
             )
         except Exception as e:
-            print(colorize_log(f"[launcher] Could not send crash notification: {e}"))
+            safe_print(f"[launcher] Could not send crash notification: {e}")
 
     if cleanup_files:
         _cleanup_copied_mods(cleanup_files)
@@ -189,7 +204,14 @@ def _finalize_process_exit(process_id, exit_code=None):
         already_recorded = proc_info.get("playtime_recorded", False)
         if not already_recorded:
             proc_info["playtime_recorded"] = True
+
+        reap_scheduled = proc_info.get("reap_scheduled", False)
+        if not reap_scheduled:
+            proc_info["reap_scheduled"] = True
         snapshot = dict(proc_info)
+
+    if not reap_scheduled:
+        _schedule_process_reap(process_id)
 
     if not already_recorded:
         try:
@@ -204,7 +226,7 @@ def _finalize_process_exit(process_id, exit_code=None):
                 loader=snapshot.get("loader"),
             )
         except Exception as _pt_exc:
-            print(colorize_log(f"[playtime] record_session error: {_pt_exc}"))
+            safe_print(f"[playtime] record_session error: {_pt_exc}")
 
     return snapshot
 
@@ -349,7 +371,6 @@ def _is_minecraft_window_visible(process_pid):
                     pid_str = str(int(process_pid))
                     for line in result.stdout.splitlines():
                         cols = line.split(None, 4)
-                        # Format: <id> <desk> <pid> <host> <title>
                         if len(cols) >= 3 and cols[2] == pid_str:
                             return True
             except Exception:
@@ -419,11 +440,11 @@ def _create_version_log_file(version_identifier):
         log_file_path = os.path.join(logs_dir, f"{timestamp}.log")
         log_file = open(log_file_path, "w", buffering=1, encoding="utf-8")
 
-        print(colorize_log(f"[launcher] Created log file: {log_file_path}"))
+        safe_print(f"[launcher] Created log file: {log_file_path}")
 
         return log_file_path, log_file
     except Exception as e:
-        print(colorize_log(f"[launcher] ERROR creating log file: {e}"))
+        safe_print(f"[launcher] ERROR creating log file: {e}")
         return None, None
 
 
@@ -474,14 +495,14 @@ def _get_latest_log_path(version_dir):
         if found_files:
             best_file = max(found_files.items(), key=lambda x: (x[1][0], x[1][1]))
             latest_log = best_file[1][2]
-            print(colorize_log(f"[_get_latest_log_path] Best log file found: {latest_log}"))
-            print(colorize_log(f"[_get_latest_log_path] All found files: {list(found_files.keys())}"))
+            safe_print(f"[_get_latest_log_path] Best log file found: {latest_log}")
+            safe_print(f"[_get_latest_log_path] All found files: {list(found_files.keys())}")
         else:
-            print(colorize_log(f"[_get_latest_log_path] No log files found in: {log_dirs}"))
+            safe_print(f"[_get_latest_log_path] No log files found in: {log_dirs}")
 
         return latest_log
     except Exception as e:
-        print(colorize_log(f"[_get_latest_log_path] Exception: {e}"))
+        safe_print(f"[_get_latest_log_path] Exception: {e}")
         return None
 
 _AUTHLIB_NOISE_RE = re.compile(
@@ -520,12 +541,12 @@ def _output_reader_thread(process, log_file, version_name):
 
             msg = f"[{version_name}] {line.rstrip()}"
             try:
-                print(msg, flush=True)
+                safe_print(msg, flush=True)
             except UnicodeEncodeError:
                 try:
                     out_enc = sys.stdout.encoding or "utf-8"
                     safe_msg = msg.encode(out_enc, errors="replace").decode(out_enc, errors="replace")
-                    print(safe_msg, flush=True)
+                    safe_print(safe_msg, flush=True)
                 except Exception:
                     try:
                         sys.stdout.buffer.write((msg + "\n").encode("utf-8", errors="replace"))
@@ -533,7 +554,7 @@ def _output_reader_thread(process, log_file, version_name):
                     except Exception:
                         pass
     except Exception as e:
-        print(colorize_log(f"[_output_reader_thread] Error: {e}"))
+        safe_print(f"[_output_reader_thread] Error: {e}")
     finally:
         try:
             if log_file:
@@ -609,7 +630,7 @@ def _get_process_status(process_id):
     log_path = proc_info.get("log_path")
 
     if log_path:
-        print(colorize_log(f"[_get_process_status] Using stored log path: {log_path}"))
+        safe_print(f"[_get_process_status] Using stored log path: {log_path}")
     else:
         clients_dir = get_versions_profile_dir()
 
@@ -625,19 +646,19 @@ def _get_process_status(process_id):
                         break
             if not version_dir:
                 version_dir = os.path.join(clients_dir, category, folder)
-            print(colorize_log(f"[_get_process_status] Reconstructed version_dir from '/' split: {version_dir}"))
+            safe_print(f"[_get_process_status] Reconstructed version_dir from '/' split: {version_dir}")
         else:
             for cat in os.listdir(clients_dir):
                 p = os.path.join(clients_dir, cat, version)
                 if os.path.isdir(p):
                     version_dir = p
-                    print(colorize_log(f"[_get_process_status] Found version_dir from directory scan: {version_dir}"))
+                    safe_print(f"[_get_process_status] Found version_dir from directory scan: {version_dir}")
                     break
 
         log_path = _get_latest_log_path(version_dir) if version_dir else None
-        print(colorize_log(
+        safe_print(
             f"[_get_process_status] Fallback log search - version_dir: {version_dir}, log_path: {log_path}"
-        ))
+        )
 
     with STATE.process_lock:
         STATE.active_processes.pop(process_id, None)
@@ -695,7 +716,7 @@ def _detect_client_jar_java_major(version_dir: str) -> int:
     try:
         return detect_client_jar_java_major(version_dir)
     except Exception as e:
-        print(colorize_log(f"[launcher] Warning: Could not inspect client.jar Java target: {e}"))
+        safe_print(f"[launcher] Warning: Could not inspect client.jar Java target: {e}")
         return 0
 
 
@@ -704,7 +725,7 @@ def _resolve_java_launch_candidates(selected_java_setting: str, version_dir: str
     try:
         target_java_major = detect_java_major_requirement(version_dir, extra_java_scan_paths)
     except Exception as e:
-        print(colorize_log(f"[launcher] Warning: Could not inspect Java target from launch files: {e}"))
+        safe_print(f"[launcher] Warning: Could not inspect Java target from launch files: {e}")
         target_java_major = _detect_client_jar_java_major(version_dir)
     path_java = get_path_java_executable()
 
@@ -768,7 +789,7 @@ def _resolve_java_launch_candidates(selected_java_setting: str, version_dir: str
             "version": "unknown",
         }], target_java_major
 
-    print(colorize_log(f"[launcher] Warning: configured Java runtime not found, falling back to PATH: {raw}"))
+    safe_print(f"[launcher] Warning: configured Java runtime not found, falling back to PATH: {raw}")
     return [{
         "path": path_java,
         "label": "Default (Java PATH)",
@@ -840,9 +861,9 @@ def _spawn_version_process(cmd, launch_cwd, version_identifier):
     log_file = None
     version_name = version_identifier.split("/", 1)[1] if "/" in version_identifier else version_identifier
 
-    print("Launching version:", version_identifier)
-    print("Working dir:", launch_cwd)
-    print("Command:", _format_command_for_logging(cmd))
+    safe_print("Launching version:", version_identifier)
+    safe_print("Working dir:", launch_cwd)
+    safe_print("Command:", _format_command_for_logging(cmd))
 
     _popen_kwargs = no_window_kwargs()
 
@@ -871,7 +892,7 @@ def _spawn_version_process(cmd, launch_cwd, version_identifier):
                 daemon=True
             )
             reader_thread.start()
-            print(colorize_log(f"[launcher] Output reader thread started"))
+            safe_print(f"[launcher] Output reader thread started")
 
         return {
             "ok": True,

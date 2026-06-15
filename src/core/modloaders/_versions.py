@@ -119,12 +119,18 @@ def parse_loader_type(loader_str: str) -> str | None:
         return None
     if "babric" in lower:
         return "babric"
+    if "ornithe" in lower:
+        return "ornithe"
+    if "liteloader" in lower or "lite loader" in lower:
+        return "liteloader"
     if "mod loader" in lower or "modloader" in lower or "risugami" in lower:
         return "modloader"
     if "neoforge" in lower:
         return "neoforge"
     if "quilt" in lower:
         return "quilt"
+    if "legacy" in lower and "fabric" in lower:
+        return "legacyfabric"
     if "fabric" in lower:
         return "fabric"
     if "forge" in lower:

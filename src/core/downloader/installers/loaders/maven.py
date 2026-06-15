@@ -7,7 +7,7 @@ from typing import Optional
 from core.downloader._paths import BASE_DIR
 from core.downloader.errors import DownloadFailed
 from core.downloader.http import CLIENT
-from core.logger import colorize_log
+from core.logger import colorize_log, safe_print
 
 
 INSTALLER_JAR_CACHE_DIR: str = os.path.join(BASE_DIR, "cache", "installers", "jars")
@@ -26,7 +26,7 @@ def download_installer_jar(
     cancel_check=None,
 ) -> str:
     dest = installer_jar_cache_path(url)
-    print(colorize_log(f"[loader-installer] resolving installer JAR: {url}"))
+    safe_print(f"[loader-installer] resolving installer JAR: {url}")
     try:
         CLIENT.download(
             url,

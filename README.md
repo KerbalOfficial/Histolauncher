@@ -18,7 +18,7 @@ Backup Website: **https://histolauncher.pages.dev**
 - Favorite versions and filter/search by category
 
 ### Mod Loaders
-- Install and manage **Fabric, NeoForge, Forge, Quilt, Babric, and ModLoader (Risugami)**
+- Install and manage **Fabric, Legacy Fabric, NeoForge, Forge, Quilt, Babric, LiteLoader, and ModLoader (Risugami)**
 - Multiple loader versions per Minecraft version; upgrade or remove individually
 
 ### Add-ons (Mods, Modpacks, Resource Packs, Shader Packs)

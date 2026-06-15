@@ -26,7 +26,7 @@ from core.downloader.progress import (
     delete_progress,
     write_progress_dict,
 )
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.notifications import send_desktop_notification
 from core.settings import get_versions_profile_dir
 
@@ -49,7 +49,7 @@ from core.zip_utils import safe_extract_zip
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# helpers
 # ---------------------------------------------------------------------------
 
 
@@ -87,7 +87,7 @@ def _remove_cancelled_version_dir(version_id: str, storage_category: str) -> Non
 
 
 # ---------------------------------------------------------------------------
-# Stages
+# stages
 # ---------------------------------------------------------------------------
 
 
@@ -98,7 +98,7 @@ def _stage_fetch_manifest(ctx: StageContext) -> None:
     include_third_party: bool = ctx.data["include_third_party"]
 
     ctx.update("version_json", 0, "Fetching version metadata...")
-    print(colorize_log(f"[install] Starting install for {ctx.tracker.key}"))
+    safe_print(f"[install] Starting install for {ctx.tracker.key}")
 
     try:
         entry = manifest.get_version_entry(
@@ -157,9 +157,9 @@ def _stage_download_client(ctx: StageContext) -> None:
         "client", 0, "Downloading client.jar...",
         bytes_done=bytes_done, bytes_total=total_size,
     )
-    print(colorize_log(
+    safe_print(
         f"[install] Downloading client.jar ({client_size} bytes)"
-    ))
+    )
 
     def cb(done: int, total: Optional[int]) -> None:
         ctx.checkpoint()
@@ -220,63 +220,76 @@ def _stage_download_libraries(ctx: StageContext) -> None:
         )
         return
 
-    print(colorize_log(f"[install] Downloading {total_libs} libraries"))
-    done_libs = 0
+    safe_print(f"[install] Downloading {total_libs} libraries")
+
+    tasks: List[DownloadTask] = []
+    link_jobs: List[tuple] = []
+    skipped = 0
     for lib in libs:
         ctx.checkpoint()
-
         artifact = _resolve_library_artifact(lib)
-        if artifact:
-            a_url = artifact.get("url")
-            a_sha1 = artifact.get("sha1")
-            a_path = artifact.get("path") or ""
-            a_size = int(artifact.get("size") or 0)
-            base_name = os.path.basename(a_path)
+        if not artifact:
+            skipped += 1
+            continue
+        a_url = artifact.get("url")
+        a_sha1 = artifact.get("sha1")
+        a_path = artifact.get("path") or ""
+        a_size = int(artifact.get("size") or 0)
+        base_name = os.path.basename(a_path)
 
-            if _should_skip_library_for_version(version_id, base_name, highest_versions):
-                done_libs += 1
-                ctx.update(
-                    "libraries",
-                    (done_libs * 100.0) / max(1, total_libs),
-                    f"Libraries {done_libs}/{total_libs}",
-                    bytes_done=bytes_done, bytes_total=total_size,
-                )
-                continue
+        if not (a_url and a_path) or _should_skip_library_for_version(
+            version_id, base_name, highest_versions
+        ):
+            skipped += 1
+            continue
 
-            if a_url and a_path:
-                store_file = store_path_for(a_path)
+        tasks.append(DownloadTask(
+            url=a_url, dest_path=store_path_for(a_path),
+            expected_sha1=a_sha1, expected_size=a_size or None,
+            force=force_redownload,
+        ))
+        link_jobs.append((store_path_for(a_path), base_name, a_size))
 
-                def lib_cb(done_bytes: int, _total: Optional[int]) -> None:
-                    ctx.checkpoint()
-                    ctx.update(
-                        "libraries",
-                        (done_libs * 100.0) / max(1, total_libs),
-                        f"Downloading library {done_libs + 1}/{total_libs}",
-                        bytes_done=bytes_done + min(done_bytes, a_size),
-                        bytes_total=total_size,
-                    )
+    progress_lock = threading.Lock()
+    done_libs = skipped
+    lib_bytes_done = 0
 
-                ctx.http.download(
-                    a_url, store_file,
-                    expected_sha1=a_sha1,
-                    expected_size=a_size or None,
-                    progress_cb=lib_cb,
-                    cancel_check=ctx.cancel_check(),
-                    force=force_redownload,
-                )
-                bytes_done += a_size
+    def _lib_finished(size: int) -> None:
+        nonlocal done_libs, lib_bytes_done
+        with progress_lock:
+            done_libs += 1
+            lib_bytes_done += size
+            ctx.update(
+                "libraries",
+                (done_libs * 100.0) / max(1, total_libs),
+                f"Libraries {done_libs}/{total_libs}",
+                bytes_done=bytes_done + lib_bytes_done,
+                bytes_total=total_size,
+            )
 
-                dest_lib = os.path.join(version_dir, base_name)
-                link_into_version(store_file=store_file, version_dest=dest_lib)
-                copied.append(base_name)
+    for task, (_store, _base, a_size) in zip(tasks, link_jobs):
+        latch = {"fired": False}
+        def cb_for(s=a_size, l=latch):
+            def _cb(done_bytes: int, _total: Optional[int]) -> None:
+                ctx.checkpoint()
+                if not l["fired"] and (s == 0 or done_bytes >= s):
+                    l["fired"] = True
+                    _lib_finished(s)
+            return _cb
+        task.progress_cb = cb_for()
 
-        done_libs += 1
-        ctx.update(
-            "libraries",
-            (done_libs * 100.0) / max(1, total_libs),
-            f"Libraries {done_libs}/{total_libs}",
-            bytes_done=bytes_done, bytes_total=total_size,
+    if tasks:
+        ctx.http.download_many(
+            tasks,
+            max_workers=_choose_asset_threads(),
+            cancel_check=ctx.cancel_check(),
         )
+
+    for store_file, base_name, a_size in link_jobs:
+        dest_lib = os.path.join(version_dir, base_name)
+        link_into_version(store_file=store_file, version_dest=dest_lib)
+        copied.append(base_name)
+        bytes_done += a_size
 
     ctx.data["bytes_done"] = bytes_done
     ctx.update(
@@ -305,7 +318,10 @@ def _stage_download_natives(ctx: StageContext) -> None:
         )
         return
 
-    print(colorize_log(f"[install] Downloading {total_natives} native entries"))
+    safe_print(f"[install] Downloading {total_natives} native entries")
+
+    tasks: List[DownloadTask] = []
+    extract_jobs: List[tuple] = []
     done = 0
     for lib in libs:
         classifiers = ((lib.get("downloads") or {}).get("classifiers") or {})
@@ -320,45 +336,46 @@ def _stage_download_natives(ctx: StageContext) -> None:
                 continue
 
             store_file = store_path_for(n_path)
-
-            def nat_cb(done_bytes: int, _total: Optional[int]) -> None:
-                ctx.checkpoint()
-                ctx.update(
-                    "natives",
-                    (done * 100.0) / max(1, total_natives),
-                    f"Downloading natives {done + 1}/{total_natives}",
-                    bytes_done=bytes_done + min(done_bytes, n_size),
-                    bytes_total=total_size,
-                )
-
-            ctx.http.download(
-                n_url, store_file,
-                expected_sha1=n_sha1,
-                expected_size=n_size or None,
-                progress_cb=nat_cb,
-                cancel_check=ctx.cancel_check(),
+            tasks.append(DownloadTask(
+                url=n_url, dest_path=store_file,
+                expected_sha1=n_sha1, expected_size=n_size or None,
                 force=force_redownload,
-            )
-            bytes_done += n_size
+            ))
+            extract_jobs.append((store_file, n_path, n_size, key))
 
-            os_name = _extract_os_from_classifier_key(key) or "unknown"
-            target_dir = os.path.join(version_dir, "native", os_name)
-            os.makedirs(target_dir, exist_ok=True)
-            try:
-                with zipfile.ZipFile(store_file, "r") as zf:
-                    safe_extract_zip(zf, target_dir)
-            except Exception as exc:  # noqa: BLE001
-                raise DownloadFailed(
-                    f"failed to extract natives from {n_path}: {exc}"
-                ) from exc
+    if tasks:
+        ctx.update(
+            "natives", 0, f"Downloading {len(tasks)} natives...",
+            bytes_done=bytes_done, bytes_total=total_size,
+        )
+        ctx.http.download_many(
+            tasks,
+            max_workers=_choose_asset_threads(),
+            cancel_check=ctx.cancel_check(),
+        )
 
-            done += 1
-            ctx.update(
-                "natives",
-                (done * 100.0) / max(1, total_natives),
-                f"Natives {done}/{total_natives}",
-                bytes_done=bytes_done, bytes_total=total_size,
-            )
+    for store_file, n_path, n_size, key in extract_jobs:
+        ctx.checkpoint()
+        bytes_done += n_size
+
+        os_name = _extract_os_from_classifier_key(key) or "unknown"
+        target_dir = os.path.join(version_dir, "native", os_name)
+        os.makedirs(target_dir, exist_ok=True)
+        try:
+            with zipfile.ZipFile(store_file, "r") as zf:
+                safe_extract_zip(zf, target_dir)
+        except Exception as exc:  # noqa: BLE001
+            raise DownloadFailed(
+                f"failed to extract natives from {n_path}: {exc}"
+            ) from exc
+
+        done += 1
+        ctx.update(
+            "natives",
+            (done * 100.0) / max(1, total_natives),
+            f"Natives {done}/{total_natives}",
+            bytes_done=bytes_done, bytes_total=total_size,
+        )
 
     ctx.data["bytes_done"] = bytes_done
     ctx.update(
@@ -433,16 +450,11 @@ def _stage_download_assets(ctx: StageContext) -> None:
         )
         return
 
-    print(colorize_log(f"[install] Downloading {total_assets} assets"))
+    safe_print(f"[install] Downloading {total_assets} assets")
 
     progress_lock = threading.Lock()
     asset_count_done = 0
     asset_bytes_done = 0
-
-    def make_cb(size: int):
-        def _cb(done_bytes: int, _total: Optional[int]) -> None:
-            ctx.checkpoint()
-        return _cb
 
     tasks: List[DownloadTask] = []
     for k in keys:
@@ -457,7 +469,6 @@ def _stage_download_assets(ctx: StageContext) -> None:
         tasks.append(DownloadTask(
             url=obj_url, dest_path=obj_path,
             expected_sha1=h, expected_size=size or None,
-            progress_cb=make_cb(size),
             force=force_redownload,
         ))
 
@@ -497,7 +508,7 @@ def _stage_download_assets(ctx: StageContext) -> None:
     except DownloadCancelled:
         raise
     except Exception as exc:  # noqa: BLE001
-        print(colorize_log(f"[install] Asset batch reported error: {exc}"))
+        raise DownloadFailed(f"asset download failed: {exc}") from exc
 
     ctx.data["bytes_done"] = bytes_done + asset_bytes_done
     ctx.update(
@@ -518,7 +529,6 @@ def _stage_finalize(ctx: StageContext) -> None:
     asset_index_name: Optional[str] = ctx.data.get("asset_index_name")
     client_path: str = ctx.data.get("client_path") or os.path.join(version_dir, "client.jar")
 
-    # Display image
     vtype = entry.get("type", "")
     img_url = _wiki_image_url(version_id, vtype)
     if img_url:
@@ -620,13 +630,13 @@ def _stage_finalize(ctx: StageContext) -> None:
             icon_kind="installed",
         )
     except Exception as exc:  # noqa: BLE001
-        print(colorize_log(f"[install] Could not send notification: {exc}"))
+        safe_print(f"[install] Could not send notification: {exc}")
 
-    print(colorize_log(f"[install] Installation complete for {ctx.tracker.key}"))
+    safe_print(f"[install] Installation complete for {ctx.tracker.key}")
 
 
 # ---------------------------------------------------------------------------
-# Public entry point
+# public entry point
 # ---------------------------------------------------------------------------
 
 

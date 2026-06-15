@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 from typing import Dict, Optional, Union
+from core.logger import safe_print
 
 
 __all__ = ["parse_multipart_form"]
@@ -97,8 +98,6 @@ def parse_multipart_form(
             if not field_name:
                 continue
             if is_file:
-                # Reject file uploads whose filename failed sanitization to
-                # avoid silently substituting it elsewhere.
                 if filename_match and file_name is None:
                     continue
                 form_data[field_name] = content
@@ -109,5 +108,5 @@ def parse_multipart_form(
 
         return form_data
     except Exception as e:
-        print(f"[HTTP] Error parsing multipart form: {e}")
+        safe_print(f"[HTTP] Error parsing multipart form: {e}")
         return None

@@ -495,7 +495,12 @@ def move_mod_to_loader(mod_loader: str, mod_slug: str, target_loader: str) -> Tu
     if not os.path.isdir(source_dir):
         return False, f"Mod not found: {source_loader}/{mod_slug}"
     if os.path.exists(dest_dir):
-        return False, f"Target already has a mod with this slug: {destination_loader}/{mod_slug}"
+        if os.path.isfile(os.path.join(dest_dir, "mod_meta.json")):
+            return False, f"Target already has a mod with this slug: {destination_loader}/{mod_slug}"
+        try:
+            shutil.rmtree(dest_dir)
+        except OSError as e:
+            return False, f"Could not clear stale directory at {destination_loader}/{mod_slug}: {e}"
 
     try:
         os.makedirs(dest_loader_dir, exist_ok=True)

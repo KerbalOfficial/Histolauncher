@@ -21,6 +21,8 @@ from core.subprocess_utils import no_window_kwargs
 from core.downloader._legacy.loaders.forge._const import NETWORK_FAILURE_MARKERS
 from core.downloader._legacy.loaders.forge._context import ForgeContext
 
+from core.logger import safe_print
+
 
 def is_new_format_installer(ctx: ForgeContext) -> bool:
     return bool(ctx.profile_data and ctx.profile_data.get("processors"))
@@ -43,14 +45,14 @@ def prepare_fake_minecraft_dir(ctx: ForgeContext) -> None:
     if os.path.exists(ctx.client_jar_src):
         try:
             shutil.copy2(ctx.client_jar_src, ctx.client_jar_dst)
-            print(
+            safe_print(
                 f"[forge] Placed client.jar "
                 f"({os.path.getsize(ctx.client_jar_dst) // 1024} KB) for installer"
             )
         except Exception as e:
-            print(f"[forge] WARNING: Could not place client.jar: {e}")
+            safe_print(f"[forge] WARNING: Could not place client.jar: {e}")
     else:
-        print(
+        safe_print(
             f"[forge] WARNING: client.jar not found at {ctx.client_jar_src}, "
             "installer will try to download it"
         )
@@ -63,11 +65,11 @@ def prepare_fake_minecraft_dir(ctx: ForgeContext) -> None:
             ctx.mc_version_data = manifest.fetch_version_json(mc_version_url)
             with open(version_json_dst, "w") as vf:
                 json.dump(ctx.mc_version_data, vf)
-            print(
+            safe_print(
                 f"[forge] Placed MC {ctx.mc_version} version JSON for installer"
             )
     except Exception as e:
-        print(
+        safe_print(
             f"[forge] WARNING: Could not fetch Mojang version JSON ({e}), "
             "installer will try to download it"
         )
@@ -97,9 +99,9 @@ def prepare_fake_minecraft_dir(ctx: ForgeContext) -> None:
                 lpf,
                 indent=2,
             )
-        print("[forge] Created launcher_profiles.json stub for installer")
+        safe_print("[forge] Created launcher_profiles.json stub for installer")
     except Exception as e:
-        print(f"[forge] WARNING: Could not create launcher_profiles.json: {e}")
+        safe_print(f"[forge] WARNING: Could not create launcher_profiles.json: {e}")
 
     ctx.installer_maven = os.path.join(ctx.extraction_dir, "maven")
     ctx.fake_libs_dir = os.path.join(ctx.fake_mc_dir, "libraries")
@@ -108,12 +110,12 @@ def prepare_fake_minecraft_dir(ctx: ForgeContext) -> None:
             shutil.copytree(
                 ctx.installer_maven, ctx.fake_libs_dir, dirs_exist_ok=True
             )
-            print(
+            safe_print(
                 "[forge] Pre-populated installer libraries from embedded "
                 "maven/ directory"
             )
         except Exception as e:
-            print(f"[forge] Warning: Could not pre-populate libraries: {e}")
+            safe_print(f"[forge] Warning: Could not pre-populate libraries: {e}")
 
     ctx.downloaded_lib_cache = os.path.join(ctx.loader_dest_dir, "libraries")
     if os.path.isdir(ctx.downloaded_lib_cache):
@@ -121,11 +123,11 @@ def prepare_fake_minecraft_dir(ctx: ForgeContext) -> None:
             shutil.copytree(
                 ctx.downloaded_lib_cache, ctx.fake_libs_dir, dirs_exist_ok=True
             )
-            print(
+            safe_print(
                 "[forge] Merged pre-downloaded libraries into installer cache"
             )
         except Exception as e:
-            print(
+            safe_print(
                 "[forge] Warning: Could not merge pre-downloaded libraries: "
                 f"{e}"
             )
@@ -362,20 +364,20 @@ def seed_processor_artifacts_for_offline(ctx: ForgeContext) -> None:
             failed_coords.append(coord)
 
     if seeded or downloaded:
-        print(
+        safe_print(
             f"[forge] Seeded {seeded} cached and {downloaded} downloaded "
             "processor artifact(s) for offline fallback"
         )
     if failed:
-        print(
+        safe_print(
             f"[forge] Warning: Could not seed {failed} processor artifact(s) "
             "for offline fallback"
         )
         preview = failed_coords[:15]
         for missing_coord in preview:
-            print(f"[forge] Missing processor artifact: {missing_coord}")
+            safe_print(f"[forge] Missing processor artifact: {missing_coord}")
         if failed > len(preview):
-            print(
+            safe_print(
                 f"[forge] ... plus {failed - len(preview)} more missing "
                 "processor artifact(s)"
             )
@@ -468,7 +470,7 @@ def run_modern_installer(ctx: ForgeContext) -> None:
     proxy_jvm_args: List[str] = []
     force_offline_installer = False
     if url_proxy_enabled:
-        print(
+        safe_print(
             "[forge] URL proxy mode detected; installer JVM proxy flags "
             "disabled (online default, offline fallback enabled)"
         )
@@ -524,7 +526,7 @@ def run_modern_installer(ctx: ForgeContext) -> None:
         attempt_label = (
             "offline installer" if force_offline_installer else "installer"
         )
-        print(
+        safe_print(
             f"[forge] Running {attempt_label} attempt "
             f"{attempt}/{len(installer_candidates)}: {' '.join(installer_cmd)}"
         )
@@ -536,28 +538,28 @@ def run_modern_installer(ctx: ForgeContext) -> None:
             )
             stdout_lines = proc.stdout.splitlines()
             for line in stdout_lines[:50]:
-                print(f"[forge-installer] {line}")
+                safe_print(f"[forge-installer] {line}")
             if proc.returncode != 0 and proc.stderr:
                 for line in proc.stderr.splitlines()[:20]:
-                    print(f"[forge-installer-err] {line}")
+                    safe_print(f"[forge-installer-err] {line}")
             if proc.returncode != 0 and len(stdout_lines) > 50:
                 for line in stdout_lines[-25:]:
-                    print(f"[forge-installer-tail] {line}")
-            print(f"[forge] Installer exit code: {proc.returncode}")
+                    safe_print(f"[forge-installer-tail] {line}")
+            safe_print(f"[forge] Installer exit code: {proc.returncode}")
 
             combined_output = f"{proc.stdout}\n{proc.stderr}".lower()
             if any(m in combined_output for m in NETWORK_FAILURE_MARKERS):
                 network_failure_detected = True
                 if not force_offline_installer:
-                    print(
+                    safe_print(
                         "[forge] Detected installer network/certificate "
                         "issue; will retry with --offline mode"
                     )
         except subprocess.TimeoutExpired:
-            print("[forge] Installer timed out after 10 minutes")
+            safe_print("[forge] Installer timed out after 10 minutes")
             continue
         except Exception as e:
-            print(f"[forge] Installer run error: {e}")
+            safe_print(f"[forge] Installer run error: {e}")
             continue
 
         if proc.returncode != 0:
@@ -566,12 +568,12 @@ def run_modern_installer(ctx: ForgeContext) -> None:
         installer_success = True
         output_ok, output_reason = _evaluate_installer_output()
         if output_ok:
-            print(
+            safe_print(
                 f"[forge] Installer produced usable output ({output_reason})"
             )
             break
         installer_success = False
-        print(
+        safe_print(
             "[forge] Installer exited successfully but produced no usable "
             "artifacts; trying next command form"
         )
@@ -582,12 +584,12 @@ def run_modern_installer(ctx: ForgeContext) -> None:
         and not os.path.exists(expected_patched_client)
     ):
         if network_failure_detected:
-            print(
+            safe_print(
                 "[forge] Re-running Forge installer in offline mode after "
                 "online network/certificate failure"
             )
         else:
-            print(
+            safe_print(
                 "[forge] Online installer produced no usable output; "
                 "retrying in offline mode"
             )
@@ -601,7 +603,7 @@ def run_modern_installer(ctx: ForgeContext) -> None:
                 java_exe, ctx.downloaded_artifact_path,
                 ["--offline"] + base_args, proxy_jvm_args,
             )
-            print(
+            safe_print(
                 f"[forge] Running offline installer attempt "
                 f"{attempt}/{len(installer_candidates)}: "
                 f"{' '.join(offline_cmd)}"
@@ -614,21 +616,21 @@ def run_modern_installer(ctx: ForgeContext) -> None:
                 )
                 offline_stdout_lines = proc.stdout.splitlines()
                 for line in offline_stdout_lines[:50]:
-                    print(f"[forge-installer-offline] {line}")
+                    safe_print(f"[forge-installer-offline] {line}")
                 if proc.returncode != 0 and proc.stderr:
                     for line in proc.stderr.splitlines()[:20]:
-                        print(f"[forge-installer-offline-err] {line}")
+                        safe_print(f"[forge-installer-offline-err] {line}")
                 if proc.returncode != 0 and len(offline_stdout_lines) > 50:
                     for line in offline_stdout_lines[-25:]:
-                        print(f"[forge-installer-offline-tail] {line}")
-                print(
+                        safe_print(f"[forge-installer-offline-tail] {line}")
+                safe_print(
                     f"[forge] Offline installer exit code: {proc.returncode}"
                 )
             except subprocess.TimeoutExpired:
-                print("[forge] Offline installer timed out after 10 minutes")
+                safe_print("[forge] Offline installer timed out after 10 minutes")
                 continue
             except Exception as e:
-                print(f"[forge] Offline installer run error: {e}")
+                safe_print(f"[forge] Offline installer run error: {e}")
                 continue
 
             if proc.returncode != 0:
@@ -637,13 +639,13 @@ def run_modern_installer(ctx: ForgeContext) -> None:
             installer_success = True
             output_ok, output_reason = _evaluate_installer_output()
             if output_ok:
-                print(
+                safe_print(
                     "[forge] Offline installer produced usable output "
                     f"({output_reason})"
                 )
                 break
             installer_success = False
-            print(
+            safe_print(
                 "[forge] Offline installer exited successfully but still "
                 "produced no usable artifacts"
             )
@@ -679,10 +681,10 @@ def run_modern_installer(ctx: ForgeContext) -> None:
                             ctx.jars_copied += 1
                             new_jars += 1
                     except Exception as e:
-                        print(
+                        safe_print(
                             f"[forge] Warning: Could not copy {filename}: {e}"
                         )
-        print(
+        safe_print(
             f"[forge] Collected {new_jars} new and {replaced_jars} replaced "
             "JAR(s) from installer output into loader/libraries/"
         )
@@ -698,12 +700,12 @@ def run_modern_installer(ctx: ForgeContext) -> None:
                     os.path.dirname(metadata_version_json), exist_ok=True
                 )
                 shutil.copy2(generated_profile_json, metadata_version_json)
-                print(
+                safe_print(
                     "[forge] Updated metadata version.json from installer "
                     f"output: {os.path.basename(generated_profile_json)}"
                 )
         except Exception as e:
-            print(
+            safe_print(
                 "[forge] Warning: Could not refresh metadata version.json "
                 f"from installer output: {e}"
             )
@@ -713,7 +715,7 @@ def run_modern_installer(ctx: ForgeContext) -> None:
             f"Forge patches applied ({ctx.jars_copied} libraries)",
         )
     else:
-        print(
+        safe_print(
             "[forge] Installer did not exit cleanly, some Forge features "
             "may not work correctly"
         )

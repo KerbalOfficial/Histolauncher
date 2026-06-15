@@ -3,10 +3,11 @@ from __future__ import annotations
 import os
 import shutil
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from launcher.i18n import t
 
-from server.api._constants import MAX_MODPACKS_IMPORT_PAYLOAD, VALID_MOD_LOADERS
+from core.mod_manager._constants import CURSEFORGE_MODPACK_LOADERS
+from server.api._constants import MAX_MODPACKS_IMPORT_PAYLOAD, VALID_MODPACK_LOADERS
 from server.api.file_dialogs import (
     open_native_file_picker,
     save_native_file_picker,
@@ -20,7 +21,7 @@ from server.api._helpers import (
 from server.api._state import STATE, CancelledOperationError
 from server.api._validation import (
     _normalize_addon_type,
-    _validate_mod_loader_type,
+    _validate_modpack_loader_type,
     _validate_mod_slug,
     _validate_modpack_slug,
     _validate_version_label,
@@ -30,6 +31,7 @@ from server.api._validation import (
 __all__ = [
     "api_modpacks_installed",
     "api_modpacks_export",
+    "api_modpacks_export_versions",
     "api_modpacks_import_progress",
     "api_modpacks_import",
     "api_modpacks_import_select",
@@ -47,8 +49,34 @@ def api_modpacks_installed(data=None):
         packs = mod_manager.get_installed_modpacks()
         return {"ok": True, "modpacks": packs}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to get installed modpacks: {e}"))
+        safe_print(f"[api] Failed to get installed modpacks: {e}")
         return {"ok": False, "error": str(e)}
+
+
+def api_modpacks_export_versions(data=None):
+    try:
+        from core import mod_manager
+
+        payload = data if isinstance(data, dict) else {}
+        export_format = str(payload.get("export_format") or "histolauncher").strip().lower()
+        mod_loader = str(payload.get("mod_loader") or "").strip().lower()
+        minecraft_version = str(payload.get("minecraft_version") or "").strip()
+        minecraft_versions = mod_manager.get_modpack_export_minecraft_versions(export_format, mod_loader)
+        loader_versions = []
+        if minecraft_version:
+            loader_versions = mod_manager.get_modpack_export_loader_versions(
+                mod_loader,
+                minecraft_version,
+                export_format=export_format,
+            )
+        return {
+            "ok": True,
+            "minecraft_versions": minecraft_versions,
+            "loader_versions": loader_versions,
+        }
+    except Exception as e:
+        safe_print(f"[api] Failed to get modpack export versions: {e}")
+        return {"ok": False, "error": str(e), "minecraft_versions": [], "loader_versions": []}
 
 
 def api_modpacks_export(data):
@@ -71,6 +99,9 @@ def api_modpacks_export(data):
         mods_list = data.get("mods") or []
         resourcepacks_list = data.get("resourcepacks") or []
         shaderpacks_list = data.get("shaderpacks") or []
+        datapacks_list = data.get("datapacks") or []
+        minecraft_version = (data.get("minecraft_version") or "").strip()
+        loader_version = (data.get("loader_version") or "").strip()
         raw_export_format = str(data.get("export_format") or "histolauncher").strip().lower()
         save_to_disk = bool(data.get("save_to_disk", False))
         operation_id = _begin_operation(data.get("operation_id"))
@@ -129,11 +160,16 @@ def api_modpacks_export(data):
             return {"ok": False, "error": "Author contains forbidden characters"}
         if len(description) > 8192:
             return {"ok": False, "error": "Description too long (max 8192)"}
-        if not _validate_mod_loader_type(mod_loader):
-            valid = ", ".join(VALID_MOD_LOADERS)
+        if not _validate_modpack_loader_type(mod_loader):
+            valid = ", ".join(VALID_MODPACK_LOADERS)
             return {"ok": False, "error": f"mod_loader must be one of: {valid}"}
-        if not mods_list:
-            return {"ok": False, "error": "At least one mod is required"}
+        if format_spec["format"] == "curseforge" and mod_loader not in CURSEFORGE_MODPACK_LOADERS:
+            valid = ", ".join(sorted(CURSEFORGE_MODPACK_LOADERS))
+            return {"ok": False, "error": f"CurseForge modpacks support these loaders only: {valid}"}
+        if len(minecraft_version) > 32:
+            return {"ok": False, "error": "minecraft_version must be 32 characters or fewer"}
+        if len(loader_version) > 64:
+            return {"ok": False, "error": "loader_version must be 64 characters or fewer"}
 
         normalized_mods = []
         for entry in mods_list:
@@ -159,9 +195,6 @@ def api_modpacks_export(data):
                     return {"ok": False, "error": "source_subfolder too long"}
                 normalized_entry["source_subfolder"] = source_value
             normalized_mods.append(normalized_entry)
-
-        if not normalized_mods:
-            return {"ok": False, "error": "No valid mods to export"}
 
         def _normalize_extra_addons(raw_entries, addon_label):
             normalized = []
@@ -192,6 +225,7 @@ def api_modpacks_export(data):
 
         normalized_resourcepacks = _normalize_extra_addons(resourcepacks_list, "resourcepacks")
         normalized_shaderpacks = _normalize_extra_addons(shaderpacks_list, "shaderpacks")
+        normalized_datapacks = _normalize_extra_addons(datapacks_list, "datapacks")
 
         image_data = None
         image_b64 = data.get("image_data")
@@ -208,8 +242,11 @@ def api_modpacks_export(data):
             cancel_check=lambda: _raise_if_operation_cancelled(operation_id),
             resourcepacks=normalized_resourcepacks,
             shaderpacks=normalized_shaderpacks,
+            datapacks=normalized_datapacks,
             author=author,
             export_format=format_spec["format"],
+            minecraft_version=minecraft_version,
+            loader_version=loader_version,
         )
 
         file_name = f"{name}{format_spec['extension']}"
@@ -239,10 +276,10 @@ def api_modpacks_export(data):
                     )
                 except Exception as dialog_err:
                     dialog_failed = True
-                    print(colorize_log(
+                    safe_print(
                         f"[api] Modpack save dialog unavailable, "
                         f"using fallback path: {dialog_err}"
-                    ))
+                    )
 
                 if save_path and str(save_path).strip():
                     _raise_if_operation_cancelled(operation_id)
@@ -305,7 +342,7 @@ def api_modpacks_export(data):
             "error": "Export cancelled by user",
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to export modpack: {e}"))
+        safe_print(f"[api] Failed to export modpack: {e}")
         return {"ok": False, "error": f"Failed to export modpack: {str(e)}"}
     finally:
         _clear_operation(operation_id)
@@ -370,7 +407,7 @@ def api_modpacks_import_select(data):
             "error": "Import cancelled by user",
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to select modpack import file: {e}"))
+        safe_print(f"[api] Failed to select modpack import file: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -429,7 +466,7 @@ def api_modpacks_import(data):
             "error": "Import cancelled by user",
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to import modpack: {e}"))
+        safe_print(f"[api] Failed to import modpack: {e}")
         return {"ok": False, "error": str(e)}
     finally:
         if progress_id and progress_id in STATE.import_progress:
@@ -466,7 +503,7 @@ def api_modpacks_toggle_mod(data):
             return {"ok": True, "disabled": disabled, "addon_type": addon_type}
         return {"ok": False, "error": "Addon not found in modpack"}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to toggle mod in modpack: {e}"))
+        safe_print(f"[api] Failed to toggle mod in modpack: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -505,7 +542,7 @@ def api_modpacks_set_mod_overwrite(data):
             }
         return {"ok": False, "error": "Mod not found in modpack"}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to set modpack mod overwrite: {e}"))
+        safe_print(f"[api] Failed to set modpack mod overwrite: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -530,7 +567,7 @@ def api_modpacks_toggle(data):
             return {"ok": True, "disabled": disabled}
         return {"ok": False, "error": "Failed to toggle modpack"}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to toggle modpack: {e}"))
+        safe_print(f"[api] Failed to toggle modpack: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -553,5 +590,5 @@ def api_modpacks_delete(data):
             return {"ok": True, "message": f"Deleted modpack {slug}"}
         return {"ok": False, "error": "Failed to delete modpack"}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to delete modpack: {e}"))
+        safe_print(f"[api] Failed to delete modpack: {e}")
         return {"ok": False, "error": str(e)}

@@ -100,7 +100,9 @@ const showTooltip = (element, text, e) => {
   currentTooltip = createTooltip(text);
 
   const mouseMoveHandler = (event) => {
-    updateTooltipPosition(currentTooltip, event.clientX + 10, event.clientY);
+    if (currentTooltip) {
+      updateTooltipPosition(currentTooltip, event.clientX, event.clientY);
+    }
   };
 
   const hideHandler = () => {
@@ -112,7 +114,7 @@ const showTooltip = (element, text, e) => {
   element.addEventListener('mousemove', mouseMoveHandler);
   element.addEventListener('mouseleave', hideHandler);
 
-  updateTooltipPosition(currentTooltip, e.clientX + 10, e.clientY);
+  updateTooltipPosition(currentTooltip, e.clientX, e.clientY);
 };
 
 const showTooltipAtElement = (element, text) => {
@@ -149,7 +151,7 @@ export const initTooltips = () => {
 
     bubble.addEventListener('mousemove', (e) => {
       if (currentTooltip) {
-        updateTooltipPosition(currentTooltip, e.clientX + 10, e.clientY);
+        updateTooltipPosition(currentTooltip, e.clientX, e.clientY);
       }
     });
 
@@ -192,7 +194,7 @@ export const initTooltips = () => {
 
     indicator.addEventListener('mousemove', (e) => {
       if (currentTooltip) {
-        updateTooltipPosition(currentTooltip, e.clientX + 10, e.clientY);
+        updateTooltipPosition(currentTooltip, e.clientX, e.clientY);
       }
     });
 

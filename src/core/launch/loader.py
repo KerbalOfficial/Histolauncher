@@ -6,12 +6,13 @@ import platform
 import re
 import zipfile
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import get_base_dir, load_global_settings
 
 from core.launch.args import (
     _extract_tweak_class_from_arg_list,
     _extract_tweak_class_from_arg_string,
+    _is_legacy_pre16_runtime,
 )
 from core.launch.natives import (
     _native_subfolder_for_platform,
@@ -154,14 +155,14 @@ def _get_loader_jars(version_dir: str, loader_type: str, loader_version: str = N
                             ordered_paths = _prune_neoforge_runtime_jars(ordered_paths)
 
                         if ordered_paths:
-                            print(colorize_log(
+                            safe_print(
                                 f"[launcher] Using {len(ordered_paths)} {loader_type} ModLauncher libraries from metadata order"
-                            ))
+                            )
                             return ordered_paths
             except Exception as e:
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Warning: Could not build {loader_type} metadata classpath, falling back to scan: {e}"
-                ))
+                )
 
         bootstrap_shim_path = os.path.join(version_path, "bootstrap-shim.list")
         bootstrap_libs: set = set()
@@ -179,11 +180,11 @@ def _get_loader_jars(version_dir: str, loader_type: str, loader_version: str = N
                             bootstrap_libs.add(lib_name)
 
                 if bootstrap_libs:
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] Loaded bootstrap-shim.list with {len(bootstrap_libs)} libraries"
-                    ))
+                    )
             except Exception as e:
-                print(colorize_log(f"[launcher] Warning: Could not parse bootstrap-shim.list: {e}"))
+                safe_print(f"[launcher] Warning: Could not parse bootstrap-shim.list: {e}")
 
         found_jars: list = []
         missing_libs: list = []
@@ -200,11 +201,11 @@ def _get_loader_jars(version_dir: str, loader_type: str, loader_version: str = N
                 jar_paths.append(rel_path)
 
         if loader_type.lower() in ("forge", "neoforge") and len(found_jars) < 5:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Debug: Found {len(found_jars)} JAR files in {os.path.basename(version_path)}:"
-            ))
+            )
             for jar in found_jars[:10]:
-                print(f"  [launcher]   - {jar}")
+                safe_print(f"  [launcher]   - {jar}")
 
         if bootstrap_libs:
             for expected_lib in sorted(bootstrap_libs):
@@ -212,15 +213,15 @@ def _get_loader_jars(version_dir: str, loader_type: str, loader_version: str = N
                     missing_libs.append(expected_lib)
 
             if missing_libs:
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Warning: {len(missing_libs)} libraries from bootstrap-shim.list are missing:"
-                ))
+                )
                 for lib in missing_libs[:5]:
-                    print(f"  [launcher] Missing: {lib}")
+                    safe_print(f"  [launcher] Missing: {lib}")
                 if len(missing_libs) > 5:
-                    print(f"  [launcher] ... and {len(missing_libs)-5} more")
+                    safe_print(f"  [launcher] ... and {len(missing_libs)-5} more")
             else:
-                print(colorize_log(f"[launcher] All {len(bootstrap_libs)} bootstrap libraries found"))
+                safe_print(f"[launcher] All {len(bootstrap_libs)} bootstrap libraries found")
 
         if loader_type.lower() in ("forge", "neoforge"):
             maven_libs_path = os.path.join(version_path, "libraries")
@@ -237,19 +238,35 @@ def _get_loader_jars(version_dir: str, loader_type: str, loader_version: str = N
                                 maven_libs_count += 1
 
             if maven_libs_count > 0:
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Added {maven_libs_count} Maven libraries from loader/libraries/"
-                ))
+                )
 
         if loader_type.lower() == "neoforge":
             jar_paths = _prune_neoforge_runtime_jars(jar_paths)
 
-        print(colorize_log(f"[launcher] Using {len(jar_paths)} {loader_type} libraries for classpath"))
+        if loader_type.lower() in ("fabric", "legacyfabric", "babric", "ornithe", "quilt"):
+            jar_paths = _prune_conflicting_asm_jars(jar_paths)
+
+        safe_print(f"[launcher] Using {len(jar_paths)} {loader_type} libraries for classpath")
 
     except Exception as e:
-        print(colorize_log(f"[launcher] Error scanning loader JARs: {e}"))
+        safe_print(f"[launcher] Error scanning loader JARs: {e}")
 
     return jar_paths
+
+
+def _prune_conflicting_asm_jars(jar_paths: list) -> list:
+    has_modern_asm = any("/org/ow2/asm/asm/" in p for p in jar_paths)
+    if not has_modern_asm:
+        return jar_paths
+    pruned = [p for p in jar_paths if "/org/ow2/asm/asm-all/" not in p]
+    removed = len(jar_paths) - len(pruned)
+    if removed:
+        safe_print(
+            f"[launcher] Pruned {removed} asm-all jar(s) conflicting with modern ASM"
+        )
+    return pruned
 
 
 def _parse_version(version_str: str) -> tuple:
@@ -389,7 +406,7 @@ def check_mod_loader_compatibility(version_dir: str, loader_type: str) -> list:
                 requirement = ""
                 mod_id = "<unknown>"
 
-                if loader_type in ("fabric", "babric"):
+                if loader_type in ("fabric", "babric", "legacyfabric", "ornithe"):
                     if "fabric.mod.json" not in jar.namelist():
                         continue
                     data = jar.read("fabric.mod.json").decode("utf-8")
@@ -423,9 +440,9 @@ def check_mod_loader_compatibility(version_dir: str, loader_type: str) -> list:
             continue
         if requirement and not _version_satisfies(loader_ver, requirement):
             issues.append((mod_id, fname, requirement))
-            print(colorize_log(
+            safe_print(
                 f"[launcher] compatibility issue: mod {mod_id} ({fname}) requires loader {requirement}, current is {loader_ver}"
-            ))
+            )
     return issues
 
 
@@ -522,20 +539,20 @@ def _get_loader_main_class(version_dir: str, loader_type: str, loader_version: s
                         metadata_version = json.load(f)
                     declared_main = (metadata_version.get("mainClass") or "").strip()
                     if declared_main:
-                        print(f"[launcher] Using Forge mainClass from metadata: {declared_main}")
+                        safe_print(f"[launcher] Using Forge mainClass from metadata: {declared_main}")
                         return declared_main
         except Exception as e:
-            print(f"[launcher] Warning: Could not read Forge metadata mainClass: {e}")
+            safe_print(f"[launcher] Warning: Could not read Forge metadata mainClass: {e}")
 
         version_dir_name = os.path.basename(version_dir.rstrip(os.sep))
-        legacy_launchwrapper_only = False
+        legacy_launchwrapper_only = _is_legacy_pre16_runtime(version_dir_name)
         try:
             vparts = version_dir_name.split(".")
             vmajor = int(vparts[0]) if len(vparts) > 0 else 0
             vminor = int(vparts[1]) if len(vparts) > 1 else 0
-            legacy_launchwrapper_only = (vmajor == 1 and vminor < 13)
+            legacy_launchwrapper_only = legacy_launchwrapper_only or (vmajor == 1 and vminor < 13)
         except Exception:
-            legacy_launchwrapper_only = False
+            pass
 
         def _jar_contains_class(search_class_path: str) -> bool:
             try:
@@ -573,7 +590,7 @@ def _get_loader_main_class(version_dir: str, loader_type: str, loader_version: s
                                     if _jar_contains_class("net/minecraft/launchwrapper/Launch.class"):
                                         return "net.minecraft.launchwrapper.Launch"
                                     else:
-                                        print("[launcher] Detected Tweak-Class but LaunchWrapper class not found in extracted JARs")
+                                        safe_print("[launcher] Detected Tweak-Class but LaunchWrapper class not found in extracted JARs")
                         except Exception:
                             continue
             except Exception:
@@ -583,7 +600,7 @@ def _get_loader_main_class(version_dir: str, loader_type: str, loader_version: s
             from core.launch.legacy import _legacy_forge_has_fml
 
             if not _legacy_forge_has_fml(version_dir, loader_version):
-                print("[launcher] Pre-FML Forge detected (no cpw/mods/fml/ classes), launching directly")
+                safe_print("[launcher] Pre-FML Forge detected (no cpw/mods/fml/ classes), launching directly")
                 return "net.minecraft.client.Minecraft"
 
             has_launchwrapper_tweaker = (
@@ -591,13 +608,13 @@ def _get_loader_main_class(version_dir: str, loader_type: str, loader_version: s
                 or _jar_contains_class("net/minecraftforge/fml/common/launcher/FMLTweaker.class")
             )
             if not has_launchwrapper_tweaker:
-                print("[launcher] Legacy FML relauncher detected (no FMLTweaker), launching merged client directly")
+                safe_print("[launcher] Legacy FML relauncher detected (no FMLTweaker), launching merged client directly")
                 return "net.minecraft.client.Minecraft"
 
             if _jar_contains_class("net/minecraft/launchwrapper/Launch.class"):
-                print("[launcher] Legacy Forge version detected - forcing LaunchWrapper main class")
+                safe_print("[launcher] Legacy Forge version detected - forcing LaunchWrapper main class")
                 return "net.minecraft.launchwrapper.Launch"
-            print("[launcher] Legacy Forge version detected - using LaunchWrapper fallback")
+            safe_print("[launcher] Legacy Forge version detected - using LaunchWrapper fallback")
             return "net.minecraft.launchwrapper.Launch"
 
         if version_path and os.path.isdir(version_path):
@@ -612,7 +629,7 @@ def _get_loader_main_class(version_dir: str, loader_type: str, loader_version: s
                                 for line in mf.split("\n"):
                                     if "Main-Class:" in line:
                                         shim_main = line.split("Main-Class:")[1].strip()
-                                        print(f"[launcher] Found Forge shim Main-Class: {shim_main}")
+                                        safe_print(f"[launcher] Found Forge shim Main-Class: {shim_main}")
                                         return shim_main
                             except Exception:
                                 pass
@@ -620,7 +637,7 @@ def _get_loader_main_class(version_dir: str, loader_type: str, loader_version: s
                         pass
 
             if _jar_contains_class("cpw/mods/modlauncher/Launcher.class"):
-                print("[launcher] Found ModLauncher class, using ModLauncher")
+                safe_print("[launcher] Found ModLauncher class, using ModLauncher")
                 return "cpw.mods.modlauncher.Launcher"
 
             try:
@@ -678,16 +695,16 @@ def _get_loader_main_class(version_dir: str, loader_type: str, loader_version: s
                             minor = int(version_parts[1]) if len(version_parts) > 1 else 0
 
                             if major > 1 or (major == 1 and minor >= 13):
-                                print(f"[launcher] MC version {mc_version_str} detected - using ModLauncher")
+                                safe_print(f"[launcher] MC version {mc_version_str} detected - using ModLauncher")
                                 return "cpw.mods.modlauncher.Launcher"
                             else:
-                                print(f"[launcher] MC version {mc_version_str} detected - using LaunchWrapper")
+                                safe_print(f"[launcher] MC version {mc_version_str} detected - using LaunchWrapper")
                                 return "net.minecraft.launchwrapper.Launch"
                     except Exception as e:
-                        print(f"[launcher] Could not parse MC version for version detection: {e}")
+                        safe_print(f"[launcher] Could not parse MC version for version detection: {e}")
 
-                    print(f"[launcher] Warning: ModLauncher class not found, but found {len(jars_in_loader)} Forge JARs")
-                    print("[launcher] Attempting ModLauncher as fallback")
+                    safe_print(f"[launcher] Warning: ModLauncher class not found, but found {len(jars_in_loader)} Forge JARs")
+                    safe_print("[launcher] Attempting ModLauncher as fallback")
                     return "cpw.mods.modlauncher.Launcher"
         except Exception:
             pass
@@ -709,18 +726,23 @@ def _get_loader_main_class(version_dir: str, loader_type: str, loader_version: s
                         metadata_version = json.load(f)
                     declared_main = (metadata_version.get("mainClass") or "").strip()
                     if declared_main:
-                        print(f"[launcher] Using NeoForge mainClass from metadata: {declared_main}")
+                        safe_print(f"[launcher] Using NeoForge mainClass from metadata: {declared_main}")
                         return declared_main
         except Exception as e:
-            print(f"[launcher] Warning: Could not read NeoForge metadata mainClass: {e}")
+            safe_print(f"[launcher] Warning: Could not read NeoForge metadata mainClass: {e}")
         return "cpw.mods.bootstraplauncher.BootstrapLauncher"
 
     elif loader_type_lower == "fabric":
         return "net.fabricmc.loader.launch.knot.KnotClient"
 
-    elif loader_type_lower == "babric":
+    elif loader_type_lower in ("babric", "legacyfabric", "ornithe"):
+        loader_label = {
+            "babric": "Babric",
+            "legacyfabric": "Legacy Fabric",
+            "ornithe": "Ornithe",
+        }[loader_type_lower]
         try:
-            loaders_dir = os.path.join(version_dir, "loaders", "babric")
+            loaders_dir = os.path.join(version_dir, "loaders", loader_type_lower)
             version_path = os.path.join(loaders_dir, loader_version) if loader_version else None
             if not version_path or not os.path.isdir(version_path):
                 versions = [d for d in sorted(os.listdir(loaders_dir)) if os.path.isdir(os.path.join(loaders_dir, d))]
@@ -733,11 +755,15 @@ def _get_loader_main_class(version_dir: str, loader_type: str, loader_version: s
                         metadata_version = json.load(f)
                     declared_main = (metadata_version.get("mainClass") or "").strip()
                     if declared_main:
-                        print(f"[launcher] Using Babric mainClass from metadata: {declared_main}")
+                        safe_print(f"[launcher] Using {loader_label} mainClass from metadata: {declared_main}")
                         return declared_main
         except Exception as e:
-            print(f"[launcher] Warning: Could not read Babric metadata mainClass: {e}")
+            safe_print(f"[launcher] Warning: Could not read {loader_label} metadata mainClass: {e}")
+
         return "net.fabricmc.loader.impl.launch.knot.KnotClient"
+
+    elif loader_type_lower == "liteloader":
+        return "net.minecraft.launchwrapper.Launch"
 
     elif loader_type_lower == "quilt":
         return "org.quiltmc.loader.impl.launch.knot.KnotClient"
@@ -771,11 +797,11 @@ def _get_forge_fml_metadata(version_dir: str, loader_version: str = None) -> dic
                     if mc_ver and mcp_ver.startswith(mc_ver + "-"):
                         mcp_ver = mcp_ver[len(mc_ver) + 1:]
                     metadata["mcp_version"] = mcp_ver
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] Read MCP version from forge_metadata.json: {mcp_ver}"
-                    ))
+                    )
             except Exception as e:
-                print(colorize_log(f"[launcher] Warning: Could not read forge_metadata.json: {e}"))
+                safe_print(f"[launcher] Warning: Could not read forge_metadata.json: {e}")
 
         version_json_path = os.path.join(metadata_dir, "version.json")
         if os.path.exists(version_json_path):
@@ -813,12 +839,12 @@ def _get_forge_fml_metadata(version_dir: str, loader_version: str = None) -> dic
                         if len(parts) >= 3:
                             mcp_ver = parts[2]
                             metadata["mcp_version"] = mcp_ver
-                            print(colorize_log(f"[launcher] Extracted MCP Config version: {mcp_ver}"))
+                            safe_print(f"[launcher] Extracted MCP Config version: {mcp_ver}")
                     if "mc_version" in metadata and "forge_version" in metadata and "mcp_version" in metadata:
                         break
 
             except Exception as e:
-                print(colorize_log(f"[launcher] Warning: Could not parse version.json: {e}"))
+                safe_print(f"[launcher] Warning: Could not parse version.json: {e}")
 
         profile_json_path = os.path.join(metadata_dir, "install_profile.json")
         if os.path.exists(profile_json_path) and ("mc_version" not in metadata or "mcp_version" not in metadata):
@@ -879,12 +905,12 @@ def _get_forge_fml_metadata(version_dir: str, loader_version: str = None) -> dic
 
                     if mcp_ver:
                         metadata["mcp_version"] = mcp_ver
-                        print(colorize_log(
+                        safe_print(
                             f"[launcher] Read MCP version from install_profile.json: {mcp_ver}"
-                        ))
+                        )
 
             except Exception as e:
-                print(colorize_log(f"[launcher] Warning: Could not parse install_profile.json: {e}"))
+                safe_print(f"[launcher] Warning: Could not parse install_profile.json: {e}")
 
         if "forge_version" not in metadata and actual_loader_version:
             metadata["forge_version"] = actual_loader_version
@@ -913,7 +939,7 @@ def _get_forge_fml_metadata(version_dir: str, loader_version: str = None) -> dic
         return metadata
 
     except Exception as e:
-        print(colorize_log(f"[launcher] ERROR extracting Forge FML metadata: {e}"))
+        safe_print(f"[launcher] ERROR extracting Forge FML metadata: {e}")
         return {}
 
 
@@ -1003,9 +1029,9 @@ def _get_loader_metadata_args(version_dir: str, loader_type: str, loader_version
         arg_list = ((version_data.get("arguments") or {}).get(key) or [])
         return _flatten_metadata_arg_list(arg_list)
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not read {loader_type} metadata {key} arguments: {e}"
-        ))
+        )
         return []
 
 

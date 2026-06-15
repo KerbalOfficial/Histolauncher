@@ -8,7 +8,7 @@ import subprocess
 import sys
 import threading
 
-from core.logger import colorize_log, dim_line
+from core.logger import safe_print, dim_line
 from core.subprocess_utils import no_window_kwargs
 
 from launcher._constants import (
@@ -87,9 +87,9 @@ def _start_local_server_with_retry(
             return port, server
         except OSError as exc:
             last_error = exc
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Local server port {port} unavailable: {exc}"
-            ))
+            )
 
     detail = f": {last_error}" if last_error else ""
     raise RuntimeError(f"Could not bind local launcher server{detail}")
@@ -190,17 +190,17 @@ def check_and_prompt(splash=None):
     )
     remote = (release_info or {}).get("tag_name")
 
-    print(colorize_log(
+    safe_print(
         "[launcher] should_prompt_new_user[prompt]: "
         + str(not DATA_FILE_EXISTS)
-    ))
+    )
     if not DATA_FILE_EXISTS:
-        print(colorize_log("[launcher] PROMPTING NEW USER..."))
+        safe_print("[launcher] PROMPTING NEW USER...")
         open_instructions = prompt_new_user()
-        print(colorize_log(
+        safe_print(
             f"[launcher] prompt_user_update[user_accepted]: "
             f"{open_instructions}"
-        ))
+        )
         if open_instructions:
             try:
                 instructions_path = os.path.join(PROJECT_ROOT, "INSTRUCTIONS.txt")
@@ -221,12 +221,12 @@ def check_and_prompt(splash=None):
 
         if sys.platform.startswith("win") or sys.platform.startswith("linux"):
             try:
-                print(colorize_log("[launcher] PROMPTING SHORTCUT SETUP..."))
+                safe_print("[launcher] PROMPTING SHORTCUT SETUP...")
                 create_shortcut = prompt_create_shortcut()
-                print(colorize_log(
+                safe_print(
                     f"[launcher] prompt_create_shortcut[user_accepted]: "
                     f"{create_shortcut}"
-                ))
+                )
                 if create_shortcut:
                     from core.shortcut_manager import install_platform_shortcut
 
@@ -241,35 +241,35 @@ def check_and_prompt(splash=None):
                             t("native.prompts.shortcutErrorMessage"),
                         )
             except Exception as e:
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Warning: shortcut setup prompt failed: {e}"
-                ))
+                )
 
     promptb, reasonb = should_prompt_beta_warning(local)
-    print(colorize_log(
+    safe_print(
         f"[launcher] should_prompt_beta_warning[prompt]: {promptb}"
-    ))
-    print(colorize_log(
+    )
+    safe_print(
         f"[launcher] should_prompt_beta_warning[reason]: {reasonb}"
-    ))
+    )
     if promptb:
-        print(colorize_log("[launcher] PROMPTING BETA WARNING..."))
+        safe_print("[launcher] PROMPTING BETA WARNING...")
         prompt_beta_warning(local)
 
     promptu, reasonu = should_prompt_update(local, remote)
-    print(colorize_log(f"[launcher] should_prompt_update[prompt]: {promptu}"))
-    print(colorize_log(f"[launcher] should_prompt_update[reason]: {reasonu}"))
+    safe_print(f"[launcher] should_prompt_update[prompt]: {promptu}")
+    safe_print(f"[launcher] should_prompt_update[reason]: {reasonu}")
     if not release_info:
-        print(colorize_log(
+        safe_print(
             f"[launcher] No release candidate found for updater: "
             f"{release_reason}"
-        ))
+        )
     if promptu and release_info:
-        print(colorize_log("[launcher] PROMPTING USER UPDATE..."))
+        safe_print("[launcher] PROMPTING USER UPDATE...")
         open_update = prompt_user_update(local, remote)
-        print(colorize_log(
+        safe_print(
             f"[launcher] prompt_user_update[user_accepted]: {open_update}"
-        ))
+        )
         if open_update:
             if splash is not None:
                 splash.close(ensure_minimum=False)
@@ -292,15 +292,15 @@ def check_and_prompt(splash=None):
                         **no_window_kwargs(),
                     )
                 except Exception as e:
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] Failed to relaunch launcher: {e}"
-                    ))
+                    )
 
                 return False
 
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Self-update failed: {update_result.get('error')}"
-            ))
+            )
             try:
                 show_custom_error(
                     t("native.prompts.updateFailedTitle"),
@@ -464,29 +464,29 @@ def _ensure_runtime_dependencies() -> tuple[dict[str, bool], dict[str, Exception
     if not missing_packages:
         return status, errors
 
-    print(colorize_log(
+    safe_print(
         "[installation] Missing runtime dependencies detected. "
         "Installing required components automatically..."
-    ))
+    )
 
     success = install(
         missing_packages,
         display_name=t("native.install.requiredComponents"),
     )
     if not success:
-        print(colorize_log(
+        safe_print(
             "[installation] Automatic dependency installation failed."
-        ))
+        )
 
-    print(colorize_log("[installation] Refreshing python packages..."))
+    safe_print("[installation] Refreshing python packages...")
     _refresh_launcher_venv()
     _clear_runtime_import_cache()
     refreshed_status, refreshed_errors = _probe_runtime_features()
 
     if success and not _missing_runtime_packages(refreshed_status):
-        print(colorize_log(
+        safe_print(
             "[installation] Required components are ready."
-        ))
+        )
 
     return refreshed_status, refreshed_errors
 
@@ -523,11 +523,11 @@ def main():
 
         set_app_user_model_id("histolauncher.launcher")
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: could not set AppUserModelID: {e}"
-        ))
+        )
 
-    print(colorize_log("[launcher] Initializing startup splash..."))
+    safe_print("[launcher] Initializing startup splash...")
     splash = LauncherSplash()
     splash.show()
 
@@ -542,16 +542,16 @@ def main():
     try:
         from core import discord_rpc
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: could not import Discord RPC module: {e}"
-        ))
+        )
         discord_rpc = None
 
     if not runtime_status["pypresence"]:
-        print(colorize_log(
+        safe_print(
             "[installation] pypresence is unavailable. Discord Rich "
             "Presence will be disabled."
-        ))
+        )
 
     if discord_rpc is not None:
         from server.api.version_check import read_local_version
@@ -566,23 +566,23 @@ def main():
         cache_dir = os.path.join(get_base_dir(), "cache")
         if os.path.exists(cache_dir):
             shutil.rmtree(cache_dir)
-            print(colorize_log(
+            safe_print(
                 f"[startup] Cleared cache directory: {cache_dir}"
-            ))
+            )
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: could not clear cache directory: {e}"
-        ))
+        )
 
     try:
         from core.downloader.progress import cleanup_orphaned_progress_files
 
         cleanup_orphaned_progress_files(max_age_seconds=3600)
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: could not cleanup orphaned progress "
             f"files: {e}"
-        ))
+        )
 
     wv = None
     _HAS_WEBVIEW = runtime_status["webview"]
@@ -595,44 +595,44 @@ def main():
 
     if not _HAS_WEBVIEW:
         webview_error = runtime_errors.get("webview")
-        print(colorize_log(
+        safe_print(
             f"[installation] pywebview failed to load: {webview_error}"
-        ))
-        print(colorize_log(
+        )
+        safe_print(
             "[installation] Falling back to browser mode."
-        ))
+        )
 
-    print(dim_line("------------------------------------------------"))
+    safe_print(dim_line("------------------------------------------------"))
 
     try:
-        print(colorize_log("Checking information and prompting..."))
+        safe_print("Checking information and prompting...")
         proceed = check_and_prompt(splash=splash)
         if proceed:
-            print(colorize_log(
+            safe_print(
                 "Finished prompting! Initializing launcher..."
-            ))
+            )
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"Something went wrong while checking and prompting: {e}"
-        ))
+        )
         proceed = True
 
     if not proceed:
-        print(colorize_log("[launcher] Exiting launcher..."))
+        safe_print("[launcher] Exiting launcher...")
         splash.close(ensure_minimum=False)
         if discord_rpc is not None:
             discord_rpc.stop_discord_rpc()
         return
 
-    print(dim_line("------------------------------------------------"))
+    safe_print(dim_line("------------------------------------------------"))
 
-    print(colorize_log("[launcher] Starting local server..."))
+    safe_print("[launcher] Starting local server...")
     try:
         port, local_server = _start_local_server_with_retry()
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Failed to start local server: {e}"
-        ))
+        )
         splash.close(ensure_minimum=False)
         if discord_rpc is not None:
             discord_rpc.stop_discord_rpc()
@@ -646,9 +646,9 @@ def main():
         pass
 
     os.environ["HISTOLAUNCHER_PORT"] = str(port)
-    print(colorize_log(
+    safe_print(
         f"[launcher] Local server listening on port {port}."
-    ))
+    )
     splash.pump()
     try:
         from server import yggdrasil as _ygg
@@ -662,10 +662,10 @@ def main():
     url = f"http://127.0.0.1:{port}/"
 
     if not wait_for_server(url, timeout=5.0, on_poll=splash.pump):
-        print(colorize_log(
+        safe_print(
             "[launcher] Server did not respond within timeout; something has "
             "failed! Exiting launcher..."
-        ))
+        )
         splash.close(ensure_minimum=False)
         try:
             local_server.shutdown()
@@ -676,7 +676,7 @@ def main():
             discord_rpc.stop_discord_rpc()
         return
 
-    print(dim_line("------------------------------------------------"))
+    safe_print(dim_line("------------------------------------------------"))
     if discord_rpc is not None:
         discord_rpc.set_launcher_presence("Browsing launcher")
 

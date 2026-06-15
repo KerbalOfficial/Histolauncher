@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import (
     get_default_minecraft_dir,
     get_versions_profile_dir,
@@ -148,7 +148,7 @@ def _restore_neoforge_early_window(game_dir: str) -> None:
         with open(config_path, "r", encoding="utf-8", errors="replace") as f:
             lines = f.read().splitlines()
     except Exception as e:
-        print(colorize_log(f"[launcher] Warning: Could not read NeoForge config file: {e}"))
+        safe_print(f"[launcher] Warning: Could not read NeoForge config file: {e}")
         return
 
     new_lines: list[str] = []
@@ -174,14 +174,14 @@ def _restore_neoforge_early_window(game_dir: str) -> None:
         with open(tmp_path, "w", encoding="utf-8", errors="replace", newline="\n") as f:
             f.write(content)
         os.replace(tmp_path, config_path)
-        print(colorize_log(
+        safe_print(
             "[launcher] Restored NeoForge early loading screen "
             "(removed launcher-forced earlyWindowControl=false)"
-        ))
+        )
     except Exception as e:
         try:
             if os.path.exists(tmp_path):
                 os.remove(tmp_path)
         except Exception:
             pass
-        print(colorize_log(f"[launcher] Warning: Could not update NeoForge config file: {e}"))
+        safe_print(f"[launcher] Warning: Could not update NeoForge config file: {e}")

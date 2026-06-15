@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+import threading
+import urllib.parse
+from typing import Any, Final
+
+from core.logger import safe_print
+from core.modloaders._endpoints import FORGE_LEGACY_MANIFEST_URL
+from core.modloaders._http import _http_get_json
+from core.modloaders._versions import loader_version_sort_key
+from core.modloaders.cache import TTLCache, register_cache
+
+__all__ = [
+    "FORGE_LEGACY_MANIFEST_CACHE_KEY",
+    "get_legacy_forge_entry",
+    "get_legacy_forge_versions_for_mc",
+]
+
+FORGE_LEGACY_MANIFEST_CACHE_KEY: Final[str] = "forge_legacy_manifest"
+
+_manifest_cache: TTLCache[list[dict[str, Any]]] = register_cache(TTLCache())
+
+_stale_manifest: list[dict[str, Any]] | None = None
+_stale_manifest_lock = threading.Lock()
+
+
+def _normalize_manifest_entries(data: Any) -> list[dict[str, Any]]:
+    if not isinstance(data, dict):
+        return []
+    versions = data.get("versions", [])
+    if not isinstance(versions, list):
+        return []
+    source = str(data.get("source") or "").strip()
+
+    seen: set[tuple[str, str]] = set()
+    out: list[dict[str, Any]] = []
+
+    for raw in versions:
+        if not isinstance(raw, dict):
+            continue
+
+        mc_version = str(
+            raw.get("mc_version") or raw.get("minecraft_version") or ""
+        ).strip()
+        loader_version = str(
+            raw.get("loader_version") or raw.get("forge_version") or ""
+        ).strip()
+        if not mc_version or not loader_version:
+            continue
+
+        key = (mc_version, loader_version)
+        if key in seen:
+            continue
+        seen.add(key)
+
+        download_url = str(raw.get("download_url") or "").strip()
+        download_kind = str(raw.get("download_kind") or "").strip().lower()
+        if not download_kind and download_url:
+            netloc = urllib.parse.urlparse(download_url).netloc.lower()
+            download_kind = "mediafire" if "mediafire.com" in netloc else "direct"
+
+        raw_requires = raw.get("requires_modloader")
+        requires_modloader = True if raw_requires is None else bool(raw_requires)
+
+        out.append(
+            {
+                "mc_version": mc_version,
+                "loader_version": loader_version,
+                "display_name": str(raw.get("display_name") or loader_version).strip(),
+                "file_name": str(raw.get("file_name") or "").strip(),
+                "download_url": download_url,
+                "sha256": str(raw.get("sha256") or "").strip().lower(),
+                "archive_type": str(raw.get("archive_type") or "zip").strip().lower(),
+                "download_kind": download_kind,
+                "requires_modloader": requires_modloader,
+                "modloader_version": str(raw.get("modloader_version") or "").strip(),
+                "source_page": str(
+                    raw.get("source_page") or source or download_url
+                ).strip(),
+            }
+        )
+    return out
+
+
+def _load_manifest() -> list[dict[str, Any]]:
+    global _stale_manifest
+
+    cached = _manifest_cache.get(FORGE_LEGACY_MANIFEST_CACHE_KEY)
+    if cached is not None:
+        return cached
+
+    try:
+        data = _http_get_json(FORGE_LEGACY_MANIFEST_URL)
+    except RuntimeError as exc:
+        safe_print(f"[modloaders] Failed to fetch legacy Forge manifest: {exc}")
+        with _stale_manifest_lock:
+            return list(_stale_manifest or [])
+
+    entries = _normalize_manifest_entries(data)
+    if not entries:
+        _manifest_cache.set(FORGE_LEGACY_MANIFEST_CACHE_KEY, [])
+        with _stale_manifest_lock:
+            return list(_stale_manifest or [])
+
+    _manifest_cache.set(FORGE_LEGACY_MANIFEST_CACHE_KEY, entries)
+    with _stale_manifest_lock:
+        _stale_manifest = entries
+    safe_print(
+        f"[modloaders] Fetched {len(entries)} legacy Forge manifest entries"
+    )
+    return entries
+
+
+def get_legacy_forge_versions_for_mc(mc_version: str) -> list[dict[str, Any]]:
+    value = str(mc_version or "").strip()
+    if not value:
+        return []
+
+    matching: list[dict[str, Any]] = []
+    for entry in _load_manifest():
+        if str(entry.get("mc_version") or "").strip() != value:
+            continue
+        loader_version = str(entry.get("loader_version") or "").strip()
+        if not loader_version:
+            continue
+        matching.append(dict(entry))
+
+    matching.sort(
+        key=lambda item: loader_version_sort_key(str(item.get("loader_version", ""))),
+        reverse=True,
+    )
+    return matching
+
+
+def get_legacy_forge_entry(mc_version: str, loader_version: str) -> dict[str, Any] | None:
+    target = str(loader_version or "").strip()
+    if not target:
+        return None
+    for entry in get_legacy_forge_versions_for_mc(mc_version):
+        if str(entry.get("loader_version") or "").strip() == target:
+            return entry
+    return None

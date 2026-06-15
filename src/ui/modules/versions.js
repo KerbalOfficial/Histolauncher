@@ -190,7 +190,6 @@ const showVersionEditModal = (v, draftState = null) => {
   const initialLaunchJavaPath = readDraftOrRaw('launchJavaPath', 'launch_java_path');
   const initialLaunchResolutionWidth = readDraftOrRaw('launchResolutionWidth', 'launch_resolution_width');
   const initialLaunchResolutionHeight = readDraftOrRaw('launchResolutionHeight', 'launch_resolution_height');
-  const initialLaunchFullscreen = readDraftOrRaw('launchFullscreen', 'launch_fullscreen');
   const initialLaunchDemo = readDraftOrRaw('launchDemo', 'launch_demo');
 
   let selectedStoragePath = initialStoragePath;
@@ -334,8 +333,6 @@ const showVersionEditModal = (v, draftState = null) => {
   launchResolutionHeightInput.inputMode = 'numeric';
   launchResolutionHeightInput.value = initialLaunchResolutionHeight;
 
-  const launchFullscreenOverrideInput = createCheckbox(initialLaunchFullscreen === '1' || initialLaunchFullscreen === '0');
-  const launchFullscreenInput = createCheckbox(initialLaunchFullscreen === '1');
   const launchDemoOverrideInput = createCheckbox(initialLaunchDemo === '1' || initialLaunchDemo === '0');
   const launchDemoInput = createCheckbox(initialLaunchDemo === '1');
 
@@ -354,11 +351,6 @@ const showVersionEditModal = (v, draftState = null) => {
   launchResolutionRow.appendChild(launchResolutionWidthInput);
   launchResolutionRow.appendChild(launchResolutionSeparator);
   launchResolutionRow.appendChild(launchResolutionHeightInput);
-
-  const launchFullscreenRow = document.createElement('div');
-  launchFullscreenRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;';
-  launchFullscreenRow.appendChild(makeInlineCheckbox(t('versions.edit.overrideFullscreen'), launchFullscreenOverrideInput));
-  launchFullscreenRow.appendChild(makeInlineCheckbox(t('versions.edit.fullscreen'), launchFullscreenInput));
 
   const launchDemoRow = document.createElement('div');
   launchDemoRow.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;';
@@ -662,13 +654,10 @@ const showVersionEditModal = (v, draftState = null) => {
   syncStoragePathState();
 
   const syncLaunchBooleanStates = () => {
-    launchFullscreenInput.disabled = !launchFullscreenOverrideInput.checked;
-    launchFullscreenInput.parentElement.style.opacity = launchFullscreenInput.disabled ? '0.55' : '1';
     launchDemoInput.disabled = !launchDemoOverrideInput.checked;
     launchDemoInput.parentElement.style.opacity = launchDemoInput.disabled ? '0.55' : '1';
   };
 
-  launchFullscreenOverrideInput.addEventListener('change', syncLaunchBooleanStates);
   launchDemoOverrideInput.addEventListener('change', syncLaunchBooleanStates);
   syncLaunchBooleanStates();
 
@@ -696,9 +685,6 @@ const showVersionEditModal = (v, draftState = null) => {
     launchJavaPath: String(launchJavaPathSelect.value || '').trim(),
     launchResolutionWidth: String(launchResolutionWidthInput.value || '').trim(),
     launchResolutionHeight: String(launchResolutionHeightInput.value || '').trim(),
-    launchFullscreen: launchFullscreenOverrideInput.checked
-      ? (launchFullscreenInput.checked ? '1' : '0')
-      : '',
     launchDemo: launchDemoOverrideInput.checked
       ? (launchDemoInput.checked ? '1' : '0')
       : '',
@@ -756,9 +742,6 @@ const showVersionEditModal = (v, draftState = null) => {
           const nextLaunchJavaPath = String(launchJavaPathSelect.value || '').trim();
           const nextLaunchResolutionWidth = String(launchResolutionWidthInput.value || '').trim();
           const nextLaunchResolutionHeight = String(launchResolutionHeightInput.value || '').trim();
-          const nextLaunchFullscreen = launchFullscreenOverrideInput.checked
-            ? (launchFullscreenInput.checked ? '1' : '0')
-            : 'default';
           const nextLaunchDemo = launchDemoOverrideInput.checked
             ? (launchDemoInput.checked ? '1' : '0')
             : 'default';
@@ -776,7 +759,6 @@ const showVersionEditModal = (v, draftState = null) => {
             launch_java_path: nextLaunchJavaPath,
             launch_resolution_width: nextLaunchResolutionWidth,
             launch_resolution_height: nextLaunchResolutionHeight,
-            launch_fullscreen: '',
             launch_demo: nextLaunchDemo,
           });
 
@@ -1564,17 +1546,24 @@ const installLoaderVersion = async (v, loaderType, loaderVersion) => {
         let vMeta = findVersionByInstallKey(encodedInstallKey);
         if (!vMeta) return;
 
-        const eventSource = new EventSource(`/api/stream/install/${encodedInstallKey}`);
+        let eventSource = new EventSource(`/api/stream/install/${encodedInstallKey}`);
+        let fallbackTimer = null;
+        let fallbackFailures = 0;
+        let finished = false;
 
         const cleanup = () => {
-          eventSource.close();
+          finished = true;
+          if (eventSource) eventSource.close();
+          if (fallbackTimer) {
+            clearTimeout(fallbackTimer);
+            fallbackTimer = null;
+          }
           delete state.activeInstallPollers[encodedInstallKey];
         };
         state.activeInstallPollers[encodedInstallKey] = cleanup;
 
-        eventSource.onmessage = async (event) => {
+        const handleStatusPayload = async (s) => {
           try {
-            const s = JSON.parse(event.data);
             if (!s) return;
 
             vMeta = findVersionByInstallKey(encodedInstallKey);
@@ -1661,8 +1650,46 @@ const installLoaderVersion = async (v, loaderType, loaderVersion) => {
           }
         };
 
-        eventSource.onerror = (e) => {
-          // auto reconnects
+        // HTTP polling fallback so a dropped SSE stream cannot leave the
+        // loader card stuck in "installing" with no terminal state.
+        const pollStatusFallback = async () => {
+          if (finished) return;
+          try {
+            const s = await api(`/api/status/${encodedInstallKey}`);
+            const status = String((s && s.status) || '').toLowerCase();
+            if (!s || !status || status === 'unknown') {
+              fallbackFailures += 1;
+            } else {
+              fallbackFailures = 0;
+              await handleStatusPayload(s);
+            }
+          } catch (_err) {
+            fallbackFailures += 1;
+          }
+          if (finished) return;
+          if (fallbackFailures >= 5) {
+            cleanup();
+            return;
+          }
+          fallbackTimer = setTimeout(pollStatusFallback, 2000);
+        };
+
+        eventSource.onmessage = async (event) => {
+          try {
+            const s = JSON.parse(event.data);
+            await handleStatusPayload(s);
+          } catch (error) {
+            console.warn('modloader install stream update failed', error);
+          }
+        };
+
+        eventSource.onerror = () => {
+          if (finished) return;
+          if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+          }
+          fallbackTimer = setTimeout(pollStatusFallback, 1000);
         };
       };
 

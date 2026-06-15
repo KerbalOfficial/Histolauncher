@@ -266,8 +266,6 @@
       "customVersionFolder": "Tùy chỉnh (thư mục riêng theo phiên bản)",
       "launchSettings": "Cài đặt khởi chạy",
       "useGlobal": "Dùng thiết lập toàn cục",
-      "overrideFullscreen": "Ghi đè chế độ toàn màn hình",
-      "fullscreen": "Toàn màn hình",
       "overrideDemoMode": "Ghi đè Chế độ Demo",
       "demoMode": "Chế độ Demo",
       "minimumRamOverride": "Ghi đè RAM tối thiểu",
@@ -419,10 +417,14 @@
     "typeModpacks": "Gói mod",
     "typeResourcePacks": "Gói tài nguyên",
     "typeShaderPacks": "Gói shader",
+    "typeDatapacks": "Gói dữ liệu",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "Nhập gói shader",
         "emptyInstalled": "Chưa cài gói shader nào",
         "emptyAvailable": "Không tìm thấy gói shader nào"
+      },
+      "datapacks": {
+        "label": "Gói dữ liệu",
+        "singular": "gói dữ liệu",
+        "singularTitle": "Gói dữ liệu",
+        "plural": "gói dữ liệu",
+        "pluralTitle": "Gói dữ liệu",
+        "importTitle": "Nhập gói dữ liệu",
+        "emptyInstalled": "Chưa cài gói dữ liệu nào",
+        "emptyAvailable": "Không tìm thấy gói dữ liệu nào"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "Áp dụng cho thế giới",
+      "manageWorlds": "Quản lý thế giới",
+      "appliedWorlds": "Đã áp dụng cho: {worlds}",
+      "noAppliedWorlds": "Chưa áp dụng cho thế giới nào",
+      "applyTitle": "Áp dụng gói dữ liệu cho thế giới",
+      "applyPrompt": "Chọn nơi lưu trữ thế giới và các thế giới cho <b>{datapack}</b>.",
+      "storageLabel": "Nơi lưu thế giới:",
+      "customFolderLabel": "Thư mục tùy chỉnh:",
+      "selectFolder": "Chọn thư mục",
+      "worldsLabel": "Thế giới:",
+      "noWorlds": "Không tìm thấy thế giới nào tại nơi lưu trữ này.",
+      "applyFailed": "Không thể áp dụng gói dữ liệu.",
+      "applySuccess": "Đã áp dụng gói dữ liệu cho {count} thế giới.",
+      "removeFailed": "Không thể gỡ gói dữ liệu khỏi thế giới.",
+      "removeSuccess": "Đã gỡ gói dữ liệu khỏi {world}.",
+      "manageTitle": "Triển khai trong các thế giới",
+      "managePrompt": "Gói dữ liệu <b>{datapack}</b> đã được áp dụng cho các thế giới sau:",
+      "removeFromWorld": "Gỡ bỏ",
+      "selectWorlds": "Chọn ít nhất một thế giới."
     },
     "import": {
       "selectLoaderForFile": "Chọn mod loader cho \"{file}\":",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "Đang nhập...",
+      "importButton": "Nhập",
+      "successTitle": "Nhập thành công",
+      "successMessage": "Đã nhập {addon} thành công.",
+      "errorTitle": "Lỗi nhập",
+      "failedMessage": "Không thể nhập {addon}.",
+      "modpackImporting": "Đang nhập modpack...",
+      "modpackImportingPercent": "Đang nhập modpack... {percent}%",
+      "modpackCancelling": "Đang hủy nhập modpack...",
+      "modpackSuccess": "Đã nhập modpack <b>{name}</b> thành công.",
+      "modpackDetectedFormat": "<br><br>Định dạng được phát hiện: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>Các mod độc lập sau đã bị tắt vì xung đột với modpack:<br>",
+      "modpackWarnings": "<br><br>Cảnh báo khi nhập:<br>",
+      "modpackMoreWarnings": "<br>...và {count} cảnh báo khác.",
+      "modpackCancelledTitle": "Đã hủy nhập",
+      "modpackCancelledMessage": "Bạn đã hủy việc nhập modpack.",
+      "modpackFailed": "Không thể nhập modpack.",
+      "modpackNetworkError": "Lỗi mạng khi nhập modpack."
     },
     "status": {
       "installed": "Đã cài đặt",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "Đã xóa {count} {addon}.<br><br>Lỗi:<br>{failures}",
       "confirmMessage": "Xóa {count} {addon} đã chọn?<br><i>Thao tác này không thể hoàn tác!</i>"
     },
+    "bulkMove": {
+      "title": "Di chuyển mod hàng loạt",
+      "noSelected": "Chưa chọn mod đã cài nào.",
+      "prompt": "Di chuyển {count} mod đã chọn đến:",
+      "moveButton": "Di chuyển",
+      "movingProgress": "Đang di chuyển các mod đã chọn... ({current}/{total})",
+      "cancelling": "Sẽ hủy di chuyển hàng loạt sau khi mod hiện tại hoàn tất...",
+      "moveFailed": "di chuyển thất bại",
+      "requestFailed": "yêu cầu thất bại",
+      "skippedSuffix": ", đã bỏ qua {count}",
+      "cancelledTitle": "Đã hủy di chuyển hàng loạt",
+      "cancelledMessage": "Đã di chuyển {moved} mod{skipped} trước khi hủy.{failures}",
+      "failuresCountSuffix": "<br><br>Lỗi: {count}",
+      "completeTitle": "Hoàn tất di chuyển hàng loạt",
+      "completeMessage": "Đã di chuyển {moved} mod{skipped}.",
+      "finishedWithErrorsTitle": "Di chuyển hàng loạt hoàn tất nhưng có lỗi",
+      "finishedWithErrorsMessage": "Đã di chuyển {moved} mod{skipped}.<br><br>Lỗi:<br>{preview}{more}",
+      "moreFailures": "<br>...và {count} mục khác."
+    },
+    "modpackDetail": {
+      "loader": "Trình tải: {loader}",
+      "version": "Phiên bản: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "Tác giả: {author}",
+      "modsCount": "Mod: {count}",
+      "resourcePacksCount": "Gói tài nguyên: {count}",
+      "shaderPacksCount": "Gói shader: {count}",
+      "datapacksCount": "Gói dữ liệu: {count}",
+      "notAvailable": "Không có"
+    },
+    "modpackActions": {
+      "deleteFailed": "Không thể xóa modpack.",
+      "cannotEnableTitle": "Không thể bật",
+      "cannotEnableMessage": "Mod này được quản lý bởi modpack <b>{name}</b>. Hãy tắt hoặc xóa modpack đó trước."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "CurseForge yêu cầu khóa API. Hãy thêm khóa để dùng nhà cung cấp CurseForge, hoặc chuyển sang Modrinth.",
+      "providerError": "Lỗi nhà cung cấp: {error}"
+    },
     "detail": {
       "loadingDetails": "Đang tải chi tiết {addon}...",
       "screenshots": "Ảnh chụp màn hình",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "Xuất modpack",
-      "selectFormat": "Chọn định dạng modpack để xuất:",
-      "selectLoader": "Chọn mod loader cho modpack này:",
+      "tabs": {
+        "metadata": "Siêu dữ liệu",
+        "mods": "Mod",
+        "resourcepacks": "Gói tài nguyên",
+        "shaderpacks": "Gói shader",
+        "datapacks": "Gói dữ liệu",
+        "export": "Xuất"
+      },
+      "selectFormat": "Chọn định dạng modpack để xuất",
+      "selectLoader": "Chọn mod loader cho modpack này",
+      "minecraftVersion": "Phiên bản Minecraft",
+      "minecraftVersionHint": "Phiên bản Minecraft dùng cho modpack.",
+      "loaderVersion": "Phiên bản trình tải",
+      "loaderVersionHint": "Phiên bản trình tải dùng cho modpack.",
+      "vanillaModsHint": "Modpack vanilla không bao gồm mod. Hãy chọn gói tài nguyên, gói shader và/hoặc gói dữ liệu ở các tab khác.",
       "noLoaderMods": "Không có mod {loader} nào đã cài. Hãy cài vài mod trước.",
       "selectMods": "Chọn mod để đưa vào ({count} mod {loader} khả dụng):",
       "disabledHint": "Tùy chọn: đánh dấu mod là bị tắt trong modpack để chúng được bao gồm nhưng không tự bật mặc định.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "Không thể cập nhật thư mục nguồn",
       "failedSaveSourceFolder": "Không thể lưu cài đặt thư mục nguồn.",
       "selectAtLeastOneMod": "Hãy chọn ít nhất một mod.",
+      "selectAtLeastOneItem": "Chọn ít nhất một mod, gói tài nguyên, gói shader hoặc gói dữ liệu.",
+      "selectMinecraftVersion": "Chọn một phiên bản Minecraft",
+      "selectLoaderVersion": "Chọn một phiên bản trình tải",
+      "validationErrorBanner": "Vui lòng sửa các vấn đề được tô sáng bên dưới rồi thử lại.",
+      "externalVersionRequired": "Nhập phiên bản Minecraft cho việc xuất sang Modrinth/CurseForge (hoặc chọn nội dung có siêu dữ liệu phiên bản).",
+      "externalLoaderVersionRequired": "Nhập phiên bản trình tải cho việc xuất sang Modrinth/CurseForge khi dùng trình tải mod.",
       "selectOptionalAddons": "Chọn {plural} tùy chọn để gói kèm ({count} khả dụng):",
       "noOptionalAddons": "Không có {plural} nào đã cài. Bạn có thể tiếp tục mà không cần gói kèm mục nào.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "Mô tả modpack..."
       },
       "summary": "{format} {extension} | {mods} mod | {resourcepacks} gói tài nguyên | {shaderpacks} gói shader | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "Trình tải {version}",
       "validation": {
         "nameLength": "Tên phải dài từ 1 đến 64 ký tự.",
         "nameForbidden": "Tên chứa ký tự bị cấm.",
@@ -1014,13 +1125,25 @@
       "description": "Nhẹ và nhanh",
       "subtitle": "Chủ yếu dùng để tối ưu game"
     },
+    "legacyfabric": {
+      "description": "Fabric cho các phiên bản cũ",
+      "subtitle": "Bản chuyển Fabric hỗ trợ Minecraft 1.3 - 1.13.2"
+    },
     "babric": {
       "description": "Nhánh Fabric cho Minecraft Beta",
       "subtitle": "Một nhánh của Fabric để hỗ trợ Beta 1.7.3"
     },
+    "ornithe": {
+      "description": "Fabric cho Minecraft đời cũ",
+      "subtitle": "Bộ công cụ dựa trên Fabric, từ Alpha đến 1.14.x"
+    },
     "forge": {
       "description": "Mạnh mẽ và phổ biến",
       "subtitle": "Chủ yếu dùng cho mod hóa game"
+    },
+    "liteloader": {
+      "description": "Mod máy khách nhẹ",
+      "subtitle": "Mod kiểu tinh chỉnh cho Minecraft 1.5.2 - 1.12.2"
     },
     "modloader": {
       "description": "Runtime jar-mod cổ điển",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "Linh hoạt và hiện đại",
       "subtitle": "Chủ yếu dùng cho mod hiện đại nhẹ"
+    },
+    "vanilla": {
+      "description": "Không có trình tải mod",
+      "subtitle": "Chỉ gói tài nguyên, gói shader và gói dữ liệu"
     },
     "fallback": {
       "description": "Trình tải tùy chỉnh",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "Blueberry (Sáng)",
         "leafDark": "Leaf (Tối)",
         "leafLight": "Leaf (Sáng)",
+        "orangeDark": "Cam (Tối)",
+        "orangeLight": "Cam (Sáng)",
+        "midnightDark": "Nửa đêm (Tối)",
+        "midnightLight": "Nửa đêm (Sáng)",
+        "graphiteDark": "Than chì (Tối)",
+        "graphiteLight": "Than chì (Sáng)",
+        "oceanDark": "Đại dương (Tối)",
+        "oceanLight": "Đại dương (Sáng)",
+        "amethystDark": "Thạch anh tím (Tối)",
+        "amethystLight": "Thạch anh tím (Sáng)",
         "aeroDark": "Kính Aero (Tối)",
-        "aeroLight": "Kính Aero (Sáng)"
+        "aeroLight": "Kính Aero (Sáng)",
+        "custom": "Tùy chỉnh"
+      },
+      "themeBase": "Giao diện cơ sở:",
+      "themeEditor": {
+        "dockTitle": "Trình chỉnh sửa giao diện",
+        "openDock": "Mở trình chỉnh sửa giao diện",
+        "hint": "Chọn một giao diện cơ sở, sau đó tinh chỉnh từng màu bên dưới. Các tùy chỉnh ghi đè được lưu cùng hồ sơ của bạn.",
+        "resetAll": "Đặt lại tất cả tùy chỉnh ghi đè",
+        "export": "Sao chép JSON giao diện",
+        "import": "Nhập JSON giao diện",
+        "resetToken": "Đặt lại",
+        "resetTokenTooltip": "Xóa tùy chỉnh ghi đè màu này và dùng giá trị của giao diện cơ sở",
+        "groups": {
+          "app": "Nền ứng dụng",
+          "text": "Văn bản",
+          "links": "Liên kết và tiêu điểm",
+          "surfaces": "Bề mặt",
+          "borders": "Viền",
+          "overlays": "Lớp phủ và chú giải",
+          "buttons": "Nút",
+          "semantic": "Thành công, nguy hiểm, cảnh báo và thông tin",
+          "messages": "Hộp thông báo",
+          "states": "Lựa chọn và tô sáng",
+          "scrollbars": "Thanh cuộn",
+          "badges": "Huy hiệu",
+          "loaders": "Màu nhấn của trình tải mod"
+        }
       },
       "uiSizes": {
         "small": "Nhỏ",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "RAM tối đa cấp cho game\n  - Phải là số dương\n  - Phải lớn hơn RAM tối thiểu\n  - Phải ít nhất 1 byte\n\nVí dụ: 256, 256M, 2G, v.v.\n\n(mẹo hiệu năng: cấp nhiều RAM hơn để game mượt hơn, đồng thời đặt bằng RAM tối thiểu để giảm tụt khung hình)",
       "resolution": "Độ phân giải:",
       "resolutionTooltip": "Kích thước cửa sổ game mặc định dùng cho các phiên bản hỗ trợ tham số khởi chạy chiều rộng và chiều cao.",
-      "fullscreen": "Toàn màn hình:",
-      "fullscreenTooltip": "Khởi chạy các phiên bản hỗ trợ ở chế độ toàn màn hình theo mặc định.",
       "demoMode": "Chế độ Demo:",
       "demoModeTooltip": "Khởi chạy các phiên bản hỗ trợ với Chế độ Demo của Minecraft được bật.",
       "storageDir": "Thư mục lưu trữ:",

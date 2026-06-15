@@ -17,14 +17,16 @@ from core.downloader._legacy.loaders.forge._jar_inspect import (
     loader_dir_has_class,
 )
 
+from core.logger import safe_print
+
 
 def copy_root_jars(ctx: ForgeContext) -> None:
-    print("[forge] Checking for root-level JARs...")
+    safe_print("[forge] Checking for root-level JARs...")
     for filename in os.listdir(ctx.extraction_dir):
         if not filename.endswith(".jar"):
             continue
         if filename.lower() == "forge-installer.jar":
-            print(
+            safe_print(
                 "[forge] Skipping forge-installer.jar (not needed for game "
                 "launch)"
             )
@@ -35,9 +37,9 @@ def copy_root_jars(ctx: ForgeContext) -> None:
             try:
                 shutil.copy2(src_jar, dst_jar)
                 ctx.jars_copied += 1
-                print(f"[forge] Copied root JAR: {filename}")
+                safe_print(f"[forge] Copied root JAR: {filename}")
             except Exception as e:
-                print(f"[forge] Failed to copy {filename}: {e}")
+                safe_print(f"[forge] Failed to copy {filename}: {e}")
 
 
 def _has_forge_core_jar(loader_dest_dir: str) -> bool:
@@ -74,16 +76,16 @@ def recover_nested_legacy_jars(ctx: ForgeContext) -> None:
                 shutil.copy2(src_jar, dst_jar)
                 ctx.jars_copied += 1
                 recovered += 1
-                print(
+                safe_print(
                     "[forge] Recovered legacy core JAR from nested path: "
                     f"{filename}"
                 )
             except Exception as e:
-                print(
+                safe_print(
                     f"[forge] Failed recovering nested JAR {filename}: {e}"
                 )
     if recovered > 0:
-        print(
+        safe_print(
             f"[forge] Recovered {recovered} nested legacy Forge core JAR(s)"
         )
 
@@ -100,12 +102,12 @@ def stage_legacy_universal_archive(ctx: ForgeContext) -> None:
     try:
         shutil.copy2(ctx.downloaded_artifact_path, staged_path)
         ctx.jars_copied += 1
-        print(
+        safe_print(
             "[forge] Staged legacy universal archive as runtime JAR: "
             f"{staged_name}"
         )
     except Exception as e:
-        print(f"[forge] Failed to stage legacy universal archive as JAR: {e}")
+        safe_print(f"[forge] Failed to stage legacy universal archive as JAR: {e}")
 
 
 def recover_legacy_fml(ctx: ForgeContext) -> None:
@@ -133,7 +135,7 @@ def recover_legacy_fml(ctx: ForgeContext) -> None:
                     k, v = line.split("=", 1)
                     props[k.strip()] = v.strip()
         except Exception as e:
-            print(
+            safe_print(
                 f"[forge] Warning: Could not parse fmlversion.properties: {e}"
             )
 
@@ -158,18 +160,18 @@ def recover_legacy_fml(ctx: ForgeContext) -> None:
                 ctx.temp_dir, f"fml-{fml_coord}-universal.zip"
             )
             try:
-                print(
+                safe_print(
                     f"[forge] Downloading legacy FML artifact: {fml_zip_url}"
                 )
                 _download_with_retry(fml_zip_url, fml_tmp_path)
                 shutil.copy2(fml_tmp_path, fml_dest_path)
                 ctx.jars_copied += 1
-                print(
+                safe_print(
                     f"[forge] Staged legacy FML artifact as JAR: "
                     f"{fml_dest_name}"
                 )
             except Exception as e:
-                print(
+                safe_print(
                     "[forge] Warning: Could not download legacy FML "
                     f"artifact: {e}"
                 )
@@ -177,9 +179,9 @@ def recover_legacy_fml(ctx: ForgeContext) -> None:
     if loader_dir_has_class(
         ctx.loader_dest_dir, "cpw/mods/fml/common/launcher/FMLTweaker.class"
     ):
-        print("[forge] Legacy FMLTweaker class is available")
+        safe_print("[forge] Legacy FMLTweaker class is available")
     else:
-        print(
+        safe_print(
             "[forge] Warning: FMLTweaker class still missing after legacy "
             "FML recovery"
         )
@@ -192,7 +194,7 @@ def download_modlauncher_fallback(ctx: ForgeContext) -> None:
     if existing_runtime_jars:
         return
 
-    print(
+    safe_print(
         "[forge] No JARs found from installer extraction; attempting "
         "modlauncher download..."
     )
@@ -207,14 +209,14 @@ def download_modlauncher_fallback(ctx: ForgeContext) -> None:
         ]
         for ml_url in ml_urls:
             try:
-                print(f"[forge] Trying modlauncher {ml_version}...")
+                safe_print(f"[forge] Trying modlauncher {ml_version}...")
                 _download_with_retry(ml_url, ml_jar_path)
                 if os.path.exists(ml_jar_path):
                     if jar_has_class(
                         ml_jar_path, "cpw/mods/modlauncher/Launcher.class"
                     ):
                         ctx.jars_copied += 1
-                        print(
+                        safe_print(
                             "[forge] Successfully downloaded modlauncher "
                             f"{ml_version}"
                         )
@@ -238,7 +240,7 @@ def download_manifest_libraries(ctx: ForgeContext) -> None:
     if not manifest_libs:
         return
 
-    print(
+    safe_print(
         f"[forge] Found {len(manifest_libs)} libraries in JAR manifests"
     )
     for rel in manifest_libs:
@@ -248,13 +250,13 @@ def download_manifest_libraries(ctx: ForgeContext) -> None:
             continue
         url = f"https://maven.minecraftforge.net/{rel}"
         try:
-            print(f"[forge] Downloading manifest library: {rel}")
+            safe_print(f"[forge] Downloading manifest library: {rel}")
             _download_with_retry(url, dest_path)
             ctx.jars_copied += 1
             if ctx.jars_copied <= 20:
-                print(f"[forge] Downloaded: {dest_name}")
+                safe_print(f"[forge] Downloaded: {dest_name}")
         except Exception as e:
-            print(
+            safe_print(
                 f"[forge] Failed to download manifest library {rel}: {e}"
             )
 
@@ -276,7 +278,7 @@ def verify_runtime_jars_present(ctx: ForgeContext) -> Optional[str]:
         for name in os.listdir(ctx.loader_dest_dir)
     )
     if has_legacy_core_jar:
-        print(
+        safe_print(
             "[forge] Legacy Forge core JAR detected without embedded "
             "LaunchWrapper; continuing (vanilla classpath provides "
             "LaunchWrapper)"

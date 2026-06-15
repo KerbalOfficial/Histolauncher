@@ -689,7 +689,7 @@ const formatExternalProjectDisplayName = (slug) => String(slug || '')
 
 const resolveCurseForgeAddonLink = (href) => {
   const match = String(href || '').match(
-    /curseforge\.com\/minecraft\/(mc-mods|texture-packs|shaders|modpacks)\/([^/?#]+)/i
+    /curseforge\.com\/minecraft\/(mc-mods|texture-packs|shaders|modpacks|data-packs)\/([^/?#]+)/i
   );
   if (!match) return null;
 
@@ -700,6 +700,8 @@ const resolveCurseForgeAddonLink = (href) => {
       ? 'shaderpacks'
       : category === 'modpacks'
         ? 'modpacks'
+      : category === 'data-packs'
+        ? 'datapacks'
       : 'mods';
 
   return {
@@ -721,6 +723,8 @@ const resolveModrinthAddonLink = (href) => {
       ? 'shaderpacks'
       : projectType === 'modpack'
         ? 'modpacks'
+      : projectType === 'datapack'
+        ? 'datapacks'
       : 'mods';
 
   return {

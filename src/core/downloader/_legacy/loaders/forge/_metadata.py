@@ -9,6 +9,8 @@ from core.downloader._legacy.progress import _update_progress
 
 from core.downloader._legacy.loaders.forge._context import ForgeContext
 
+from core.logger import safe_print
+
 
 def _detect_modlauncher_in_loader(ctx: ForgeContext) -> bool:
     for root, _, files in os.walk(ctx.loader_dest_dir):
@@ -37,17 +39,17 @@ def _stage_modlauncher_client_resources(
     if not os.path.exists(expected_jar):
         try:
             shutil.copy2(main_client_jar, expected_jar)
-            print(
+            safe_print(
                 "[forge] Created minecraft client resource for ModLauncher: "
                 f"{os.path.relpath(expected_jar, ctx.loader_dest_dir)}"
             )
             ctx.files_copied += 1
         except Exception as e:
-            print(
+            safe_print(
                 "[forge] Note: Could not create client resource structure: "
                 f"{e}"
             )
-            print(
+            safe_print(
                 "[forge] (This may be needed for ModLauncher - will attempt "
                 "at runtime if needed)"
             )
@@ -76,19 +78,19 @@ def _stage_modlauncher_client_resources(
         )
         if not os.path.exists(mcp_extra_jar):
             shutil.copy2(source_jar, mcp_extra_jar)
-            print(
+            safe_print(
                 "[forge] Staged missing ModLauncher MCP client resource: "
                 f"{os.path.relpath(mcp_extra_jar, ctx.loader_dest_dir)}"
             )
         srg_jar = os.path.join(srg_dir, f"client-{version_token}-srg.jar")
         if not os.path.exists(srg_jar):
             shutil.copy2(source_jar, srg_jar)
-            print(
+            safe_print(
                 "[forge] Staged missing ModLauncher SRG client resource: "
                 f"{os.path.relpath(srg_jar, ctx.loader_dest_dir)}"
             )
     except Exception as e:
-        print(
+        safe_print(
             "[forge] Warning: Could not stage ModLauncher MCP resources: "
             f"{e}"
         )
@@ -147,40 +149,40 @@ def write_forge_metadata_and_finalize(ctx: ForgeContext) -> Dict[str, Any]:
 
             if mcp_ver:
                 metadata["mcp_version"] = mcp_ver
-                print(f"[forge] Stored MCP Config version: {mcp_ver}")
+                safe_print(f"[forge] Stored MCP Config version: {mcp_ver}")
             else:
-                print(
+                safe_print(
                     "[forge] Warning: MCP_VERSION not found in "
                     "install_profile.json data section"
                 )
 
         with open(metadata_file, "w") as f:
             json.dump(metadata, f, indent=2)
-        print("[forge] Created metadata file")
+        safe_print("[forge] Created metadata file")
     except Exception as e:
-        print(f"[forge] Warning: Could not create metadata file: {e}")
+        safe_print(f"[forge] Warning: Could not create metadata file: {e}")
 
     is_modlauncher = False
     if ctx.loader_version:
         is_modlauncher = _detect_modlauncher_in_loader(ctx)
 
     if is_modlauncher and ctx.modlauncher_era:
-        print(
+        safe_print(
             "[forge] Detected ModLauncher-based Forge, preparing client "
             "resources..."
         )
         _stage_modlauncher_client_resources(ctx, metadata)
 
     if ctx.installer_completed_cleanly:
-        print(f"[forge] Forge {ctx.loader_version} installed successfully")
+        safe_print(f"[forge] Forge {ctx.loader_version} installed successfully")
     else:
-        print(
+        safe_print(
             f"[forge] Forge {ctx.loader_version} installed with installer "
             "warnings"
         )
-    print(f"[forge]   - {ctx.jars_copied} JARs")
-    print(f"[forge]   - {ctx.files_copied} configuration/service files")
-    print(f"[forge]   - Location: {ctx.loader_dest_dir}")
+    safe_print(f"[forge]   - {ctx.jars_copied} JARs")
+    safe_print(f"[forge]   - {ctx.files_copied} configuration/service files")
+    safe_print(f"[forge]   - Location: {ctx.loader_dest_dir}")
 
     final_status_msg = (
         f"Forge installed ({ctx.jars_copied} JARs + configs)"

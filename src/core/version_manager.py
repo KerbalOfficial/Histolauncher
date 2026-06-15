@@ -20,8 +20,11 @@ __all__ = [
 
 SUPPORTED_MODLOADER_TYPES: Final[tuple[str, ...]] = (
     "fabric",
+    "legacyfabric",
     "babric",
+    "ornithe",
     "forge",
+    "liteloader",
     "modloader",
     "neoforge",
     "quilt",
@@ -173,7 +176,6 @@ def _build_version_entry(
         "launch_java_path": (meta.get("launch_java_path") or "").strip(),
         "launch_resolution_width": (meta.get("launch_resolution_width") or "").strip(),
         "launch_resolution_height": (meta.get("launch_resolution_height") or "").strip(),
-        "launch_fullscreen": (meta.get("launch_fullscreen") or "").strip(),
         "launch_demo": (meta.get("launch_demo") or "").strip(),
         "launch_disabled": launch_disabled,
         "launch_disabled_message": launch_disabled_message,

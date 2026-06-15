@@ -40,7 +40,6 @@ def compute_stats(profile_id: str) -> dict[str, Any]:
     longest = max(float(s.get("duration_s") or 0) for s in sessions)
     average = total_duration / len(sessions) if sessions else 0.0
 
-    # Aggregate per version
     version_totals: dict[str, float] = {}
     for s in sessions:
         v = str(s.get("version") or "Unknown").strip() or "Unknown"
@@ -67,5 +66,5 @@ def compute_stats(profile_id: str) -> dict[str, Any]:
         "most_played_version": most_played["version"] if most_played else None,
         "most_played_version_duration_s": most_played["duration_s"] if most_played else 0,
         "most_played_version_formatted": most_played["duration_formatted"] if most_played else "0m",
-        "by_version": by_version[:10],  # top 10 versions
+        "by_version": by_version[:10],
     }

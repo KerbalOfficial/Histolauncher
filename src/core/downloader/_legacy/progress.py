@@ -15,12 +15,12 @@ from core.downloader._legacy._constants import (
     STAGE_WEIGHTS,
 )
 from core.downloader._legacy._state import STATE
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import get_versions_profile_dir
 
 
 # ---------------------------------------------------------------------------
-# Filesystem helpers
+# filesystem helpers
 # ---------------------------------------------------------------------------
 
 
@@ -43,7 +43,7 @@ def progress_path(version_key: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Read / write
+# read / write
 # ---------------------------------------------------------------------------
 
 
@@ -119,20 +119,20 @@ def cleanup_orphaned_progress_files(max_age_seconds: int = 3600) -> None:
                     if status in ("downloading", "starting", "paused", "error"):
                         os.remove(path)
                         key = urllib.parse.unquote(name[:-5])
-                        print(colorize_log(
+                        safe_print(
                             f"[cleanup] Removed orphaned progress file for {key} "
                             f"(age: {age_seconds:.0f}s)"
-                        ))
+                        )
                 except Exception:
                     pass
             except Exception:
                 continue
     except Exception as e:
-        print(colorize_log(f"[cleanup] Error cleaning orphaned progress files: {e}"))
+        safe_print(f"[cleanup] Error cleaning orphaned progress files: {e}")
 
 
 # ---------------------------------------------------------------------------
-# Cancellation / pause gates
+# cancellation / pause gates
 # ---------------------------------------------------------------------------
 
 
@@ -166,7 +166,7 @@ def _maybe_abort(version_key: Optional[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Overall % computation + atomic update
+# overall % computation + atomic update
 # ---------------------------------------------------------------------------
 
 
@@ -212,11 +212,9 @@ def _update_progress(
             "bytes_total": int(bytes_total),
         },
     )
-    print(
-        colorize_log(
-            f"[progress] {version_key} | {stage} {stage_percent:.1f}% "
-            f"(overall {overall:.1f}%) - {message}"
-        )
+    safe_print(
+        f"[progress] {version_key} | {stage} {stage_percent:.1f}% "
+        f"(overall {overall:.1f}%) - {message}"
     )
 
 

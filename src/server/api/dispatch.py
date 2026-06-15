@@ -28,6 +28,11 @@ from server.api.routes.corrupted import (
     api_corrupted_versions,
     api_delete_corrupted_versions,
 )
+from server.api.routes.datapacks import (
+    api_datapacks_apply,
+    api_datapacks_deployments,
+    api_datapacks_remove,
+)
 from server.api.routes.diagnostics import api_diagnostics_report
 from server.api.routes.initial import api_initial
 from server.api.routes.installer import (
@@ -65,6 +70,7 @@ from server.api.routes.loaders import (
 from server.api.routes.modpacks import (
     api_modpacks_delete,
     api_modpacks_export,
+    api_modpacks_export_versions,
     api_modpacks_import,
     api_modpacks_import_select,
     api_modpacks_import_progress,
@@ -279,12 +285,16 @@ def handle_api_request(path: str, data: Any):
         "/api/mods/update-version-settings": api_mods_update_version_settings,
         "/api/mods/detail": api_mods_detail,
         "/api/modpacks/export": api_modpacks_export,
+        "/api/modpacks/export-versions": api_modpacks_export_versions,
         "/api/modpacks/import-select": api_modpacks_import_select,
         "/api/modpacks/import": api_modpacks_import,
         "/api/modpacks/toggle": api_modpacks_toggle,
         "/api/modpacks/toggle-mod": api_modpacks_toggle_mod,
         "/api/modpacks/set-mod-overwrite": api_modpacks_set_mod_overwrite,
         "/api/modpacks/delete": api_modpacks_delete,
+        "/api/datapacks/deployments": api_datapacks_deployments,
+        "/api/datapacks/apply": api_datapacks_apply,
+        "/api/datapacks/remove": api_datapacks_remove,
         "/api/diagnostics/report": api_diagnostics_report,
         "/api/operations/cancel": api_operations_cancel,
         "/api/playtime/stats": api_playtime_stats,

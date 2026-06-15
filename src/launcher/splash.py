@@ -4,7 +4,7 @@ import os
 import time
 import tkinter
 
-from core.logger import colorize_log
+from core.logger import safe_print
 
 from launcher._constants import (
     AERO_GLASS_ENABLED,
@@ -99,11 +99,11 @@ class LauncherSplash:
             self._shown_at = time.time()
             self._schedule_spinner_frame()
             self.pump()
-            print(colorize_log("[launcher] Startup splash shown."))
+            safe_print("[launcher] Startup splash shown.")
         except Exception as e:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Failed to initialize startup splash: {e}"
-            ))
+            )
             self.close(ensure_minimum=False)
 
     def pump(self):
@@ -137,7 +137,7 @@ class LauncherSplash:
 
         try:
             self.root.destroy()
-            print(colorize_log("[launcher] Startup splash closed."))
+            safe_print("[launcher] Startup splash closed.")
         except Exception:
             pass
         finally:
@@ -176,7 +176,7 @@ class LauncherSplash:
                 anchor="center",
             )
         except Exception as e:
-            print(colorize_log(f"[launcher] Could not load splash logo: {e}"))
+            safe_print(f"[launcher] Could not load splash logo: {e}")
 
     def _draw_loading_row(self, font_family):
         self._spinner_frames = self._load_gif_frames(SPLASH_LOADING_GIF_PATH)
@@ -244,10 +244,10 @@ class LauncherSplash:
             except tkinter.TclError:
                 break
             except Exception as e:
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Could not decode splash GIF frame "
                     f"{frame_index}: {e}"
-                ))
+                )
                 break
 
         if frames:
@@ -256,7 +256,7 @@ class LauncherSplash:
         try:
             return [tkinter.PhotoImage(file=gif_path)]
         except Exception as e:
-            print(colorize_log(f"[launcher] Could not load splash GIF: {e}"))
+            safe_print(f"[launcher] Could not load splash GIF: {e}")
             return []
 
     def _schedule_spinner_frame(self):
@@ -292,18 +292,18 @@ class LauncherSplash:
 
         family = get_native_ui_font_family(self.root, self.FONT_FALLBACKS)
         if family == SPLASH_FONT_FAMILY:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Loaded startup splash font family: {family}"
-            ))
+            )
         elif family not in self.FONT_FALLBACKS:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Loaded startup splash font family: {family}"
-            ))
+            )
         else:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Splash font fallback in use. "
                 f"('{SPLASH_FONT_FAMILY}' not found in Tk font list)"
-            ))
+            )
         return family
 
     def _cleanup_registered_fonts(self):

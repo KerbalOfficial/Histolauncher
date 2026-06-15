@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.playtime.storage import append_session
 
 __all__ = ["record_session"]
@@ -41,4 +41,4 @@ def record_session(
 
         append_session(profile_id, session)
     except Exception as exc:
-        print(colorize_log(f"[playtime] Failed to record session: {exc}"))
+        safe_print(f"[playtime] Failed to record session: {exc}")

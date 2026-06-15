@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import re
+import threading
+import time
 from typing import Any, Final
 
 from core.constants import HTTP_DEFAULT_TIMEOUT_S
@@ -103,7 +105,31 @@ def _fetch_first_available_manifest(
     return None
 
 
+_MANIFEST_CACHE_TTL_S: Final[float] = 300.0
+_manifest_cache: dict[bool, tuple[float, dict[str, Any]]] = {}
+_manifest_cache_lock = threading.Lock()
+
+
 def fetch_manifest(
+    timeout: float = HTTP_DEFAULT_TIMEOUT_S,
+    include_third_party: bool = False,
+) -> dict[str, Any]:
+    cache_key = bool(include_third_party)
+    with _manifest_cache_lock:
+        cached = _manifest_cache.get(cache_key)
+        if cached and (time.monotonic() - cached[0]) < _MANIFEST_CACHE_TTL_S:
+            return cached[1]
+
+    result = _fetch_manifest_uncached(
+        timeout=timeout, include_third_party=include_third_party
+    )
+    if result.get("data") is not None:
+        with _manifest_cache_lock:
+            _manifest_cache[cache_key] = (time.monotonic(), result)
+    return result
+
+
+def _fetch_manifest_uncached(
     timeout: float = HTTP_DEFAULT_TIMEOUT_S,
     include_third_party: bool = False,
 ) -> dict[str, Any]:
@@ -140,7 +166,7 @@ def fetch_manifest(
         }
         return {"data": out, "source": "omniarchive"}
 
-    assert mojang_data is not None  # narrowed by the branches above
+    assert mojang_data is not None
     merged_versions = _merge_versions_with_source(
         mojang_data.get("versions", []),
         (omniarchive_data or {}).get("versions", []),

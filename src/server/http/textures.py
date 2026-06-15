@@ -6,7 +6,7 @@ import urllib.error
 import urllib.request
 from urllib.parse import parse_qs, unquote, urlparse, quote
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.skin_legacy import (
     convert_skin_to_legacy_format,
     merge_skin_overlay_into_base,
@@ -167,8 +167,6 @@ def _append_texture_url_cache_candidates(
 class TextureMixin:
     def _handle_texture_proxy(self, path):
         try:
-            # Strip query string and detect legacy (Classic) format flag before
-            # splitting the path into its components.
             _qs_sep = path.find("?")
             _qs = path[_qs_sep + 1 :] if _qs_sep >= 0 else ""
             path_clean = path[:_qs_sep] if _qs_sep >= 0 else path
@@ -527,13 +525,13 @@ class TextureMixin:
                     self.send_header("Cache-Control", f"public, max-age={cache_age}")
                     self.end_headers()
                     self.wfile.write(texture_data)
-                    print(colorize_log(
+                    safe_print(
                         f"[http_server] served local {texture_type}: {texture_id}"
-                    ))
+                    )
                 except Exception as e:
-                    print(colorize_log(
+                    safe_print(
                         f"[http_server] error reading {texture_type} file: {e}"
-                    ))
+                    )
                     self.send_error(500, f"Error reading {texture_type}")
                 return
 
@@ -549,9 +547,9 @@ class TextureMixin:
                         username_fallback,
                     )
             except Exception as e:
-                print(colorize_log(
+                safe_print(
                     f"[http_server] Microsoft texture metadata lookup failed: {e}"
-                ))
+                )
 
             remote_identifiers = []
             if minecraft_texture_id:
@@ -663,18 +661,18 @@ class TextureMixin:
                             elif _is_valid_texture_payload(payload, "cape"):
                                 response_texture_type = "cape"
                             else:
-                                print(colorize_log(
+                                safe_print(
                                     f"[http_server] remote raw texture was not a valid "
                                     f"Minecraft skin or cape: {remote_url} "
                                     f"(content-type={resp_ctype or 'unknown'})"
-                                ))
+                                )
                                 continue
                         elif not _is_valid_texture_payload(payload, texture_type):
-                            print(colorize_log(
+                            safe_print(
                                 f"[http_server] remote {texture_type} was not a valid "
                                 f"Minecraft texture: {remote_url} "
                                 f"(content-type={resp_ctype or 'unknown'})"
-                            ))
+                            )
                             continue
 
                         try:
@@ -708,15 +706,15 @@ class TextureMixin:
                                     os.makedirs(os.path.dirname(fname), exist_ok=True)
                                     with open(fname, "wb") as wf:
                                         wf.write(payload)
-                                    print(colorize_log(
+                                    safe_print(
                                         f"[http_server] cached remote {response_texture_type} "
                                         f"-> {fname}"
-                                    ))
+                                    )
                                 except Exception as e:
-                                    print(colorize_log(
+                                    safe_print(
                                         f"[http_server] failed to cache {response_texture_type} "
                                         f"-> {sid}: {e}"
-                                    ))
+                                    )
                         except Exception:
                             pass
 
@@ -735,24 +733,24 @@ class TextureMixin:
                         self.send_header("Cache-Control", f"public, max-age={cache_age}")
                         self.end_headers()
                         self.wfile.write(serve_payload)
-                        print(colorize_log(
+                        safe_print(
                             f"[http_server] proxied remote {response_texture_type}: "
                             f"{remote_url} via {probe_url}"
-                        ))
+                        )
                         return
                     except urllib.error.HTTPError as e:
                         last_http_error = e
-                        print(colorize_log(
+                        safe_print(
                             f"[http_server] remote {texture_type} not found: "
                             f"{remote_url} ({e.code})"
-                        ))
+                        )
                         continue
                     except Exception as e:
                         last_network_error = e
-                        print(colorize_log(
+                        safe_print(
                             f"[http_server] remote {texture_type} proxy failed for "
                             f"{remote_url}: {e}"
-                        ))
+                        )
                         continue
 
             if texture_type != "skin":
@@ -772,9 +770,9 @@ class TextureMixin:
                     last_network_error is not None and last_http_error is None
                 )
                 if not is_network_failure:
-                    print(colorize_log(
+                    safe_print(
                         f"[http_server] skin not available; letting Minecraft use default skin: {texture_id_raw}"
-                    ))
+                    )
                 self.send_error(
                     502 if is_network_failure else 404,
                     "Texture proxy error" if is_network_failure else "Texture not found",
@@ -782,5 +780,5 @@ class TextureMixin:
             except Exception:
                 pass
         except Exception as e:
-            print(colorize_log(f"[http_server] error handling texture request: {e}"))
+            safe_print(f"[http_server] error handling texture request: {e}")
             self.send_error(500, "Internal server error")

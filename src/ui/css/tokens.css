@@ -171,6 +171,10 @@
   --color-loader-forge-button-border: #192b42;
   --color-loader-forge-button-text: #dfa86a;
   --color-loader-forge-button-hover: #3b5679;
+  --color-loader-liteloader-button-bg: #9bb9d4;
+  --color-loader-liteloader-button-border: #5a7a96;
+  --color-loader-liteloader-button-text: #14222e;
+  --color-loader-liteloader-button-hover: #b7d0e6;
   --color-loader-modloader-button-bg: #d4d4d4;
   --color-loader-modloader-button-border: #adadad;
   --color-loader-modloader-button-text: #202020;
@@ -183,6 +187,10 @@
   --color-loader-quilt-button-border: #3a2464;
   --color-loader-quilt-button-text: #ffd1f8;
   --color-loader-quilt-button-hover: #b476ee;
+  --color-loader-ornithe-button-bg: #b14fa0;
+  --color-loader-ornithe-button-border: #5e2452;
+  --color-loader-ornithe-button-text: #ffd6f1;
+  --color-loader-ornithe-button-hover: #c96fbb;
 
   --color-loader-fabric-card-bg: #332f20;
   --color-loader-fabric-card-border: #5c5642;
@@ -192,6 +200,10 @@
   --color-loader-forge-card-border: #304760;
   --color-loader-forge-card-hover: #27384f;
   --color-loader-forge-card-hover-border: #3d5b7c;
+  --color-loader-liteloader-card-bg: #243240;
+  --color-loader-liteloader-card-border: #44607a;
+  --color-loader-liteloader-card-hover: #2c3e50;
+  --color-loader-liteloader-card-hover-border: #5d80a0;
   --color-loader-modloader-card-bg: #38393a;
   --color-loader-modloader-card-border: #5d6164;
   --color-loader-modloader-card-hover: #525455;
@@ -204,4 +216,8 @@
   --color-loader-quilt-card-border: #51386e;
   --color-loader-quilt-card-hover: #3d2d52;
   --color-loader-quilt-card-hover-border: #67488c;
+  --color-loader-ornithe-card-bg: #3a2538;
+  --color-loader-ornithe-card-border: #6b3a5e;
+  --color-loader-ornithe-card-hover: #472f43;
+  --color-loader-ornithe-card-hover-border: #8c4c7a;
 }

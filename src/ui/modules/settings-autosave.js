@@ -6,11 +6,13 @@ import {
   ADD_PROFILE_OPTION,
   JAVA_RUNTIME_INSTALL_OPTION,
   JAVA_RUNTIME_PATH,
+  SIGNUP_URL,
 } from './config.js';
 import { api } from './api.js';
 import { showMessageBox } from './modal.js';
 import { showJavaInstallChooser } from './java-installer.js';
 import { APPEARANCE_SETTING_KEYS, applyAppearanceSettings } from './appearance.js';
+import { initThemeEditor } from './theme-editor.js';
 import { setLauncherLanguage, t } from './i18n.js';
 import { escapeInfoHtml } from './string-utils.js';
 import {
@@ -200,6 +202,7 @@ const setMicrosoftLoginStatus = (message) => {
 
 const connectMicrosoftAccount = async ({ accountSelect, usernameInput, usernameRow, previousType }) => {
   let cancelled = false;
+  let succeeded = false;
   const restorePreviousAccountType = () => {
     const restored = normalizeAccountType(previousType);
     if (accountSelect) accountSelect.value = restored;
@@ -240,6 +243,14 @@ const connectMicrosoftAccount = async ({ accountSelect, usernameInput, usernameR
           },
         },
       ],
+      // Dismissing the dialog any other way (Escape, backdrop) must also stop
+      // the polling loop, otherwise a later Microsoft approval would silently
+      // switch the account after the user thought they cancelled.
+      onClose: () => {
+        if (succeeded || cancelled) return;
+        cancelled = true;
+        restorePreviousAccountType();
+      },
     });
 
     let interval = Math.max(2, Number(deviceCode.interval || 5));
@@ -253,6 +264,7 @@ const connectMicrosoftAccount = async ({ accountSelect, usernameInput, usernameR
       });
 
       if (poll && poll.ok && poll.authenticated) {
+        succeeded = true;
         if (controls && controls.close) controls.close();
         state.settingsState.account_type = 'Microsoft';
         state.settingsState.username = poll.username || state.settingsState.username;
@@ -322,6 +334,16 @@ export const autoSaveSetting = (key, value) => {
   return savePromise;
 };
 
+const autoSaveTimers = {};
+export const autoSaveSettingDebounced = (key, value, delay = 400) => {
+  state.settingsState[key] = value;
+  clearTimeout(autoSaveTimers[key]);
+  autoSaveTimers[key] = setTimeout(() => {
+    delete autoSaveTimers[key];
+    autoSaveSetting(key, value);
+  }, delay);
+};
+
 setScreenshotsAutoSaveSetting(autoSaveSetting);
 setWorldsAutoSaveSetting(autoSaveSetting);
 
@@ -373,9 +395,9 @@ export const initSettingsInputs = () => {
           v.slice(firstUnderscoreIndex);
       }
 
-      e.target.value = v;
+      if (e.target.value !== v) e.target.value = v;
       state.localUsernameModified = true;
-      autoSaveSetting('username', v);
+      autoSaveSettingDebounced('username', v);
       updateSettingsValidationUI();
     });
   }
@@ -394,8 +416,8 @@ export const initSettingsInputs = () => {
       if (letter) finalValue += letter[0];
     }
 
-    e.target.value = finalValue;
-    autoSaveSetting(key, finalValue);
+    if (e.target.value !== finalValue) e.target.value = finalValue;
+    autoSaveSettingDebounced(key, finalValue);
     updateSettingsValidationUI();
   };
 
@@ -414,8 +436,8 @@ export const initSettingsInputs = () => {
     if (value) {
       value = String(Math.max(1, Math.min(Number(value), 99999)));
     }
-    e.target.value = value;
-    autoSaveSetting(key, value || (key === 'game_resolution_width' ? '854' : '480'));
+    if (e.target.value !== value) e.target.value = value;
+    autoSaveSettingDebounced(key, value || (key === 'game_resolution_width' ? '854' : '480'));
   };
 
   const resolutionWidthInput = getEl('settings-resolution-width');
@@ -426,13 +448,6 @@ export const initSettingsInputs = () => {
   const resolutionHeightInput = getEl('settings-resolution-height');
   if (resolutionHeightInput) {
     resolutionHeightInput.addEventListener('input', resolutionInputHandler('game_resolution_height'));
-  }
-
-  const gameFullscreenInput = getEl('settings-game-fullscreen');
-  if (gameFullscreenInput) {
-    gameFullscreenInput.addEventListener('change', (e) => {
-      autoSaveSetting('game_fullscreen', e.target.checked ? '1' : '0');
-    });
   }
 
   const demoModeInput = getEl('settings-demo-mode');
@@ -547,7 +562,7 @@ export const initSettingsInputs = () => {
   if (extraJvmInput) {
     extraJvmInput.addEventListener('input', (e) => {
       if (e.target.disabled) return;
-      autoSaveSetting('extra_jvm_args', (e.target.value || '').trim());
+      autoSaveSettingDebounced('extra_jvm_args', (e.target.value || '').trim());
     });
   }
 
@@ -789,7 +804,7 @@ export const initSettingsInputs = () => {
 
         setTimeout(() => {
           const a = getEl('msgbox-signup-link');
-          if (a) a.addEventListener('click', (ev) => { ev.preventDefault(); window.open('https://histolauncher.org/signup', '_blank'); });
+          if (a) a.addEventListener('click', (ev) => { ev.preventDefault(); window.open(SIGNUP_URL, '_blank'); });
         }, 50);
 
         return;
@@ -851,7 +866,7 @@ export const initSettingsInputs = () => {
   const proxyInput = getEl('settings-url-proxy');
   if (proxyInput) {
     proxyInput.addEventListener('input', (e) =>
-      autoSaveSetting('url_proxy', e.target.value.trim())
+      autoSaveSettingDebounced('url_proxy', e.target.value.trim())
     );
   }
 
@@ -1004,4 +1019,6 @@ export const initSettingsInputs = () => {
       await saveCheckboxSettingAndReinit('allow_override_classpath_all_modloaders', e.target.checked);
     });
   }
+
+  initThemeEditor(autoSaveSetting);
 };

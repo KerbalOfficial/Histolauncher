@@ -266,8 +266,6 @@
       "customVersionFolder": "自訂 (版本專屬資料夾)",
       "launchSettings": "啟動設定",
       "useGlobal": "使用全域設定",
-      "overrideFullscreen": "覆寫全螢幕",
-      "fullscreen": "全螢幕",
       "overrideDemoMode": "覆寫展示模式 (Demo Mode)",
       "demoMode": "展示模式 (Demo Mode)",
       "minimumRamOverride": "最小記憶體覆寫",
@@ -419,10 +417,14 @@
     "typeModpacks": "整合包",
     "typeResourcePacks": "資源包",
     "typeShaderPacks": "光影包",
+    "typeDatapacks": "資料包",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "匯入光影包",
         "emptyInstalled": "沒有已安裝的光影包",
         "emptyAvailable": "找不到光影包"
+      },
+      "datapacks": {
+        "label": "資料包",
+        "singular": "資料包",
+        "singularTitle": "資料包",
+        "plural": "資料包",
+        "pluralTitle": "資料包",
+        "importTitle": "匯入資料包",
+        "emptyInstalled": "沒有已安裝的資料包",
+        "emptyAvailable": "找不到資料包"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "套用到世界",
+      "manageWorlds": "管理世界",
+      "appliedWorlds": "已套用到：{worlds}",
+      "noAppliedWorlds": "未套用到任何世界",
+      "applyTitle": "將資料包套用到世界",
+      "applyPrompt": "為 <b>{datapack}</b> 選擇世界儲存位置與世界。",
+      "storageLabel": "世界儲存位置：",
+      "customFolderLabel": "自訂資料夾：",
+      "selectFolder": "選擇資料夾",
+      "worldsLabel": "世界：",
+      "noWorlds": "在此儲存位置找不到任何世界。",
+      "applyFailed": "套用資料包失敗。",
+      "applySuccess": "已將資料包套用到 {count} 個世界。",
+      "removeFailed": "從世界移除資料包失敗。",
+      "removeSuccess": "已從 {world} 移除資料包。",
+      "manageTitle": "世界部署狀況",
+      "managePrompt": "資料包 <b>{datapack}</b> 已套用到以下世界：",
+      "removeFromWorld": "移除",
+      "selectWorlds": "請至少選擇一個世界。"
     },
     "import": {
       "selectLoaderForFile": "為 \"{file}\" 選擇模組載入器：",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "正在匯入...",
+      "importButton": "匯入",
+      "successTitle": "匯入成功",
+      "successMessage": "已成功匯入 {addon}。",
+      "errorTitle": "匯入錯誤",
+      "failedMessage": "匯入 {addon} 失敗。",
+      "modpackImporting": "正在匯入整合包...",
+      "modpackImportingPercent": "正在匯入整合包... {percent}%",
+      "modpackCancelling": "正在取消整合包匯入...",
+      "modpackSuccess": "已成功匯入整合包 <b>{name}</b>。",
+      "modpackDetectedFormat": "<br><br>偵測到的格式：<b>{format}</b>。",
+      "modpackDisabledStandalone": "<br><br>下列獨立模組因與整合包衝突而已被停用：<br>",
+      "modpackWarnings": "<br><br>匯入警告：<br>",
+      "modpackMoreWarnings": "<br>...以及另外 {count} 則警告。",
+      "modpackCancelledTitle": "匯入已取消",
+      "modpackCancelledMessage": "你已取消整合包匯入。",
+      "modpackFailed": "匯入整合包失敗。",
+      "modpackNetworkError": "匯入整合包時發生網路錯誤。"
     },
     "status": {
       "installed": "已安裝",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "已刪除 {count} 個 {addon}。<br><br>失敗：<br>{failures}",
       "confirmMessage": "確定刪除選取的 {count} 個 {addon}？<br><i>此操作無法復原！</i>"
     },
+    "bulkMove": {
+      "title": "批次移動模組",
+      "noSelected": "未選擇任何已安裝的模組。",
+      "prompt": "將 {count} 個選取的模組移動到：",
+      "moveButton": "移動",
+      "movingProgress": "正在移動選取的模組... ({current}/{total})",
+      "cancelling": "將在目前模組完成後取消批次移動...",
+      "moveFailed": "移動失敗",
+      "requestFailed": "要求失敗",
+      "skippedSuffix": "，已略過 {count} 個",
+      "cancelledTitle": "批次移動已取消",
+      "cancelledMessage": "在取消前已移動 {moved} 個模組{skipped}。{failures}",
+      "failuresCountSuffix": "<br><br>失敗：{count}",
+      "completeTitle": "批次移動完成",
+      "completeMessage": "已移動 {moved} 個模組{skipped}。",
+      "finishedWithErrorsTitle": "批次移動已完成但有錯誤",
+      "finishedWithErrorsMessage": "已移動 {moved} 個模組{skipped}。<br><br>失敗：<br>{preview}{more}",
+      "moreFailures": "<br>...以及另外 {count} 個。"
+    },
+    "modpackDetail": {
+      "loader": "載入器：{loader}",
+      "version": "版本：{version}",
+      "minecraft": "Minecraft：{version}",
+      "author": "作者：{author}",
+      "modsCount": "模組：{count}",
+      "resourcePacksCount": "資源包：{count}",
+      "shaderPacksCount": "光影包：{count}",
+      "datapacksCount": "資料包：{count}",
+      "notAvailable": "不適用"
+    },
+    "modpackActions": {
+      "deleteFailed": "刪除整合包失敗。",
+      "cannotEnableTitle": "無法啟用",
+      "cannotEnableMessage": "此模組由整合包 <b>{name}</b> 管理。請先停用或刪除該整合包。"
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "CurseForge 需要 API 金鑰。請新增金鑰以使用 CurseForge 提供者，或切換到 Modrinth。",
+      "providerError": "提供者錯誤：{error}"
+    },
     "detail": {
       "loadingDetails": "載入 {addon} 詳細資料中...",
       "screenshots": "螢幕截圖",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "匯出整合包",
-      "selectFormat": "選擇要匯出的整合包格式：",
-      "selectLoader": "選擇這個整合包的模組載入器：",
+      "tabs": {
+        "metadata": "中繼資料",
+        "mods": "模組",
+        "resourcepacks": "資源包",
+        "shaderpacks": "光影包",
+        "datapacks": "資料包",
+        "export": "匯出"
+      },
+      "selectFormat": "選擇要匯出的整合包格式",
+      "selectLoader": "選擇這個整合包的模組載入器",
+      "minecraftVersion": "Minecraft 版本",
+      "minecraftVersionHint": "用於此整合包的 Minecraft 版本。",
+      "loaderVersion": "載入器版本",
+      "loaderVersionHint": "用於此整合包的載入器版本。",
+      "vanillaModsHint": "原版整合包不包含模組。請在其他分頁中選擇資源包、光影包和／或資料包。",
       "noLoaderMods": "未安裝 {loader} 模組。請先安裝一些模組。",
       "selectMods": "選擇要包含的模組 ({count} 個 {loader} 模組可用)：",
       "disabledHint": "選填：標記模組為停用狀態，使其包含於整合包內但預設不啟用。",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "無法更新來源資料夾",
       "failedSaveSourceFolder": "儲存來源資料夾設定失敗。",
       "selectAtLeastOneMod": "請至少選擇一個模組。",
+      "selectAtLeastOneItem": "請至少選擇一個模組、資源包、光影包或資料包。",
+      "selectMinecraftVersion": "請選擇一個 Minecraft 版本",
+      "selectLoaderVersion": "請選擇一個載入器版本",
+      "validationErrorBanner": "請修正下方標示的問題後再試一次。",
+      "externalVersionRequired": "匯出到 Modrinth/CurseForge 時請輸入 Minecraft 版本（或選擇帶有版本中繼資料的內容）。",
+      "externalLoaderVersionRequired": "使用模組載入器匯出到 Modrinth/CurseForge 時請輸入載入器版本。",
       "selectOptionalAddons": "選擇要內建的選用 {plural} (有 {count} 個可用)：",
       "noOptionalAddons": "未安裝 {plural}。您可以選擇不內建任何此類檔案並繼續。",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "整合包簡介..."
       },
       "summary": "{format} {extension} | {mods} 個模組 | {resourcepacks} 個資源包 | {shaderpacks} 個光影包 | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "載入器 {version}",
       "validation": {
         "nameLength": "名稱長度必須介於 1 到 64 個字元之間。",
         "nameForbidden": "名稱不可包含不允許的字元。",
@@ -1014,13 +1125,25 @@
       "description": "輕量又快速",
       "subtitle": "常用於現代 Minecraft 的效能優化與輕量模組開發"
     },
+    "legacyfabric": {
+      "description": "適用於舊版本的 Fabric",
+      "subtitle": "支援 Minecraft 1.3 - 1.13.2 的 Fabric 移植版"
+    },
     "babric": {
       "description": "Minecraft Beta 專用的 Fabric 分支",
       "subtitle": "為支援 Beta 1.7.3 生態系而生"
     },
+    "ornithe": {
+      "description": "適用於舊版 Minecraft 的 Fabric",
+      "subtitle": "基於 Fabric 的工具鏈，涵蓋 Alpha 至 1.14.x"
+    },
     "forge": {
       "description": "功能完整且普及",
       "subtitle": "長年用於大型模組與深度內容擴充"
+    },
+    "liteloader": {
+      "description": "輕量級用戶端模組",
+      "subtitle": "適用於 Minecraft 1.5.2 - 1.12.2 的微調類模組"
     },
     "modloader": {
       "description": "經典的 Jar 模組載入方式",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "彈性高且現代化",
       "subtitle": "常用於現代 Minecraft 的輕量模組開發與相容擴充"
+    },
+    "vanilla": {
+      "description": "無模組載入器",
+      "subtitle": "僅資源包、光影包與資料包"
     },
     "fallback": {
       "description": "自訂或未知載入器",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "藍莓淺色",
         "leafDark": "葉綠深色",
         "leafLight": "葉綠淺色",
+        "orangeDark": "橙色（深色）",
+        "orangeLight": "橙色（淺色）",
+        "midnightDark": "午夜（深色）",
+        "midnightLight": "午夜（淺色）",
+        "graphiteDark": "石墨（深色）",
+        "graphiteLight": "石墨（淺色）",
+        "oceanDark": "海洋（深色）",
+        "oceanLight": "海洋（淺色）",
+        "amethystDark": "紫水晶（深色）",
+        "amethystLight": "紫水晶（淺色）",
         "aeroDark": "Aero 玻璃深色",
-        "aeroLight": "Aero 玻璃淺色"
+        "aeroLight": "Aero 玻璃淺色",
+        "custom": "自訂"
+      },
+      "themeBase": "基礎主題：",
+      "themeEditor": {
+        "dockTitle": "主題編輯器",
+        "openDock": "開啟主題編輯器",
+        "hint": "選擇一個基礎主題，然後在下方調整個別顏色。覆寫設定會隨你的設定檔一起儲存。",
+        "resetAll": "重設所有覆寫",
+        "export": "複製主題 JSON",
+        "import": "匯入主題 JSON",
+        "resetToken": "重設",
+        "resetTokenTooltip": "移除此顏色覆寫並使用基礎主題的值",
+        "groups": {
+          "app": "應用程式背景",
+          "text": "文字",
+          "links": "連結與焦點",
+          "surfaces": "表面",
+          "borders": "邊框",
+          "overlays": "覆蓋層與工具提示",
+          "buttons": "按鈕",
+          "semantic": "成功、危險、警告與資訊",
+          "messages": "訊息方塊",
+          "states": "選取與醒目顯示",
+          "scrollbars": "捲軸",
+          "badges": "徽章",
+          "loaders": "模組載入器強調色"
+        }
       },
       "uiSizes": {
         "small": "小",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "分配給遊戲的最大記憶體。\n  - 必須為正數\n  - 必須大於最小記憶體\n  - 至少需為 1 byte\n\n格式範例：256、256M、2G 等。\n\n效能提示：較高的上限通常可提升大型遊戲或大型整合包的穩定性，也建議與最小記憶體一併調整。",
       "resolution": "解析度：",
       "resolutionTooltip": "作為支援寬度與高度啟動參數的版本之預設遊戲視窗大小。",
-      "fullscreen": "全螢幕：",
-      "fullscreenTooltip": "讓支援的版本預設以全螢幕啟動。",
       "demoMode": "Demo Mode：",
       "demoModeTooltip": "讓支援的版本以 Minecraft Demo Mode 啟動。",
       "storageDir": "儲存目錄：",

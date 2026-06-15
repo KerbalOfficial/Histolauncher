@@ -5,7 +5,6 @@ import zipfile
 from typing import Iterable, List
 
 
-# Class entries that mark a runtime "launcher" JAR (modlauncher / launchwrapper).
 RUNTIME_MARKER_CLASSES = (
     "cpw/mods/modlauncher/Launcher.class",
     "net/minecraft/launchwrapper/Launch.class",

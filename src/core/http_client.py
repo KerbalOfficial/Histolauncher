@@ -26,6 +26,8 @@ __all__ = ["HttpClient", "HttpClientError"]
 
 ProgressCallback = Callable[[int, int], None]
 
+_PERMANENT_HTTP_CODES = frozenset({400, 401, 403, 404, 405, 410})
+
 
 class HttpClientError(RuntimeError):
     def __init__(
@@ -65,7 +67,6 @@ def _decode_content_encoding(body: bytes, content_encoding: str | None) -> bytes
     if not encoding:
         return body
 
-    # Handle single or chained encodings (e.g. "gzip, deflate") in reverse order.
     parts = [part.strip() for part in encoding.split(",") if part.strip()]
     decoded = body
     for part in reversed(parts):
@@ -158,56 +159,56 @@ class HttpClient:
             merged_headers.update({str(k): str(v) for k, v in headers.items()})
         merged_headers.setdefault("Accept-Encoding", "identity")
 
-        for candidate, attempt in self._iter_attempts(url):
-            attempts += 1
-            tmp_path: Path | None = None
-            context: ssl.SSLContext | None = None
-            if used_insecure and candidate.lower().startswith("https://"):
-                context = _build_unverified_context()
-            try:
-                req = self._build_request(candidate, merged_headers)
-                with urllib.request.urlopen(req, timeout=effective_timeout, context=context) as resp:
-                    last_status = getattr(resp, "status", None)
-                    total = int(resp.headers.get("Content-Length") or -1)
-                    written = 0
-                    with tempfile.NamedTemporaryFile(
-                        "wb",
-                        dir=str(dest.parent),
-                        prefix=f".{dest.name}.",
-                        suffix=".part",
-                        delete=False,
-                    ) as out:
-                        tmp_path = Path(out.name)
-                        while True:
-                            chunk = resp.read(chunk_size)
-                            if not chunk:
-                                break
-                            out.write(chunk)
-                            written += len(chunk)
-                            if on_progress is not None:
-                                on_progress(written, total)
-                    os.replace(tmp_path, dest)
-                    return written
-            except ssl.SSLError as exc:
-                if tmp_path is not None:
-                    try:
-                        tmp_path.unlink(missing_ok=True)
-                    except OSError:
-                        pass
-                last_error = exc
-                if self._allow_insecure_fallback and not used_insecure:
-                    used_insecure = True
-                    continue
-                self._sleep_for_attempt(attempt)
-            except Exception as exc:  # noqa: BLE001
-                if tmp_path is not None:
-                    try:
-                        tmp_path.unlink(missing_ok=True)
-                    except OSError:
-                        pass
-                last_error = exc
-                last_status = self._extract_status(exc, last_status)
-                self._sleep_for_attempt(attempt)
+        for candidate in self._candidates(url):
+            for attempt in range(self._retry_attempts):
+                attempts += 1
+                tmp_path: Path | None = None
+                context: ssl.SSLContext | None = None
+                if used_insecure and candidate.lower().startswith("https://"):
+                    context = _build_unverified_context()
+                try:
+                    req = self._build_request(candidate, merged_headers)
+                    with urllib.request.urlopen(req, timeout=effective_timeout, context=context) as resp:
+                        last_status = getattr(resp, "status", None)
+                        total = int(resp.headers.get("Content-Length") or -1)
+                        written = 0
+                        with tempfile.NamedTemporaryFile(
+                            "wb",
+                            dir=str(dest.parent),
+                            prefix=f".{dest.name}.",
+                            suffix=".part",
+                            delete=False,
+                        ) as out:
+                            tmp_path = Path(out.name)
+                            while True:
+                                chunk = resp.read(chunk_size)
+                                if not chunk:
+                                    break
+                                out.write(chunk)
+                                written += len(chunk)
+                                if on_progress is not None:
+                                    on_progress(written, total)
+                        os.replace(tmp_path, dest)
+                        return written
+                except ssl.SSLError as exc:
+                    self._discard_tmp(tmp_path)
+                    last_error = exc
+                    if self._allow_insecure_fallback and not used_insecure:
+                        used_insecure = True
+                        continue
+                    self._sleep_between_attempts(attempt)
+                except urllib.error.HTTPError as exc:
+                    self._discard_tmp(tmp_path)
+                    last_error = exc
+                    last_status = int(exc.code)
+                    if exc.code in _PERMANENT_HTTP_CODES:
+                        break
+                    self._sleep_between_attempts(attempt)
+                except Exception as exc:  # noqa: BLE001
+                    self._discard_tmp(tmp_path)
+                    last_error = exc
+                    last_status = self._extract_status(exc, last_status)
+                    self._sleep_between_attempts(attempt)
 
         raise HttpClientError(
             f"all {attempts} attempts to download {url} failed: {last_error!r}",
@@ -234,32 +235,35 @@ class HttpClient:
         attempts = 0
         used_insecure = False
 
-        for candidate, attempt in self._iter_attempts(url):
-            attempts += 1
-            context: ssl.SSLContext | None = None
-            if used_insecure and candidate.lower().startswith("https://"):
-                context = _build_unverified_context()
+        for candidate in self._candidates(url):
+            for attempt in range(self._retry_attempts):
+                attempts += 1
+                context: ssl.SSLContext | None = None
+                if used_insecure and candidate.lower().startswith("https://"):
+                    context = _build_unverified_context()
 
-            try:
-                req = self._build_request(candidate, headers)
-                with urllib.request.urlopen(req, timeout=effective_timeout, context=context) as resp:
-                    last_status = getattr(resp, "status", None)
-                    raw = resp.read()
-                    try:
+                try:
+                    req = self._build_request(candidate, headers)
+                    with urllib.request.urlopen(req, timeout=effective_timeout, context=context) as resp:
+                        last_status = getattr(resp, "status", None)
+                        raw = resp.read()
                         return _decode_content_encoding(raw, resp.headers.get("Content-Encoding"))
-                    except (zlib.error, OSError):
-                        # If decoding fails, return raw bytes and let callers decide.
-                        return raw
-            except ssl.SSLError as exc:
-                last_error = exc
-                if self._allow_insecure_fallback and not used_insecure:
-                    used_insecure = True
-                    continue
-                self._sleep_for_attempt(attempt)
-            except Exception as exc:  # noqa: BLE001
-                last_error = exc
-                last_status = self._extract_status(exc, last_status)
-                self._sleep_for_attempt(attempt)
+                except ssl.SSLError as exc:
+                    last_error = exc
+                    if self._allow_insecure_fallback and not used_insecure:
+                        used_insecure = True
+                        continue
+                    self._sleep_between_attempts(attempt)
+                except urllib.error.HTTPError as exc:
+                    last_error = exc
+                    last_status = int(exc.code)
+                    if exc.code in _PERMANENT_HTTP_CODES:
+                        break
+                    self._sleep_between_attempts(attempt)
+                except Exception as exc:  # noqa: BLE001
+                    last_error = exc
+                    last_status = self._extract_status(exc, last_status)
+                    self._sleep_between_attempts(attempt)
 
         raise HttpClientError(
             f"all {attempts} attempts to fetch {url} failed: {last_error!r}",
@@ -279,22 +283,27 @@ class HttpClient:
             merged.update({str(k): str(v) for k, v in headers.items()})
         return urllib.request.Request(url, headers=merged)
 
-    def _iter_attempts(self, url: str):
+    def _candidates(self, url: str) -> list[str]:
         candidates: list[str] = []
         proxied = _apply_proxy(url)
         if proxied:
             candidates.append(proxied)
         if url not in candidates:
             candidates.append(url)
+        return candidates
 
-        for candidate in candidates:
-            for attempt in range(self._retry_attempts):
-                yield candidate, attempt
-
-    def _sleep_for_attempt(self, attempt: int) -> None:
-        if self._retry_backoff_s <= 0:
+    def _sleep_between_attempts(self, attempt: int) -> None:
+        if self._retry_backoff_s <= 0 or attempt >= self._retry_attempts - 1:
             return
         time.sleep(self._retry_backoff_s * (attempt + 1))
+
+    @staticmethod
+    def _discard_tmp(tmp_path: Path | None) -> None:
+        if tmp_path is not None:
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     @staticmethod
     def _extract_status(exc: BaseException, fallback: int | None) -> int | None:

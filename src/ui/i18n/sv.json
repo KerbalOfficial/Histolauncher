@@ -266,8 +266,6 @@
       "customVersionFolder": "Anpassad (versionsspecifik mapp)",
       "launchSettings": "Startinställningar",
       "useGlobal": "Använd globala",
-      "overrideFullscreen": "Åsidosätt helskärm",
-      "fullscreen": "Helskärm",
       "overrideDemoMode": "Åsidosätt Demo-läge",
       "demoMode": "Demoläge",
       "minimumRamOverride": "Åsidosätt minsta RAM",
@@ -419,10 +417,14 @@
     "typeModpacks": "Modpacks",
     "typeResourcePacks": "Resurspaket",
     "typeShaderPacks": "Shaders",
+    "typeDatapacks": "Datapaket",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "Importera Shader Pack",
         "emptyInstalled": "Inga shaders installerade",
         "emptyAvailable": "Inga shaders hittades"
+      },
+      "datapacks": {
+        "label": "Datapaket",
+        "singular": "datapaket",
+        "singularTitle": "Datapaket",
+        "plural": "datapaket",
+        "pluralTitle": "Datapaket",
+        "importTitle": "Importera datapaket",
+        "emptyInstalled": "Inga datapaket installerade",
+        "emptyAvailable": "Inga datapaket hittades"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "Tillämpa på värld",
+      "manageWorlds": "Hantera världar",
+      "appliedWorlds": "Tillämpat på: {worlds}",
+      "noAppliedWorlds": "Inte tillämpat på någon värld",
+      "applyTitle": "Tillämpa datapaket på värld",
+      "applyPrompt": "Välj världslagring och världar för <b>{datapack}</b>.",
+      "storageLabel": "Världslagring:",
+      "customFolderLabel": "Anpassad mapp:",
+      "selectFolder": "Välj mapp",
+      "worldsLabel": "Världar:",
+      "noWorlds": "Inga världar hittades på den här lagringsplatsen.",
+      "applyFailed": "Det gick inte att tillämpa datapaketet.",
+      "applySuccess": "Datapaket tillämpat på {count} värld(ar).",
+      "removeFailed": "Det gick inte att ta bort datapaketet från världen.",
+      "removeSuccess": "Datapaket borttaget från {world}.",
+      "manageTitle": "Världsdistributioner",
+      "managePrompt": "Datapaketet <b>{datapack}</b> är tillämpat på dessa världar:",
+      "removeFromWorld": "Ta bort",
+      "selectWorlds": "Välj minst en värld."
     },
     "import": {
       "selectLoaderForFile": "Välj ModLoader för \"{file}\":",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "Importerar...",
+      "importButton": "Importera",
+      "successTitle": "Importen lyckades",
+      "successMessage": "{addon} importerades.",
+      "errorTitle": "Importfel",
+      "failedMessage": "Det gick inte att importera {addon}.",
+      "modpackImporting": "Importerar modpack...",
+      "modpackImportingPercent": "Importerar modpack... {percent}%",
+      "modpackCancelling": "Avbryter modpack-importen...",
+      "modpackSuccess": "Modpacket <b>{name}</b> importerades.",
+      "modpackDetectedFormat": "<br><br>Identifierat format: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>Följande fristående moddar inaktiverades eftersom de står i konflikt med modpacket:<br>",
+      "modpackWarnings": "<br><br>Importvarningar:<br>",
+      "modpackMoreWarnings": "<br>...och {count} varning(ar) till.",
+      "modpackCancelledTitle": "Importen avbröts",
+      "modpackCancelledMessage": "Du avbröt modpack-importen.",
+      "modpackFailed": "Det gick inte att importera modpacket.",
+      "modpackNetworkError": "Nätverksfel vid import av modpacket."
     },
     "status": {
       "installed": "Installerad",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "Tog bort {count} {addon}.<br><br>Misslyckanden:<br>{failures}",
       "confirmMessage": "Vill du ta bort {count} valda {addon}?<br><i>Detta kan inte ångras!</i>"
     },
+    "bulkMove": {
+      "title": "Flytta moddar i grupp",
+      "noSelected": "Inga installerade moddar valda.",
+      "prompt": "Flytta {count} valda modd(ar) till:",
+      "moveButton": "Flytta",
+      "movingProgress": "Flyttar valda moddar... ({current}/{total})",
+      "cancelling": "Avbryter gruppflytt när den aktuella modden är klar...",
+      "moveFailed": "flytt misslyckades",
+      "requestFailed": "begäran misslyckades",
+      "skippedSuffix": ", hoppade över {count}",
+      "cancelledTitle": "Gruppflytt avbruten",
+      "cancelledMessage": "Flyttade {moved} modd(ar){skipped} före avbrottet.{failures}",
+      "failuresCountSuffix": "<br><br>Fel: {count}",
+      "completeTitle": "Gruppflytt klar",
+      "completeMessage": "Flyttade {moved} modd(ar){skipped}.",
+      "finishedWithErrorsTitle": "Gruppflytt slutförd med fel",
+      "finishedWithErrorsMessage": "Flyttade {moved} modd(ar){skipped}.<br><br>Fel:<br>{preview}{more}",
+      "moreFailures": "<br>...och {count} till."
+    },
+    "modpackDetail": {
+      "loader": "Loader: {loader}",
+      "version": "Version: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "Skapare: {author}",
+      "modsCount": "Moddar: {count}",
+      "resourcePacksCount": "Resurspaket: {count}",
+      "shaderPacksCount": "Shaders: {count}",
+      "datapacksCount": "Datapaket: {count}",
+      "notAvailable": "Ej tillgängligt"
+    },
+    "modpackActions": {
+      "deleteFailed": "Det gick inte att ta bort modpacket.",
+      "cannotEnableTitle": "Kan inte aktivera",
+      "cannotEnableMessage": "Den här modden hanteras av modpacket <b>{name}</b>. Inaktivera eller ta bort det modpacket först."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "CurseForge kräver en API-nyckel. Lägg till en nyckel för att använda CurseForge-leverantören, eller byt till Modrinth.",
+      "providerError": "Leverantörsfel: {error}"
+    },
     "detail": {
       "loadingDetails": "Laddar {addon}-detaljer...",
       "screenshots": "Skärmdumpar",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "Exportera Modpack",
-      "selectFormat": "Välj modpack-format att exportera:",
-      "selectLoader": "Välj ModLoader för detta modpack:",
+      "tabs": {
+        "metadata": "Metadata",
+        "mods": "Moddar",
+        "resourcepacks": "Resurspaket",
+        "shaderpacks": "Shaders",
+        "datapacks": "Datapaket",
+        "export": "Exportera"
+      },
+      "selectFormat": "Välj modpack-format att exportera",
+      "selectLoader": "Välj ModLoader för detta modpack",
+      "minecraftVersion": "Minecraft-version",
+      "minecraftVersionHint": "Den Minecraft-version som ska användas för modpacket.",
+      "loaderVersion": "Loader-version",
+      "loaderVersionHint": "Den loader-version som ska användas för modpacket.",
+      "vanillaModsHint": "Vanilla-modpacks innehåller inga moddar. Välj resurspaket, shaders och/eller datapaket på de andra flikarna.",
       "noLoaderMods": "Inga {loader}-moddar installerade. Installera några moddar först.",
       "selectMods": "Välj moddar att inkludera ({count} {loader}-moddar tillgängliga):",
       "disabledHint": "Valfritt: markera moddar som inaktiverade i modpacket så att de inkluderas men inte är aktiva som standard.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "Det gick inte att uppdatera källmappen",
       "failedSaveSourceFolder": "Det gick inte att spara inställningen för källmappen.",
       "selectAtLeastOneMod": "Välj minst en mod.",
+      "selectAtLeastOneItem": "Välj minst en modd, ett resurspaket, en shader eller ett datapaket.",
+      "selectMinecraftVersion": "Välj en Minecraft-version",
+      "selectLoaderVersion": "Välj en loader-version",
+      "validationErrorBanner": "Åtgärda de markerade problemen nedan och försök igen.",
+      "externalVersionRequired": "Ange en Minecraft-version för export till Modrinth/CurseForge (eller välj innehåll med versionsmetadata).",
+      "externalLoaderVersionRequired": "Ange en loader-version för export till Modrinth/CurseForge när du använder en modd-loader.",
       "selectOptionalAddons": "Välj valfria {plural} att bunta ({count} tillgängliga):",
       "noOptionalAddons": "Inga {plural} är installerade. Du kan fortsätta utan att bunta några.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "En beskrivning av modpacket..."
       },
       "summary": "{format} {extension} | {mods} moddar | {resourcepacks} resurspaket | {shaderpacks} shaders | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "Loader {version}",
       "validation": {
         "nameLength": "Namnet måste vara mellan 1 och 64 tecken.",
         "nameForbidden": "Namnet innehåller förbjudna tecken.",
@@ -1014,13 +1125,25 @@
       "description": "Lättviktig och snabb",
       "subtitle": "Används oftast för speloptimering"
     },
+    "legacyfabric": {
+      "description": "Fabric för äldre versioner",
+      "subtitle": "En Fabric-portning som stöder Minecraft 1.3 - 1.13.2"
+    },
     "babric": {
       "description": "Minecraft Beta Fabric-förgrening (fork)",
       "subtitle": "En fork av Fabric för att stödja Beta 1.7.3"
     },
+    "ornithe": {
+      "description": "Fabric för äldre Minecraft",
+      "subtitle": "Fabric-baserad verktygskedja från Alpha till 1.14.x"
+    },
     "forge": {
       "description": "Stora modifieringar och populär",
       "subtitle": "Används oftast för speländringar"
+    },
+    "liteloader": {
+      "description": "Lättviktiga klientmoddar",
+      "subtitle": "Tweak-liknande moddar för Minecraft 1.5.2 - 1.12.2"
     },
     "modloader": {
       "description": "Historisk jar-mod runtime",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "Flexibel och modern",
       "subtitle": "Används oftast för lättviktig modern modding"
+    },
+    "vanilla": {
+      "description": "Ingen modd-loader",
+      "subtitle": "Endast resurspaket, shaders och datapaket"
     },
     "fallback": {
       "description": "Anpassad loader",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "Blåbär (Ljust)",
         "leafDark": "Löv (Mörkt)",
         "leafLight": "Löv (Ljust)",
+        "orangeDark": "Orange (Mörkt)",
+        "orangeLight": "Orange (Ljust)",
+        "midnightDark": "Midnatt (Mörkt)",
+        "midnightLight": "Midnatt (Ljust)",
+        "graphiteDark": "Grafit (Mörkt)",
+        "graphiteLight": "Grafit (Ljust)",
+        "oceanDark": "Ocean (Mörkt)",
+        "oceanLight": "Ocean (Ljust)",
+        "amethystDark": "Ametist (Mörkt)",
+        "amethystLight": "Ametist (Ljust)",
         "aeroDark": "Aero-glas (Mörkt)",
-        "aeroLight": "Aero-glas (Ljust)"
+        "aeroLight": "Aero-glas (Ljust)",
+        "custom": "Anpassat"
+      },
+      "themeBase": "Bastema:",
+      "themeEditor": {
+        "dockTitle": "Temaredigerare",
+        "openDock": "Öppna temaredigeraren",
+        "hint": "Välj ett bastema och justera sedan enskilda färger nedan. Åsidosättningar sparas med din profil.",
+        "resetAll": "Återställ alla åsidosättningar",
+        "export": "Kopiera tema-JSON",
+        "import": "Importera tema-JSON",
+        "resetToken": "Återställ",
+        "resetTokenTooltip": "Ta bort den här färgåsidosättningen och använd bastemats värde",
+        "groups": {
+          "app": "Appbakgrund",
+          "text": "Text",
+          "links": "Länkar och fokus",
+          "surfaces": "Ytor",
+          "borders": "Kanter",
+          "overlays": "Överlägg och verktygstips",
+          "buttons": "Knappar",
+          "semantic": "Lyckat, fara, varning och info",
+          "messages": "Meddelanderutor",
+          "states": "Urval och markeringar",
+          "scrollbars": "Rullningslister",
+          "badges": "Märken",
+          "loaders": "Modd-loader-accenter"
+        }
       },
       "uiSizes": {
         "small": "Liten",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "Maximal mängd RAM tilldelat till spelet\n  - Måste vara ett positivt tal\n  - Måste vara större än Minimum RAM\n  - Måste vara minst 1 byte\n\nExempelformat: 256, 256M, 2G, o.s.v.\n\n(Prestanda-tips: Allokera mer RAM ger bättre prestanda, och matcha dem med minimalt RAM för färre frame-drops)",
       "resolution": "Upplösning:",
       "resolutionTooltip": "Standardstorlek på spelfönstret, används av versioner som stödjer bredd och höjd genom startargument.",
-      "fullscreen": "Helskärm:",
-      "fullscreenTooltip": "Starta kompatibla versioner i helskärmsläge.",
       "demoMode": "Demoläge:",
       "demoModeTooltip": "Starta spelet i Minecraft demo läget (där spellägen är begränsade).",
       "storageDir": "Lagringsmapp:",

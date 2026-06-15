@@ -45,6 +45,12 @@ __all__ = [
     "MAX_STORAGE_OVERRIDE_PATH_LENGTH",
     "CURRENT_MD_VERSION",
     "HISTOLAUNCHER_WEB_ORIGINS",
+    "HISTOLAUNCHER_WEBSITE_ORIGIN",
+    "HISTOLAUNCHER_ACCOUNTS_ORIGIN",
+    "HISTOLAUNCHER_TEXTURES_ORIGIN",
+    "HISTOLAUNCHER_WEB_PROXY_PREFIX",
+    "HISTOLAUNCHER_ACCOUNTS_PROXY_PREFIX",
+    "HISTOLAUNCHER_TEXTURES_PROXY_PREFIX",
     "FORGE_INSTALL_BLOCKED_VERSIONS",
     "VALID_LOADER_TYPES",
     "VALID_MOD_LOADERS",
@@ -68,11 +74,20 @@ HISTOLAUNCHER_WEB_ORIGINS = (
     "https://histolauncher.pages.dev",
 )
 
-FORGE_INSTALL_BLOCKED_VERSIONS = {"1.2.4", "1.2.3", "1.1"}
+HISTOLAUNCHER_WEBSITE_ORIGIN = HISTOLAUNCHER_WEB_ORIGINS[0]
+HISTOLAUNCHER_ACCOUNTS_ORIGIN = "https://accounts.histolauncher.org"
+HISTOLAUNCHER_TEXTURES_ORIGIN = "https://textures.histolauncher.org"
+
+HISTOLAUNCHER_WEB_PROXY_PREFIX = "/histolauncher-proxy/web"
+HISTOLAUNCHER_ACCOUNTS_PROXY_PREFIX = "/histolauncher-proxy/accounts"
+HISTOLAUNCHER_TEXTURES_PROXY_PREFIX = "/histolauncher-proxy/textures"
+
+FORGE_INSTALL_BLOCKED_VERSIONS: set[str] = set()
 
 VALID_LOADER_TYPES = tuple(core_modloaders.SUPPORTED_LOADER_TYPES)
 VALID_MOD_LOADERS = tuple(core_modloaders.SUPPORTED_LOADER_TYPES)
-VALID_ADDON_TYPES = ("mods", "resourcepacks", "shaderpacks", "modpacks")
+VALID_MODPACK_LOADERS = (*VALID_MOD_LOADERS, "vanilla")
+VALID_ADDON_TYPES = ("mods", "resourcepacks", "shaderpacks", "modpacks", "datapacks")
 VALID_VERSION_STORAGE_OVERRIDE_MODES = {"default", "global", "version", "custom"}
 
 CANCELLED_OPERATION_ERROR_MESSAGE = "Operation cancelled by user"

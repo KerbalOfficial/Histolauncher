@@ -5,7 +5,7 @@ import shutil
 from typing import Callable, List, Optional, Set, Tuple
 
 from core.downloader.library_store import link_into_version, store_path_for
-from core.logger import colorize_log
+from core.logger import safe_print
 
 
 CancelCheck = Callable[[], None]
@@ -60,9 +60,9 @@ def harvest_libraries(
             try:
                 _atomic_ingest(src, store_path)
             except OSError as exc:
-                print(colorize_log(
+                safe_print(
                     f"[lib-harvest] could not ingest {rel}: {exc}; copying inline"
-                ))
+                )
                 shutil.copy2(src, store_path)
 
         if store_path in seen_store_paths:

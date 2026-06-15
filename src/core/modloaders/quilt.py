@@ -3,7 +3,7 @@ from __future__ import annotations
 import urllib.parse
 from typing import Any
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.modloaders._endpoints import QUILT_META_API
 from core.modloaders._http import _http_get_json
 from core.modloaders._versions import (
@@ -34,17 +34,15 @@ def fetch_quilt_loaders(mc_version: str) -> list[dict[str, Any]] | None:
         encoded_mc = urllib.parse.quote(str(mc_version or "").strip(), safe="")
         data = _http_get_json(f"{QUILT_META_API}/versions/loader/{encoded_mc}")
     except RuntimeError as exc:
-        print(
-            colorize_log(f"[modloaders] Failed to fetch Quilt loaders for {mc_version}: {exc}")
-        )
+        safe_print(
+            f"[modloaders] Failed to fetch Quilt loaders for {mc_version}: {exc}")
         return None
     if not isinstance(data, list):
-        print(colorize_log("[modloaders] Unexpected Quilt response format"))
+        safe_print("[modloaders] Unexpected Quilt response format")
         return None
     _loaders_cache.set(cache_key, data)
-    print(
-        colorize_log(f"[modloaders] Fetched {len(data)} Quilt loader versions for {mc_version}")
-    )
+    safe_print(
+        f"[modloaders] Fetched {len(data)} Quilt loader versions for {mc_version}")
     return data
 
 
@@ -52,12 +50,12 @@ def fetch_quilt_game_versions() -> list[dict[str, Any]] | None:
     try:
         data = _http_get_json(f"{QUILT_META_API}/versions/game")
     except RuntimeError as exc:
-        print(colorize_log(f"[modloaders] Failed to fetch Quilt game versions: {exc}"))
+        safe_print(f"[modloaders] Failed to fetch Quilt game versions: {exc}")
         return None
     if not isinstance(data, list):
-        print(colorize_log("[modloaders] Unexpected Quilt game versions response format"))
+        safe_print("[modloaders] Unexpected Quilt game versions response format")
         return None
-    print(colorize_log(f"[modloaders] Fetched {len(data)} Quilt game versions"))
+    safe_print(f"[modloaders] Fetched {len(data)} Quilt game versions")
     return data
 
 
@@ -116,12 +114,11 @@ def fetch_quilt_loader_profile_libraries(
             f"{QUILT_META_API}/versions/loader/{mc_enc}/{loader_enc}/profile/json"
         )
     except RuntimeError as exc:
-        print(
-            colorize_log(
+        safe_print(
+            
                 "[modloaders] Failed to fetch Quilt profile libraries for "
                 f"{mc_version}/{loader_version}: {exc}"
             )
-        )
         return None
 
     deps: list[tuple[str, str]] = []
@@ -135,31 +132,28 @@ def fetch_quilt_loader_profile_libraries(
         deps.append((lib_name, lib_url))
 
     if deps:
-        print(
-            colorize_log(
+        safe_print(
+            
                 f"[modloaders] Extracted {len(deps)} official Quilt libraries "
                 f"from profile {mc_version}/{loader_version}"
             )
-        )
         return deps
 
-    print(
-        colorize_log(f"[modloaders] Quilt profile {mc_version}/{loader_version} had no libraries")
-    )
+    safe_print(
+        f"[modloaders] Quilt profile {mc_version}/{loader_version} had no libraries")
     return None
 
 
 def get_quilt_loader_libraries(
     loader_version: str, mc_version: str
 ) -> list[tuple[str, str]]:
-    print(
-        colorize_log(f"[modloaders] Fetching official Quilt libraries for {loader_version}...")
-    )
+    safe_print(
+        f"[modloaders] Fetching official Quilt libraries for {loader_version}...")
     profile_deps = fetch_quilt_loader_profile_libraries(loader_version, mc_version)
     if profile_deps:
         return profile_deps
 
-    print(colorize_log(f"[modloaders] Using fallback dependencies for Quilt {loader_version}"))
+    safe_print(f"[modloaders] Using fallback dependencies for Quilt {loader_version}")
     return [
         (
             f"org.quiltmc:quilt-loader:{loader_version}",

@@ -8,7 +8,7 @@ from typing import Any, List, Optional
 
 from core.downloader._legacy.progress import _maybe_abort, _update_progress
 from core.downloader._legacy.transport import _safe_remove_file, download_file
-from core.logger import colorize_log
+from core.logger import safe_print
 
 from core.downloader._legacy.loaders.forge._const import MAVEN_REPOS
 from core.downloader._legacy.loaders.forge._context import ForgeContext
@@ -25,12 +25,12 @@ def _read_libraries_metadata(ctx: ForgeContext) -> List[Any]:
             with open(version_json_path, "r") as f:
                 version_data = json.load(f)
             libraries = version_data.get("libraries", [])
-            print(
+            safe_print(
                 f"[forge] Found {len(libraries)} libraries in version.json "
                 "(new format)"
             )
         except Exception as e:
-            print(f"[forge] WARNING: Could not parse version.json: {e}")
+            safe_print(f"[forge] WARNING: Could not parse version.json: {e}")
 
     if not libraries and os.path.exists(install_profile_path):
         try:
@@ -39,12 +39,12 @@ def _read_libraries_metadata(ctx: ForgeContext) -> List[Any]:
             version_info = install_data.get("versionInfo", {})
             libraries = version_info.get("libraries", [])
             if libraries:
-                print(
+                safe_print(
                     f"[forge] Found {len(libraries)} libraries in "
                     "install_profile.json versionInfo (old format)"
                 )
         except Exception as e:
-            print(
+            safe_print(
                 f"[forge] WARNING: Could not parse install_profile.json: {e}"
             )
 
@@ -91,7 +91,7 @@ def _record_cached_lib(
     )
     downloaded_libs.add(lib_name)
     if libs_count <= 15:
-        print(f"[forge] Already cached: {lib_name}")
+        safe_print(f"[forge] Already cached: {lib_name}")
     return libs_count, bytes_done
 
 
@@ -100,14 +100,14 @@ def download_metadata_libraries(ctx: ForgeContext) -> Optional[str]:
 
     libraries = _read_libraries_metadata(ctx)
     if not libraries:
-        print(
+        safe_print(
             "[forge] WARNING: No library metadata found "
             "(version.json or install_profile.json)!"
         )
         return None
 
     try:
-        print(
+        safe_print(
             f"[forge] Processing {len(libraries)} libraries from Forge metadata"
         )
         downloaded_libs: set[str] = set()
@@ -161,17 +161,16 @@ def download_metadata_libraries(ctx: ForgeContext) -> Optional[str]:
             if not jar_path:
                 resolved = _coord_to_paths(lib_name, ctx.loader_libraries_dir)
                 if resolved is None:
-                    print(f"[forge] WARNING: Invalid library name: {lib_name}")
+                    safe_print(f"[forge] WARNING: Invalid library name: {lib_name}")
                     continue
                 jar_path, _, _ = resolved
 
             if not download_url:
-                print(f"[forge] WARNING: No download URL for {lib_name}")
+                safe_print(f"[forge] WARNING: No download URL for {lib_name}")
                 continue
 
             os.makedirs(os.path.dirname(jar_path), exist_ok=True)
 
-            # already-on-disk handling (with optional sha verify)
             if os.path.exists(jar_path):
                 if expected_sha1:
                     try:
@@ -183,7 +182,7 @@ def download_metadata_libraries(ctx: ForgeContext) -> Optional[str]:
                             )
                             continue
                     except Exception as e:
-                        print(
+                        safe_print(
                             f"[forge] WARNING: Could not verify {lib_name}: {e}"
                         )
                 else:
@@ -194,7 +193,6 @@ def download_metadata_libraries(ctx: ForgeContext) -> Optional[str]:
                     )
                     continue
 
-            # build the URL fallback list
             urls_to_try: List[str] = [download_url] if download_url else []
             if maven_repos and maven_path and len(urls_to_try) > 0:
                 for repo in maven_repos[1:]:
@@ -212,11 +210,11 @@ def download_metadata_libraries(ctx: ForgeContext) -> Optional[str]:
                     )
 
                     if try_idx == 0:
-                        print(colorize_log(f"[forge] Downloading: {lib_name}"))
+                        safe_print(f"[forge] Downloading: {lib_name}")
                     else:
-                        print(colorize_log(
+                        safe_print(
                             f"[forge] Retrying {lib_name} from different repo..."
-                        ))
+                        )
 
                     download_file(
                         try_url, jar_path,
@@ -226,11 +224,11 @@ def download_metadata_libraries(ctx: ForgeContext) -> Optional[str]:
                     if expected_sha1:
                         actual_sha1 = _sha1_of(jar_path)
                         if actual_sha1 != expected_sha1:
-                            print(colorize_log(
+                            safe_print(
                                 f"[forge] ERROR: SHA1 mismatch for {lib_name}"
-                            ))
-                            print(colorize_log(f"[forge] Expected: {expected_sha1}"))
-                            print(colorize_log(f"[forge] Got: {actual_sha1}"))
+                            )
+                            safe_print(f"[forge] Expected: {expected_sha1}")
+                            safe_print(f"[forge] Got: {actual_sha1}")
                             os.remove(jar_path)
                             continue
 
@@ -248,50 +246,50 @@ def download_metadata_libraries(ctx: ForgeContext) -> Optional[str]:
                         bytes_done, bytes_total,
                     )
                     if libs_count <= 15:
-                        print(colorize_log(
+                        safe_print(
                             f"[forge] Downloaded to: "
                             f"{os.path.relpath(jar_path, ctx.loader_dest_dir)}"
-                        ))
+                        )
                     break
 
                 except RuntimeError as e:
                     if "cancel" in str(e).lower():
-                        print(colorize_log(
+                        safe_print(
                             "[forge] Download cancelled - cleaning up"
-                        ))
+                        )
                         _safe_remove_file(jar_path)
                         raise
                     if try_url == urls_to_try[-1]:
-                        print(colorize_log(
+                        safe_print(
                             f"[forge] ERROR: Failed to download {lib_name} "
                             f"from any repo: {e}"
-                        ))
+                        )
                 except Exception as e:
                     if try_url == urls_to_try[-1]:
-                        print(colorize_log(
+                        safe_print(
                             f"[forge] ERROR: Failed to download {lib_name} "
                             f"from any repo: {e}"
-                        ))
+                        )
 
-        print(colorize_log(
+        safe_print(
             f"[forge] Successfully downloaded {ctx.jars_copied} libraries "
             "from Forge metadata"
-        ))
+        )
         return None
 
     except RuntimeError as e:
         if "cancel" in str(e).lower():
-            print(colorize_log("[forge] Library download cancelled"))
+            safe_print("[forge] Library download cancelled")
             raise
-        print(colorize_log(
+        safe_print(
             f"[forge] ERROR: Could not process Forge metadata: {e}"
-        ))
+        )
         traceback.print_exc()
         return f"Failed to download Forge libraries: {e}"
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[forge] ERROR: Could not process Forge metadata: {e}"
-        ))
+        )
         traceback.print_exc()
         return None
 

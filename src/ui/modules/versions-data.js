@@ -454,9 +454,6 @@ export const renderAllVersionSections = () => {
     availableSection.style.display = shouldShowAvailableSection ? '' : 'none';
   }
 
-  if (!availableContainer) return;
-  availableContainer.innerHTML = '';
-
   if (versionsPagination) {
     versionsPagination.innerHTML = '';
   }

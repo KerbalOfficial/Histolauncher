@@ -266,8 +266,6 @@
       "customVersionFolder": "Власний (окрема папка для версії)",
       "launchSettings": "Налаштування запуску",
       "useGlobal": "Використовувати загальні",
-      "overrideFullscreen": "Перевизначити повноекранний режим",
-      "fullscreen": "Повноекранний режим",
       "overrideDemoMode": "Перевизначити деморежим",
       "demoMode": "Деморежим",
       "minimumRamOverride": "Перевизначення мінімальної RAM",
@@ -419,10 +417,14 @@
     "typeModpacks": "Збірки модів",
     "typeResourcePacks": "Пакети ресурсів",
     "typeShaderPacks": "Пакети шейдерів",
+    "typeDatapacks": "Пакети даних",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "Імпорт пакета шейдерів",
         "emptyInstalled": "Пакети шейдерів не встановлено",
         "emptyAvailable": "Пакети шейдерів не знайдено"
+      },
+      "datapacks": {
+        "label": "Пакети даних",
+        "singular": "пакет даних",
+        "singularTitle": "Пакет даних",
+        "plural": "пакети даних",
+        "pluralTitle": "Пакети даних",
+        "importTitle": "Імпорт пакета даних",
+        "emptyInstalled": "Пакети даних не встановлено",
+        "emptyAvailable": "Пакети даних не знайдено"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "Застосувати до світу",
+      "manageWorlds": "Керування світами",
+      "appliedWorlds": "Застосовано до: {worlds}",
+      "noAppliedWorlds": "Не застосовано до жодного світу",
+      "applyTitle": "Застосувати пакет даних до світу",
+      "applyPrompt": "Виберіть сховище світів і світи для <b>{datapack}</b>.",
+      "storageLabel": "Сховище світів:",
+      "customFolderLabel": "Власна папка:",
+      "selectFolder": "Вибрати папку",
+      "worldsLabel": "Світи:",
+      "noWorlds": "У цьому сховищі не знайдено жодного світу.",
+      "applyFailed": "Не вдалося застосувати пакет даних.",
+      "applySuccess": "Пакет даних застосовано до {count} світу(ів).",
+      "removeFailed": "Не вдалося видалити пакет даних зі світу.",
+      "removeSuccess": "Пакет даних видалено зі світу {world}.",
+      "manageTitle": "Розгортання у світах",
+      "managePrompt": "Пакет даних <b>{datapack}</b> застосовано до цих світів:",
+      "removeFromWorld": "Видалити",
+      "selectWorlds": "Виберіть принаймні один світ."
     },
     "import": {
       "selectLoaderForFile": "Виберіть завантажувач модів для \"{file}\":",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "Імпортування...",
+      "importButton": "Імпортувати",
+      "successTitle": "Імпорт успішний",
+      "successMessage": "{addon} успішно імпортовано.",
+      "errorTitle": "Помилка імпорту",
+      "failedMessage": "Не вдалося імпортувати {addon}.",
+      "modpackImporting": "Імпортування збірки модів...",
+      "modpackImportingPercent": "Імпортування збірки модів... {percent}%",
+      "modpackCancelling": "Скасування імпорту збірки модів...",
+      "modpackSuccess": "Збірку модів <b>{name}</b> успішно імпортовано.",
+      "modpackDetectedFormat": "<br><br>Виявлений формат: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>Наведені нижче окремі моди було вимкнено, оскільки вони конфліктують зі збіркою:<br>",
+      "modpackWarnings": "<br><br>Попередження під час імпорту:<br>",
+      "modpackMoreWarnings": "<br>...та ще {count} попередження.",
+      "modpackCancelledTitle": "Імпорт скасовано",
+      "modpackCancelledMessage": "Ви скасували імпорт збірки модів.",
+      "modpackFailed": "Не вдалося імпортувати збірку модів.",
+      "modpackNetworkError": "Помилка мережі під час імпорту збірки модів."
     },
     "status": {
       "installed": "Встановлено",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "Видалено {count} {addon}.<br><br>Помилки:<br>{failures}",
       "confirmMessage": "Видалити {count} вибраних {addon}?<br><i>Цю дію не можна скасувати!</i>"
     },
+    "bulkMove": {
+      "title": "Масове переміщення модів",
+      "noSelected": "Не вибрано жодного встановленого мода.",
+      "prompt": "Перемістити {count} вибраний(і) мод(и) до:",
+      "moveButton": "Перемістити",
+      "movingProgress": "Переміщення вибраних модів... ({current}/{total})",
+      "cancelling": "Скасування масового переміщення після завершення поточного мода...",
+      "moveFailed": "не вдалося перемістити",
+      "requestFailed": "помилка запиту",
+      "skippedSuffix": ", пропущено {count}",
+      "cancelledTitle": "Масове переміщення скасовано",
+      "cancelledMessage": "Переміщено модів: {moved}{skipped} до скасування.{failures}",
+      "failuresCountSuffix": "<br><br>Помилки: {count}",
+      "completeTitle": "Масове переміщення завершено",
+      "completeMessage": "Переміщено модів: {moved}{skipped}.",
+      "finishedWithErrorsTitle": "Масове переміщення завершено з помилками",
+      "finishedWithErrorsMessage": "Переміщено модів: {moved}{skipped}.<br><br>Помилки:<br>{preview}{more}",
+      "moreFailures": "<br>...та ще {count}."
+    },
+    "modpackDetail": {
+      "loader": "Завантажувач: {loader}",
+      "version": "Версія: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "Автор: {author}",
+      "modsCount": "Моди: {count}",
+      "resourcePacksCount": "Пакети ресурсів: {count}",
+      "shaderPacksCount": "Пакети шейдерів: {count}",
+      "datapacksCount": "Пакети даних: {count}",
+      "notAvailable": "Н/Д"
+    },
+    "modpackActions": {
+      "deleteFailed": "Не вдалося видалити збірку модів.",
+      "cannotEnableTitle": "Неможливо ввімкнути",
+      "cannotEnableMessage": "Цей мод керується збіркою <b>{name}</b>. Спочатку вимкніть або видаліть цю збірку."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "Для CurseForge потрібен ключ API. Додайте ключ, щоб використовувати постачальника CurseForge, або перейдіть на Modrinth.",
+      "providerError": "Помилка постачальника: {error}"
+    },
     "detail": {
       "loadingDetails": "Завантаження відомостей про {addon}...",
       "screenshots": "Скриншоти",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "Експорт збірки модів",
-      "selectFormat": "Виберіть формат збірки модів для експорту:",
-      "selectLoader": "Виберіть завантажувач модів для цієї збірки:",
+      "tabs": {
+        "metadata": "Метадані",
+        "mods": "Моди",
+        "resourcepacks": "Пакети ресурсів",
+        "shaderpacks": "Пакети шейдерів",
+        "datapacks": "Пакети даних",
+        "export": "Експорт"
+      },
+      "selectFormat": "Виберіть формат збірки модів для експорту",
+      "selectLoader": "Виберіть завантажувач модів для цієї збірки",
+      "minecraftVersion": "Версія Minecraft",
+      "minecraftVersionHint": "Версія Minecraft, яку буде використано для збірки модів.",
+      "loaderVersion": "Версія завантажувача",
+      "loaderVersionHint": "Версія завантажувача, яку буде використано для збірки модів.",
+      "vanillaModsHint": "Ванільні збірки не містять модів. Виберіть пакети ресурсів, пакети шейдерів та/або пакети даних на інших вкладках.",
       "noLoaderMods": "Моди для {loader} не встановлено. Спочатку встановіть кілька модів.",
       "selectMods": "Виберіть моди для включення ({count} модів {loader} доступно):",
       "disabledHint": "Додатково: позначте моди як вимкнені у збірці, щоб вони були включені, але не активні за замовчуванням.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "Не вдалося оновити папку джерела",
       "failedSaveSourceFolder": "Не вдалося зберегти параметр папки джерела.",
       "selectAtLeastOneMod": "Виберіть принаймні один мод.",
+      "selectAtLeastOneItem": "Виберіть принаймні один мод, пакет ресурсів, пакет шейдерів або пакет даних.",
+      "selectMinecraftVersion": "Виберіть версію Minecraft",
+      "selectLoaderVersion": "Виберіть версію завантажувача",
+      "validationErrorBanner": "Виправте позначені нижче проблеми та повторіть спробу.",
+      "externalVersionRequired": "Введіть версію Minecraft для експорту в Modrinth/CurseForge (або виберіть вміст із метаданими версії).",
+      "externalLoaderVersionRequired": "Введіть версію завантажувача для експорту в Modrinth/CurseForge, якщо використовується завантажувач модів.",
       "selectOptionalAddons": "Виберіть необов'язкові {plural} для включення ({count} доступно):",
       "noOptionalAddons": "Жодних {plural} не встановлено. Можна продовжити без них.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "Опис збірки модів..."
       },
       "summary": "{format} {extension} | {mods} модів | {resourcepacks} пакетів ресурсів | {shaderpacks} пакетів шейдерів | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "Завантажувач {version}",
       "validation": {
         "nameLength": "Назва має містити від 1 до 64 символів.",
         "nameForbidden": "Назва містить заборонені символи.",
@@ -1014,13 +1125,25 @@
       "description": "Легкий і швидкий",
       "subtitle": "Переважно використовується для оптимізації гри"
     },
+    "legacyfabric": {
+      "description": "Fabric для старих версій",
+      "subtitle": "Порт Fabric із підтримкою Minecraft 1.3 - 1.13.2"
+    },
     "babric": {
       "description": "Форк Fabric для Minecraft Beta",
       "subtitle": "Форк Fabric для підтримки Beta 1.7.3"
     },
+    "ornithe": {
+      "description": "Fabric для застарілих версій Minecraft",
+      "subtitle": "Набір інструментів на основі Fabric від Alpha до 1.14.x"
+    },
     "forge": {
       "description": "Потужний і популярний",
       "subtitle": "Переважно використовується для модифікації гри"
+    },
+    "liteloader": {
+      "description": "Легкі клієнтські моди",
+      "subtitle": "Твік-моди для Minecraft 1.5.2 - 1.12.2"
     },
     "modloader": {
       "description": "Середовище для старих jar-модів",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "Гнучкий і сучасний",
       "subtitle": "Переважно використовується для легкого модингу сучасних версій"
+    },
+    "vanilla": {
+      "description": "Без завантажувача модів",
+      "subtitle": "Лише пакети ресурсів, шейдерів і даних"
     },
     "fallback": {
       "description": "Власний завантажувач",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "Blueberry (світла)",
         "leafDark": "Leaf (темна)",
         "leafLight": "Leaf (світла)",
+        "orangeDark": "Помаранчева (Темна)",
+        "orangeLight": "Помаранчева (Світла)",
+        "midnightDark": "Опівніч (Темна)",
+        "midnightLight": "Опівніч (Світла)",
+        "graphiteDark": "Графіт (Темна)",
+        "graphiteLight": "Графіт (Світла)",
+        "oceanDark": "Океан (Темна)",
+        "oceanLight": "Океан (Світла)",
+        "amethystDark": "Аметист (Темна)",
+        "amethystLight": "Аметист (Світла)",
         "aeroDark": "Aero glass (темна)",
-        "aeroLight": "Aero glass (світла)"
+        "aeroLight": "Aero glass (світла)",
+        "custom": "Власна"
+      },
+      "themeBase": "Базова тема:",
+      "themeEditor": {
+        "dockTitle": "Редактор тем",
+        "openDock": "Відкрити редактор тем",
+        "hint": "Виберіть базову тему, а потім налаштуйте окремі кольори нижче. Перевизначення зберігаються разом із вашим профілем.",
+        "resetAll": "Скинути всі перевизначення",
+        "export": "Копіювати JSON теми",
+        "import": "Імпортувати JSON теми",
+        "resetToken": "Скинути",
+        "resetTokenTooltip": "Видалити це перевизначення кольору та використати значення базової теми",
+        "groups": {
+          "app": "Тло застосунку",
+          "text": "Текст",
+          "links": "Посилання та фокус",
+          "surfaces": "Поверхні",
+          "borders": "Межі",
+          "overlays": "Накладки та підказки",
+          "buttons": "Кнопки",
+          "semantic": "Успіх, небезпека, попередження та інформація",
+          "messages": "Вікна повідомлень",
+          "states": "Виділення та підсвічування",
+          "scrollbars": "Смуги прокручування",
+          "badges": "Значки",
+          "loaders": "Акценти завантажувачів модів"
+        }
       },
       "uiSizes": {
         "small": "Малий",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "Максимальний обсяг RAM, виділений для гри\n  - Має бути додатним числом\n  - Має бути більшим за мінімальний обсяг RAM\n  - Має бути щонайменше 1 байт\n\nПриклад формату: 256, 256M, 2G тощо.\n\n(порада щодо продуктивності: виділіть більше RAM для кращої продуктивності, а також зрівняйте її з мінімальним обсягом RAM, щоб зменшити просідання кадрів)",
       "resolution": "Роздільність:",
       "resolutionTooltip": "Типовий розмір вікна гри для версій, що підтримують аргументи ширини та висоти під час запуску.",
-      "fullscreen": "Повноекранний режим:",
-      "fullscreenTooltip": "Запускати підтримувані версії у повноекранному режимі за замовчуванням.",
       "demoMode": "Деморежим:",
       "demoModeTooltip": "Запускати підтримувані версії з увімкненим деморежимом Minecraft.",
       "storageDir": "Каталог даних:",

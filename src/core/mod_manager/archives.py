@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import io
 import os
 import shutil
 import zipfile
-from typing import List
+from typing import List, Tuple
 
 from core.mod_manager._constants import logger
 from core.mod_manager._validation import (
@@ -137,3 +138,48 @@ def extract_archive_path_subfolder(
         return 0
 
     return extracted_count[0]
+
+
+def validate_datapack_archive(file_data: bytes) -> Tuple[bool, str]:
+    if not isinstance(file_data, (bytes, bytearray)) or not file_data:
+        return False, "Datapack archive is empty"
+
+    has_pack_mcmeta = False
+    has_data_dir = False
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_data), "r") as zf:
+            try:
+                _validate_archive_limits(
+                    zf,
+                    max_entries=ZIP_MAX_ENTRIES,
+                    max_single_file_size=ZIP_MAX_FILE_BYTES,
+                    max_total_uncompressed=ZIP_MAX_TOTAL_BYTES,
+                )
+            except ZipSecurityError as exc:
+                return False, str(exc)
+
+            for info in zf.infolist():
+                raw_name = str(info.filename or "")
+                normalized = raw_name.replace("\\", "/").strip("/")
+                if not normalized or not _is_safe_zip_entry_path(normalized):
+                    continue
+
+                parts = [p for p in normalized.split("/") if p and p not in (".", "..")]
+                if not parts:
+                    continue
+
+                if os.path.basename(normalized).lower() == "pack.mcmeta" and len(parts) == 1:
+                    has_pack_mcmeta = True
+                if parts[0].lower() == "data":
+                    has_data_dir = True
+    except zipfile.BadZipFile:
+        return False, "Invalid datapack zip archive"
+    except Exception as exc:
+        return False, f"Failed to read datapack archive: {exc}"
+
+    if not has_pack_mcmeta:
+        return False, "Datapack archive must contain pack.mcmeta at the root"
+    if not has_data_dir:
+        return False, "Datapack archive must contain a data/ directory"
+    return True, ""

@@ -9,7 +9,7 @@ import urllib.request
 from urllib.parse import unquote, urlparse, quote
 from xml.sax.saxutils import escape as _xml_escape
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import _apply_url_proxy, get_base_dir
 
 from server import yggdrasil
@@ -82,33 +82,33 @@ class ProxyMixin:
             and method_upper in {"GET", "POST", "PUT", "DELETE"}
         ):
             self._send_json(self._empty_friends_response(), status=200)
-            print(colorize_log(
+            safe_print(
                 "[http_server] stubbed minecraftservices friends for custom auth"
-            ))
+            )
             return True
         if (
             path.startswith("/friends/")
             and method_upper in {"GET", "POST", "PUT", "DELETE"}
         ):
             self._send_json(self._empty_friends_response(), status=200)
-            print(colorize_log(
+            safe_print(
                 "[http_server] stubbed minecraftservices friend action for custom auth"
-            ))
+            )
             return True
         if path == "/presence" and method_upper in {"GET", "POST"}:
             self._send_json({"presence": []}, status=200)
-            print(colorize_log(
+            safe_print(
                 "[http_server] stubbed minecraftservices presence for custom auth"
-            ))
+            )
             return True
         if (
             (path == "/privacy/blocklist" or path.startswith("/privacy/blocklist/"))
             and method_upper in {"GET", "POST", "PUT", "DELETE"}
         ):
             self._send_json({"blockedProfiles": []}, status=200)
-            print(colorize_log(
+            safe_print(
                 "[http_server] stubbed minecraftservices blocklist for custom auth"
-            ))
+            )
             return True
 
         return False
@@ -202,7 +202,7 @@ class ProxyMixin:
 
         return json.dumps(data).encode("utf-8")
 
-    def _proxy_histolauncher_remote_request(
+    def _fetch_histolauncher_upstream(
         self,
         base_url: str,
         upstream_path: str,
@@ -211,7 +211,7 @@ class ProxyMixin:
         body_bytes: bytes | None = None,
         content_type: str = "",
         include_auth_cookie: bool = False,
-    ) -> bool:
+    ) -> tuple[int, object, bytes] | None:
         safe_path = "/" + str(upstream_path or "").lstrip("/")
         target_url = base_url.rstrip("/") + safe_path
         candidate_urls = []
@@ -250,22 +250,7 @@ class ProxyMixin:
                 ):
                     payload = self._rewrite_histolauncher_texture_metadata_payload(payload)
 
-                self.send_response(status)
-                for header_name in (
-                    "Content-Type",
-                    "Cache-Control",
-                    "ETag",
-                    "Last-Modified",
-                    "Content-Disposition",
-                ):
-                    header_value = response_headers.get(header_name)
-                    if header_value:
-                        self.send_header(header_name, header_value)
-                self.send_header("Content-Length", str(len(payload)))
-                self.end_headers()
-                if method.upper() != "HEAD":
-                    self.wfile.write(payload)
-                return True
+                return status, response_headers, payload
             except urllib.error.HTTPError as e:
                 should_retry = idx == 0 and len(candidate_urls) > 1 and e.code >= 500
                 if should_retry:
@@ -276,37 +261,130 @@ class ProxyMixin:
                 except Exception:
                     payload = b""
 
-                self.send_response(e.code)
-                response_headers = getattr(e, "headers", None)
-                if response_headers:
-                    for header_name in (
-                        "Content-Type",
-                        "Cache-Control",
-                        "ETag",
-                        "Last-Modified",
-                        "Content-Disposition",
-                    ):
-                        header_value = response_headers.get(header_name)
-                        if header_value:
-                            self.send_header(header_name, header_value)
-                self.send_header("Content-Length", str(len(payload)))
-                self.end_headers()
-                if method.upper() != "HEAD" and payload:
-                    self.wfile.write(payload)
-                return True
+                return e.code, getattr(e, "headers", None), payload
             except Exception as e:
                 if idx < len(candidate_urls) - 1:
                     continue
-                print(colorize_log(
-                    f"[http_server] remote Histolauncher proxy failed: {target_url} - {e}"
-                ))
-                try:
-                    self.send_error(502, "Bad Gateway")
-                except Exception:
-                    pass
-                return True
+                safe_print(
+                    f"[http_server] remote Histolauncher upstream failed: {target_url} - {e}"
+                )
+                return None
 
-        return False
+        return None
+
+    def _send_histolauncher_upstream_response(
+        self,
+        status: int,
+        response_headers: object,
+        payload: bytes,
+        *,
+        method: str = "GET",
+    ) -> None:
+        self.send_response(status)
+        if response_headers:
+            for header_name in (
+                "Content-Type",
+                "Cache-Control",
+                "ETag",
+                "Last-Modified",
+                "Content-Disposition",
+            ):
+                header_value = response_headers.get(header_name)
+                if header_value:
+                    self.send_header(header_name, header_value)
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        if method.upper() != "HEAD" and payload:
+            self.wfile.write(payload)
+
+    def _proxy_histolauncher_remote_request(
+        self,
+        base_url: str,
+        upstream_path: str,
+        *,
+        method: str = "GET",
+        body_bytes: bytes | None = None,
+        content_type: str = "",
+        include_auth_cookie: bool = False,
+    ) -> bool:
+        result = self._fetch_histolauncher_upstream(
+            base_url,
+            upstream_path,
+            method=method,
+            body_bytes=body_bytes,
+            content_type=content_type,
+            include_auth_cookie=include_auth_cookie,
+        )
+        if result is None:
+            try:
+                self.send_error(502, "Bad Gateway")
+            except Exception:
+                pass
+            return True
+
+        status, response_headers, payload = result
+        self._send_histolauncher_upstream_response(
+            status,
+            response_headers,
+            payload,
+            method=method,
+        )
+        return True
+
+    def _patch_histolauncher_web_proxy_payload(
+        self,
+        upstream_path: str,
+        payload: bytes,
+        response_headers: object,
+    ) -> bytes:
+        content_type = ""
+        if response_headers:
+            content_type = str(response_headers.get("Content-Type", "") or "").lower()
+
+        if "javascript" not in content_type and not str(upstream_path or "").endswith(".js"):
+            return payload
+
+        script_path = str(upstream_path or "").split("?", 1)[0]
+        if not script_path.lower().startswith("/loaders/"):
+            return payload
+
+        try:
+            from server.api.routes.account import patch_histolauncher_web_loader_script
+
+            patched = patch_histolauncher_web_loader_script(
+                script_path,
+                payload.decode("utf-8", errors="replace"),
+            )
+            return patched.encode("utf-8")
+        except Exception:
+            return payload
+
+    def _proxy_histolauncher_web_request(self, upstream_path: str) -> bool:
+        from server.api._constants import HISTOLAUNCHER_WEB_ORIGINS
+
+        for origin in HISTOLAUNCHER_WEB_ORIGINS:
+            result = self._fetch_histolauncher_upstream(
+                origin.rstrip("/"),
+                upstream_path,
+                include_auth_cookie=False,
+            )
+            if result is None:
+                continue
+
+            status, response_headers, payload = result
+            payload = self._patch_histolauncher_web_proxy_payload(
+                upstream_path,
+                payload,
+                response_headers,
+            )
+            self._send_histolauncher_upstream_response(status, response_headers, payload)
+            return True
+
+        try:
+            self.send_error(502, "Bad Gateway")
+        except Exception:
+            pass
+        return True
 
     def _handle_allowlisted_remote_proxy(self, scheme: str, target: str) -> bool:
         target_clean = str(target or "").lstrip("/")
@@ -399,26 +477,26 @@ class ProxyMixin:
                                     os.makedirs(os.path.dirname(cache_name), exist_ok=True)
                                     with open(cache_name, "wb") as wf:
                                         wf.write(payload)
-                                    print(colorize_log(
+                                    safe_print(
                                         f"[http_server] cached proxied {tex_type}: {cache_name}"
-                                    ))
+                                    )
                                 except Exception as e:
-                                    print(colorize_log(
+                                    safe_print(
                                         f"[http_server] failed to cache proxied texture: {e}"
-                                    ))
+                                    )
                     except Exception:
                         pass
-                    print(colorize_log(
+                    safe_print(
                         f"[http_server] proxied external resource: {url} via {candidate_url}"
-                    ))
+                    )
                     return True
             except urllib.error.HTTPError as e:
                 should_retry = idx == 0 and len(candidate_urls) > 1 and e.code >= 500
                 if should_retry:
                     continue
-                print(colorize_log(
+                safe_print(
                     f"[http_server] remote resource not found: {url} ({e.code})"
-                ))
+                )
                 if self._try_serve_legacy_resource_fallback(target_clean):
                     return True
                 try:
@@ -429,9 +507,9 @@ class ProxyMixin:
             except Exception as e:
                 if idx < len(candidate_urls) - 1:
                     continue
-                print(colorize_log(
+                safe_print(
                     f"[http_server] remote resource proxy failed: {url} - {e}"
-                ))
+                )
                 if self._try_serve_legacy_resource_fallback(target_clean):
                     return True
                 try:
@@ -503,9 +581,9 @@ class ProxyMixin:
                 require_signature=require_signature,
             )
             self._send_json(resp, status=status)
-            print(colorize_log(
+            safe_print(
                 "[http_server] bridged sessionserver profile lookup locally"
-            ))
+            )
             return True
 
         if path == "/session/minecraft/hasJoined":
@@ -524,9 +602,9 @@ class ProxyMixin:
                 self.end_headers()
                 return True
             self._send_json(resp, status=status)
-            print(colorize_log(
+            safe_print(
                 "[http_server] bridged sessionserver hasJoined lookup locally"
-            ))
+            )
             return True
 
         return False
@@ -553,9 +631,9 @@ class ProxyMixin:
             self.end_headers()
             return True
         self._send_json(resp, status=status)
-        print(colorize_log(
+        safe_print(
             "[http_server] bridged sessionserver join locally"
-        ))
+        )
         return True
 
     def _try_bridge_modern_profile_lookup_get(self, target: str) -> bool:
@@ -580,9 +658,9 @@ class ProxyMixin:
             else:
                 uid_hex = yggdrasil._ensure_uuid(name).replace("-", "")
             self._send_json({"id": uid_hex, "name": name}, status=200)
-            print(colorize_log(
+            safe_print(
                 f"[http_server] bridged mojang profile lookup: {name} -> {uid_hex}"
-            ))
+            )
             return True
 
         return False
@@ -607,9 +685,9 @@ class ProxyMixin:
 
         resp = self._stubbed_player_attributes_response()
         self._send_json(resp, status=200)
-        print(colorize_log(
+        safe_print(
             "[http_server] stubbed player/attributes for custom auth"
-        ))
+        )
         return True
 
     def _try_bridge_minecraftservices_generic(
@@ -665,9 +743,9 @@ class ProxyMixin:
                     self.end_headers()
                     if method_upper != "HEAD" and payload:
                         self.wfile.write(payload)
-                    print(colorize_log(
+                    safe_print(
                         f"[http_server] passed through minecraftservices: {path}"
-                    ))
+                    )
                     return True
             except urllib.error.HTTPError as e:
                 should_retry = idx == 0 and len(candidate_urls) > 1 and e.code >= 500
@@ -690,16 +768,16 @@ class ProxyMixin:
                     self.wfile.write(payload)
                 summary = self._summarize_upstream_error(payload)
                 detail = f" - {summary}" if summary else ""
-                print(colorize_log(
+                safe_print(
                     f"[http_server] minecraftservices passthrough returned {e.code}: {path}{detail}"
-                ))
+                )
                 return True
             except Exception as e:
                 if idx < len(candidate_urls) - 1:
                     continue
-                print(colorize_log(
+                safe_print(
                     f"[http_server] minecraftservices passthrough failed: {path} - {e}"
-                ))
+                )
                 try:
                     self.send_error(502, "Bad Gateway")
                 except Exception:
@@ -764,9 +842,9 @@ class ProxyMixin:
             out.append({"id": uid_hex, "name": name})
 
         self._send_json(out, status=200)
-        print(colorize_log(
+        safe_print(
             f"[http_server] bridged minecraftservices bulk lookup: {len(out)} profile(s)"
-        ))
+        )
         return True
 
     def _try_bridge_classic_world_list(self, target: str) -> bool:
@@ -791,10 +869,10 @@ class ProxyMixin:
             body = b"This system is in development!;-;-;-;Use the button below!"
             ctype = "text/plain; charset=utf-8"
 
-            print(colorize_log(
+            safe_print(
                 f"[http_server] handled listmaps.jsp for user: {username} "
                 f"(payload {len(body)} bytes)"
-            ))
+            )
 
             self.send_response(200)
             self.send_header("Content-Type", ctype)
@@ -803,7 +881,7 @@ class ProxyMixin:
             self.wfile.write(body)
             return True
         except Exception as e:
-            print(colorize_log(f"[http_server] error listing classic worlds: {e}"))
+            safe_print(f"[http_server] error listing classic worlds: {e}")
             self.send_error(500, "Server error")
             return True
 
@@ -827,9 +905,9 @@ class ProxyMixin:
             self._handle_texture_proxy(
                 f"/texture/skin/{quote(requested_name, safe='')}?legacy=1"
             )
-            print(colorize_log(
+            safe_print(
                 f"[http_server] bridged legacy skin URL to texture proxy: {requested_name}"
-            ))
+            )
             return True
 
         skin_match_old = re.search(r"(?i)/(?:game/)?skin/([^/?]+)\.png$", path)
@@ -841,10 +919,10 @@ class ProxyMixin:
             self._handle_texture_proxy(
                 f"/texture/skin/{quote(requested_name, safe='')}?legacy=1"
             )
-            print(colorize_log(
+            safe_print(
                 f"[http_server] bridged minecraft.net skin URL to texture proxy: "
                 f"{requested_name}"
-            ))
+            )
             return True
 
         cloak_match = re.search(
@@ -858,9 +936,9 @@ class ProxyMixin:
             self._handle_texture_proxy(
                 f"/texture/cape/{quote(requested_name, safe='')}"
             )
-            print(colorize_log(
+            safe_print(
                 f"[http_server] bridged legacy cloak URL to texture proxy: {requested_name}"
-            ))
+            )
             return True
 
         cloak_match_old = re.search(r"(?i)/cloak/get\.jsp$", path)
@@ -874,10 +952,10 @@ class ProxyMixin:
                 self._handle_texture_proxy(
                     f"/texture/cape/{quote(requested_name, safe='')}"
                 )
-                print(colorize_log(
+                safe_print(
                     f"[http_server] bridged old cloak endpoint to texture proxy: "
                     f"{requested_name}"
-                ))
+                )
                 return True
 
         return False
@@ -974,7 +1052,7 @@ class ProxyMixin:
                 self.send_header("Cache-Control", "no-cache")
                 self.end_headers()
                 self.wfile.write(payload)
-                print(colorize_log("[http_server] served legacy /game endpoint fallback"))
+                safe_print("[http_server] served legacy /game endpoint fallback")
                 return True
             except Exception:
                 return False
@@ -1001,13 +1079,13 @@ class ProxyMixin:
                 self.end_headers()
                 self.wfile.write(payload)
                 if is_s3_resource_root:
-                    print(colorize_log(
+                    safe_print(
                         "[http_server] served local legacy resources listing"
-                    ))
+                    )
                 else:
-                    print(colorize_log(
+                    safe_print(
                         "[http_server] served local legacy resources text listing"
-                    ))
+                    )
                 return True
             except Exception:
                 return False
@@ -1041,9 +1119,9 @@ class ProxyMixin:
                     self.send_header("Cache-Control", "public, max-age=3600")
                     self.end_headers()
                     self.wfile.write(payload)
-                    print(colorize_log(
+                    safe_print(
                         f"[http_server] served local legacy resource: {rel}"
-                    ))
+                    )
                     return True
             except Exception:
                 continue
@@ -1060,9 +1138,9 @@ class ProxyMixin:
                 self.send_header("Cache-Control", "public, max-age=3600")
                 self.end_headers()
                 self.wfile.write(payload)
-                print(colorize_log(
+                safe_print(
                     f"[http_server] served placeholder legacy image: {rel}"
-                ))
+                )
                 return True
             except Exception:
                 return False
@@ -1074,7 +1152,7 @@ class ProxyMixin:
             self.send_header("Content-Length", "0")
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
-            print(colorize_log(f"[http_server] served empty legacy fallback: {rel}"))
+            safe_print(f"[http_server] served empty legacy fallback: {rel}")
             return True
         except Exception:
             return False

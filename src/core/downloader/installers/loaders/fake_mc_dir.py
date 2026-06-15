@@ -6,7 +6,7 @@ import shutil
 from typing import Optional
 
 from core import manifest
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import get_versions_profile_dir
 
 
@@ -43,9 +43,9 @@ def build(
         try:
             shutil.copy2(real_client, fake_client)
         except OSError as exc:
-            print(colorize_log(
+            safe_print(
                 f"[fake-mc] could not copy client.jar ({exc}); installer will re-download"
-            ))
+            )
 
     fake_json_path = os.path.join(mc_ver_dir, f"{mc_version}.json")
     real_json_path = os.path.join(real_vdir, f"{mc_version}.json")

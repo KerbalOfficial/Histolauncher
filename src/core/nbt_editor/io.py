@@ -15,6 +15,7 @@ from core.nbt_editor.writer import NbtWriter
 logger = logging.getLogger(__name__)
 
 _MAX_NBT_DECOMPRESSED_BYTES = 64 * 1024 * 1024
+_MAX_NBT_COMPRESSED_BYTES = 64 * 1024 * 1024
 _DECOMPRESS_CHUNK = 64 * 1024
 
 
@@ -54,8 +55,14 @@ def _bounded_zlib_decompress(raw: bytes) -> bytes:
 
 def read_nbt_file(path: str) -> Tuple[Optional[Dict[str, Any]], str]:
     try:
+        if os.path.getsize(path) > _MAX_NBT_COMPRESSED_BYTES:
+            logger.warning("NBT file %s exceeds size limit; refusing to read", path)
+            return None, ""
         with open(path, "rb") as f:
-            raw = f.read()
+            raw = f.read(_MAX_NBT_COMPRESSED_BYTES + 1)
+        if len(raw) > _MAX_NBT_COMPRESSED_BYTES:
+            logger.warning("NBT file %s exceeds size limit; refusing to read", path)
+            return None, ""
     except Exception:
         return None, ""
 

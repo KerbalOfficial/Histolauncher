@@ -17,6 +17,8 @@ please open an issue on the Histolauncher repository or contact `histolauncher@g
 | `modloader-neoforge-versioncard.png` | NeoForge | https://neoforged.net/ | NeoForge logo, © NeoForged team. Used for identification only. |
 | `modloader-fabric-versioncard.png` and `modloader-babric-versioncard.png` | Fabric | https://fabricmc.net/ | Fabric logo, © FabricMC. Project assets are distributed under CC0 / public domain (see https://github.com/FabricMC/community/blob/main/media/LICENSE). |
 | `modloader-quilt-versioncard.png` | Quilt | https://quiltmc.org/ | Quilt logo, © QuiltMC. Used for identification only. |
+| `modloader-legacyfabric-versioncard.png` | Legacy Fabric | https://legacyfabric.net/ | Legacy Fabric logo, © Legacy Fabric team. Used for identification only. |
+| `modloader-liteloader-versioncard.png` | LiteLoader | https://www.liteloader.com/ | LiteLoader chicken logo, © Mumfrey. Used for identification only. |
 | `modloader-modloader-versioncard.png` | Risugami's ModLoader | https://www.minecraftforum.net/ | Generic placeholder artwork for Risugami's ModLoader. |
 
 All other images in this directory are original artwork created for

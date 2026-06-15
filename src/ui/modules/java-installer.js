@@ -240,6 +240,7 @@ export const showJavaInstallChooser = async () => {
       buttons: [
         { label: t('common.cancel'), onClick: () => safeResolve(false) },
       ],
+      onClose: () => safeResolve(false, false),
     });
   });
 };

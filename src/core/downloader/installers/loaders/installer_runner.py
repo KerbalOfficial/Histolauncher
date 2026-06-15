@@ -6,7 +6,7 @@ from typing import Callable, List, Optional
 
 from core.downloader.errors import DownloadCancelled, DownloadFailed
 from core.downloader.installers.loaders._java import get_java_executable
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.subprocess_utils import no_window_kwargs
 
 
@@ -41,7 +41,7 @@ def run_installer_jar(
     if line_sink:
         line_sink(f"[runner] {' '.join(cmd)}")
     else:
-        print(colorize_log(f"[loader-installer] {' '.join(cmd)}"))
+        safe_print(f"[loader-installer] {' '.join(cmd)}")
 
     try:
         proc = subprocess.Popen(
@@ -76,7 +76,7 @@ def run_installer_jar(
                     except Exception:
                         pass
                 else:
-                    print(colorize_log(f"[installer] {line}"))
+                    safe_print(f"[installer] {line}")
         except Exception:
             pass
 

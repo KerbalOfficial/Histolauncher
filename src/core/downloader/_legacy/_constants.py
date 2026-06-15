@@ -13,16 +13,12 @@ ASSETS_DIR: Final[str] = os.path.join(BASE_DIR, "assets")
 ASSETS_INDEXES_DIR: Final[str] = os.path.join(ASSETS_DIR, "indexes")
 ASSETS_OBJECTS_DIR: Final[str] = os.path.join(ASSETS_DIR, "objects")
 
-#: Read chunk size for streaming downloads & file copies.
 DOWNLOAD_CHUNK_SIZE: Final[int] = 64 * 1024
 
-#: Asset download thread pool sizes by host capability.
 ASSET_THREADS_HIGH: Final[int] = 16
 ASSET_THREADS_MED: Final[int] = 8
 ASSET_THREADS_LOW: Final[int] = 4
 
-#: Per-stage weights used by :func:`core.downloader._legacy.progress._compute_overall`.
-#: Keys must match the ``stage`` strings written into progress files.
 STAGE_WEIGHTS: Final[dict[str, int]] = {
     "version_json": 5,
     "client": 20,
@@ -36,12 +32,20 @@ STAGE_WEIGHTS: Final[dict[str, int]] = {
     "error": 0,
 }
 
-#: Forge MC versions that are actually ModLoader add-ons; refuse to install.
-BLOCKED_FORGE_VERSIONS: Final[frozenset[str]] = frozenset({"1.2.4", "1.2.3", "1.1"})
+BLOCKED_FORGE_VERSIONS: Final[frozenset[str]] = frozenset()
 
-#: Loader types we know how to install.
 SUPPORTED_LOADER_TYPES: Final[frozenset[str]] = frozenset(
-    {"fabric", "babric", "forge", "modloader", "neoforge", "quilt"}
+    {
+        "fabric",
+        "legacyfabric",
+        "babric",
+        "ornithe",
+        "forge",
+        "liteloader",
+        "modloader",
+        "neoforge",
+        "quilt",
+    }
 )
 
 __all__ = [

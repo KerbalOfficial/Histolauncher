@@ -14,6 +14,7 @@ from core.mod_manager._constants import (
     CURSEFORGE_MINECRAFT_GAME_ID,
     CURSEFORGE_MODLOADER_TYPE_FABRIC,
     CURSEFORGE_MODLOADER_TYPE_FORGE,
+    CURSEFORGE_MODLOADER_TYPE_LITELOADER,
     CURSEFORGE_MODLOADER_TYPE_NEOFORGE,
     CURSEFORGE_MODLOADER_TYPE_QUILT,
     MODRINTH_PROJECT_TYPES,
@@ -84,6 +85,9 @@ def _get_curseforge_class_id(addon_type: str, api_key: str = None) -> Tuple[Opti
         "shaderpacks": {
             "shaderpacks", "shaderpack", "shaders", "shader",
             "shader-packs", "shader-pack",
+        },
+        "datapacks": {
+            "datapacks", "datapack", "data-packs", "data-pack",
         },
         "modpacks": {
             "modpacks", "modpack", "mod-packs", "mod-pack",
@@ -198,9 +202,16 @@ def get_project_detail_modrinth(mod_id: str, addon_type: str = "mods") -> Option
         return cached
 
     response = _modrinth_request(f"/project/{mod_id}")
-    if not _modrinth_response_looks_like_project(response, expected_project_type=expected_type):
+    alternate_types = ("mod",) if normalized_type == "datapacks" else ()
+    if not _modrinth_response_looks_like_project(
+        response,
+        expected_project_type=expected_type,
+        alternate_project_types=alternate_types,
+    ):
         return None
-    if str(response.get("project_type") or expected_type).strip().lower() != expected_type:
+    response_type = str(response.get("project_type") or expected_type).strip().lower()
+    allowed_types = {expected_type, *alternate_types}
+    if response_type not in allowed_types:
         return None
     result = {
         "mod_id": response.get("id", mod_id),
@@ -334,7 +345,11 @@ def search_projects_curseforge(
     safe_index = max(0, int(index or 0))
     offset = safe_index * safe_page_size
     normalized_type = normalize_addon_type(addon_type)
-    normalized_filter_values = normalize_addon_compatibility_types(normalized_type, mod_loader_type)
+    normalized_filter_values = normalize_addon_compatibility_types(
+        normalized_type,
+        mod_loader_type,
+        provider="curseforge",
+    )
     normalized_filter = normalized_filter_values[0] if normalized_filter_values else ""
     normalized_sort = _normalize_project_sort(sort_by)
     selected_category = str(category or "").strip()
@@ -399,6 +414,8 @@ def search_projects_curseforge(
             params["modLoaderType"] = CURSEFORGE_MODLOADER_TYPE_QUILT
         elif normalized_filter == "neoforge":
             params["modLoaderType"] = CURSEFORGE_MODLOADER_TYPE_NEOFORGE
+        elif normalized_filter == "liteloader":
+            params["modLoaderType"] = CURSEFORGE_MODLOADER_TYPE_LITELOADER
 
     response = _curseforge_request("/mods/search", params, api_key)
 
@@ -480,7 +497,11 @@ def get_mod_files_curseforge(
     PAGE_SIZE = 50
     params = {"pageSize": PAGE_SIZE, "index": 0}
     normalized_type = normalize_addon_type(addon_type)
-    normalized_filter_values = normalize_addon_compatibility_types(normalized_type, mod_loader_type)
+    normalized_filter_values = normalize_addon_compatibility_types(
+        normalized_type,
+        mod_loader_type,
+        provider="curseforge",
+    )
     normalized_filter = normalized_filter_values[0] if normalized_filter_values else ""
 
     if game_version:
@@ -495,6 +516,8 @@ def get_mod_files_curseforge(
             params["modLoaderType"] = CURSEFORGE_MODLOADER_TYPE_QUILT
         elif normalized_filter == "neoforge":
             params["modLoaderType"] = CURSEFORGE_MODLOADER_TYPE_NEOFORGE
+        elif normalized_filter == "liteloader":
+            params["modLoaderType"] = CURSEFORGE_MODLOADER_TYPE_LITELOADER
 
     all_file_data = []
     while True:
@@ -585,6 +608,10 @@ def _cf_resolve_download_url(file_data: Dict[str, Any]) -> str:
     return ""
 
 
+def _modrinth_loader_slug(loader: str) -> str:
+    return "legacy-fabric" if str(loader or "").lower() == "legacyfabric" else str(loader or "").lower()
+
+
 def search_projects_modrinth(
     addon_type: str = "mods",
     search_query: str = "",
@@ -610,7 +637,7 @@ def search_projects_modrinth(
         facets.append([f"versions:{game_version}"])
 
     if normalized_filter:
-        facets.append([f"categories:{normalized_filter}"])
+        facets.append([f"categories:{_modrinth_loader_slug(normalized_filter)}"])
 
     if selected_category:
         facets.append([f"categories:{selected_category}"])
@@ -642,9 +669,10 @@ def search_projects_modrinth(
         return {"mods": [], "total": 0, "has_more": False, "categories": available_categories}
 
     mods = []
+    allow_mod_as_datapack = normalized_type == "datapacks"
     for hit in response.get("hits", []):
         pt = (hit.get("project_type") or project_type).lower()
-        if pt != project_type:
+        if pt != project_type and not (allow_mod_as_datapack and pt == "mod"):
             continue
         mods.append({
             "mod_id": hit.get("project_id", ""),
@@ -654,7 +682,7 @@ def search_projects_modrinth(
             "icon_url": hit.get("icon_url", ""),
             "download_count": hit.get("downloads", 0),
             "date_modified": hit.get("date_modified", ""),
-            "project_type": hit.get("project_type", ""),
+            "project_type": project_type if allow_mod_as_datapack else hit.get("project_type", ""),
             "categories": hit.get("categories", []) or [],
             "provider": "modrinth",
         })
@@ -691,15 +719,52 @@ def search_mods_modrinth(
     )
 
 
-def _format_modrinth_version(version_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def _modrinth_version_targets_addon_type(version_data: Dict[str, Any], addon_type: str = "mods") -> bool:
+    normalized_type = normalize_addon_type(addon_type)
+    if normalized_type != "datapacks":
+        return True
+
+    loaders = [
+        str(value).strip().lower()
+        for value in (version_data.get("loaders") or [])
+        if str(value or "").strip()
+    ]
+    return "datapack" in loaders
+
+
+def _select_modrinth_primary_file(
+    files: List[Any],
+    addon_type: str = "mods",
+) -> Optional[Dict[str, Any]]:
+    valid_files = [entry for entry in files if isinstance(entry, dict)]
+    if not valid_files:
+        return None
+
+    normalized_type = normalize_addon_type(addon_type)
+    if normalized_type == "datapacks":
+        for entry in valid_files:
+            filename = str(entry.get("filename") or "").strip().lower()
+            if filename.endswith(".zip"):
+                return entry
+
+    return valid_files[0]
+
+
+def _format_modrinth_version(
+    version_data: Dict[str, Any],
+    addon_type: str = "mods",
+) -> Optional[Dict[str, Any]]:
     if not isinstance(version_data, dict):
+        return None
+
+    if not _modrinth_version_targets_addon_type(version_data, addon_type=addon_type):
         return None
 
     files = version_data.get("files", [])
     if not files:
         return None
 
-    primary_file = files[0]
+    primary_file = _select_modrinth_primary_file(files, addon_type=addon_type)
     if not isinstance(primary_file, dict):
         return None
 
@@ -724,29 +789,45 @@ def _format_modrinth_version(version_data: Dict[str, Any]) -> Optional[Dict[str,
     }
 
 
-def get_modrinth_version_by_id(version_id: str) -> Optional[Dict[str, Any]]:
+def get_modrinth_version_by_id(
+    version_id: str,
+    addon_type: str = "mods",
+) -> Optional[Dict[str, Any]]:
     version_id = str(version_id or "").strip()
     if not version_id:
         return None
 
-    cache_key = f"version:{version_id}"
+    normalized_type = normalize_addon_type(addon_type)
+    cache_key = f"version:{normalized_type}:{version_id}"
     cached = _modrinth_cache_get(cache_key)
     if cached is not None:
         return cached
 
     response = _modrinth_request(f"/version/{version_id}")
-    version = _format_modrinth_version(response) if isinstance(response, dict) else None
+    version = (
+        _format_modrinth_version(response, addon_type=normalized_type)
+        if isinstance(response, dict)
+        else None
+    )
     if version is not None:
         _modrinth_cache_set(cache_key, version, _MODRINTH_DETAIL_TTL)
     return version
 
 
-def get_mod_versions_modrinth(mod_id: str, game_version: str = None, mod_loader: str = None) -> Optional[List[Dict[str, Any]]]:
+def get_mod_versions_modrinth(
+    mod_id: str,
+    game_version: str = None,
+    mod_loader: str = None,
+    addon_type: str = "mods",
+) -> Optional[List[Dict[str, Any]]]:
+    normalized_type = normalize_addon_type(addon_type)
     params = {}
 
     loaders = []
-    if mod_loader:
-        loaders.append(mod_loader.lower())
+    if mod_loader and normalized_type in ("mods", "modpacks"):
+        loaders.append(_modrinth_loader_slug(mod_loader))
+    elif normalized_type == "datapacks":
+        loaders.append("datapack")
 
     game_versions = []
     if game_version:
@@ -758,7 +839,7 @@ def get_mod_versions_modrinth(mod_id: str, game_version: str = None, mod_loader:
     if game_versions:
         params["game_versions"] = json.dumps(game_versions)
 
-    cache_key = f"versions:{mod_id}:{game_version}:{mod_loader}"
+    cache_key = f"versions:{normalized_type}:{mod_id}:{game_version}:{mod_loader}"
     cached = _modrinth_cache_get(cache_key)
     if cached is not None:
         return cached
@@ -770,7 +851,7 @@ def get_mod_versions_modrinth(mod_id: str, game_version: str = None, mod_loader:
 
     versions = []
     for version_data in response:
-        version = _format_modrinth_version(version_data)
+        version = _format_modrinth_version(version_data, addon_type=normalized_type)
         if version:
             versions.append(version)
 

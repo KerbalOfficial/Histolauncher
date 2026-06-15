@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import re
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import (
     clear_account_token,
     get_active_profile_id,
@@ -69,17 +69,6 @@ def _normalize_version_resolution_override(value, field: str):
     if number < 1 or number > 99999:
         return "", f"{field} must be between 1 and 99999"
     return str(number), ""
-
-
-def _normalize_version_fullscreen_override(value):
-    raw = str(value or "").strip().lower()
-    if raw in {"", "default"}:
-        return "", ""
-    if raw in {"1", "true", "yes", "on", "fullscreen"}:
-        return "1", ""
-    if raw in {"0", "false", "no", "off", "windowed"}:
-        return "0", ""
-    return "", "launch_fullscreen must be default, 1, or 0"
 
 
 def _normalize_version_boolean_override(value, field: str):
@@ -172,9 +161,9 @@ def api_settings(data):
     if target_is_active and identity_changed and current.get("account_type") == "Histolauncher":
         username = data.get("username") or current.get("username") or "(from session token)"
         uuid = data.get("uuid") or current.get("uuid") or "(from session token)"
-        print(colorize_log(
+        safe_print(
             f"[api_settings] Histolauncher account configured: username={username}, uuid={uuid}"
-        ))
+        )
 
     return {"ok": True, "message": "Settings saved.", "settings": current}
 
@@ -217,7 +206,6 @@ def api_version_edit(data):
     launch_java_path = ""
     launch_resolution_width = ""
     launch_resolution_height = ""
-    launch_fullscreen = ""
     launch_demo = ""
 
     if not reset_all:
@@ -312,12 +300,6 @@ def api_version_edit(data):
         if error:
             return {"ok": False, "error": error}
 
-        launch_fullscreen, error = _normalize_version_fullscreen_override(
-            data.get("launch_fullscreen")
-        )
-        if error:
-            return {"ok": False, "error": error}
-
         launch_demo, error = _normalize_version_boolean_override(
             data.get("launch_demo"), "launch_demo"
         )
@@ -382,7 +364,6 @@ def api_version_edit(data):
         "launch_java_path": launch_java_path,
         "launch_resolution_width": launch_resolution_width,
         "launch_resolution_height": launch_resolution_height,
-        "launch_fullscreen": launch_fullscreen,
         "launch_demo": launch_demo,
     }
     for launch_key, launch_value in launch_override_values.items():
@@ -461,7 +442,7 @@ def api_storage_directory_select(data):
             mustexist=True,
         )
     except Exception as e:
-        print(colorize_log(f"[api] Failed to open custom storage directory picker: {e}"))
+        safe_print(f"[api] Failed to open custom storage directory picker: {e}")
         return {"ok": False, "error": f"Failed to open folder picker: {e}"}
 
     if not selected_path:

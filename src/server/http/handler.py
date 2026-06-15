@@ -13,11 +13,17 @@ import urllib.parse
 from http.server import SimpleHTTPRequestHandler
 from urllib.parse import unquote, urlparse, quote
 
-from core.logger import colorize_log, dim_line
+from core.logger import safe_print, dim_line
 
 from server import yggdrasil
 from server.api import handle_api_request
 from server.api._constants import (
+    HISTOLAUNCHER_ACCOUNTS_ORIGIN,
+    HISTOLAUNCHER_ACCOUNTS_PROXY_PREFIX,
+    HISTOLAUNCHER_TEXTURES_ORIGIN,
+    HISTOLAUNCHER_TEXTURES_PROXY_PREFIX,
+    HISTOLAUNCHER_WEB_PROXY_PREFIX,
+    HISTOLAUNCHER_WEBSITE_ORIGIN,
     MAX_MODPACKS_IMPORT_PAYLOAD,
     MAX_MODS_IMPORT_PAYLOAD,
     MAX_PAYLOAD_SIZE,
@@ -186,14 +192,16 @@ class RequestHandler(
 
     def log_message(self, format, *args):
         if len(args) > 0 and isinstance(args[0], str):
+            req_line = args[0]
             if (
-                "/api/status/" in args[0]
-                or "/api/launch_status/" in args[0]
-                or "/api/game_window_visible/" in args[0]
+                "/api/status/" in req_line
+                or "/api/launch_status/" in req_line
+                or "/api/game_window_visible/" in req_line
+                or "/texture/" in req_line
             ):
                 return
         message = self.log_date_time_string() + " - " + format % args
-        print(dim_line(message))
+        safe_print(dim_line(message))
 
     def _parse_connect_target(self, target: str):
         raw = str(target or "").strip()
@@ -203,7 +211,6 @@ class RequestHandler(
         host = ""
         port = 443
 
-        # IPv6 literals are expected in bracket form: [::1]:443
         if raw.startswith("["):
             end = raw.find("]")
             if end <= 1:
@@ -259,7 +266,6 @@ class RequestHandler(
             if exceptional:
                 return
             if not readable:
-                # Idle timeout; let the client reopen if needed.
                 return
 
             for src in readable:
@@ -287,12 +293,16 @@ class RequestHandler(
             self.send_error(403, "Forbidden CONNECT target")
             return
 
+        if port != 443 and port < 1024:
+            self.send_error(403, "Forbidden CONNECT port")
+            return
+
         try:
             upstream = socket.create_connection((host, port), timeout=15)
         except Exception as e:
-            print(colorize_log(
+            safe_print(
                 f"[http_server] CONNECT failed to {host}:{port} - {e}"
-            ))
+            )
             self.send_error(502, "Bad Gateway")
             return
 
@@ -306,9 +316,9 @@ class RequestHandler(
             self.wfile.flush()
             self._relay_connect_tunnel(upstream)
         except Exception as e:
-            print(colorize_log(
+            safe_print(
                 f"[http_server] CONNECT tunnel error for {host}:{port} - {e}"
-            ))
+            )
         finally:
             try:
                 upstream.close()
@@ -354,7 +364,7 @@ class RequestHandler(
         self.end_headers()
         self.wfile.write(encoded)
 
-    def _validate_api_write_request(self, path: str) -> bool:
+    def _validate_api_request_origin(self) -> bool:
         sec_fetch_site = str(self.headers.get("Sec-Fetch-Site", "") or "").strip().lower()
         if sec_fetch_site == "cross-site":
             self._send_json({"ok": False, "error": "Cross-site API requests are not allowed."}, status=403)
@@ -369,6 +379,12 @@ class RequestHandler(
         referer = str(self.headers.get("Referer", "") or "").strip()
         if not origin and referer and not _origin_matches_loopback_server(referer, request_host, self.server.server_port):
             self._send_json({"ok": False, "error": "Invalid API request referer."}, status=403)
+            return False
+
+        return True
+
+    def _validate_api_write_request(self, path: str) -> bool:
+        if not self._validate_api_request_origin():
             return False
 
         try:
@@ -413,8 +429,8 @@ class RequestHandler(
             ],
             "signaturePublickey": None,
             "links": {
-                "homepage": "https://histolauncher.org",
-                "register": "https://histolauncher.org/signup",
+                "homepage": HISTOLAUNCHER_WEBSITE_ORIGIN,
+                "register": f"{HISTOLAUNCHER_WEBSITE_ORIGIN.rstrip('/')}/signup",
             },
         }
 
@@ -489,7 +505,6 @@ class RequestHandler(
         q = queue.Queue(maxsize=100)
         add_progress_listener(q)
         try:
-            # Send immediate initial status
             initial_status = api_status(target_version_key)
             if initial_status and initial_status.get("status"):
                 initial_status["version_key"] = encoded_target
@@ -532,7 +547,7 @@ class RequestHandler(
                 custom_path=custom_path,
             )
         except Exception as exc:
-            print(colorize_log(f"[http_server] failed to resolve screenshot file: {exc}"))
+            safe_print(f"[http_server] failed to resolve screenshot file: {exc}")
             self.send_error(500, "Internal server error")
             return True
 
@@ -603,23 +618,30 @@ class RequestHandler(
             self.wfile.write(error_html)
             return
 
-        if path.startswith("/histolauncher-proxy/accounts/"):
-            upstream_path = path[len("/histolauncher-proxy/accounts"):] or "/"
+        if path.startswith(f"{HISTOLAUNCHER_WEB_PROXY_PREFIX}/"):
+            upstream_path = path[len(HISTOLAUNCHER_WEB_PROXY_PREFIX):] or "/"
+            if parsed.query:
+                upstream_path += f"?{parsed.query}"
+            self._proxy_histolauncher_web_request(upstream_path)
+            return
+
+        if path.startswith(f"{HISTOLAUNCHER_ACCOUNTS_PROXY_PREFIX}/"):
+            upstream_path = path[len(HISTOLAUNCHER_ACCOUNTS_PROXY_PREFIX):] or "/"
             if parsed.query:
                 upstream_path += f"?{parsed.query}"
             self._proxy_histolauncher_remote_request(
-                "https://accounts.histolauncher.org",
+                HISTOLAUNCHER_ACCOUNTS_ORIGIN,
                 upstream_path,
                 include_auth_cookie=True,
             )
             return
 
-        if path.startswith("/histolauncher-proxy/textures/"):
-            upstream_path = path[len("/histolauncher-proxy/textures"):] or "/"
+        if path.startswith(f"{HISTOLAUNCHER_TEXTURES_PROXY_PREFIX}/"):
+            upstream_path = path[len(HISTOLAUNCHER_TEXTURES_PROXY_PREFIX):] or "/"
             if parsed.query:
                 upstream_path += f"?{parsed.query}"
             self._proxy_histolauncher_remote_request(
-                "https://textures.histolauncher.org",
+                HISTOLAUNCHER_TEXTURES_ORIGIN,
                 upstream_path,
             )
             return
@@ -795,7 +817,11 @@ class RequestHandler(
             self._try_bridge_minecraftservices_generic(target)
             return
 
-        # API endpoints
+        # API endpoints (origin-checked even for GET so cross-site <img>/fetch
+        # requests cannot trigger state-changing endpoints).
+        if path.startswith("/api/") and not self._validate_api_request_origin():
+            return
+
         if path.startswith("/api/stream/install/"):
             version_key = unquote(path[len("/api/stream/install/"):])
             self._handle_install_stream(version_key)
@@ -830,17 +856,17 @@ class RequestHandler(
         parsed = urlparse(self.path)
         path = parsed.path
 
-        if path.startswith("/histolauncher-proxy/accounts/"):
+        if path.startswith(f"{HISTOLAUNCHER_ACCOUNTS_PROXY_PREFIX}/"):
             if not self._check_content_length(max_size=MAX_PAYLOAD_SIZE):
                 return
 
             length = int(self.headers.get("Content-Length", 0))
             body_bytes = self.rfile.read(length)
-            upstream_path = path[len("/histolauncher-proxy/accounts"):] or "/"
+            upstream_path = path[len(HISTOLAUNCHER_ACCOUNTS_PROXY_PREFIX):] or "/"
             if parsed.query:
                 upstream_path += f"?{parsed.query}"
             self._proxy_histolauncher_remote_request(
-                "https://accounts.histolauncher.org",
+                HISTOLAUNCHER_ACCOUNTS_ORIGIN,
                 upstream_path,
                 method="POST",
                 body_bytes=body_bytes,
@@ -859,7 +885,6 @@ class RequestHandler(
         elif path.startswith("/api/worlds/import"):
             max_payload_size = MAX_WORLDS_IMPORT_PAYLOAD
 
-        # Validate payload size before reading body
         if not self._check_content_length(max_size=max_payload_size):
             return
 
@@ -1042,7 +1067,7 @@ class RequestHandler(
                                 "operation_id": operation_id,
                             }
 
-                        print(
+                        safe_print(
                             f"[HTTP] POST /api/versions/import (multipart) - "
                             f"version_name: '{version_name}', "
                             f"operation_id: '{operation_id}', "
@@ -1053,7 +1078,7 @@ class RequestHandler(
                         data = None
 
                 except Exception as e:
-                    print(f"[HTTP] Error parsing multipart form data: {e}")
+                    safe_print(f"[HTTP] Error parsing multipart form data: {e}")
                     data = None
             elif (
                 path.startswith("/api/mods/import")
@@ -1092,7 +1117,7 @@ class RequestHandler(
                             "file_name": file_name,
                             "file_data": file_data,
                         }
-                        print(
+                        safe_print(
                             f"[HTTP] POST /api/mods/import (multipart) - "
                             f"addon_type: '{addon_type}', "
                             f"mod_loader: '{mod_loader}', "
@@ -1103,7 +1128,7 @@ class RequestHandler(
                     else:
                         data = None
                 except Exception as e:
-                    print(
+                    safe_print(
                         f"[HTTP] Error parsing multipart form data for mods import: {e}"
                     )
                     data = None
@@ -1150,7 +1175,7 @@ class RequestHandler(
                             "import_id": import_id,
                             "operation_id": operation_id or import_id,
                         }
-                        print(
+                        safe_print(
                             f"[HTTP] POST /api/modpacks/import (multipart) - "
                             f"file_name: '{file_name}', "
                             f"source_format: '{source_format}', "
@@ -1162,7 +1187,7 @@ class RequestHandler(
                     else:
                         data = None
                 except Exception as e:
-                    print(
+                    safe_print(
                         f"[HTTP] Error parsing multipart form data for "
                         f"modpacks import: {e}"
                     )
@@ -1216,7 +1241,7 @@ class RequestHandler(
                         if selected_roots is not None:
                             data["selected_roots"] = selected_roots
 
-                        print(
+                        safe_print(
                             f"[HTTP] POST {path} (multipart) - "
                             f"storage_target: '{storage_target}', "
                             f"custom_path: '{custom_path}', "
@@ -1228,7 +1253,7 @@ class RequestHandler(
                     else:
                         data = None
                 except Exception as e:
-                    print(
+                    safe_print(
                         f"[HTTP] Error parsing multipart form data for "
                         f"worlds import: {e}"
                     )
@@ -1237,7 +1262,7 @@ class RequestHandler(
                 body = self.rfile.read(length).decode("utf-8")
 
                 if path.startswith("/api/versions/import"):
-                    print(
+                    safe_print(
                         f"[HTTP] POST /api/versions/import - "
                         f"Body length: {len(body)}, "
                         f"First 100 chars: {body[:100]}"
@@ -1246,7 +1271,7 @@ class RequestHandler(
                 try:
                     data = json.loads(body) if body else None
                 except json.JSONDecodeError as e:
-                    print(f"[HTTP] JSON decode error on {path}: {e}")
+                    safe_print(f"[HTTP] JSON decode error on {path}: {e}")
                     data = None
 
             response = handle_api_request(self.path, data)

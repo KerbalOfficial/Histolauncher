@@ -105,7 +105,6 @@ class NbtReader:
         if tag_type == TAG_LIST:
             item_type = self._u8()
             size = self._i32()
-            # For unknown sub-types use 1 byte as a conservative lower bound.
             self._check_collection_size(size, per_item_bytes=1)
             return {
                 "list_type": item_type,

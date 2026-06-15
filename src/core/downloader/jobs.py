@@ -39,7 +39,7 @@ class Job:
     _state_lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
     _listeners: List[JobListener] = field(default_factory=list, repr=False)
 
-    # ---- Cancellation / pause ------------------------------------------------
+    # ---- cancellation / pause ------------------------------------------------
 
     def cancel(self) -> None:
         self._cancel.set()
@@ -76,7 +76,7 @@ class Job:
                     self.state = JobState.RUNNING
             self._notify("resumed")
 
-    # ---- Listeners -----------------------------------------------------------
+    # ---- listeners -----------------------------------------------------------
 
     def subscribe(self, listener: JobListener) -> None:
         with self._state_lock:
@@ -90,14 +90,14 @@ class Job:
                 listener(self, event)
             except Exception as exc:  # noqa: BLE001
                 try:
-                    from core.logger import colorize_log
-                    print(colorize_log(
+                    from core.logger import safe_print
+                    safe_print(
                         f"[jobs] listener for event={event!r} raised: {exc}"
-                    ))
+                    )
                 except Exception:
                     pass
 
-    # ---- State transitions (driven by JobRegistry / runner) ------------------
+    # ---- state transitions (driven by JobRegistry / runner) ------------------
 
     def _mark_running(self) -> None:
         with self._state_lock:
@@ -135,7 +135,7 @@ class JobRegistry:
         self._threads: Dict[str, threading.Thread] = {}
         self._max_workers = max_workers  # currently advisory; future use
 
-    # ---- Submission ----------------------------------------------------------
+    # ---- submission ----------------------------------------------------------
 
     def submit(
         self,
@@ -180,7 +180,7 @@ class JobRegistry:
             thread.start()
             return job
 
-    # ---- Lookup --------------------------------------------------------------
+    # ---- lookup --------------------------------------------------------------
 
     def get(self, key: str) -> Optional[Job]:
         with self._lock:
@@ -196,7 +196,7 @@ class JobRegistry:
         with self._lock:
             return list(self._jobs.values())
 
-    # ---- Control -------------------------------------------------------------
+    # ---- control -------------------------------------------------------------
 
     def cancel(self, key: str) -> bool:
         job = self.get(key)
@@ -219,7 +219,7 @@ class JobRegistry:
         job.resume()
         return True
 
-    # ---- Maintenance ---------------------------------------------------------
+    # ---- maintenance ---------------------------------------------------------
 
     def prune_finished(self, *, max_age_seconds: float = 3600.0) -> int:
         now = time.time()

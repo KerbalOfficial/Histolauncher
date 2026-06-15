@@ -58,7 +58,52 @@ def _check_tkinter() -> bool:
         return False
 
 
+def _is_cli_invocation() -> bool:
+    for arg in sys.argv[1:]:
+        if arg in ("--cli", "-c"):
+            return True
+    return False
+
+
+def _run_cli() -> int:
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    debug = os.path.splitext(os.path.basename(__file__))[1].lower() == ".py"
+
+    try:
+        from launcher.venv_manager import (
+            activate_venv_site_packages,
+            ensure_venv,
+            venv_exists,
+        )
+
+        if not venv_exists():
+            ensure_venv(log=lambda *_a, **_k: None)
+        activate_venv_site_packages()
+    except Exception:
+        pass
+
+    try:
+        from launcher.cli import run_cli
+
+        return run_cli(debug=debug)
+    except KeyboardInterrupt:
+        return 0
+    except Exception:
+        try:
+            sys.stderr.write(
+                "Histolauncher CLI crashed:\n" + traceback.format_exc()
+            )
+        except Exception:
+            pass
+        return 1
+
+
 def _bootstrap() -> int:
+    if _is_cli_invocation():
+        return _run_cli()
+
     here = os.path.dirname(os.path.abspath(__file__))
     if here not in sys.path:
         sys.path.insert(0, here)
@@ -132,7 +177,7 @@ def _bootstrap() -> int:
 
             if attempt_linux_install():
                 if _check_tkinter():
-                    pass # Successfully installed Tkinter
+                    pass
                 else:
                     _show_fatal(_TK_INSTALL_HINT)
                     return 1

@@ -27,6 +27,7 @@
 @import "components/badges.css";
 @import "components/info-bubble.css";
 @import "components/tooltip.css";
+@import "components/theme-editor-dock.css";
 
 /* pages */
 @import "pages/home.css";

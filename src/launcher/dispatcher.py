@@ -3,7 +3,7 @@ from __future__ import annotations
 import queue
 import tkinter
 
-from core.logger import colorize_log
+from core.logger import safe_print
 
 
 __all__ = ["create_tk_ui_dispatcher"]
@@ -25,7 +25,7 @@ def create_tk_ui_dispatcher(root, interval_ms: int = 25):
             try:
                 callback()
             except Exception as e:
-                print(colorize_log(f"[launcher] UI callback failed: {e}"))
+                safe_print(f"[launcher] UI callback failed: {e}")
 
         if state["closed"]:
             return

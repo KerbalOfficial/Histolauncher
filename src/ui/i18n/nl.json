@@ -266,8 +266,6 @@
       "customVersionFolder": "Aangepast (versiespecifieke map)",
       "launchSettings": "Startinstellingen",
       "useGlobal": "Globale instelling gebruiken",
-      "overrideFullscreen": "Volledig scherm overschrijven",
-      "fullscreen": "Volledig scherm",
       "overrideDemoMode": "Demomodus overschrijven",
       "demoMode": "Demomodus",
       "minimumRamOverride": "Minimum RAM overschrijven",
@@ -419,10 +417,14 @@
     "typeModpacks": "Modpacks",
     "typeResourcePacks": "Resourcepacks",
     "typeShaderPacks": "Shaderpacks",
+    "typeDatapacks": "Datapacks",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "Shaderpack importeren",
         "emptyInstalled": "Geen shaderpacks geïnstalleerd",
         "emptyAvailable": "Geen shaderpacks gevonden"
+      },
+      "datapacks": {
+        "label": "Datapacks",
+        "singular": "datapack",
+        "singularTitle": "Datapack",
+        "plural": "datapacks",
+        "pluralTitle": "Datapacks",
+        "importTitle": "Datapack importeren",
+        "emptyInstalled": "Geen datapacks geïnstalleerd",
+        "emptyAvailable": "Geen datapacks gevonden"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "Toepassen op wereld",
+      "manageWorlds": "Werelden beheren",
+      "appliedWorlds": "Toegepast op: {worlds}",
+      "noAppliedWorlds": "Op geen enkele wereld toegepast",
+      "applyTitle": "Datapack toepassen op wereld",
+      "applyPrompt": "Selecteer de wereldopslag en de werelden voor <b>{datapack}</b>.",
+      "storageLabel": "Wereldopslag:",
+      "customFolderLabel": "Aangepaste map:",
+      "selectFolder": "Map selecteren",
+      "worldsLabel": "Werelden:",
+      "noWorlds": "Geen werelden gevonden op deze opslaglocatie.",
+      "applyFailed": "Toepassen van datapack mislukt.",
+      "applySuccess": "Datapack toegepast op {count} wereld(en).",
+      "removeFailed": "Verwijderen van datapack uit wereld mislukt.",
+      "removeSuccess": "Datapack verwijderd uit {world}.",
+      "manageTitle": "Wereldimplementaties",
+      "managePrompt": "Datapack <b>{datapack}</b> is toegepast op deze werelden:",
+      "removeFromWorld": "Verwijderen",
+      "selectWorlds": "Selecteer ten minste één wereld."
     },
     "import": {
       "selectLoaderForFile": "Selecteer de modloader voor \"{file}\":",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "Importeren...",
+      "importButton": "Importeren",
+      "successTitle": "Importeren geslaagd",
+      "successMessage": "{addon} succesvol geïmporteerd.",
+      "errorTitle": "Importfout",
+      "failedMessage": "Importeren van {addon} mislukt.",
+      "modpackImporting": "Modpack importeren...",
+      "modpackImportingPercent": "Modpack importeren... {percent}%",
+      "modpackCancelling": "Importeren van modpack annuleren...",
+      "modpackSuccess": "Modpack <b>{name}</b> succesvol geïmporteerd.",
+      "modpackDetectedFormat": "<br><br>Gedetecteerd formaat: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>De volgende losse mods zijn uitgeschakeld omdat ze conflicteren met de modpack:<br>",
+      "modpackWarnings": "<br><br>Importwaarschuwingen:<br>",
+      "modpackMoreWarnings": "<br>...en nog {count} waarschuwing(en).",
+      "modpackCancelledTitle": "Importeren geannuleerd",
+      "modpackCancelledMessage": "Je hebt het importeren van de modpack geannuleerd.",
+      "modpackFailed": "Importeren van modpack mislukt.",
+      "modpackNetworkError": "Netwerkfout tijdens het importeren van de modpack."
     },
     "status": {
       "installed": "Geïnstalleerd",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "{count} {addon}(s) verwijderd.<br><br>Mislukt:<br>{failures}",
       "confirmMessage": "{count} geselecteerde {addon}(s) verwijderen?<br><i>Dit kan niet ongedaan worden gemaakt!</i>"
     },
+    "bulkMove": {
+      "title": "Mods in bulk verplaatsen",
+      "noSelected": "Geen geïnstalleerde mods geselecteerd.",
+      "prompt": "{count} geselecteerde mod(s) verplaatsen naar:",
+      "moveButton": "Verplaatsen",
+      "movingProgress": "Geselecteerde mods verplaatsen... ({current}/{total})",
+      "cancelling": "Bulkverplaatsing annuleren nadat de huidige mod is voltooid...",
+      "moveFailed": "verplaatsen mislukt",
+      "requestFailed": "verzoek mislukt",
+      "skippedSuffix": ", {count} overgeslagen",
+      "cancelledTitle": "Bulkverplaatsing geannuleerd",
+      "cancelledMessage": "{moved} mod(s){skipped} verplaatst vóór annulering.{failures}",
+      "failuresCountSuffix": "<br><br>Fouten: {count}",
+      "completeTitle": "Bulkverplaatsing voltooid",
+      "completeMessage": "{moved} mod(s){skipped} verplaatst.",
+      "finishedWithErrorsTitle": "Bulkverplaatsing voltooid met fouten",
+      "finishedWithErrorsMessage": "{moved} mod(s){skipped} verplaatst.<br><br>Fouten:<br>{preview}{more}",
+      "moreFailures": "<br>...en nog {count} meer."
+    },
+    "modpackDetail": {
+      "loader": "Loader: {loader}",
+      "version": "Versie: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "Auteur: {author}",
+      "modsCount": "Mods: {count}",
+      "resourcePacksCount": "Resourcepacks: {count}",
+      "shaderPacksCount": "Shaderpacks: {count}",
+      "datapacksCount": "Datapacks: {count}",
+      "notAvailable": "n.v.t."
+    },
+    "modpackActions": {
+      "deleteFailed": "Verwijderen van modpack mislukt.",
+      "cannotEnableTitle": "Kan niet inschakelen",
+      "cannotEnableMessage": "Deze mod wordt beheerd door de modpack <b>{name}</b>. Schakel die modpack eerst uit of verwijder hem."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "CurseForge vereist een API-sleutel. Voeg een sleutel toe om de CurseForge-provider te gebruiken, of schakel over naar Modrinth.",
+      "providerError": "Providerfout: {error}"
+    },
     "detail": {
       "loadingDetails": "Details van {addon} laden...",
       "screenshots": "Screenshots",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "Modpack exporteren",
-      "selectFormat": "Selecteer het modpackformaat om te exporteren:",
-      "selectLoader": "Selecteer de modloader voor dit modpack:",
+      "tabs": {
+        "metadata": "Metadata",
+        "mods": "Mods",
+        "resourcepacks": "Resourcepacks",
+        "shaderpacks": "Shaderpacks",
+        "datapacks": "Datapacks",
+        "export": "Exporteren"
+      },
+      "selectFormat": "Selecteer het modpackformaat om te exporteren",
+      "selectLoader": "Selecteer de modloader voor dit modpack",
+      "minecraftVersion": "Minecraft-versie",
+      "minecraftVersionHint": "De Minecraft-versie die voor de modpack wordt gebruikt.",
+      "loaderVersion": "Loaderversie",
+      "loaderVersionHint": "De loaderversie die voor de modpack wordt gebruikt.",
+      "vanillaModsHint": "Vanilla-modpacks bevatten geen mods. Selecteer resourcepacks, shaderpacks en/of datapacks op de andere tabbladen.",
       "noLoaderMods": "Er zijn geen {loader}-mods geïnstalleerd. Installeer eerst een paar mods.",
       "selectMods": "Selecteer mods om op te nemen ({count} {loader}-mods beschikbaar):",
       "disabledHint": "Optioneel: markeer mods als uitgeschakeld in het modpack, zodat ze wel zijn inbegrepen maar standaard niet actief zijn.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "Bronmap bijwerken mislukt",
       "failedSaveSourceFolder": "Instelling voor bronmap opslaan mislukt.",
       "selectAtLeastOneMod": "Selecteer minimaal een mod.",
+      "selectAtLeastOneItem": "Selecteer ten minste één mod, resourcepack, shaderpack of datapack.",
+      "selectMinecraftVersion": "Selecteer een Minecraft-versie",
+      "selectLoaderVersion": "Selecteer een loaderversie",
+      "validationErrorBanner": "Los de gemarkeerde problemen hieronder op en probeer het opnieuw.",
+      "externalVersionRequired": "Voer een Minecraft-versie in voor exports naar Modrinth/CurseForge (of selecteer content met versiemetadata).",
+      "externalLoaderVersionRequired": "Voer een loaderversie in voor exports naar Modrinth/CurseForge wanneer je een modloader gebruikt.",
       "selectOptionalAddons": "Selecteer optionele {plural} om mee te bundelen ({count} beschikbaar):",
       "noOptionalAddons": "Er zijn geen {plural} geïnstalleerd. Je kunt doorgaan zonder iets mee te bundelen.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "Een modpackbeschrijving..."
       },
       "summary": "{format} {extension} | {mods} mods | {resourcepacks} resourcepacks | {shaderpacks} shaderpacks | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "Loader {version}",
       "validation": {
         "nameLength": "Naam moet 1-64 tekens lang zijn.",
         "nameForbidden": "Naam bevat verboden tekens.",
@@ -1014,13 +1125,25 @@
       "description": "Lichtgewicht en snel",
       "subtitle": "Meestal gebruikt voor game-optimalisatie"
     },
+    "legacyfabric": {
+      "description": "Fabric voor oudere versies",
+      "subtitle": "Een Fabric-port die Minecraft 1.3 - 1.13.2 ondersteunt"
+    },
     "babric": {
       "description": "Minecraft Beta Fabric-fork",
       "subtitle": "Een fork van Fabric voor ondersteuning van Beta 1.7.3"
     },
+    "ornithe": {
+      "description": "Fabric voor verouderde Minecraft",
+      "subtitle": "Op Fabric gebaseerde toolchain van Alpha tot 1.14.x"
+    },
     "forge": {
       "description": "Uitgebreid en populair",
       "subtitle": "Meestal gebruikt voor aanpassingen aan de game"
+    },
+    "liteloader": {
+      "description": "Lichtgewicht clientmods",
+      "subtitle": "Tweak-achtige mods voor Minecraft 1.5.2 - 1.12.2"
     },
     "modloader": {
       "description": "Legacy runtime voor jar-mods",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "Flexibel en modern",
       "subtitle": "Meestal gebruikt voor lichte moderne modding"
+    },
+    "vanilla": {
+      "description": "Geen modloader",
+      "subtitle": "Alleen resourcepacks, shaderpacks en datapacks"
     },
     "fallback": {
       "description": "Aangepaste loader",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "Blueberry (Licht)",
         "leafDark": "Leaf (Donker)",
         "leafLight": "Leaf (Licht)",
+        "orangeDark": "Oranje (Donker)",
+        "orangeLight": "Oranje (Licht)",
+        "midnightDark": "Middernacht (Donker)",
+        "midnightLight": "Middernacht (Licht)",
+        "graphiteDark": "Grafiet (Donker)",
+        "graphiteLight": "Grafiet (Licht)",
+        "oceanDark": "Oceaan (Donker)",
+        "oceanLight": "Oceaan (Licht)",
+        "amethystDark": "Amethist (Donker)",
+        "amethystLight": "Amethist (Licht)",
         "aeroDark": "Aero glass (Donker)",
-        "aeroLight": "Aero glass (Licht)"
+        "aeroLight": "Aero glass (Licht)",
+        "custom": "Aangepast"
+      },
+      "themeBase": "Basisthema:",
+      "themeEditor": {
+        "dockTitle": "Thema-editor",
+        "openDock": "Thema-editor openen",
+        "hint": "Kies een basisthema en pas hieronder de afzonderlijke kleuren aan. Overschrijvingen worden bij je profiel opgeslagen.",
+        "resetAll": "Alle overschrijvingen herstellen",
+        "export": "Thema-JSON kopiëren",
+        "import": "Thema-JSON importeren",
+        "resetToken": "Herstellen",
+        "resetTokenTooltip": "Verwijder deze kleuroverschrijving en gebruik de waarde van het basisthema",
+        "groups": {
+          "app": "App-achtergrond",
+          "text": "Tekst",
+          "links": "Links en focus",
+          "surfaces": "Oppervlakken",
+          "borders": "Randen",
+          "overlays": "Overlays en tooltips",
+          "buttons": "Knoppen",
+          "semantic": "Succes, gevaar, waarschuwing en info",
+          "messages": "Berichtvensters",
+          "states": "Selectie en markeringen",
+          "scrollbars": "Schuifbalken",
+          "badges": "Badges",
+          "loaders": "Modloader-accenten"
+        }
       },
       "uiSizes": {
         "small": "Klein",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "Maximum RAM toegewezen aan de game\n  - Moet een positief getal zijn\n  - Moet groter zijn dan Minimum RAM\n  - Moet minimaal 1 byte zijn\n\nVoorbeeldformaat: 256, 256M, 2G, enz.\n\n(prestatietip: wijs meer RAM toe voor betere prestaties en laat het ook overeenkomen met minimum RAM voor minder framedrops)",
       "resolution": "Resolutie:",
       "resolutionTooltip": "Standaard venstergrootte van de game voor versies die breedte- en hoogteargumenten bij het starten ondersteunen.",
-      "fullscreen": "Volledig scherm:",
-      "fullscreenTooltip": "Start ondersteunde versies standaard in volledig scherm.",
       "demoMode": "Demomodus:",
       "demoModeTooltip": "Start ondersteunde versies met de Minecraft-demomodus ingeschakeld.",
       "storageDir": "Opslagmap:",

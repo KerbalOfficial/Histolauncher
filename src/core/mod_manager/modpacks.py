@@ -10,9 +10,13 @@ import urllib.parse
 import zipfile
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from core.manifest import fetch_manifest
+from core import modloaders as core_modloaders
+from core.modloaders._versions import loader_version_sort_key
 from core.settings import get_mods_profile_dir
 
 from core.mod_manager._constants import (
+    CURSEFORGE_MODPACK_LOADERS,
     IMPORT_RETRY_ATTEMPTS,
     IMPORT_RETRY_DELAY,
     SUPPORTED_MOD_LOADERS,
@@ -43,9 +47,19 @@ from core.zip_utils import (
     _validate_archive_limits,
 )
 
-# Re-export for backwards compatibility (tests import _MODPACK_NAME_FORBIDDEN):
 _MODPACK_NAME_FORBIDDEN = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
-_MODPACK_EXTRA_ADDON_TYPES = ("resourcepacks", "shaderpacks")
+_MODPACK_EXTRA_ADDON_TYPES = ("resourcepacks", "shaderpacks", "datapacks")
+_MODPACK_INDEX_LOADERS = frozenset({"fabric", "forge", "neoforge", "quilt"})
+_MODRINTH_LOADER_TO_DEPENDENCY_KEY = {
+    "fabric": "fabric-loader",
+    "quilt": "quilt-loader",
+    "forge": "forge",
+    "neoforge": "neoforge",
+}
+_MODRINTH_DEPENDENCY_KEY_TO_LOADER = {
+    dependency_key: loader
+    for loader, dependency_key in _MODRINTH_LOADER_TO_DEPENDENCY_KEY.items()
+}
 
 
 def _read_json_file(path: str) -> Dict[str, Any]:
@@ -119,6 +133,279 @@ def _unique_archive_path(written_paths: set, desired_path: str) -> str:
         counter += 1
 
 
+def _resolve_export_minecraft_version(items: List[Dict[str, Any]], explicit_version: str = "") -> str:
+    explicit = str(explicit_version or "").strip()
+    if explicit:
+        return explicit
+    return _detect_minecraft_version(items)
+
+
+def _curseforge_loader_id(mod_loader: str, loader_version: str = "") -> str:
+    loader = str(mod_loader or "").strip().lower()
+    version = str(loader_version or "").strip()
+    if not loader or loader == "vanilla":
+        return ""
+    if version:
+        return f"{loader}-{version}"
+    return loader
+
+
+def _modrinth_dependency_key_for_loader(mod_loader: str) -> str:
+    loader = str(mod_loader or "").strip().lower()
+    return _MODRINTH_LOADER_TO_DEPENDENCY_KEY.get(loader, "")
+
+
+def _loader_from_modrinth_dependencies(dependencies: Any) -> str:
+    if not isinstance(dependencies, dict):
+        return ""
+    for dep_key in dependencies:
+        loader = _MODRINTH_DEPENDENCY_KEY_TO_LOADER.get(str(dep_key or "").strip().lower())
+        if loader:
+            return loader
+    for dep_key in dependencies:
+        guessed = _guess_loader_from_text(dep_key)
+        if guessed:
+            return guessed
+    return ""
+
+
+def _manifest_data(*, include_third_party: bool = False) -> Dict[str, Any]:
+    try:
+        manifest = fetch_manifest(include_third_party=include_third_party)
+    except Exception:
+        return {}
+    if not isinstance(manifest, dict):
+        return {}
+    data = manifest.get("data")
+    return data if isinstance(data, dict) else {}
+
+
+def _dedupe_preserve_order(labels: List[str]) -> List[str]:
+    seen = set()
+    unique: List[str] = []
+    for value in labels:
+        label = str(value or "").strip()
+        if not label or label in seen:
+            continue
+        seen.add(label)
+        unique.append(label)
+    return unique
+
+
+def _sort_minecraft_version_labels(versions: List[str]) -> List[str]:
+    unique = _dedupe_preserve_order(versions)
+    unique.sort(key=loader_version_sort_key, reverse=True)
+    return unique
+
+
+def _mojang_manifest_version_labels(
+    *,
+    releases_only: bool = False,
+    min_version: str = "",
+    include_third_party: bool = False,
+) -> List[str]:
+    data = _manifest_data(include_third_party=include_third_party)
+    versions = data.get("versions")
+    if not isinstance(versions, list):
+        return []
+    min_key = loader_version_sort_key(min_version) if min_version else None
+    labels: List[str] = []
+    seen = set()
+    for entry in versions:
+        if not isinstance(entry, dict):
+            continue
+        label = str(entry.get("id") or "").strip()
+        if not label or label in seen:
+            continue
+        if releases_only and str(entry.get("type") or "").strip().lower() != "release":
+            continue
+        if min_key is not None and loader_version_sort_key(label) < min_key:
+            continue
+        seen.add(label)
+        labels.append(label)
+    return labels
+
+
+def _loader_catalog_minecraft_versions(mod_loader: str) -> List[str]:
+    loader = str(mod_loader or "").strip().lower()
+    if loader in {"", "vanilla"}:
+        return []
+    candidates = _mojang_manifest_version_labels(releases_only=True)
+    supported = []
+    for mc_version in candidates:
+        try:
+            if loader == "fabric":
+                if core_modloaders.supports_fabric_mc_version(mc_version):
+                    supported.append(mc_version)
+            elif loader == "legacyfabric":
+                if core_modloaders.supports_legacyfabric_mc_version(mc_version):
+                    supported.append(mc_version)
+            elif loader == "babric":
+                if core_modloaders.get_babric_loaders_for_version(mc_version):
+                    supported.append(mc_version)
+            elif loader == "ornithe":
+                if core_modloaders.get_ornithe_loaders_for_version(mc_version):
+                    supported.append(mc_version)
+            elif loader == "quilt":
+                if core_modloaders.get_quilt_loaders_for_version(mc_version):
+                    supported.append(mc_version)
+            elif loader == "forge":
+                if core_modloaders.get_forge_versions_for_mc(mc_version):
+                    supported.append(mc_version)
+            elif loader == "neoforge":
+                if core_modloaders.get_neoforge_versions_for_mc(mc_version):
+                    supported.append(mc_version)
+            elif loader == "liteloader":
+                if core_modloaders.get_liteloader_versions_for_mc(mc_version):
+                    supported.append(mc_version)
+            elif loader == "modloader":
+                if core_modloaders.get_modloader_versions_for_mc(mc_version):
+                    supported.append(mc_version)
+        except Exception:
+            continue
+    return supported
+
+
+def _meta_api_game_version_labels(fetch_versions: Callable[[], Any]) -> List[str]:
+    game_versions = fetch_versions() or []
+    labels = [
+        str(entry.get("version") or "").strip()
+        for entry in game_versions
+        if isinstance(entry, dict) and str(entry.get("version") or "").strip()
+    ]
+    labels = _dedupe_preserve_order(labels)
+    labels.reverse()
+    return labels
+
+
+def _modrinth_export_minecraft_versions(mod_loader: str) -> List[str]:
+    loader = str(mod_loader or "").strip().lower()
+    if loader in {"", "vanilla"}:
+        return _mojang_manifest_version_labels(releases_only=True)
+    if loader == "fabric":
+        return _meta_api_game_version_labels(core_modloaders.fetch_fabric_game_versions)
+    if loader == "quilt":
+        return _meta_api_game_version_labels(core_modloaders.fetch_quilt_game_versions)
+    if loader == "babric":
+        return _meta_api_game_version_labels(core_modloaders.fetch_babric_game_versions)
+    if loader == "legacyfabric":
+        return _meta_api_game_version_labels(core_modloaders.fetch_legacyfabric_game_versions)
+    return _loader_catalog_minecraft_versions(loader)
+
+
+def get_modpack_export_minecraft_versions(export_format: str, mod_loader: str) -> List[str]:
+    normalized_format = str(export_format or "histolauncher").strip().lower()
+    loader = str(mod_loader or "").strip().lower()
+    if normalized_format in {"histolauncher", "hlmp"}:
+        return []
+    if normalized_format in {"curseforge", "curse", "zip"}:
+        return _mojang_manifest_version_labels(releases_only=True, min_version="1.1")
+    if normalized_format in {"modrinth", "mrpack"}:
+        return _modrinth_export_minecraft_versions(loader)
+    return []
+
+
+def get_modpack_export_loader_versions(
+    mod_loader: str,
+    minecraft_version: str,
+    export_format: str = "",
+) -> List[str]:
+    normalized_format = str(export_format or "histolauncher").strip().lower()
+    if normalized_format in {"histolauncher", "hlmp"}:
+        return []
+    loader = str(mod_loader or "").strip().lower()
+    if normalized_format in {"curseforge", "curse", "zip"} and loader not in CURSEFORGE_MODPACK_LOADERS:
+        return []
+    mc_version = str(minecraft_version or "").strip()
+    if not mc_version or loader in {"", "vanilla"}:
+        return []
+    versions: List[str] = []
+    try:
+        if loader == "fabric":
+            versions = [
+                str(entry.get("version") or "").strip()
+                for entry in (core_modloaders.get_fabric_loaders_for_version(mc_version) or [])
+                if str(entry.get("version") or "").strip()
+            ]
+        elif loader == "legacyfabric":
+            versions = [
+                str(entry.get("version") or "").strip()
+                for entry in (core_modloaders.get_legacyfabric_loaders_for_version(mc_version) or [])
+                if str(entry.get("version") or "").strip()
+            ]
+        elif loader == "babric":
+            versions = [
+                str(entry.get("version") or "").strip()
+                for entry in (core_modloaders.get_babric_loaders_for_version(mc_version) or [])
+                if str(entry.get("version") or "").strip()
+            ]
+        elif loader == "ornithe":
+            versions = [
+                str(entry.get("version") or "").strip()
+                for entry in (core_modloaders.get_ornithe_loaders_for_version(mc_version) or [])
+                if str(entry.get("version") or "").strip()
+            ]
+        elif loader == "quilt":
+            versions = [
+                str(entry.get("version") or "").strip()
+                for entry in (core_modloaders.get_quilt_loaders_for_version(mc_version) or [])
+                if str(entry.get("version") or "").strip()
+            ]
+        elif loader == "forge":
+            versions = [
+                str(entry.get("forge_version") or "").strip()
+                for entry in (core_modloaders.get_forge_versions_for_mc(mc_version) or [])
+                if str(entry.get("forge_version") or "").strip()
+            ]
+        elif loader == "neoforge":
+            versions = [
+                str(entry.get("neoforge_version") or "").strip()
+                for entry in (core_modloaders.get_neoforge_versions_for_mc(mc_version) or [])
+                if str(entry.get("neoforge_version") or "").strip()
+            ]
+        elif loader == "liteloader":
+            versions = [
+                str(entry.get("version") or "").strip()
+                for entry in (core_modloaders.get_liteloader_versions_for_mc(mc_version) or [])
+                if str(entry.get("version") or "").strip()
+            ]
+        elif loader == "modloader":
+            versions = [
+                str(entry.get("modloader_version") or "").strip()
+                for entry in (core_modloaders.get_modloader_versions_for_mc(mc_version) or [])
+                if str(entry.get("modloader_version") or "").strip()
+            ]
+    except Exception:
+        return []
+    unique = []
+    seen = set()
+    for value in versions:
+        if value in seen:
+            continue
+        seen.add(value)
+        unique.append(value)
+    unique.sort(key=loader_version_sort_key, reverse=True)
+    return unique
+
+
+def _modrinth_loader_dependencies(mod_loader: str, loader_version: str = "") -> Dict[str, str]:
+    loader = str(mod_loader or "").strip().lower()
+    version = str(loader_version or "").strip()
+    dependency_key = _modrinth_dependency_key_for_loader(loader)
+    if not dependency_key or loader == "vanilla" or loader not in _MODPACK_INDEX_LOADERS:
+        return {}
+    if version:
+        return {dependency_key: version}
+    return {}
+
+
+def _item_env_flags(item: Dict[str, Any]) -> Dict[str, str]:
+    addon_type = str(item.get("addon_type") or "mods").strip().lower()
+    if addon_type == "mods":
+        return {"client": "required", "server": "required"}
+    return {"client": "required", "server": "unsupported"}
+
+
 def _selected_entry_slug(entry: Dict[str, Any]) -> str:
     return str(
         entry.get("mod_slug")
@@ -133,14 +420,18 @@ def _collect_export_items(
     mods: List[Dict[str, Any]],
     resourcepacks: Optional[List[Dict[str, Any]]] = None,
     shaderpacks: Optional[List[Dict[str, Any]]] = None,
+    datapacks: Optional[List[Dict[str, Any]]] = None,
     cancel_check: Optional[Callable[[], None]] = None,
 ) -> List[Dict[str, Any]]:
     items: List[Dict[str, Any]] = []
     loader_key = str(mod_loader or "").strip().lower()
+    if loader_key == "vanilla":
+        loader_key = ""
     group_inputs = [
         ("mods", mods or [], get_mods_storage_dir(), loader_key),
         ("resourcepacks", resourcepacks or [], get_addon_storage_dir("resourcepacks"), ""),
         ("shaderpacks", shaderpacks or [], get_addon_storage_dir("shaderpacks"), ""),
+        ("datapacks", datapacks or [], get_addon_storage_dir("datapacks"), ""),
     ]
 
     for addon_type, entries, storage_dir, loader_for_type in group_inputs:
@@ -215,30 +506,43 @@ def _export_modrinth_modpack(
     description: str,
     mod_loader: str,
     items: List[Dict[str, Any]],
+    *,
+    author: str = "",
+    minecraft_version: str = "",
+    loader_version: str = "",
+    image_data: Optional[bytes] = None,
 ) -> bytes:
     buf = io.BytesIO()
     written_paths = set()
     files = []
-    minecraft_version = _detect_minecraft_version(items)
+    resolved_mc_version = _resolve_export_minecraft_version(items, minecraft_version)
     dependencies: Dict[str, str] = {}
-    if minecraft_version:
-        dependencies["minecraft"] = minecraft_version
-    if mod_loader in {"fabric", "forge", "neoforge", "quilt"}:
-        dependencies[mod_loader] = ""
+    if resolved_mc_version:
+        dependencies["minecraft"] = resolved_mc_version
+    dependencies.update(_modrinth_loader_dependencies(mod_loader, loader_version))
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if image_data:
+            zf.writestr("pack.png", image_data)
+
         for item in items:
             provider = str((item.get("version_meta") or {}).get("provider") or (item.get("mod_meta") or {}).get("provider") or "").lower()
             download_url = str((item.get("version_meta") or {}).get("download_url") or "").strip()
             file_name = item.get("file_name") or os.path.basename(item.get("archive_path") or "")
             folder = item.get("folder") or "mods"
+            addon_type = str(item.get("addon_type") or "mods").strip().lower()
+            can_index = (
+                provider == "modrinth"
+                and _is_modrinth_download_url(download_url)
+                and addon_type in {"mods", "datapacks", "resourcepacks", "shaderpacks"}
+            )
 
-            if provider == "modrinth" and _is_modrinth_download_url(download_url):
+            if can_index:
                 path = _unique_archive_path(written_paths, f"{folder}/{file_name}")
                 files.append({
                     "path": path,
                     "hashes": _file_hashes(item["archive_path"]),
-                    "env": {"client": "required", "server": "unsupported"},
+                    "env": _item_env_flags(item),
                     "downloads": [download_url],
                     "fileSize": int(item.get("file_size") or 0),
                 })
@@ -258,6 +562,9 @@ def _export_modrinth_modpack(
             "files": files,
             "dependencies": dependencies,
         }
+        author_value = str(author or "").strip()
+        if author_value:
+            index["author"] = author_value
         zf.writestr("modrinth.index.json", json.dumps(index, indent=2))
 
     return buf.getvalue()
@@ -288,13 +595,21 @@ def _export_curseforge_modpack(
     author: str,
     mod_loader: str,
     items: List[Dict[str, Any]],
+    *,
+    minecraft_version: str = "",
+    loader_version: str = "",
+    image_data: Optional[bytes] = None,
 ) -> bytes:
     buf = io.BytesIO()
     written_paths = set()
     manifest_files = []
-    minecraft_version = _detect_minecraft_version(items)
+    resolved_mc_version = _resolve_export_minecraft_version(items, minecraft_version)
+    loader_id = _curseforge_loader_id(mod_loader, loader_version)
 
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if image_data:
+            zf.writestr("profileImage/logo.png", image_data)
+
         for item in items:
             project_id, file_id = _extract_curseforge_ids(item)
             if item.get("addon_type") == "mods" and project_id and file_id:
@@ -313,10 +628,14 @@ def _export_curseforge_modpack(
             )
             zf.write(item["archive_path"], override_path)
 
+        mod_loaders = []
+        if loader_id:
+            mod_loaders.append({"id": loader_id, "primary": True})
+
         manifest = {
             "minecraft": {
-                "version": minecraft_version,
-                "modLoaders": ([{"id": str(mod_loader or "").lower(), "primary": True}] if mod_loader else []),
+                "version": resolved_mc_version,
+                "modLoaders": mod_loaders,
             },
             "manifestType": "minecraftModpack",
             "manifestVersion": 1,
@@ -328,6 +647,8 @@ def _export_curseforge_modpack(
         }
         if description:
             manifest["description"] = str(description)[:8192]
+        if image_data:
+            manifest["image"] = "profileImage/logo.png"
         zf.writestr("manifest.json", json.dumps(manifest, indent=2))
 
     return buf.getvalue()
@@ -399,11 +720,6 @@ def get_installed_modpacks() -> List[Dict[str, Any]]:
             for mod_entry in data.get("mods", []):
                 ms = mod_entry.get("mod_slug", "")
                 mod_entry["disabled"] = bool(mod_entry.get("disabled", False))
-                # Surface overwrite_classes / source_subfolder for the UI by
-                # falling back to the per-version meta packed inside the
-                # modpack (older modpacks won't have these on the data.json
-                # entry, but their bundled version_meta.json may still
-                # describe class-overwrite behaviour).
                 ver_label = str(mod_entry.get("version_label") or "").strip()
                 packed_overwrite = False
                 packed_subfolder = ""
@@ -501,8 +817,11 @@ def export_modpack(name: str, version: str, description: str,
                    cancel_check: Optional[Callable[[], None]] = None,
                    resourcepacks: Optional[List[Dict[str, Any]]] = None,
                    shaderpacks: Optional[List[Dict[str, Any]]] = None,
+                   datapacks: Optional[List[Dict[str, Any]]] = None,
                    author: str = "",
-                   export_format: str = "histolauncher") -> bytes:
+                   export_format: str = "histolauncher",
+                   minecraft_version: str = "",
+                   loader_version: str = "") -> bytes:
     author_value = str(author or "").strip()[:64]
     normalized_format = str(export_format or "histolauncher").strip().lower()
     if normalized_format in {"modrinth", "mrpack"}:
@@ -511,18 +830,44 @@ def export_modpack(name: str, version: str, description: str,
             mods,
             resourcepacks=resourcepacks,
             shaderpacks=shaderpacks,
+            datapacks=datapacks,
             cancel_check=cancel_check,
         )
-        return _export_modrinth_modpack(name, version, description, mod_loader, items)
+        return _export_modrinth_modpack(
+            name,
+            version,
+            description,
+            mod_loader,
+            items,
+            author=author_value,
+            minecraft_version=minecraft_version,
+            loader_version=loader_version,
+            image_data=image_data,
+        )
     if normalized_format in {"curseforge", "curse", "zip"}:
+        loader_key = str(mod_loader or "").strip().lower()
+        if loader_key not in CURSEFORGE_MODPACK_LOADERS:
+            supported = ", ".join(sorted(CURSEFORGE_MODPACK_LOADERS))
+            raise ValueError(f"CurseForge modpacks support these loaders only: {supported}")
         items = _collect_export_items(
             mod_loader,
             mods,
             resourcepacks=resourcepacks,
             shaderpacks=shaderpacks,
+            datapacks=datapacks,
             cancel_check=cancel_check,
         )
-        return _export_curseforge_modpack(name, version, description, author_value, mod_loader, items)
+        return _export_curseforge_modpack(
+            name,
+            version,
+            description,
+            author_value,
+            mod_loader,
+            items,
+            minecraft_version=minecraft_version,
+            loader_version=loader_version,
+            image_data=image_data,
+        )
 
     buf = io.BytesIO()
     mods_storage = get_mods_storage_dir()
@@ -561,10 +906,6 @@ def export_modpack(name: str, version: str, description: str,
 
             disabled_in_pack = bool(m.get("disabled", False))
 
-            # Optional per-mod overwrite-classpath settings supplied from the
-            # export wizard. When provided we patch the version_meta.json that
-            # ships inside the modpack so the launcher can honour them at
-            # launch time without affecting the standalone mod entry.
             overwrite_override_present = (
                 "overwrite_classes" in m or "source_subfolder" in m
             )
@@ -602,9 +943,6 @@ def export_modpack(name: str, version: str, description: str,
                     continue
                 _write_if_exists(src, arc_path)
 
-            # If the source mod had no version_meta.json on disk but the
-            # exporter still wants overwrite settings, write a minimal one so
-            # the launcher can find it on import.
             if patched_version_meta is not None:
                 normalized_meta_arc = f"mods/{slug}/{ver_label}/version_meta.json"
                 if normalized_meta_arc not in written_paths:
@@ -687,6 +1025,7 @@ def export_modpack(name: str, version: str, description: str,
 
         resourcepack_entries = _export_extra_addons("resourcepacks", resourcepacks)
         shaderpack_entries = _export_extra_addons("shaderpacks", shaderpacks)
+        datapack_entries = _export_extra_addons("datapacks", datapacks)
 
         data_json = {
             "name": name,
@@ -694,12 +1033,16 @@ def export_modpack(name: str, version: str, description: str,
             "author": author_value,
             "description": description,
             "mod_loader": mod_loader.lower(),
+            "minecraft_version": str(minecraft_version or "").strip(),
+            "loader_version": str(loader_version or "").strip(),
             "mod_count": len(mod_entries),
             "mods": mod_entries,
             "resourcepack_count": len(resourcepack_entries),
             "resourcepacks": resourcepack_entries,
             "shaderpack_count": len(shaderpack_entries),
             "shaderpacks": shaderpack_entries,
+            "datapack_count": len(datapack_entries),
+            "datapacks": datapack_entries,
         }
         zf.writestr("data.json", json.dumps(data_json, indent=2))
 
@@ -748,6 +1091,8 @@ def _guess_loader_from_text(value: str) -> str:
         return ""
     if "babric" in text:
         return "babric"
+    if "ornithe" in text:
+        return "ornithe"
     if "modloader" in text:
         return "modloader"
     if "neoforge" in text:
@@ -961,11 +1306,14 @@ def _collect_bundled_mod_archives(zf: zipfile.ZipFile) -> List[Tuple[str, str, b
 
 
 def _collect_bundled_addon_archives(zf: zipfile.ZipFile, addon_type: str) -> List[Tuple[str, str, bytes]]:
-    normalized_type = "shaderpacks" if str(addon_type or "").lower() == "shaderpacks" else "resourcepacks"
+    normalized_type = str(addon_type or "").strip().lower()
+    if normalized_type not in {"resourcepacks", "shaderpacks", "datapacks"}:
+        normalized_type = "resourcepacks"
     bundled = []
     path_tokens = {
         "resourcepacks": ("resourcepacks", "texturepacks"),
         "shaderpacks": ("shaderpacks",),
+        "datapacks": ("datapacks",),
     }[normalized_type]
 
     for zi in zf.infolist():
@@ -998,11 +1346,13 @@ def _build_hlmp_from_mod_entries(
     author: str = "",
     resourcepack_entries: Optional[List[Dict[str, Any]]] = None,
     shaderpack_entries: Optional[List[Dict[str, Any]]] = None,
+    datapack_entries: Optional[List[Dict[str, Any]]] = None,
 ) -> Optional[bytes]:
     out = io.BytesIO()
     data_mods = []
     data_resourcepacks = []
     data_shaderpacks = []
+    data_datapacks = []
 
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as out_zip:
         for entry in mod_entries:
@@ -1053,8 +1403,9 @@ def _build_hlmp_from_mod_entries(
 
         data_resourcepacks = _write_extra_entries("resourcepacks", resourcepack_entries)
         data_shaderpacks = _write_extra_entries("shaderpacks", shaderpack_entries)
+        data_datapacks = _write_extra_entries("datapacks", datapack_entries)
 
-        if not data_mods:
+        if not (data_mods or data_resourcepacks or data_shaderpacks or data_datapacks):
             return None
 
         out_zip.writestr(
@@ -1072,6 +1423,8 @@ def _build_hlmp_from_mod_entries(
                     "resourcepacks": data_resourcepacks,
                     "shaderpack_count": len(data_shaderpacks),
                     "shaderpacks": data_shaderpacks,
+                    "datapack_count": len(data_datapacks),
+                    "datapacks": data_datapacks,
                 },
                 indent=2,
             ),
@@ -1101,15 +1454,7 @@ def _convert_mrpack_to_hlmp(
         return {"ok": False, "error": "Invalid .mrpack: corrupt modrinth.index.json"}
 
     dependencies = index_data.get("dependencies") if isinstance(index_data, dict) else {}
-    mod_loader = ""
-    if isinstance(dependencies, dict):
-        dep_keys = list(dependencies.keys())
-        dep_values = [str(v) for v in dependencies.values()]
-        for key in dep_keys + dep_values:
-            guessed = _guess_loader_from_text(key)
-            if guessed:
-                mod_loader = guessed
-                break
+    mod_loader = _loader_from_modrinth_dependencies(dependencies)
     if not mod_loader:
         mod_loader = _guess_loader_from_text(file_name)
     if mod_loader not in SUPPORTED_MOD_LOADERS:
@@ -1126,10 +1471,12 @@ def _convert_mrpack_to_hlmp(
     used_slugs = set()
     used_resourcepack_slugs = set()
     used_shaderpack_slugs = set()
+    used_datapack_slugs = set()
     seen_file_names = set()
     entries = []
     resourcepack_entries = []
     shaderpack_entries = []
+    datapack_entries = []
 
     if isinstance(files, list):
         total_files = len(files)
@@ -1159,6 +1506,8 @@ def _convert_mrpack_to_hlmp(
                 entry_addon_type = "resourcepacks"
             elif lower_rel_path.startswith("shaderpacks/"):
                 entry_addon_type = "shaderpacks"
+            elif lower_rel_path.startswith("datapacks/"):
+                entry_addon_type = "datapacks"
             else:
                 downloaded_files += 1
                 if progress_callback: progress_callback(downloaded_files, total_files)
@@ -1210,8 +1559,10 @@ def _convert_mrpack_to_hlmp(
                 slug_set = used_slugs
             elif entry_addon_type == "resourcepacks":
                 slug_set = used_resourcepack_slugs
-            else:
+            elif entry_addon_type == "shaderpacks":
                 slug_set = used_shaderpack_slugs
+            else:
+                slug_set = used_datapack_slugs
             slug = _ensure_unique_mod_slug(_slugify_mod_name(archive_name), slug_set)
             converted_entry = {
                 "mod_slug": slug,
@@ -1224,8 +1575,10 @@ def _convert_mrpack_to_hlmp(
                 entries.append(converted_entry)
             elif entry_addon_type == "resourcepacks":
                 resourcepack_entries.append(converted_entry)
-            else:
+            elif entry_addon_type == "shaderpacks":
                 shaderpack_entries.append(converted_entry)
+            else:
+                datapack_entries.append(converted_entry)
 
             downloaded_files += 1
             if progress_callback:
@@ -1255,6 +1608,7 @@ def _convert_mrpack_to_hlmp(
     for addon_type, target_entries, slug_set in (
         ("resourcepacks", resourcepack_entries, used_resourcepack_slugs),
         ("shaderpacks", shaderpack_entries, used_shaderpack_slugs),
+        ("datapacks", datapack_entries, used_datapack_slugs),
     ):
         for _normalized_path, archive_name, file_bytes in _collect_bundled_addon_archives(zf, addon_type):
             if archive_name.lower() in seen_file_names:
@@ -1269,11 +1623,14 @@ def _convert_mrpack_to_hlmp(
                 "file_bytes": file_bytes,
             })
 
-    if not entries:
+    if not entries and not (resourcepack_entries or shaderpack_entries or datapack_entries):
         details = ""
         if warnings:
             details = f" Details: {warnings[0]}"
-        return {"ok": False, "error": f"No importable mod files found in .mrpack.{details}"}
+        return {"ok": False, "error": f"No importable content found in .mrpack.{details}"}
+
+    if not entries and (resourcepack_entries or shaderpack_entries or datapack_entries):
+        mod_loader = "vanilla"
 
     hlmp_bytes = _build_hlmp_from_mod_entries(
         pack_name,
@@ -1284,6 +1641,7 @@ def _convert_mrpack_to_hlmp(
         author=author,
         resourcepack_entries=resourcepack_entries,
         shaderpack_entries=shaderpack_entries,
+        datapack_entries=datapack_entries,
     )
     if not hlmp_bytes:
         return {"ok": False, "error": "Failed to convert .mrpack into importable modpack format"}
@@ -1373,9 +1731,11 @@ def _convert_generic_zip_to_hlmp(
     used_slugs = set()
     used_resourcepack_slugs = set()
     used_shaderpack_slugs = set()
+    used_datapack_slugs = set()
     entries = []
     resourcepack_entries = []
     shaderpack_entries = []
+    datapack_entries = []
     seen_file_names = set()
 
     for normalized_path, archive_name, file_bytes in bundled:
@@ -1405,6 +1765,7 @@ def _convert_generic_zip_to_hlmp(
     for addon_type, target_entries, slug_set in (
         ("resourcepacks", resourcepack_entries, used_resourcepack_slugs),
         ("shaderpacks", shaderpack_entries, used_shaderpack_slugs),
+        ("datapacks", datapack_entries, used_datapack_slugs),
     ):
         for _normalized_path, archive_name, file_bytes in _collect_bundled_addon_archives(zf, addon_type):
             if archive_name.lower() in seen_file_names:
@@ -1438,9 +1799,12 @@ def _convert_generic_zip_to_hlmp(
             "file_bytes": entry.get("file_bytes"),
         })
 
-    if not entries:
+    if not entries and not (resourcepack_entries or shaderpack_entries or datapack_entries):
         details = f" Details: {warnings[0]}" if warnings else ""
-        return {"ok": False, "error": f"No importable mod files found in zip.{details}"}
+        return {"ok": False, "error": f"No importable content found in zip.{details}"}
+
+    if not entries and (resourcepack_entries or shaderpack_entries or datapack_entries):
+        mod_loader = "vanilla"
 
     hlmp_bytes = _build_hlmp_from_mod_entries(
         pack_name,
@@ -1451,6 +1815,7 @@ def _convert_generic_zip_to_hlmp(
         author=author,
         resourcepack_entries=resourcepack_entries,
         shaderpack_entries=shaderpack_entries,
+        datapack_entries=datapack_entries,
     )
     if not hlmp_bytes:
         return {"ok": False, "error": "Failed to convert zip into importable modpack format"}

@@ -210,8 +210,6 @@ def _build_texture_property_cape_url(
         ident = identifiers[0] if identifiers else ""
         if ident:
             if _cape_requires_minecraft_texture_host(version_identifier):
-                # Old SkinManagers cache textures by MinecraftProfileTexture.getHash(),
-                # which is the URL basename; keep cape distinct from skin.
                 ident = f"{ident}_cape"
             return _build_public_cape_url(ident, port)
 

@@ -6,20 +6,16 @@ import re
 import shutil
 import tempfile
 import threading
-import tkinter
 import urllib.request
 import zipfile
 from itertools import zip_longest
-from tkinter import ttk
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import _apply_url_proxy
 from core.zip_utils import safe_extract_zip
 
 from launcher._constants import ICO_PATH, PROJECT_ROOT, REMOTE_TIMEOUT
-from launcher.dispatcher import create_tk_ui_dispatcher
 from launcher.i18n import t, tk_direction_options
-from launcher.theme import themed_colors
 
 
 __all__ = [
@@ -94,7 +90,7 @@ def fetch_github_releases(
                 continue
         return []
     except Exception as e:
-        print(colorize_log(f"[launcher] Error fetching GitHub releases: {e}"))
+        safe_print(f"[launcher] Error fetching GitHub releases: {e}")
         return []
 
 
@@ -180,9 +176,14 @@ def _restore_backup_zip(backup_zip_path, project_root):
         safe_extract_zip(zf, project_root)
 
 
+_UPDATE_PRESERVE_DIRS = {".git", "venv", ".venv", "__pycache__"}
+
+
 def _clear_project_root(project_root):
     root_real = os.path.realpath(project_root)
     for entry_name in os.listdir(project_root):
+        if entry_name in _UPDATE_PRESERVE_DIRS:
+            continue
         entry_path = os.path.join(project_root, entry_name)
         entry_real = os.path.realpath(entry_path)
         if os.path.commonpath([root_real, entry_real]) != root_real:
@@ -195,7 +196,18 @@ def _clear_project_root(project_root):
 
 def perform_self_update(release, current_version):
     result = {"success": False, "error": None}
-    root = tkinter.Tk()
+    try:
+        import tkinter
+        from tkinter import ttk
+
+        from launcher.dispatcher import create_tk_ui_dispatcher
+        from launcher.theme import themed_colors
+
+        root = tkinter.Tk()
+    except Exception as exc:
+        result["error"] = f"GUI updater unavailable: {exc}"
+        safe_print(f"[updater] {result['error']}")
+        return result
     queue_ui, start_ui_dispatcher, stop_ui_dispatcher = create_tk_ui_dispatcher(root)
 
     def ui_log(line):
@@ -238,7 +250,8 @@ def perform_self_update(release, current_version):
             queue_ui(lambda: ui_progress(2, t("native.updater.creatingBackup")))
 
             project_files = []
-            for base, _, files in os.walk(PROJECT_ROOT):
+            for base, dirs, files in os.walk(PROJECT_ROOT):
+                dirs[:] = [d for d in dirs if d not in _UPDATE_PRESERVE_DIRS]
                 for file_name in files:
                     abs_path = os.path.join(base, file_name)
                     rel_path = os.path.relpath(abs_path, PROJECT_ROOT)
@@ -305,36 +318,43 @@ def perform_self_update(release, current_version):
                 raise last_download_error
 
             queue_ui(lambda: ui_log(t("native.updater.downloaded", {"path": download_path})))
-            queue_ui(lambda: ui_progress(56, t("native.updater.clearing")))
-            _clear_project_root(PROJECT_ROOT)
-            queue_ui(lambda: ui_progress(60, t("native.updater.applying")))
 
-            with zipfile.ZipFile(download_path, "r") as update_zip:
-                members = [i for i in update_zip.infolist() if not i.is_dir()]
-                member_names = [m.filename for m in members]
-                top_level = _strip_single_top_level_folder(member_names)
+            staging_dir = tempfile.mkdtemp(prefix="histolauncher_update_")
+            try:
+                queue_ui(lambda: ui_progress(56, t("native.updater.applying")))
+                with zipfile.ZipFile(download_path, "r") as update_zip:
+                    members = [i for i in update_zip.infolist() if not i.is_dir()]
+                    member_names = [m.filename for m in members]
+                    top_level = _strip_single_top_level_folder(member_names)
 
-                def _name_transform(name, _info):
-                    rel_name = name
-                    if top_level and rel_name.startswith(top_level + "/"):
-                        rel_name = rel_name[len(top_level) + 1:]
-                    rel_name = rel_name.strip("/")
-                    return rel_name or None
+                    def _name_transform(name, _info):
+                        rel_name = name
+                        if top_level and rel_name.startswith(top_level + "/"):
+                            rel_name = rel_name[len(top_level) + 1:]
+                        rel_name = rel_name.strip("/")
+                        return rel_name or None
 
-                def _progress_cb(done, total, _name, _info):
-                    pct = 60 + int((done / max(1, total)) * 38)
-                    queue_ui(
-                        lambda p=pct: ui_progress(
-                            p, t("native.updater.applyingProgress", {"percent": p})
+                    def _progress_cb(done, total, _name, _info):
+                        pct = 56 + int((done / max(1, total)) * 34)
+                        queue_ui(
+                            lambda p=pct: ui_progress(
+                                p, t("native.updater.applyingProgress", {"percent": p})
+                            )
                         )
+
+                    safe_extract_zip(
+                        update_zip,
+                        staging_dir,
+                        name_transform=_name_transform,
+                        progress_cb=_progress_cb,
                     )
 
-                safe_extract_zip(
-                    update_zip,
-                    PROJECT_ROOT,
-                    name_transform=_name_transform,
-                    progress_cb=_progress_cb,
-                )
+                queue_ui(lambda: ui_progress(92, t("native.updater.clearing")))
+                _clear_project_root(PROJECT_ROOT)
+                queue_ui(lambda: ui_progress(96, t("native.updater.applying")))
+                shutil.copytree(staging_dir, PROJECT_ROOT, dirs_exist_ok=True)
+            finally:
+                shutil.rmtree(staging_dir, ignore_errors=True)
 
             queue_ui(lambda: ui_progress(100, t("native.updater.complete")))
             queue_ui(lambda: ui_log(t("native.updater.completedLog")))
@@ -465,8 +485,6 @@ def should_prompt_update(local_ver, remote_ver):
     cmp_result = _compare_numeric_versions(l_num, r_num)
     if cmp_result > 0:
         return True, "newer_available"
-    if cmp_result == 0 and str(remote_ver).strip() > str(local_ver).strip():
-        return True, "newer_available_lexical"
 
     return False, "up_to_date"
 

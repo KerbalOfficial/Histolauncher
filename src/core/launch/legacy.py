@@ -9,7 +9,7 @@ import tempfile
 import urllib.request
 import zipfile
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import get_base_dir
 from core.subprocess_utils import no_window_kwargs
 
@@ -102,8 +102,7 @@ def _legacy_forge_has_fml(version_dir: str, loader_version: str = None) -> bool:
 
 def _legacy_forge_requires_modloader(version_dir: str, loader_version: str = None) -> bool:
     version_name = os.path.basename(version_dir.rstrip(os.sep))
-    major, minor = _parse_mc_version(version_name)
-    if not (major == 1 and minor is not None and minor < 6):
+    if not _is_legacy_pre16_runtime(version_name):
         return False
     return not _legacy_forge_has_fml(version_dir, loader_version)
 
@@ -218,10 +217,10 @@ def _prepare_legacy_modloader_runtime_directory(version_dir: str) -> str:
             shutil.rmtree(extract_dir)
         os.makedirs(os.path.dirname(abs_extract_dir), exist_ok=True)
         shutil.move(tmp_dir, extract_dir)
-        print(colorize_log(
+        safe_print(
             f"[launcher] Prepared extracted legacy ModLoader runtime directory from "
             f"{os.path.basename(runtime_jar)} ({extracted_count} entries)"
-        ))
+        )
         return os.path.relpath(extract_dir, version_dir).replace("\\", "/")
     except Exception as e:
         try:
@@ -229,9 +228,9 @@ def _prepare_legacy_modloader_runtime_directory(version_dir: str) -> str:
                 shutil.rmtree(tmp_dir)
         except OSError:
             pass
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not prepare extracted ModLoader runtime directory: {e}"
-        ))
+        )
         return ""
 
 
@@ -277,7 +276,7 @@ def _read_fml_version_properties(version_dir: str, loader_version: str = None) -
             except KeyError:
                 return {}
     except Exception as e:
-        print(colorize_log(f"[launcher] Warning: Could not read fmlversion.properties: {e}"))
+        safe_print(f"[launcher] Warning: Could not read fmlversion.properties: {e}")
         return {}
 
     props: dict = {}
@@ -352,9 +351,9 @@ def _legacy_forge_lib_copy_targets(version_dir: str, loader_version: str = None)
         with open(profile_path, "r", encoding="utf-8") as f:
             profile_data = json.load(f)
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not parse legacy Forge install_profile.json: {e}"
-        ))
+        )
         return _fallback_targets_from_filesystem()
 
     libraries = ((profile_data.get("versionInfo") or {}).get("libraries") or [])
@@ -428,7 +427,7 @@ def _download_legacy_forge_file(dest_path: str, file_name: str, expected_sha1: s
     for url in expanded_urls:
         tmp_path = None
         try:
-            print(colorize_log(f"[launcher] Downloading legacy Forge support file: {url}"))
+            safe_print(f"[launcher] Downloading legacy Forge support file: {url}")
             fd, tmp_path = tempfile.mkstemp(prefix="legacy_forge_", suffix=".tmp")
             os.close(fd)
 
@@ -440,22 +439,22 @@ def _download_legacy_forge_file(dest_path: str, file_name: str, expected_sha1: s
 
             actual_sha1 = _sha1_file(tmp_path)
             if expected_sha1 and actual_sha1.lower() != expected_sha1.lower():
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Warning: Legacy support file checksum mismatch for "
                     f"{file_name}: expected {expected_sha1}, got {actual_sha1}"
-                ))
+                )
                 continue
 
             shutil.move(tmp_path, dest_path)
             tmp_path = None
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Cached legacy Forge support file: {os.path.basename(dest_path)}"
-            ))
+            )
             return True
         except Exception as e:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Warning: Could not download {file_name} from {url}: {e}"
-            ))
+            )
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 try:
@@ -485,11 +484,11 @@ def _prepare_legacy_forge_runtime_files(
                 if _sha1_file(dst_path) == _sha1_file(src_path):
                     continue
             shutil.copy2(src_path, dst_path)
-            print(colorize_log(f"[launcher] Seeded legacy FML library: {dst_name}"))
+            safe_print(f"[launcher] Seeded legacy FML library: {dst_name}")
         except Exception as e:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Warning: Could not seed legacy FML library {dst_name}: {e}"
-            ))
+            )
 
     fml_props = _read_fml_version_properties(version_dir, actual_loader_version)
     mc_version = fml_props.get("fmlbuild.mcversion", "").strip()
@@ -501,9 +500,9 @@ def _prepare_legacy_forge_runtime_files(
     deobf_dest = os.path.join(lib_dir, deobf_name)
     try:
         if os.path.exists(deobf_dest) and _sha1_file(deobf_dest) == deobf_hash:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Legacy deobfuscation data already present: {deobf_name}"
-            ))
+            )
             return
     except Exception:
         pass
@@ -525,11 +524,11 @@ def _prepare_legacy_forge_runtime_files(
     if cached_valid:
         try:
             shutil.copy2(cached_deobf, deobf_dest)
-            print(colorize_log(f"[launcher] Seeded legacy deobfuscation data: {deobf_name}"))
+            safe_print(f"[launcher] Seeded legacy deobfuscation data: {deobf_name}")
         except Exception as e:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Warning: Could not place legacy deobfuscation data: {e}"
-            ))
+            )
 
 
 def _is_windows_directory_junction(path: str) -> bool:
@@ -571,9 +570,9 @@ def _remove_legacy_resources_root(path: str) -> None:
         except Exception:
             pass
         if _is_windows_directory_junction(path):
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Warning: Could not remove legacy resources junction: {path}"
-            ))
+            )
             return
 
     try:
@@ -582,7 +581,7 @@ def _remove_legacy_resources_root(path: str) -> None:
         else:
             os.remove(path)
     except Exception as e:
-        print(colorize_log(f"[launcher] Warning: Could not clear legacy resources root: {e}"))
+        safe_print(f"[launcher] Warning: Could not clear legacy resources root: {e}")
 
 
 def _create_legacy_resources_junction(link_path: str, source_dir: str) -> bool:
@@ -599,14 +598,14 @@ def _create_legacy_resources_junction(link_path: str, source_dir: str) -> bool:
             **no_window_kwargs(),
         )
         if result.returncode == 0 and os.path.isdir(link_path):
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Linked legacy resources directory using Windows junction: {link_path} -> {source_dir}"
-            ))
+            )
             return True
         detail = (result.stderr or result.stdout or "junction command failed").strip()
-        print(colorize_log(f"[launcher] Warning: Could not junction legacy resources: {detail}"))
+        safe_print(f"[launcher] Warning: Could not junction legacy resources: {detail}")
     except Exception as e:
-        print(colorize_log(f"[launcher] Warning: Could not junction legacy resources: {e}"))
+        safe_print(f"[launcher] Warning: Could not junction legacy resources: {e}")
     return False
 
 
@@ -638,9 +637,9 @@ def _seed_legacy_game_resources(staged_assets_dir: str, game_dir: str) -> None:
         else:
             try:
                 os.symlink(staged_assets_dir, target_dir, target_is_directory=True)
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Linked legacy game resources to staged assets: {target_dir} -> {staged_assets_dir}"
-                ))
+                )
                 return
             except Exception:
                 if _create_legacy_resources_junction(target_dir, staged_assets_dir):
@@ -690,10 +689,10 @@ def _seed_legacy_game_resources(staged_assets_dir: str, game_dir: str) -> None:
                 skipped_count += 1
 
     if linked_count or copied_count or reused_count or skipped_count:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Seeded legacy game resources in {target_dir} "
             f"(linked {linked_count}, copied {copied_count}, reused {reused_count}, skipped {skipped_count})"
-        ))
+        )
 
 
 def _prepare_legacy_assets_directory(
@@ -712,23 +711,23 @@ def _prepare_legacy_assets_directory(
     base_dir = get_base_dir()
     index_path = os.path.join(base_dir, "assets", "indexes", f"{asset_index_name}.json")
     if not os.path.exists(index_path):
-        print(colorize_log(f"[launcher] Warning: Legacy asset index not found: {index_path}"))
+        safe_print(f"[launcher] Warning: Legacy asset index not found: {index_path}")
         return ""
 
     try:
         with open(index_path, "r", encoding="utf-8") as f:
             index_data = json.load(f)
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not read legacy asset index {asset_index_name}: {e}"
-        ))
+        )
         return ""
 
     objects = index_data.get("objects") or {}
     if not isinstance(objects, dict) or not objects:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Legacy asset index {asset_index_name} has no objects"
-        ))
+        )
         return ""
 
     staged_assets_dir = os.path.join(version_dir, "resources")
@@ -741,14 +740,14 @@ def _prepare_legacy_assets_directory(
         _remove_legacy_resources_root(legacy_resources_root)
         try:
             os.symlink(source_dir, legacy_resources_root, target_is_directory=True)
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Linked legacy resources root to {source_dir}"
-            ))
+            )
             return True
         except Exception as e:
             if _create_legacy_resources_junction(legacy_resources_root, source_dir):
                 return True
-            print(colorize_log(f"[launcher] Warning: Could not link legacy resources: {e}"))
+            safe_print(f"[launcher] Warning: Could not link legacy resources: {e}")
             return False
 
     _set_legacy_resources_link(staged_assets_dir)
@@ -799,10 +798,10 @@ def _prepare_legacy_assets_directory(
             except Exception:
                 missing_count += 1
 
-    print(colorize_log(
+    safe_print(
         f"[launcher] Prepared legacy assets in {staged_assets_dir} "
         f"(linked {linked_count}, copied {copied_count}, missing {missing_count})"
-    ))
+    )
     _seed_legacy_game_resources(staged_assets_dir, game_dir)
 
     return staged_assets_dir
@@ -844,15 +843,15 @@ def _prepare_legacy_client_resources(version_dir: str, staged_assets_dir: str) -
                     shutil.copyfileobj(src, dst)
                 extracted_count += 1
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not prepare legacy client resources: {e}"
-        ))
+        )
         return
 
-    print(colorize_log(
+    safe_print(
         f"[launcher] Prepared legacy client.jar resources in {staged_assets_dir} "
         f"(extracted {extracted_count}, reused {skipped_count})"
-    ))
+    )
 
 
 def _prepare_legacy_unsigned_client_jar(version_dir: str) -> str:
@@ -898,9 +897,9 @@ def _prepare_legacy_unsigned_client_jar(version_dir: str) -> str:
                 with src_zip.open(entry, "r") as src_file:
                     dst_zip.writestr(name, src_file.read())
         os.replace(tmp_path, unsigned_path)
-        print(colorize_log(
+        safe_print(
             "[launcher] Prepared unsigned legacy client.jar (removed META-INF signature data)"
-        ))
+        )
         return os.path.relpath(unsigned_path, version_dir).replace("\\", "/")
     except Exception as e:
         try:
@@ -908,9 +907,9 @@ def _prepare_legacy_unsigned_client_jar(version_dir: str) -> str:
                 os.remove(tmp_path)
         except OSError:
             pass
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not prepare unsigned legacy client.jar: {e}"
-        ))
+        )
         return ""
 
 
@@ -2234,9 +2233,9 @@ def _prepare_legacy_applet_window_patch(version_dir: str) -> str:
                 for helper_name, helper_payload in _legacy_applet_display_sync_classes().items():
                     dst_zip.writestr(helper_name, helper_payload)
         os.replace(tmp_path, patch_path)
-        print(colorize_log(
+        safe_print(
             "[launcher] Prepared legacy applet window patch for maximized startup and resize sync"
-        ))
+        )
         return os.path.relpath(patch_path, version_dir).replace("\\", "/")
     except Exception as e:
         try:
@@ -2244,9 +2243,9 @@ def _prepare_legacy_applet_window_patch(version_dir: str) -> str:
                 os.remove(tmp_path)
         except OSError:
             pass
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not prepare legacy applet window patch: {e}"
-        ))
+        )
         return ""
 
 
@@ -2442,9 +2441,9 @@ def _prepare_legacy_direct_buffer_sound_patch(version_dir: str) -> str:
             for name, patched in patched_payloads.items():
                 dst_zip.writestr(name, patched)
         os.replace(tmp_path, patch_path)
-        print(colorize_log(
+        safe_print(
             "[launcher] Prepared legacy direct-buffer sound patch for old OpenAL runtime"
-        ))
+        )
         return os.path.relpath(patch_path, version_dir).replace("\\", "/")
     except Exception as e:
         try:
@@ -2452,9 +2451,9 @@ def _prepare_legacy_direct_buffer_sound_patch(version_dir: str) -> str:
                 os.remove(tmp_path)
         except OSError:
             pass
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not prepare legacy direct-buffer sound patch: {e}"
-        ))
+        )
         return ""
 
 
@@ -2493,20 +2492,20 @@ def _prepare_legacy_options_file(version_identifier: str, game_dir: str) -> None
             os.makedirs(game_dir, exist_ok=True)
             with open(options_path, "w", encoding="utf-8") as f:
                 f.write(f"{default_music_line}\n{default_sound_line}\nlang:en_US\n")
-            print(colorize_log(
+            safe_print(
                 "[launcher] Created legacy options.txt with audio defaults and lang:en_US"
-            ))
+            )
         except Exception as e:
-            print(colorize_log(f"[launcher] Warning: Could not create legacy options.txt: {e}"))
+            safe_print(f"[launcher] Warning: Could not create legacy options.txt: {e}")
         return
 
     try:
         with open(options_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not read options.txt for legacy normalization: {e}"
-        ))
+        )
         return
 
     changed = False
@@ -2522,16 +2521,16 @@ def _prepare_legacy_options_file(version_identifier: str, game_dir: str) -> None
             continue
         if ":" not in line:
             changed = True
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Removed malformed legacy option line: {line}"
-            ))
+            )
             continue
 
         key, value = line.split(":", 1)
         if key == "lastServer" and value == "":
             normalized_lines.append("lastServer: \n")
             changed = True
-            print(colorize_log("[launcher] Normalized empty legacy lastServer option"))
+            safe_print("[launcher] Normalized empty legacy lastServer option")
         elif line.startswith("music:"):
             found_music = True
             normalized_lines.append(raw_line if raw_line.endswith("\n") else (raw_line + "\n"))
@@ -2544,9 +2543,9 @@ def _prepare_legacy_options_file(version_identifier: str, game_dir: str) -> None
             normalized = _normalize_legacy_language_code(current)
             if normalized != current:
                 changed = True
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Normalized legacy lang option: {current} -> {normalized}"
-                ))
+                )
             normalized_lines.append(f"lang:{normalized}\n")
         else:
             normalized_lines.append(raw_line if raw_line.endswith("\n") else (raw_line + "\n"))
@@ -2554,18 +2553,18 @@ def _prepare_legacy_options_file(version_identifier: str, game_dir: str) -> None
     if not found_music:
         normalized_lines.insert(0, f"{default_music_line}\n")
         changed = True
-        print(colorize_log(f"[launcher] Added missing legacy music option: {default_music_line}"))
+        safe_print(f"[launcher] Added missing legacy music option: {default_music_line}")
 
     if not found_sound:
         insert_at = 1 if not found_music else 0
         normalized_lines.insert(insert_at, f"{default_sound_line}\n")
         changed = True
-        print(colorize_log(f"[launcher] Added missing legacy sound option: {default_sound_line}"))
+        safe_print(f"[launcher] Added missing legacy sound option: {default_sound_line}")
 
     if not found_lang:
         normalized_lines.append("lang:en_US\n")
         changed = True
-        print(colorize_log("[launcher] Added missing legacy lang option: en_US"))
+        safe_print("[launcher] Added missing legacy lang option: en_US")
 
     if not changed:
         return
@@ -2574,9 +2573,9 @@ def _prepare_legacy_options_file(version_identifier: str, game_dir: str) -> None
         with open(options_path, "w", encoding="utf-8") as f:
             f.writelines(normalized_lines)
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not write normalized options.txt: {e}"
-        ))
+        )
 
 
 def _prepare_legacy_forge_merged_client_jar(
@@ -2605,10 +2604,10 @@ def _prepare_legacy_forge_merged_client_jar(
     if _legacy_forge_requires_modloader(version_dir, actual_loader_version):
         modloader_jar = _find_modloader_runtime_jar(version_dir)
         if modloader_jar:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Found ModLoader runtime for legacy Forge: "
                 f"{os.path.basename(modloader_jar)}"
-            ))
+            )
 
     merge_dir = os.path.join(
         version_dir, "loaders", "forge", actual_loader_version, ".legacy_merged"
@@ -2668,11 +2667,11 @@ def _prepare_legacy_forge_merged_client_jar(
             modloader_count = _copy_jar_entries(modloader_jar, skip_existing=True)
         client_count = _copy_jar_entries(client_jar, skip_existing=True)
         os.replace(tmp_path, merged_path)
-        print(colorize_log(
+        safe_print(
             f"[launcher] Prepared legacy merged Forge jar: {merged_name} "
             f"(fml entries {fml_count}, modloader entries {modloader_count}, "
             f"forge entries {forge_count}, client fallback entries {client_count})"
-        ))
+        )
 
         _patch_fml_library_hashes(merged_path)
 
@@ -2682,9 +2681,9 @@ def _prepare_legacy_forge_merged_client_jar(
                 os.remove(tmp_path)
         except OSError:
             pass
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not prepare legacy merged Forge jar: {e}"
-        ))
+        )
         return ""
 
     return os.path.relpath(merged_path, version_dir).replace("\\", "/")
@@ -2721,14 +2720,14 @@ def _patch_fml_library_hashes(merged_jar_path: str) -> None:
                 else:
                     zout.writestr(item, zin.read(item.filename))
         os.replace(tmp_path, merged_jar_path)
-        print(colorize_log(
+        safe_print(
             "[launcher] Patched CoreFMLLibraries.class in merged jar "
             "(updated dead fmllibs checksums to Maven Central equivalents)"
-        ))
+        )
     except Exception as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: Could not patch FML library hashes: {e}"
-        ))
+        )
 
 
 _FML_LIBRARIES = [
@@ -2771,7 +2770,7 @@ def _stage_legacy_fml_libraries(game_dir: str) -> None:
                 pass
 
         try:
-            print(colorize_log(f"[launcher] Downloading FML library: {lib['name']}"))
+            safe_print(f"[launcher] Downloading FML library: {lib['name']}")
             data = None
             last_error = None
             for candidate_url in _iter_proxy_url_candidates(lib["url"]):
@@ -2790,15 +2789,15 @@ def _stage_legacy_fml_libraries(game_dir: str) -> None:
 
             actual = hashlib.sha1(data).hexdigest()
             if actual != lib["sha1"]:
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Warning: SHA1 mismatch for {lib['name']} "
                     f"(got {actual}, expected {lib['sha1']})"
-                ))
+                )
                 continue
             with open(dest, "wb") as f:
                 f.write(data)
-            print(colorize_log(f"[launcher] Staged FML library: {lib['name']}"))
+            safe_print(f"[launcher] Staged FML library: {lib['name']}")
         except Exception as e:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Warning: Could not download {lib['name']}: {e}"
-            ))
+            )

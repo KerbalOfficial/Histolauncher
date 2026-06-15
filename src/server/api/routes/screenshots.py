@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import normalize_custom_storage_directory
 
 
@@ -36,7 +36,7 @@ def api_screenshots_storage_options(data=None):
             "options": screenshots.list_screenshot_storage_options(custom_path=custom_path),
         }
     except Exception as exc:
-        print(colorize_log(f"[api] Failed to load screenshot storage options: {exc}"))
+        safe_print(f"[api] Failed to load screenshot storage options: {exc}")
         return {"ok": False, "error": str(exc), "options": []}
 
 
@@ -56,7 +56,7 @@ def api_screenshots_installed(data=None):
             "error": result.get("error", ""),
         }
     except Exception as exc:
-        print(colorize_log(f"[api] Failed to load screenshots: {exc}"))
+        safe_print(f"[api] Failed to load screenshots: {exc}")
         return {"ok": False, "error": str(exc), "screenshots": []}
 
 
@@ -80,7 +80,7 @@ def api_screenshots_update(data=None):
             new_name=new_name,
         )
     except Exception as exc:
-        print(colorize_log(f"[api] Failed to update screenshot: {exc}"))
+        safe_print(f"[api] Failed to update screenshot: {exc}")
         return {"ok": False, "error": str(exc)}
 
 
@@ -100,7 +100,7 @@ def api_screenshots_delete(data=None):
             custom_path=custom_path,
         )
     except Exception as exc:
-        print(colorize_log(f"[api] Failed to delete screenshot: {exc}"))
+        safe_print(f"[api] Failed to delete screenshot: {exc}")
         return {"ok": False, "error": str(exc)}
 
 
@@ -120,5 +120,5 @@ def api_screenshots_open(data=None):
             custom_path=custom_path,
         )
     except Exception as exc:
-        print(colorize_log(f"[api] Failed to open screenshot: {exc}"))
+        safe_print(f"[api] Failed to open screenshot: {exc}")
         return {"ok": False, "error": str(exc)}

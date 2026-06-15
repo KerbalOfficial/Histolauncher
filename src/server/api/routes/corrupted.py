@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.version_manager import get_clients_dir, scan_categories
 
 from server.api._helpers import _resolve_version_dir_secure
@@ -104,7 +104,7 @@ def api_delete_corrupted_versions(data):
             try:
                 shutil.rmtree(version_path)
                 deleted.append({"category": category, "folder": folder})
-                print(colorize_log(f"[api] Deleted corrupted version: {category}/{folder}"))
+                safe_print(f"[api] Deleted corrupted version: {category}/{folder}")
             except Exception as e:
                 failed.append({"error": str(e), "category": category, "folder": folder})
 

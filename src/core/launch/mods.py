@@ -7,7 +7,7 @@ import tempfile
 import time
 
 from core.launch.constants import COPIED_SUFFIX
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import _apply_url_proxy
 
 __all__ = [
@@ -27,7 +27,7 @@ __all__ = [
 
 
 def _is_supported_mod_archive(filename: str) -> bool:
-    return str(filename or "").lower().endswith((".jar", ".zip"))
+    return str(filename or "").lower().endswith((".jar", ".zip", ".litemod"))
 
 
 def _is_histolauncher_copied_mod_filename(filename: str) -> bool:
@@ -65,7 +65,7 @@ def _cleanup_stale_histolauncher_copied_mods(target_mods_dir: str) -> int:
                 os.remove(entry_path)
             removed_count += 1
         except Exception as e:
-            print(colorize_log(f"[mods] Warning: Failed to remove stale tracked mod {entry}: {e}"))
+            safe_print(f"[addons] Warning: Failed to remove stale tracked mod {entry}: {e}")
 
     return removed_count
 
@@ -169,24 +169,24 @@ def _prepare_modloader_overwrite_layer(target_loader: str = "modloader") -> str:
                         preferred_file_name=file_name,
                     )
                 except Exception as e:
-                    print(colorize_log(
-                        f"[mods] Warning: Could not apply {loader_label} overwrite layer for {mod_slug}: {e}"
-                    ))
+                    safe_print(
+                        f"[addons] Warning: Could not apply {loader_label} overwrite layer for {mod_slug}: {e}"
+                    )
                     continue
 
                 if extracted_count > 0:
                     total_files += extracted_count
                     applied_mods += 1
                     source_display = source_subfolder or "/ (default)"
-                    print(colorize_log(
-                        f"[mods] Applied {loader_label} overwrite layer: {mod_slug} "
+                    safe_print(
+                        f"[addons] Applied {loader_label} overwrite layer: {mod_slug} "
                         f"({source_display}, {extracted_count} files)"
-                    ))
+                    )
                 else:
-                    print(colorize_log(
-                        f"[mods] Warning: overwrite_classes enabled for {mod_slug}, "
+                    safe_print(
+                        f"[addons] Warning: overwrite_classes enabled for {mod_slug}, "
                         "but no files were extracted"
-                    ))
+                    )
 
         if has_modpacks:
             for pack_slug in sorted(os.listdir(modpacks_dir)):
@@ -259,10 +259,10 @@ def _prepare_modloader_overwrite_layer(target_loader: str = "modloader") -> str:
                                 break
 
                     if not archive_path:
-                        print(colorize_log(
-                            f"[mods] Warning: overwrite_classes enabled for "
+                        safe_print(
+                            f"[addons] Warning: overwrite_classes enabled for "
                             f"modpack {pack_slug}/{pm_slug}, but no jar file found"
-                        ))
+                        )
                         continue
 
                     try:
@@ -270,38 +270,38 @@ def _prepare_modloader_overwrite_layer(target_loader: str = "modloader") -> str:
                             archive_path, source_subfolder, overlay_dir
                         )
                     except Exception as e:
-                        print(colorize_log(
-                            f"[mods] Warning: Could not apply {loader_label} overwrite "
+                        safe_print(
+                            f"[addons] Warning: Could not apply {loader_label} overwrite "
                             f"layer for modpack {pack_slug}/{pm_slug}: {e}"
-                        ))
+                        )
                         continue
 
                     if extracted_count > 0:
                         total_files += extracted_count
                         applied_mods += 1
                         source_display = source_subfolder or "/ (default)"
-                        print(colorize_log(
-                            f"[mods] Applied {loader_label} overwrite layer (modpack "
+                        safe_print(
+                            f"[addons] Applied {loader_label} overwrite layer (modpack "
                             f"{pack_slug}): {pm_slug} ({source_display}, "
                             f"{extracted_count} files)"
-                        ))
+                        )
                     else:
-                        print(colorize_log(
-                            f"[mods] Warning: overwrite_classes enabled for modpack "
+                        safe_print(
+                            f"[addons] Warning: overwrite_classes enabled for modpack "
                             f"{pack_slug}/{pm_slug}, but no files were extracted"
-                        ))
+                        )
 
         if total_files <= 0:
             shutil.rmtree(overlay_dir, ignore_errors=True)
             return ""
 
-        print(colorize_log(
-            f"[mods] Prepared {loader_label} overwrite classpath layer "
+        safe_print(
+            f"[addons] Prepared {loader_label} overwrite classpath layer "
             f"({applied_mods} mod(s), {total_files} file(s))"
-        ))
+        )
         return overlay_dir
     except Exception as e:
-        print(colorize_log(f"[mods] Warning: Failed to prepare {loader_label} overwrite layer: {e}"))
+        safe_print(f"[addons] Warning: Failed to prepare {loader_label} overwrite layer: {e}")
         if overlay_dir and os.path.isdir(overlay_dir):
             shutil.rmtree(overlay_dir, ignore_errors=True)
         return ""
@@ -324,7 +324,7 @@ def _cleanup_stale_histolauncher_copied_files(target_dir: str, label: str = "add
                 os.remove(entry_path)
             removed_count += 1
         except Exception as e:
-            print(colorize_log(f"[addons] Warning: Failed to remove stale tracked {label} {entry}: {e}"))
+            safe_print(f"[addons] Warning: Failed to remove stale tracked {label} {entry}: {e}")
 
     return removed_count
 
@@ -361,9 +361,9 @@ def _copy_simple_addons_for_launch(game_dir, addon_type):
 
             stale_removed_count = _cleanup_stale_histolauncher_copied_files(target_dir, label=addon_key)
             if stale_removed_count > 0:
-                print(colorize_log(
+                safe_print(
                     f"[addons] Removed {stale_removed_count} stale tracked {addon_key} file(s) before copy ({target_dir_name})"
-                ))
+                )
 
             existing_files = set()
             if os.path.isdir(target_dir):
@@ -410,7 +410,7 @@ def _copy_simple_addons_for_launch(game_dir, addon_type):
                 for target_dir_name, target_dir in prepared_targets:
                     existing_files = existing_files_by_target.setdefault(target_dir_name, set())
                     if filename_lower in existing_files:
-                        print(colorize_log(f"[addons] Skipping {filename} ({target_dir_name} already exists)"))
+                        safe_print(f"[addons] Skipping {filename} ({target_dir_name} already exists)")
                         continue
 
                     dst = os.path.join(target_dir, tracked_filename)
@@ -419,11 +419,11 @@ def _copy_simple_addons_for_launch(game_dir, addon_type):
                         shutil.copy2(src, dst)
                         copied_files.append(dst)
                         existing_files.add(filename_lower)
-                        print(colorize_log(f"[addons] Copied {addon_key} -> {target_dir_name}: {tracked_filename}"))
+                        safe_print(f"[addons] Copied {addon_key} -> {target_dir_name}: {tracked_filename}")
                     except Exception as e:
-                        print(colorize_log(
+                        safe_print(
                             f"[addons] Warning: Failed to copy {addon_key} file {filename} -> {target_dir_name}: {e}"
-                        ))
+                        )
 
         try:
             modpacks_dir = mod_manager.get_modpacks_storage_dir()
@@ -481,24 +481,24 @@ def _copy_simple_addons_for_launch(game_dir, addon_type):
                                     shutil.copy2(src, dst)
                                     copied_files.append(dst)
                                     existing_files.add(filename_lower)
-                                    print(colorize_log(
+                                    safe_print(
                                         f"[addons] Copied {addon_key} from modpack {pack_slug} -> "
                                         f"{target_dir_name}: {tracked_filename}"
-                                    ))
+                                    )
                                 except Exception as e:
-                                    print(colorize_log(
+                                    safe_print(
                                         f"[addons] Warning: Failed to copy modpack {addon_key} file "
                                         f"{filename} -> {target_dir_name}: {e}"
-                                    ))
+                                    )
         except Exception as e:
-            print(colorize_log(f"[addons] Error copying modpack {addon_key}: {e}"))
+            safe_print(f"[addons] Error copying modpack {addon_key}: {e}")
 
         if copied_files:
-            print(colorize_log(f"[addons] Total {addon_key} files copied: {len(copied_files)}"))
+            safe_print(f"[addons] Total {addon_key} files copied: {len(copied_files)}")
 
         return copied_files
     except Exception as e:
-        print(colorize_log(f"[addons] Error copying {addon_key}: {e}"))
+        safe_print(f"[addons] Error copying {addon_key}: {e}")
         return []
 
 
@@ -529,7 +529,7 @@ def _copy_mods_for_launch(game_dir, mod_loader):
 
         stale_removed_count = _cleanup_stale_histolauncher_copied_mods(target_mods_dir)
         if stale_removed_count > 0:
-            print(colorize_log(f"[mods] Removed {stale_removed_count} stale tracked mod(s) before copy"))
+            safe_print(f"[addons] Removed {stale_removed_count} stale tracked mod(s) before copy")
 
         if not os.path.isdir(mods_storage):
             return []
@@ -562,7 +562,7 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                     continue
 
                 if meta.get("disabled", False):
-                    print(colorize_log(f"[mods] Skipping disabled mod: {mod_slug}"))
+                    safe_print(f"[addons] Skipping disabled mod: {mod_slug}")
                     continue
 
                 active_version = meta.get("active_version")
@@ -580,19 +580,19 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                         with open(ver_meta_file, "r", encoding="utf-8") as vf:
                             ver_meta = json.load(vf)
                         if ver_meta.get("mod_loader", "").lower() != mod_loader.lower():
-                            print(colorize_log(
-                                f"[mods] Skipping {mod_slug} v{active_version} "
+                            safe_print(
+                                f"[addons] Skipping {mod_slug} v{active_version} "
                                 f"(loader mismatch: {ver_meta.get('mod_loader')} != {mod_loader})"
-                            ))
+                            )
                             continue
                         overwrite_classes_enabled = bool(ver_meta.get("overwrite_classes", False))
                     except Exception:
                         pass
 
                 if overwrite_classes_enabled:
-                    print(colorize_log(
-                        f"[mods] Skipping {mod_slug} v{active_version} in mods/ staging (overwrite_classes enabled)"
-                    ))
+                    safe_print(
+                        f"[addons] Skipping {mod_slug} v{active_version} in mods/ staging (overwrite_classes enabled)"
+                    )
                     continue
 
                 for filename in os.listdir(version_dir):
@@ -600,7 +600,7 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                         continue
 
                     if filename.lower() in existing_files:
-                        print(colorize_log(f"[mods] Skipping {filename} (already exists)"))
+                        safe_print(f"[addons] Skipping {filename} (already exists)")
                         continue
 
                     tracked_filename = _build_histolauncher_copied_mod_filename(filename)
@@ -612,12 +612,12 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                         shutil.copy2(src, dst)
                         copied_files.append(dst)
                         existing_files.add(filename.lower())
-                        print(colorize_log(f"[mods] Copied: {tracked_filename}"))
+                        safe_print(f"[addons] Copied: {tracked_filename}")
                     except Exception as e:
-                        print(colorize_log(f"[mods] Warning: Failed to copy {filename}: {e}"))
+                        safe_print(f"[addons] Warning: Failed to copy {filename}: {e}")
 
         if copied_files:
-            print(colorize_log(f"[mods] Total mods copied: {len(copied_files)}"))
+            safe_print(f"[addons] Total mods copied: {len(copied_files)}")
 
         try:
             modpacks_dir = mod_manager.get_modpacks_storage_dir()
@@ -635,13 +635,13 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                     except Exception:
                         continue
                     if pack_data.get("disabled", False):
-                        print(colorize_log(f"[mods] Skipping disabled modpack: {pack_slug}"))
+                        safe_print(f"[addons] Skipping disabled modpack: {pack_slug}")
                         continue
                     pack_loader = (pack_data.get("mod_loader") or "").lower()
                     if pack_loader != mod_loader.lower():
-                        print(colorize_log(
-                            f"[mods] Skipping modpack {pack_slug} (loader mismatch: {pack_loader} != {mod_loader})"
-                        ))
+                        safe_print(
+                            f"[addons] Skipping modpack {pack_slug} (loader mismatch: {pack_loader} != {mod_loader})"
+                        )
                         continue
 
                     pack_mod_entries = pack_data.get("mods") if isinstance(pack_data.get("mods"), list) else []
@@ -657,8 +657,6 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                         if not pm_slug:
                             continue
 
-                        # Skip mods marked for overwrite-classpath staging — the
-                        # _prepare_modloader_overwrite_layer pass handles them.
                         pm_overwrite = bool(pm.get("overwrite_classes", False))
                         if not pm_overwrite and ver_name:
                             packed_meta_check = os.path.join(
@@ -673,10 +671,10 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                                 except Exception:
                                     pm_overwrite = False
                         if pm_overwrite:
-                            print(colorize_log(
-                                f"[mods] Skipping modpack mod {pack_slug}/{pm_slug} "
+                            safe_print(
+                                f"[addons] Skipping modpack mod {pack_slug}/{pm_slug} "
                                 "in mods/ staging (overwrite_classes enabled)"
-                            ))
+                            )
                             continue
 
                         ver_candidates = []
@@ -719,11 +717,11 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                                     shutil.copy2(src, dst)
                                     copied_files.append(dst)
                                     existing_files.add(filename.lower())
-                                    print(colorize_log(f"[mods] Copied (modpack {pack_slug}): {tracked_filename}"))
+                                    safe_print(f"[addons] Copied (modpack {pack_slug}): {tracked_filename}")
                                 except Exception as e:
-                                    print(colorize_log(
-                                        f"[mods] Warning: Failed to copy modpack file {filename}: {e}"
-                                    ))
+                                    safe_print(
+                                        f"[addons] Warning: Failed to copy modpack file {filename}: {e}"
+                                    )
 
                     if not pack_mod_entries:
                         pack_mods_dir = os.path.join(pack_dir, "mods", pack_loader)
@@ -748,22 +746,22 @@ def _copy_mods_for_launch(game_dir, mod_loader):
                                             shutil.copy2(src, dst)
                                             copied_files.append(dst)
                                             existing_files.add(filename.lower())
-                                            print(colorize_log(
-                                                f"[mods] Copied (legacy modpack {pack_slug}): {tracked_filename}"
-                                            ))
+                                            safe_print(
+                                                f"[addons] Copied (legacy modpack {pack_slug}): {tracked_filename}"
+                                            )
                                         except Exception as e:
-                                            print(colorize_log(
-                                                f"[mods] Warning: Failed to copy legacy modpack file {filename}: {e}"
-                                            ))
+                                            safe_print(
+                                                f"[addons] Warning: Failed to copy legacy modpack file {filename}: {e}"
+                                            )
         except Exception as e:
-            print(colorize_log(f"[mods] Error copying modpack mods: {e}"))
+            safe_print(f"[addons] Error copying modpack mods: {e}")
 
         if copied_files:
-            print(colorize_log(f"[mods] Total files copied (mods + modpacks): {len(copied_files)}"))
+            safe_print(f"[addons] Total files copied (mods + modpacks): {len(copied_files)}")
 
         return copied_files
     except Exception as e:
-        print(colorize_log(f"[mods] Error copying mods: {e}"))
+        safe_print(f"[addons] Error copying mods: {e}")
         return []
 
 
@@ -796,27 +794,27 @@ def _cleanup_copied_mods(copied_files):
                 except Exception as e:
                     still_locked.append(file_path)
                     if attempt == 1:
-                        print(colorize_log(
+                        safe_print(
                             f"[addons] File locked, will retry: {os.path.basename(file_path)} ({e})"
-                        ))
+                        )
 
             remaining = still_locked
 
             if remaining and attempt < MAX_ATTEMPTS:
-                print(colorize_log(
+                safe_print(
                     f"[addons] {len(remaining)} addon file(s) still locked, "
                     f"retrying in {RETRY_DELAY}s (attempt {attempt}/{MAX_ATTEMPTS})..."
-                ))
+                )
                 time.sleep(RETRY_DELAY)
 
         if removed_count > 0:
-            print(colorize_log(f"[addons] Cleaned up {removed_count} copied addon file(s)"))
+            safe_print(f"[addons] Cleaned up {removed_count} copied addon file(s)")
 
         if remaining:
-            print(colorize_log(
+            safe_print(
                 f"[addons] Warning: {len(remaining)} addon file(s) could not be removed after {MAX_ATTEMPTS} attempts:"
-            ))
+            )
             for p in remaining:
-                print(colorize_log(f"[addons]   - {p}"))
+                safe_print(f"[addons]   - {p}")
     except Exception as e:
-        print(colorize_log(f"[addons] Error during cleanup: {e}"))
+        safe_print(f"[addons] Error during cleanup: {e}")

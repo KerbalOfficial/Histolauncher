@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import secrets
+import threading
 import time
 from typing import Any, Callable
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from launcher._constants import ICO_PATH, PNG_ICON_PATH
 
 from server.api._state import STATE
@@ -19,7 +21,30 @@ __all__ = [
     "validate_selected_file",
     "remember_pending_import_file",
     "take_pending_import_file",
+    "dialog_path_override",
 ]
+
+
+_dialog_local = threading.local()
+
+
+@contextlib.contextmanager
+def dialog_path_override(path: str):
+    prev_active = getattr(_dialog_local, "active", False)
+    prev_path = getattr(_dialog_local, "path", "")
+    _dialog_local.active = True
+    _dialog_local.path = str(path or "")
+    try:
+        yield
+    finally:
+        _dialog_local.active = prev_active
+        _dialog_local.path = prev_path
+
+
+def _active_dialog_override() -> str | None:
+    if getattr(_dialog_local, "active", False):
+        return str(getattr(_dialog_local, "path", "") or "")
+    return None
 
 
 _PENDING_IMPORT_TTL_SECONDS = 60 * 60
@@ -89,7 +114,7 @@ def _run_native_dialog(
         root = create_native_dialog_root()
         return str(dialog_action(root) or "").strip()
     except Exception as exc:
-        print(colorize_log(f"[api] {failure_message}: {exc}"))
+        safe_print(f"[api] {failure_message}: {exc}")
         raise
     finally:
         try:
@@ -105,6 +130,10 @@ def open_native_file_picker(
     filetypes: list[tuple[str, str]],
     initialdir: str = "",
 ) -> str:
+    override = _active_dialog_override()
+    if override is not None:
+        return override
+
     def _open(root: Any) -> str:
         from tkinter.filedialog import askopenfilename
 
@@ -129,6 +158,10 @@ def save_native_file_picker(
     initialdir: str = "",
     defaultextension: str = "",
 ) -> str:
+    override = _active_dialog_override()
+    if override is not None:
+        return override
+
     def _save(root: Any) -> str:
         from tkinter.filedialog import asksaveasfilename
 
@@ -153,6 +186,10 @@ def open_native_directory_picker(
     initialdir: str = "",
     mustexist: bool = True,
 ) -> str:
+    override = _active_dialog_override()
+    if override is not None:
+        return override
+
     def _select(root: Any) -> str:
         from tkinter.filedialog import askdirectory
 

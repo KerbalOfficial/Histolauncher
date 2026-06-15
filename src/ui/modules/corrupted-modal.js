@@ -37,13 +37,10 @@ const showCorruptedVersionsModal = (corruptedList) => {
     return;
   }
 
-  const selectedVersions = {};
-
   let checkboxHtml = '<div class="row" style="display:grid;gap:8px;max-height:300px;overflow-y:auto;padding:8px 0;">';
 
   corruptedList.forEach((v) => {
     const id = `corrupted-${v.category}-${v.folder}`.replace(/\s+/g, '-').toLowerCase();
-    selectedVersions[id] = false;
 
     checkboxHtml += `
       <label class="corrupted-version-item">
@@ -121,16 +118,6 @@ const showCorruptedVersionsModal = (corruptedList) => {
       { label: t('common.cancel') },
     ],
   });
-
-  setTimeout(() => {
-    const checkboxes = document.querySelectorAll('input[data-version-id]');
-    checkboxes.forEach((checkbox) => {
-      checkbox.addEventListener('change', (e) => {
-        const versionId = e.target.getAttribute('data-version-id');
-        selectedVersions[versionId] = e.target.checked;
-      });
-    });
-  }, 50);
 };
 
 export const checkForCorruptedVersions = async () => {

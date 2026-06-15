@@ -36,7 +36,7 @@ from core.nbt_editor.writer import NbtWriter
 
 
 __all__ = [
-    # Tag constants
+    # --- tag constants ---
     "TAG_END",
     "TAG_BYTE",
     "TAG_SHORT",
@@ -50,13 +50,13 @@ __all__ = [
     "TAG_COMPOUND",
     "TAG_INT_ARRAY",
     "TAG_LONG_ARRAY",
-    # Reader/writer classes
+    # --- reader/writer classes ---
     "NbtReader",
     "NbtWriter",
-    # File I/O
+    # --- file I/O ---
     "read_nbt_file",
     "write_nbt_file",
-    # Accessors / coercion
+    # --- accessors / coercion ---
     "compound_child",
     "tag_value",
     "bool_value",
@@ -66,7 +66,7 @@ __all__ = [
     "ensure_root_value",
     "ensure_compound_value",
     "set_compound_tag",
-    # JSON bridge
+    # --- JSON bridge ---
     "nbt_to_json_safe",
     "nbt_from_json_safe",
     "nbt_root_to_json_safe",

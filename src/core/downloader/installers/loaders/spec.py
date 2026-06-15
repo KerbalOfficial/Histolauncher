@@ -23,6 +23,7 @@ class LoaderSpec:
     post_install: Optional[PostInstallHook] = None
     fallback_install: Optional[FallbackInstallHook] = None
     extra_data_ini: dict = field(default_factory=dict)
+    metadata_only: bool = False
 
 
 __all__ = [

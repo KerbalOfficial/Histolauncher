@@ -9,7 +9,7 @@ import tkinter
 from tkinter import ttk
 
 from core.subprocess_utils import no_window_kwargs
-from core.logger import colorize_log
+from core.logger import safe_print
 from launcher._constants import (
     AERO_GLASS_ENABLED,
     AERO_GLASS_TINT_ABGR,
@@ -141,9 +141,9 @@ def install(package, *, display_name: str | None = None):
         nonlocal total_packages, completed_packages
         py = python_exe or sys.executable
         cmd = [py, "-m", "pip", "install", *extra_args] + packages
-        print(colorize_log(
+        safe_print(
             f"[installation] Installing {package_label} with {py}..."
-        ))
+        )
         try:
             process = subprocess.Popen(
                 cmd,
@@ -154,14 +154,14 @@ def install(package, *, display_name: str | None = None):
             )
         except OSError as e:
             msg = f"[installation] pip launch failed with {py}: {e}\n"
-            print(colorize_log(msg.rstrip()))
+            safe_print(msg.rstrip())
             queue_ui(lambda m=msg: ui_log(m))
             return 127, msg
         collected: list[str] = []
         stream = process.stdout if process.stdout is not None else []
         for line in stream:
             collected.append(line)
-            print(colorize_log(f"[pip] {line.rstrip()}"))
+            safe_print(f"[pip] {line.rstrip()}")
             queue_ui(lambda line=line: ui_log(line))
             if line.lower().startswith("collecting "):
                 total_packages += 1
@@ -176,9 +176,9 @@ def install(package, *, display_name: str | None = None):
                 ) * 100
                 queue_ui(lambda overall=overall: ui_set_progress(overall))
         process.wait()
-        print(colorize_log(
+        safe_print(
             f"[installation] pip exited with code {process.returncode}"
-        ))
+        )
         return process.returncode, "".join(collected)
 
     def _try_venv_install() -> int:
@@ -191,7 +191,7 @@ def install(package, *, display_name: str | None = None):
         )
 
         def venv_log(msg: str) -> None:
-            print(colorize_log(msg))
+            safe_print(msg)
             queue_ui(lambda m=msg: ui_log(m + "\n"))
 
         def target_site_packages() -> str:
@@ -302,9 +302,9 @@ def install(package, *, display_name: str | None = None):
         last_output = ""
         for env in attempts:
             label = " (with PIP_BREAK_SYSTEM_PACKAGES=1)" if env else ""
-            print(colorize_log(
+            safe_print(
                 f"[installation] Bootstrapping pip: {' '.join(cmd)}{label}"
-            ))
+            )
             try:
                 proc = subprocess.run(
                     cmd,
@@ -315,15 +315,15 @@ def install(package, *, display_name: str | None = None):
                     **no_window_kwargs(),
                 )
             except Exception as e:
-                print(colorize_log(f"[installation] ensurepip failed to launch: {e}"))
+                safe_print(f"[installation] ensurepip failed to launch: {e}")
                 continue
             output_lines = (proc.stdout or "").splitlines() + (proc.stderr or "").splitlines()
             for line in output_lines:
-                print(colorize_log(f"[ensurepip] {line}"))
+                safe_print(f"[ensurepip] {line}")
                 queue_ui(lambda line=line: ui_log(line + "\n"))
-            print(colorize_log(
+            safe_print(
                 f"[installation] ensurepip exited with code {proc.returncode}"
-            ))
+            )
             last_output = (proc.stdout or "") + (proc.stderr or "")
             if proc.returncode == 0:
                 return True
@@ -377,7 +377,7 @@ def install(package, *, display_name: str | None = None):
                         if hint:
                             msg += f"Install pip manually with:\n{hint}\n"
                         msg += "Then restart Histolauncher and try again.\n"
-                        print(colorize_log(msg.rstrip()))
+                        safe_print(msg.rstrip())
                         queue_ui(lambda m=msg: ui_log(m))
 
                 if (

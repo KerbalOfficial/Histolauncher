@@ -17,7 +17,7 @@ import { showLoadingOverlay, hideLoadingOverlay, setLoadingOverlayText } from '.
 import { refreshActionOverflowMenus } from './action-overflow.js';
 import { initTooltips } from './tooltips.js';
 import { renderCommonPagination } from './pagination.js';
-import { formatBytes } from './string-utils.js';
+import { escapeInfoHtml, formatBytes } from './string-utils.js';
 import { createEmptyState, createInlineLoadingState } from './ui-states.js';
 import { buildWorldNbtTreeEditor } from './worlds-nbt-tree.js';
 import { t } from './i18n.js';
@@ -164,6 +164,8 @@ const startWorldInlineInstallProgress = ({ installKey, button, card, activeLabel
 
   let eventSource = null;
   let closed = false;
+  let fallbackTimer = null;
+  let fallbackFailures = 0;
   const target = { card, button };
   updateWorldInlineInstallProgress(target, 0, t('worlds.install.starting'), t('versions.install.activeEllipsis', { label: activeLabel }));
 
@@ -171,6 +173,10 @@ const startWorldInlineInstallProgress = ({ installKey, button, card, activeLabel
     if (closed) return;
     closed = true;
     if (eventSource) eventSource.close();
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = null;
+    }
   };
   const complete = (message = doneLabel) => {
     updateWorldInlineInstallProgress(target, 100, message, doneLabel);
@@ -180,6 +186,47 @@ const startWorldInlineInstallProgress = ({ installKey, button, card, activeLabel
     updateWorldInlineInstallProgress(target, 0, message, idleLabel);
     if (button) button.disabled = false;
     close();
+  };
+
+  const handleProgress = (progress) => {
+    if (closed || !progress) return;
+    const status = String(progress.status || '').toLowerCase();
+    const pct = clampWorldInstallPercent(progress.overall_percent);
+    if (status === 'installed') {
+      complete(progress.message || doneLabel);
+      return;
+    }
+    if (status === 'failed' || status === 'cancelled') {
+      fail(progress.message || (status === 'cancelled' ? t('worlds.install.cancelled') : t('worlds.install.failed')));
+      return;
+    }
+
+    const text = formatWorldInstallProgressText(progress, activeLabel);
+    const stage = String(progress.stage || '').toLowerCase();
+    const stageLabel = stage === 'extract' ? t('worlds.install.extracting') : stage === 'finalize' ? t('worlds.install.finalizing') : activeLabel;
+    updateWorldInlineInstallProgress(target, pct, text, `${stageLabel} ${Math.round(pct)}%`);
+  };
+
+  const pollStatusFallback = async () => {
+    if (closed) return;
+    try {
+      const progress = await api(`/api/status/${encodeURIComponent(installKey)}`);
+      const status = String((progress && progress.status) || '').toLowerCase();
+      if (!progress || !status || status === 'unknown') {
+        fallbackFailures += 1;
+      } else {
+        fallbackFailures = 0;
+        handleProgress(progress);
+      }
+    } catch (_err) {
+      fallbackFailures += 1;
+    }
+    if (closed) return;
+    if (fallbackFailures >= 5) {
+      fail(t('worlds.install.failed'));
+      return;
+    }
+    fallbackTimer = setTimeout(pollStatusFallback, 2000);
   };
 
   try {
@@ -192,26 +239,18 @@ const startWorldInlineInstallProgress = ({ installKey, button, card, activeLabel
       } catch (_err) {
         return;
       }
-      if (!progress) return;
-
-      const status = String(progress.status || '').toLowerCase();
-      const pct = clampWorldInstallPercent(progress.overall_percent);
-      if (status === 'installed') {
-        complete(progress.message || doneLabel);
-        return;
+      handleProgress(progress);
+    };
+    eventSource.onerror = () => {
+      if (closed) return;
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
       }
-      if (status === 'failed' || status === 'cancelled') {
-        fail(progress.message || (status === 'cancelled' ? t('worlds.install.cancelled') : t('worlds.install.failed')));
-        return;
-      }
-
-      const text = formatWorldInstallProgressText(progress, activeLabel);
-      const stage = String(progress.stage || '').toLowerCase();
-      const stageLabel = stage === 'extract' ? t('worlds.install.extracting') : stage === 'finalize' ? t('worlds.install.finalizing') : activeLabel;
-      updateWorldInlineInstallProgress(target, pct, text, `${stageLabel} ${Math.round(pct)}%`);
+      fallbackTimer = setTimeout(pollStatusFallback, 1000);
     };
   } catch (_err) {
-    updateWorldInlineInstallProgress(target, 0, t('worlds.install.starting'), t('versions.install.activeEllipsis', { label: activeLabel }));
+    fallbackTimer = setTimeout(pollStatusFallback, 1000);
   }
 
   return { complete, fail, close };
@@ -1101,8 +1140,8 @@ const importWorldFlow = async () => {
     const labelText = document.createElement('span');
     labelText.style.cssText = 'flex:1;';
     const sizeKb = entry.level_dat_size > 0 ? `${(entry.level_dat_size / 1024).toFixed(1)} KB` : '';
-    labelText.innerHTML = `<b>${entry.label || entry.path}</b>` + (entry.path && entry.path !== entry.label
-      ? ` <span style="color:var(--color-text-muted);">(${entry.path})</span>`
+    labelText.innerHTML = `<b>${escapeInfoHtml(entry.label || entry.path)}</b>` + (entry.path && entry.path !== entry.label
+      ? ` <span style="color:var(--color-text-muted);">(${escapeInfoHtml(entry.path)})</span>`
       : '') + (sizeKb ? ` <span style="color:var(--color-text-dim);">level.dat: ${sizeKb}</span>` : '');
     row.appendChild(cb);
     row.appendChild(labelText);
@@ -4601,7 +4640,7 @@ const showAvailableWorldDetailModal = async (world) => {
       const categories = Array.isArray(detailRes.categories) ? detailRes.categories : (world.categories || []);
       stats.innerHTML = `<span>${t('mods.detail.downloads', { count: downloads.toLocaleString() })}</span>`;
       if (categories.length > 0) {
-        stats.innerHTML += ` <span>${t('mods.detail.categories', { categories: categories.join(', ') })}</span>`;
+        stats.innerHTML += ` <span>${t('mods.detail.categories', { categories: escapeInfoHtml(categories.join(', ')) })}</span>`;
       }
       content.appendChild(stats);
     }
@@ -4724,12 +4763,7 @@ export const refreshWorldsStorageContext = async () => {
     populateWorldVersionDropdown(),
   ]);
 
-  if (worldsState.storageTarget === 'default') {
-    await loadInstalledWorlds();
-  } else {
-    renderWorldVersionDropdown();
-    renderInstalledWorlds();
-  }
+  await loadInstalledWorlds();
 };
 
 export const refreshWorldsPageState = async () => {

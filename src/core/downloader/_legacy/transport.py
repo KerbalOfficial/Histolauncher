@@ -12,7 +12,7 @@ from typing import Any, Callable, List, Optional, Tuple
 from core.downloader._legacy._constants import DOWNLOAD_CHUNK_SIZE
 from core.downloader._legacy._state import STATE
 from core.downloader._legacy.progress import _maybe_abort
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import _apply_url_proxy, load_global_settings
 
 
@@ -46,7 +46,7 @@ def _iter_url_candidates(url: str) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
-# Hashing / file utilities
+# hashing / file utilities
 # ---------------------------------------------------------------------------
 
 
@@ -78,30 +78,12 @@ def _safe_remove_file(file_path: str, max_retries: int = 5) -> bool:
             if attempt < max_retries - 1:
                 time.sleep(0.1 * (attempt + 1))
             else:
-                print(colorize_log(
+                safe_print(
                     f"[download] Warning: Could not remove {file_path} "
                     f"after {max_retries} attempts: {e}"
-                ))
+                )
                 return False
     return False
-
-
-def _get_file_lock(file_path: str) -> threading.Lock:
-    with STATE.file_locks_lock:
-        lock = STATE.file_locks.get(file_path)
-        if lock is None:
-            lock = threading.Lock()
-            STATE.file_locks[file_path] = lock
-        return lock
-
-
-def _cleanup_file_locks(max_locks: int = 1000) -> None:
-    with STATE.file_locks_lock:
-        if len(STATE.file_locks) > max_locks:
-            to_remove = list(STATE.file_locks.keys())[:-max_locks]
-            for key in to_remove:
-                del STATE.file_locks[key]
-            print(colorize_log(f"[download] Cleaned up file locks (kept {max_locks})"))
 
 
 # ---------------------------------------------------------------------------
@@ -120,13 +102,11 @@ def download_file(
     from core.downloader.errors import DownloadCancelled, DownloadFailed
     from core.downloader.http import HttpClient
 
-    # Legacy cancel/pause is observed through module state; bridge it.
     def _cancel_check() -> None:
         _maybe_abort(version_key)
 
     _cancel_check()
 
-    # Honour the per-call retry override by constructing a one-off client.
     client = HttpClient(retries=max(1, int(retries)))
 
     try:
@@ -139,106 +119,15 @@ def download_file(
         )
         return
     except DownloadCancelled:
-        # Legacy callers expect RuntimeError on cancellation. Translate.
         raise RuntimeError("Download cancelled by user")
     except DownloadFailed as exc:
-        # Legacy code re-raises a generic Exception; preserve message.
         raise RuntimeError(str(exc)) from exc
-    except Exception:  # noqa: BLE001 — rebind into legacy retry/except landing pads
+    except Exception:  # noqa: BLE001
         raise
 
 
-# Old in-function fallback path kept below as dead code in case future hot-fixes
-# need to swap implementations quickly. Removed in cleanup phase.
-def _legacy_download_file_unused(
-    url: str,
-    dest_path: str,
-    expected_sha1: Optional[str] = None,
-    progress_cb: Optional[Callable[[int, Optional[int]], None]] = None,
-    retries: int = 3,
-    version_key: Optional[str] = None,
-) -> None:  # pragma: no cover - retained for archaeological reference only
-    _maybe_abort(version_key)
-
-    url_candidates = _iter_url_candidates(url)
-    if not url_candidates:
-        raise RuntimeError("download url is empty")
-
-    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-
-    file_lock = _get_file_lock(dest_path)
-    print(colorize_log(f"[download] Starting: {url_candidates[0]} -> {dest_path}"))
-    last_err: Optional[BaseException] = None
-
-    with file_lock:
-        if os.path.exists(dest_path):
-            print(colorize_log(f"[download] File already exists: {dest_path}"))
-            return
-
-        for candidate_idx, candidate_url in enumerate(url_candidates, start=1):
-            if candidate_idx > 1:
-                print(colorize_log(f"[download] Falling back to alternate URL: {candidate_url}"))
-
-            for attempt in range(1, retries + 1):
-                tmp_path = dest_path + ".part"
-                try:
-                    req = urllib.request.Request(
-                        candidate_url, headers={"User-Agent": "Histolauncher/1.0"}
-                    )
-                    with urllib.request.urlopen(req) as resp:
-                        total = getattr(resp, "length", None)
-                        if total is None:
-                            try:
-                                total = int(resp.headers.get("Content-Length") or 0) or None
-                            except Exception:
-                                total = None
-
-                        downloaded = 0
-                        with open(tmp_path, "wb") as f:
-                            while True:
-                                _maybe_abort(version_key)
-                                chunk = resp.read(DOWNLOAD_CHUNK_SIZE)
-                                if not chunk:
-                                    break
-                                f.write(chunk)
-                                downloaded += len(chunk)
-                                if progress_cb:
-                                    progress_cb(downloaded, total)
-
-                    if expected_sha1:
-                        actual = _sha1_file(tmp_path)
-                        if actual.lower() != expected_sha1.lower():
-                            _safe_remove_file(tmp_path)
-                            raise ValueError(
-                                f"SHA1 mismatch for {dest_path}: "
-                                f"expected {expected_sha1}, got {actual}"
-                            )
-
-                    if os.path.exists(dest_path):
-                        _safe_remove_file(tmp_path)
-                        print(colorize_log(
-                            f"[download] File was downloaded by another thread: {dest_path}"
-                        ))
-                        return
-
-                    os.rename(tmp_path, dest_path)
-                    print(colorize_log(f"[download] Completed: {dest_path}"))
-                    _cleanup_file_locks()
-                    return
-                except Exception as e:
-                    last_err = e
-                    print(colorize_log(
-                        f"[download] Error on attempt {attempt}/{retries} "
-                        f"for {candidate_url}: {e}"
-                    ))
-                    _safe_remove_file(tmp_path)
-                    _maybe_abort(version_key)
-
-    raise last_err or RuntimeError(f"Failed to download {url}")
-
-
 # ---------------------------------------------------------------------------
-# Legacy: _download_with_retry (used by yarn / Forge fallbacks)
+# legacy: _download_with_retry (used by yarn / Forge fallbacks)
 # ---------------------------------------------------------------------------
 
 
@@ -257,7 +146,7 @@ def _download_with_retry(
 
     for candidate_idx, candidate_url in enumerate(url_candidates, start=1):
         if candidate_idx > 1:
-            print(colorize_log(f"[download] Falling back to alternate URL: {candidate_url}"))
+            safe_print(f"[download] Falling back to alternate URL: {candidate_url}")
 
         for attempt in range(max_retries):
             try:
@@ -267,16 +156,16 @@ def _download_with_retry(
                 last_error = e
                 if not insecure_fallback_allowed:
                     if attempt < max_retries - 1:
-                        print(colorize_log(
+                        safe_print(
                             f"[download] SSL error on attempt {attempt + 1}: {e}"
-                        ))
+                        )
                         time.sleep(1)
                         continue
                     raise
-                print(colorize_log(
+                safe_print(
                     "[download] !! INSECURE: retrying with TLS verification disabled "
                     f"(allow_insecure_fallback=1) for {candidate_url}"
-                ))
+                )
                 time.sleep(1)
                 context = ssl.create_default_context()
                 context.check_hostname = False
@@ -286,16 +175,16 @@ def _download_with_retry(
                     return
                 except Exception as retry_error:
                     last_error = retry_error
-                    if attempt < max_retries - 2:
+                    if attempt < max_retries - 1:
                         time.sleep(1)
                         continue
                     raise
             except Exception as e:
                 last_error = e
                 if attempt < max_retries - 1:
-                    print(colorize_log(
+                    safe_print(
                         f"[download] Download error on attempt {attempt + 1}: {e}"
-                    ))
+                    )
                     time.sleep(1)
                 else:
                     break
@@ -315,26 +204,32 @@ def _stream_to_file(
     open_kwargs: dict[str, Any] = {}
     if context is not None:
         open_kwargs["context"] = context
-    with urllib.request.urlopen(req, **open_kwargs) as response:
-        total_size = int(response.headers.get("Content-Length", 0)) or None
-        if progress_hook:
-            block_size = 8192
-            downloaded = 0
-            with open(dest_file, "wb") as f:
-                while True:
-                    block = response.read(block_size)
-                    if not block:
-                        break
-                    f.write(block)
-                    downloaded += len(block)
-                    progress_hook(downloaded // block_size, block_size, total_size)
-        else:
-            with open(dest_file, "wb") as f:
-                f.write(response.read())
+    tmp_file = dest_file + ".part"
+    try:
+        with urllib.request.urlopen(req, **open_kwargs) as response:
+            total_size = int(response.headers.get("Content-Length", 0)) or None
+            if progress_hook:
+                block_size = 8192
+                downloaded = 0
+                with open(tmp_file, "wb") as f:
+                    while True:
+                        block = response.read(block_size)
+                        if not block:
+                            break
+                        f.write(block)
+                        downloaded += len(block)
+                        progress_hook(downloaded // block_size, block_size, total_size)
+            else:
+                with open(tmp_file, "wb") as f:
+                    f.write(response.read())
+        os.replace(tmp_file, dest_file)
+    except BaseException:
+        _safe_remove_file(tmp_file)
+        raise
 
 
 # ---------------------------------------------------------------------------
-# Parallel downloader (used by asset workers)
+# parallel downloader (used by asset workers)
 # ---------------------------------------------------------------------------
 
 
@@ -348,10 +243,10 @@ def _download_parallel(
     if not download_tasks:
         return
 
-    print(colorize_log(
+    safe_print(
         f"[download] Starting parallel download of {len(download_tasks)} "
         f"files with {max_workers} workers"
-    ))
+    )
 
     completed = 0
     failed: List[Tuple[str, str]] = []
@@ -373,33 +268,31 @@ def _download_parallel(
                 success, error = future.result()
                 if success:
                     completed += 1
-                    print(colorize_log(
+                    safe_print(
                         f"[download] Completed: {os.path.basename(dest_path)} "
                         f"({completed}/{len(download_tasks)})"
-                    ))
+                    )
                 else:
                     failed.append((url, error or "unknown error"))
-                    print(colorize_log(
+                    safe_print(
                         f"[download] Failed: {os.path.basename(dest_path)} - {error}"
-                    ))
+                    )
             except Exception as e:
                 failed.append((url, str(e)))
-                print(colorize_log(
+                safe_print(
                     f"[download] Error for {os.path.basename(dest_path)}: {e}"
-                ))
+                )
 
     if failed:
         error_msg = f"Failed to download {len(failed)}/{len(download_tasks)} files"
-        print(colorize_log(f"[download] {error_msg}"))
+        safe_print(f"[download] {error_msg}")
         raise RuntimeError(error_msg)
-    print(colorize_log(f"[download] All {len(download_tasks)} files downloaded successfully"))
+    safe_print(f"[download] All {len(download_tasks)} files downloaded successfully")
 
 
 __all__ = [
-    "_cleanup_file_locks",
     "_download_parallel",
     "_download_with_retry",
-    "_get_file_lock",
     "_is_insecure_fallback_allowed",
     "_iter_url_candidates",
     "_safe_remove_file",

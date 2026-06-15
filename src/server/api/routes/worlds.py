@@ -4,7 +4,7 @@ import re
 from typing import Any
 from urllib.parse import urlparse
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.notifications import send_desktop_notification
 from core.settings import normalize_custom_storage_directory
 from server.api._constants import MAX_WORLDS_IMPORT_PAYLOAD
@@ -112,7 +112,7 @@ def _send_world_install_notification(world_name: str) -> None:
             icon_kind="installed",
         )
     except Exception as exc:
-        print(colorize_log(f"[api] Could not send world notification: {exc}"))
+        safe_print(f"[api] Could not send world notification: {exc}")
 
 
 def api_worlds_storage_options(data=None):
@@ -121,7 +121,7 @@ def api_worlds_storage_options(data=None):
 
         return {"ok": True, "options": world_manager.list_storage_options()}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to load world storage options: {e}"))
+        safe_print(f"[api] Failed to load world storage options: {e}")
         return {"ok": False, "error": str(e), "options": []}
 
 
@@ -131,7 +131,7 @@ def api_worlds_version_options(data=None):
 
         return {"ok": True, "versions": world_manager.list_version_options()}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to load world version options: {e}"))
+        safe_print(f"[api] Failed to load world version options: {e}")
         return {"ok": False, "error": str(e), "versions": []}
 
 
@@ -151,7 +151,7 @@ def api_worlds_installed(data=None):
             "error": result.get("error", ""),
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to get installed worlds: {e}"))
+        safe_print(f"[api] Failed to get installed worlds: {e}")
         return {"ok": False, "error": str(e), "worlds": []}
 
 
@@ -178,7 +178,7 @@ def api_worlds_detail(data=None):
             return {"ok": False, "error": "world_id is required"}
         return world_manager.get_world_detail(storage_target, world_id, custom_path=custom_path)
     except Exception as e:
-        print(colorize_log(f"[api] Failed to get world detail: {e}"))
+        safe_print(f"[api] Failed to get world detail: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -201,7 +201,7 @@ def api_worlds_nbt(data=None):
             player_id=player_id,
         )
     except Exception as e:
-        print(colorize_log(f"[api] Failed to get world NBT data: {e}"))
+        safe_print(f"[api] Failed to get world NBT data: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -226,7 +226,7 @@ def api_worlds_nbt_simple_update(data=None):
             changes=changes if isinstance(changes, dict) else {},
         )
     except Exception as e:
-        print(colorize_log(f"[api] Failed to save simple world NBT data: {e}"))
+        safe_print(f"[api] Failed to save simple world NBT data: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -251,7 +251,7 @@ def api_worlds_nbt_advanced_update(data=None):
             nbt_json=nbt_json,
         )
     except Exception as e:
-        print(colorize_log(f"[api] Failed to save advanced world NBT data: {e}"))
+        safe_print(f"[api] Failed to save advanced world NBT data: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -276,7 +276,7 @@ def api_worlds_update(data=None):
             new_title=new_title,
         )
     except Exception as e:
-        print(colorize_log(f"[api] Failed to update world: {e}"))
+        safe_print(f"[api] Failed to update world: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -310,7 +310,7 @@ def api_worlds_icon_update(data=None):
             image_data=image_data,
         )
     except Exception as e:
-        print(colorize_log(f"[api] Failed to update world icon: {e}"))
+        safe_print(f"[api] Failed to update world icon: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -327,7 +327,7 @@ def api_worlds_delete(data=None):
         custom_path = normalize_custom_storage_directory(payload.get("custom_path"))
         return world_manager.delete_world(storage_target, world_id, custom_path=custom_path)
     except Exception as e:
-        print(colorize_log(f"[api] Failed to delete world: {e}"))
+        safe_print(f"[api] Failed to delete world: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -344,7 +344,7 @@ def api_worlds_open(data=None):
         custom_path = normalize_custom_storage_directory(payload.get("custom_path"))
         return world_manager.open_world_folder(storage_target, world_id, custom_path=custom_path)
     except Exception as e:
-        print(colorize_log(f"[api] Failed to open world folder: {e}"))
+        safe_print(f"[api] Failed to open world folder: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -375,7 +375,7 @@ def api_worlds_search(data=None):
             "requires_api_key": bool(result.get("requires_api_key")),
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to search worlds: {e}"))
+        safe_print(f"[api] Failed to search worlds: {e}")
         return {"ok": False, "error": str(e), "worlds": []}
 
 
@@ -398,7 +398,7 @@ def api_worlds_versions(data=None):
         )
         return {"ok": True, "versions": versions}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to fetch world versions: {e}"))
+        safe_print(f"[api] Failed to fetch world versions: {e}")
         return {"ok": False, "error": str(e), "versions": []}
 
 
@@ -472,7 +472,7 @@ def api_worlds_install(data=None):
         return result
     except Exception as e:
         _finish_world_install_progress(tracker, "failed", str(e))
-        print(colorize_log(f"[api] Failed to install world: {e}"))
+        safe_print(f"[api] Failed to install world: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -500,7 +500,7 @@ def api_worlds_export(data=None):
         result["zip_b64"] = base64.b64encode(zip_bytes).decode("ascii")
         return result
     except Exception as e:
-        print(colorize_log(f"[api] Failed to export world: {e}"))
+        safe_print(f"[api] Failed to export world: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -536,7 +536,7 @@ def api_worlds_import_select(data=None):
         })
         return scan_result
     except Exception as e:
-        print(colorize_log(f"[api] Failed to select world import file: {e}"))
+        safe_print(f"[api] Failed to select world import file: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -551,7 +551,7 @@ def api_worlds_import_scan(data=None):
 
         return world_manager.scan_world_zip_bytes(bytes(zip_bytes))
     except Exception as e:
-        print(colorize_log(f"[api] Failed to scan world zip: {e}"))
+        safe_print(f"[api] Failed to scan world zip: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -595,5 +595,5 @@ def api_worlds_import(data=None):
             selected_roots=selected_roots,
         )
     except Exception as e:
-        print(colorize_log(f"[api] Failed to import world zip: {e}"))
+        safe_print(f"[api] Failed to import world zip: {e}")
         return {"ok": False, "error": str(e)}

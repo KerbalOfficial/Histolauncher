@@ -951,6 +951,111 @@
   width: min(1080px, 94vw);
 }
 
+.modpack-export-dialog {
+  width: min(920px, 94vw);
+}
+
+.modpack-export-dialog .modpack-export-panel {
+  min-height: 280px;
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+  padding-top: 12px;
+}
+
+.modpack-export-dialog .modpack-export-selection-list {
+  max-height: min(42vh, 360px);
+  overflow-y: auto;
+  border: 1px solid var(--color-border-input);
+  padding: 8px;
+}
+
+.modpack-export-dialog .modpack-export-selection-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border-input);
+  flex-wrap: wrap;
+}
+
+.modpack-export-dialog .modpack-export-field {
+  margin-bottom: 10px;
+}
+
+.modpack-export-dialog .modpack-export-field label {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+.modpack-export-dialog .modpack-export-field input,
+.modpack-export-dialog .modpack-export-field select,
+.modpack-export-dialog .modpack-export-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  background: var(--color-surface-input);
+  border: 1px solid var(--color-border-input);
+  color: var(--color-text-primary);
+}
+
+.modpack-export-dialog .modpack-export-field textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.modpack-export-dialog .modpack-export-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin: 0 0 8px 0;
+}
+
+.modpack-export-dialog .modpack-export-error {
+  display: none;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-danger-border, #8b3a3a);
+  background: var(--color-danger-bg, rgba(180, 60, 60, 0.12));
+  color: var(--color-text-primary);
+  font-size: 12px;
+}
+
+.modpack-export-dialog .modpack-export-error.visible {
+  display: block;
+}
+
+.modpack-export-dialog .modpack-export-icon-field {
+  margin-top: 4px;
+}
+
+.modpack-export-dialog .modpack-export-icon-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.modpack-export-dialog .modpack-export-icon-preview-wrap img {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border: 2px solid var(--color-border-input);
+  display: none;
+}
+
+.modpack-export-dialog .modpack-export-icon-preview-wrap img.visible {
+  display: block;
+}
+
+.modpack-export-dialog .modpack-export-icon-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 .modpack-detail-mod-list {
   width: 100%;
 }

@@ -10,17 +10,17 @@ class ForgeContext:
     # ---- request inputs ------------------------------------------------
     mc_version: str
     loader_version: str
-    loaders_dir: str        # cache/<category>/<folder>/loaders/
-    version_key: str        # progress key
+    loaders_dir: str
+    version_key: str
 
     # ---- derived once at start ----------------------------------------
-    version_dir: str = ""           # parent of loaders_dir
-    loader_dest_dir: str = ""       # loaders_dir/forge/<loader_version>
-    metadata_dir: str = ""          # loader_dest_dir/.metadata
-    loader_libraries_dir: str = ""  # loader_dest_dir/libraries
+    version_dir: str = ""
+    loader_dest_dir: str = ""
+    metadata_dir: str = ""
+    loader_libraries_dir: str = ""
     modlauncher_era: bool = False
 
-    # ---- temp workspace (set by download phase) -----------------------
+    # ---- temp workspace -----------------------------------------------
     temp_dir: str = ""
     extraction_dir: str = ""
     downloaded_artifact_path: str = ""

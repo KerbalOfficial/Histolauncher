@@ -4,7 +4,7 @@ import json
 import os
 import time
 
-from core.logger import colorize_log
+from core.logger import safe_print
 
 from server.yggdrasil.identity import (
     _active_account_scope,
@@ -83,7 +83,6 @@ def _resolve_skin_model(uuid_hex: str, username: str = "") -> str:
     if remote_metadata and remote_metadata.get("model") in ("slim", "classic"):
         remote_model = remote_metadata.get("model")
         STATE.model_cache[cache_key] = {"model": remote_model, "at": now}
-        # Re-importing locally avoids a hard import cycle with the local module.
         from server.yggdrasil.textures.local import _persist_cached_skin_model
 
         _persist_cached_skin_model(uuid_hex, remote_model, clean_username)
@@ -110,7 +109,6 @@ def _resolve_cape_url(
     if cached and (now - cached.get("at", 0) <= CAPE_CACHE_TTL_SECONDS):
         return cached.get("url")
 
-    # Prefer local cached cape first to avoid unnecessary remote requests.
     local_url = _resolve_local_cape_url(uuid_hex, username, port)
     if local_url:
         STATE.cape_cache[cache_key] = {"url": local_url, "at": now}
@@ -119,9 +117,9 @@ def _resolve_cape_url(
     if probe_remote:
         remote_url = _resolve_remote_texture_url("cape", uuid_hex, username)
         if remote_url:
-            print(colorize_log(
+            safe_print(
                 f"[yggdrasil] Cape resolved via texture metadata: {remote_url}"
-            ))
+            )
             if port and port > 0:
                 identifiers = _collect_texture_identifiers(uuid_hex, username)
                 ident = identifiers[0] if identifiers else (username or "")

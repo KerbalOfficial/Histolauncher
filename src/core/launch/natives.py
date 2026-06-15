@@ -5,7 +5,7 @@ import platform
 import shutil
 import zipfile
 
-from core.logger import colorize_log
+from core.logger import safe_print
 
 __all__ = [
     "_FALLBACK_LOG4J_XML",
@@ -151,14 +151,14 @@ def _filter_platform_specific_classpath_entries(classpath_entries: list) -> list
             removed.append(filename or entry)
 
     if removed:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Filtered out {len(removed)} platform-incompatible classpath entr"
             f"{'y' if len(removed) == 1 else 'ies'}"
-        ))
+        )
         for name in removed[:8]:
-            print(colorize_log(f"[launcher] Skipping non-matching runtime JAR: {name}"))
+            safe_print(f"[launcher] Skipping non-matching runtime JAR: {name}")
         if len(removed) > 8:
-            print(colorize_log(f"[launcher] ... and {len(removed) - 8} more"))
+            safe_print(f"[launcher] ... and {len(removed) - 8} more")
 
     return filtered
 
@@ -219,7 +219,7 @@ def _extract_current_platform_native_binaries(version_dir: str, classpath_entrie
                 used_jars += 1
                 extracted_files += jar_extracted
         except Exception as e:
-            print(colorize_log(f"[launcher] Warning: Could not extract natives from {filename}: {e}"))
+            safe_print(f"[launcher] Warning: Could not extract natives from {filename}: {e}")
 
     return used_jars, extracted_files
 
@@ -312,9 +312,9 @@ def _filter_conflicting_classpath_entries(
 
         if is_loader_runtime and preserve_forge_client and filename_lower == "client.jar":
             if not preserved_client:
-                print(colorize_log(
+                safe_print(
                     "[launcher] Preserving vanilla client.jar in classpath for loader runtime compatibility"
-                ))
+                )
                 preserved_client = True
             filtered.append(entry)
             continue
@@ -326,10 +326,10 @@ def _filter_conflicting_classpath_entries(
             conflict_reason = "modern ASM runtime"
 
         if conflicts_with_loader:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Filtering out conflicting classpath entry: {filename} "
                 f"(loader provides {conflict_reason})"
-            ))
+            )
         else:
             filtered.append(entry)
 
@@ -367,15 +367,15 @@ def _prune_neoforge_runtime_jars(classpath_entries: list) -> list:
         pruned.append(entry)
 
     if deferred_runtime:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Deferred {len(deferred_runtime)} NeoForge production runtime JAR(s) "
             f"to libraryDirectory discovery"
-        ))
+        )
 
     if removed_tooling:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Excluded {len(removed_tooling)} NeoForge tooling JAR(s) from runtime classpath"
-        ))
+        )
 
     return pruned
 
@@ -410,9 +410,9 @@ def _prune_forge_root_jars_for_modlauncher(classpath_entries: list) -> list:
         pruned.append(entry)
 
     if removed:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Removed {len(removed)} root Forge loader JAR(s) for ModLauncher classpath hygiene"
-        ))
+        )
 
     return pruned
 
@@ -427,14 +427,21 @@ def _prune_vanilla_client_jar(classpath_entries: list) -> list:
             continue
         pruned.append(entry)
     if removed:
-        print(colorize_log("[launcher] Removed vanilla client.jar from classpath for Forge bootstrap launch"))
+        safe_print("[launcher] Removed vanilla client.jar from classpath for Forge bootstrap launch")
     return pruned
 
 
 def _prune_legacy_launchwrapper_bootstrap_jars(classpath_entries: list) -> list:
+    has_launchwrapper = any(
+        os.path.basename(str(entry)).lower().startswith("launchwrapper-")
+        and str(entry).lower().endswith(".jar")
+        for entry in classpath_entries
+    )
+    if not has_launchwrapper:
+        return classpath_entries
+
     removable_prefixes = (
         "launchwrapper-",
-        "jopt-simple-",
         "asm-all-",
     )
     pruned: list[str] = []
@@ -448,9 +455,9 @@ def _prune_legacy_launchwrapper_bootstrap_jars(classpath_entries: list) -> list:
         pruned.append(entry)
 
     if removed:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Removed {len(removed)} legacy LaunchWrapper bootstrap JAR(s) "
             f"for non-LaunchWrapper loader compatibility"
-        ))
+        )
 
     return pruned

@@ -8,7 +8,14 @@ export const JAVA_RUNTIME_INSTALL_OPTION = '__install_java_runtime__';
 
 export const AVAILABLE_PAGE_SIZE = 30;
 
-export const SIGNUP_URL = 'https://histolauncher.org/signup';
+export let SIGNUP_URL = 'https://histolauncher.org/signup';
+
+export const setHistolauncherWebsiteUrls = ({ websiteOrigin, signupUrl } = {}) => {
+  const origin = String(websiteOrigin || signupUrl || '').trim().replace(/\/+$/, '');
+  if (origin) {
+    SIGNUP_URL = signupUrl || `${origin}/signup`;
+  }
+};
 
 export const INSTALL_POLL_MS_ACTIVE = 500;
 export const INSTALL_POLL_MS_PAUSED = 1500;
@@ -24,9 +31,41 @@ export const unicodeList = {
   empty: '—',
 };
 
-export const LOADER_UI_ORDER = ['fabric', 'babric', 'forge', 'modloader', 'neoforge', 'quilt'];
+export const LOADER_UI_ORDER = ['fabric', 'legacyfabric', 'babric', 'ornithe', 'forge', 'liteloader', 'modloader', 'neoforge', 'quilt'];
+
+export const CURSEFORGE_MODPACK_LOADER_ORDER = ['vanilla', 'fabric', 'forge', 'neoforge', 'quilt'];
+export const CURSEFORGE_ADDON_LOADER_ORDER = ['fabric', 'forge', 'liteloader', 'neoforge', 'quilt'];
+
+export const MODPACK_EXPORT_LOADER_ORDER = ['vanilla', ...LOADER_UI_ORDER];
+
+export const getModsLoaderFilterOrder = (addonType = 'mods', provider = 'modrinth') => {
+  const normalizedType = String(addonType || 'mods').toLowerCase();
+  const normalizedProvider = String(provider || 'modrinth').toLowerCase();
+  if ((normalizedType === 'mods' || normalizedType === 'modpacks') && normalizedProvider === 'curseforge') {
+    return CURSEFORGE_ADDON_LOADER_ORDER;
+  }
+  if (normalizedType === 'mods' || normalizedType === 'modpacks') {
+    return LOADER_UI_ORDER;
+  }
+  return [];
+};
+
+export const getModpackExportLoaderOrder = (exportFormat = 'histolauncher') => {
+  if (String(exportFormat || 'histolauncher').toLowerCase() === 'curseforge') {
+    return CURSEFORGE_MODPACK_LOADER_ORDER;
+  }
+  return MODPACK_EXPORT_LOADER_ORDER;
+};
 
 export const LOADER_UI_CONFIG = {
+  vanilla: {
+    name: 'Vanilla',
+    buttonClass: 'vanilla',
+    accent: '#6b8e4e',
+    descriptionKey: 'loaders.vanilla.description',
+    subtitleKey: 'loaders.vanilla.subtitle',
+    image: 'assets/images/java_icon.png',
+  },
   fabric: {
     name: 'Fabric',
     buttonClass: 'fabric',
@@ -34,6 +73,14 @@ export const LOADER_UI_CONFIG = {
     descriptionKey: 'loaders.fabric.description',
     subtitleKey: 'loaders.fabric.subtitle',
     image: 'assets/images/modloader-fabric-versioncard.png',
+  },
+  legacyfabric: {
+    name: 'Legacy Fabric',
+    buttonClass: 'fabric',
+    accent: '#bebb88',
+    descriptionKey: 'loaders.legacyfabric.description',
+    subtitleKey: 'loaders.legacyfabric.subtitle',
+    image: 'assets/images/modloader-legacyfabric-versioncard.png',
   },
   babric: {
     name: 'Babric',
@@ -43,6 +90,14 @@ export const LOADER_UI_CONFIG = {
     subtitleKey: 'loaders.babric.subtitle',
     image: 'assets/images/modloader-babric-versioncard.png',
   },
+  ornithe: {
+    name: 'Ornithe',
+    buttonClass: 'ornithe',
+    accent: '#b14fa0',
+    descriptionKey: 'loaders.ornithe.description',
+    subtitleKey: 'loaders.ornithe.subtitle',
+    image: 'assets/images/modloader-ornithe-versioncard.png',
+  },
   forge: {
     name: 'Forge',
     buttonClass: 'forge',
@@ -50,6 +105,14 @@ export const LOADER_UI_CONFIG = {
     descriptionKey: 'loaders.forge.description',
     subtitleKey: 'loaders.forge.subtitle',
     image: 'assets/images/modloader-forge-versioncard.png',
+  },
+  liteloader: {
+    name: 'LiteLoader',
+    buttonClass: 'liteloader',
+    accent: '#9bb9d4',
+    descriptionKey: 'loaders.liteloader.description',
+    subtitleKey: 'loaders.liteloader.subtitle',
+    image: 'assets/images/modloader-liteloader-versioncard.png',
   },
   modloader: {
     name: 'ModLoader',
@@ -97,8 +160,11 @@ export const normalizeAddonCompatibilityToken = (value) => {
   const compact = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
   const aliases = {
     fabric: 'fabric',
+    legacyfabric: 'legacyfabric',
     babric: 'babric',
+    ornithe: 'ornithe',
     forge: 'forge',
+    liteloader: 'liteloader',
     modloader: 'modloader',
     neoforge: 'neoforge',
     quilt: 'quilt',

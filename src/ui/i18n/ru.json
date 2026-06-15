@@ -266,8 +266,6 @@
       "customVersionFolder": "Пользовательская (отдельная папка для версии)",
       "launchSettings": "Настройки запуска",
       "useGlobal": "Использовать глобальные",
-      "overrideFullscreen": "Переопределить полноэкранный режим",
-      "fullscreen": "Полноэкранный режим",
       "overrideDemoMode": "Переопределить демо-режим",
       "demoMode": "Демо-режим",
       "minimumRamOverride": "Переопределение минимальной RAM",
@@ -419,10 +417,14 @@
     "typeModpacks": "Сборки модов",
     "typeResourcePacks": "Пакеты ресурсов",
     "typeShaderPacks": "Шейдеры",
+    "typeDatapacks": "Наборы данных",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "Импорт шейдера",
         "emptyInstalled": "Нет установленных шейдеров",
         "emptyAvailable": "Шейдеры не найдены"
+      },
+      "datapacks": {
+        "label": "Наборы данных",
+        "singular": "набор данных",
+        "singularTitle": "Набор данных",
+        "plural": "наборы данных",
+        "pluralTitle": "Наборы данных",
+        "importTitle": "Импорт набора данных",
+        "emptyInstalled": "Нет установленных наборов данных",
+        "emptyAvailable": "Наборы данных не найдены"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "Применить к миру",
+      "manageWorlds": "Управление мирами",
+      "appliedWorlds": "Применено к: {worlds}",
+      "noAppliedWorlds": "Не применено ни к одному миру",
+      "applyTitle": "Применить набор данных к миру",
+      "applyPrompt": "Выберите хранилище миров и миры для <b>{datapack}</b>.",
+      "storageLabel": "Хранилище миров:",
+      "customFolderLabel": "Своя папка:",
+      "selectFolder": "Выбрать папку",
+      "worldsLabel": "Миры:",
+      "noWorlds": "В этом хранилище не найдено ни одного мира.",
+      "applyFailed": "Не удалось применить набор данных.",
+      "applySuccess": "Набор данных применен к {count} миру(ам).",
+      "removeFailed": "Не удалось удалить набор данных из мира.",
+      "removeSuccess": "Набор данных удален из мира {world}.",
+      "manageTitle": "Развертывания в мирах",
+      "managePrompt": "Набор данных <b>{datapack}</b> применен к следующим мирам:",
+      "removeFromWorld": "Удалить",
+      "selectWorlds": "Выберите хотя бы один мир."
     },
     "import": {
       "selectLoaderForFile": "Выберите загрузчик модов для \"{file}\":",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "Импорт...",
+      "importButton": "Импортировать",
+      "successTitle": "Импорт выполнен",
+      "successMessage": "{addon} успешно импортирован.",
+      "errorTitle": "Ошибка импорта",
+      "failedMessage": "Не удалось импортировать {addon}.",
+      "modpackImporting": "Импорт сборки модов...",
+      "modpackImportingPercent": "Импорт сборки модов... {percent}%",
+      "modpackCancelling": "Отмена импорта сборки модов...",
+      "modpackSuccess": "Сборка модов <b>{name}</b> успешно импортирована.",
+      "modpackDetectedFormat": "<br><br>Обнаруженный формат: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>Следующие отдельные моды были отключены, так как конфликтуют со сборкой:<br>",
+      "modpackWarnings": "<br><br>Предупреждения при импорте:<br>",
+      "modpackMoreWarnings": "<br>...и еще {count} предупреждение(й).",
+      "modpackCancelledTitle": "Импорт отменен",
+      "modpackCancelledMessage": "Вы отменили импорт сборки модов.",
+      "modpackFailed": "Не удалось импортировать сборку модов.",
+      "modpackNetworkError": "Сетевая ошибка при импорте сборки модов."
     },
     "status": {
       "installed": "Установлено",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "Удалено {count} {addon}.<br><br>Ошибки:<br>{failures}",
       "confirmMessage": "Удалить {count} выбранных {addon}?<br><i>Это действие не может быть отменено!</i>"
     },
+    "bulkMove": {
+      "title": "Массовое перемещение модов",
+      "noSelected": "Не выбрано ни одного установленного мода.",
+      "prompt": "Переместить {count} выбранный(е) мод(ы) в:",
+      "moveButton": "Переместить",
+      "movingProgress": "Перемещение выбранных модов... ({current}/{total})",
+      "cancelling": "Отмена массового перемещения после завершения текущего мода...",
+      "moveFailed": "не удалось переместить",
+      "requestFailed": "ошибка запроса",
+      "skippedSuffix": ", пропущено {count}",
+      "cancelledTitle": "Массовое перемещение отменено",
+      "cancelledMessage": "Перемещено модов: {moved}{skipped} до отмены.{failures}",
+      "failuresCountSuffix": "<br><br>Ошибки: {count}",
+      "completeTitle": "Массовое перемещение завершено",
+      "completeMessage": "Перемещено модов: {moved}{skipped}.",
+      "finishedWithErrorsTitle": "Массовое перемещение завершено с ошибками",
+      "finishedWithErrorsMessage": "Перемещено модов: {moved}{skipped}.<br><br>Ошибки:<br>{preview}{more}",
+      "moreFailures": "<br>...и еще {count}."
+    },
+    "modpackDetail": {
+      "loader": "Загрузчик: {loader}",
+      "version": "Версия: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "Автор: {author}",
+      "modsCount": "Моды: {count}",
+      "resourcePacksCount": "Пакеты ресурсов: {count}",
+      "shaderPacksCount": "Шейдеры: {count}",
+      "datapacksCount": "Наборы данных: {count}",
+      "notAvailable": "Н/Д"
+    },
+    "modpackActions": {
+      "deleteFailed": "Не удалось удалить сборку модов.",
+      "cannotEnableTitle": "Невозможно включить",
+      "cannotEnableMessage": "Этот мод управляется сборкой <b>{name}</b>. Сначала отключите или удалите эту сборку."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "Для CurseForge требуется ключ API. Добавьте ключ, чтобы использовать провайдер CurseForge, или переключитесь на Modrinth.",
+      "providerError": "Ошибка провайдера: {error}"
+    },
     "detail": {
       "loadingDetails": "Загрузка сведений о {addon}...",
       "screenshots": "Скриншоты",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "Экспорт сборки модов",
-      "selectFormat": "Выберите формат экспорта сборки модов:",
-      "selectLoader": "Выберите загрузчик модов для этой сборки:",
+      "tabs": {
+        "metadata": "Метаданные",
+        "mods": "Моды",
+        "resourcepacks": "Пакеты ресурсов",
+        "shaderpacks": "Шейдеры",
+        "datapacks": "Наборы данных",
+        "export": "Экспорт"
+      },
+      "selectFormat": "Выберите формат экспорта сборки модов",
+      "selectLoader": "Выберите загрузчик модов для этой сборки",
+      "minecraftVersion": "Версия Minecraft",
+      "minecraftVersionHint": "Версия Minecraft, используемая для сборки модов.",
+      "loaderVersion": "Версия загрузчика",
+      "loaderVersionHint": "Версия загрузчика, используемая для сборки модов.",
+      "vanillaModsHint": "Ванильные сборки не содержат модов. Выберите пакеты ресурсов, шейдеры и/или наборы данных на других вкладках.",
       "noLoaderMods": "Моды для {loader} не установлены. Сначала установите несколько модов.",
       "selectMods": "Выберите моды для включения (доступно {count} модов {loader}):",
       "disabledHint": "Дополнительно: отметьте моды как отключенные в сборке, чтобы они были включены, но не активны по умолчанию.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "Не удалось обновить папку источника",
       "failedSaveSourceFolder": "Не удалось сохранить настройку папки источника.",
       "selectAtLeastOneMod": "Выберите хотя бы один мод.",
+      "selectAtLeastOneItem": "Выберите хотя бы один мод, пакет ресурсов, шейдер или набор данных.",
+      "selectMinecraftVersion": "Выберите версию Minecraft",
+      "selectLoaderVersion": "Выберите версию загрузчика",
+      "validationErrorBanner": "Исправьте отмеченные ниже проблемы и попробуйте снова.",
+      "externalVersionRequired": "Укажите версию Minecraft для экспорта в Modrinth/CurseForge (или выберите контент с метаданными версии).",
+      "externalLoaderVersionRequired": "Укажите версию загрузчика для экспорта в Modrinth/CurseForge при использовании загрузчика модов.",
       "selectOptionalAddons": "Выберите дополнительные {plural} для добавления (доступно {count}):",
       "noOptionalAddons": "Нет установленных {plural}. Вы можете продолжить без их добавления.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "Описание сборки..."
       },
       "summary": "{format} {extension} | {mods} модов | {resourcepacks} пакетов ресурсов | {shaderpacks} шейдеров | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "Загрузчик {version}",
       "validation": {
         "nameLength": "Имя должно содержать от 1 до 64 символов.",
         "nameForbidden": "Имя содержит запрещенные символы.",
@@ -1014,13 +1125,25 @@
       "description": "Легкий и быстрый",
       "subtitle": "В основном используется для оптимизации игры"
     },
+    "legacyfabric": {
+      "description": "Fabric для старых версий",
+      "subtitle": "Порт Fabric с поддержкой Minecraft 1.3 - 1.13.2"
+    },
     "babric": {
       "description": "Форк Fabric для Minecraft Beta",
       "subtitle": "Форк Fabric для поддержки Beta 1.7.3"
     },
+    "ornithe": {
+      "description": "Fabric для устаревших версий Minecraft",
+      "subtitle": "Инструментарий на основе Fabric от Alpha до 1.14.x"
+    },
     "forge": {
       "description": "Полные модификации и популярный",
       "subtitle": "В основном используется для создания модификаций игры"
+    },
+    "liteloader": {
+      "description": "Легкие клиентские моды",
+      "subtitle": "Твик-моды для Minecraft 1.5.2 - 1.12.2"
     },
     "modloader": {
       "description": "Среда для легаси jar-модов",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "Гибкий и современный",
       "subtitle": "В основном используется для легкого современного моддинга"
+    },
+    "vanilla": {
+      "description": "Без загрузчика модов",
+      "subtitle": "Только пакеты ресурсов, шейдеры и наборы данных"
     },
     "fallback": {
       "description": "Пользовательский загрузчик",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "Черника (Светлая)",
         "leafDark": "Лист (Темная)",
         "leafLight": "Лист (Светлая)",
+        "orangeDark": "Оранжевая (Темная)",
+        "orangeLight": "Оранжевая (Светлая)",
+        "midnightDark": "Полночь (Темная)",
+        "midnightLight": "Полночь (Светлая)",
+        "graphiteDark": "Графит (Темная)",
+        "graphiteLight": "Графит (Светлая)",
+        "oceanDark": "Океан (Темная)",
+        "oceanLight": "Океан (Светлая)",
+        "amethystDark": "Аметист (Темная)",
+        "amethystLight": "Аметист (Светлая)",
         "aeroDark": "Aero glass (Тёмная)",
-        "aeroLight": "Aero glass (Светлая)"
+        "aeroLight": "Aero glass (Светлая)",
+        "custom": "Своя"
+      },
+      "themeBase": "Базовая тема:",
+      "themeEditor": {
+        "dockTitle": "Редактор тем",
+        "openDock": "Открыть редактор тем",
+        "hint": "Выберите базовую тему, затем настройте отдельные цвета ниже. Переопределения сохраняются вместе с вашим профилем.",
+        "resetAll": "Сбросить все переопределения",
+        "export": "Копировать JSON темы",
+        "import": "Импортировать JSON темы",
+        "resetToken": "Сбросить",
+        "resetTokenTooltip": "Удалить это переопределение цвета и использовать значение базовой темы",
+        "groups": {
+          "app": "Фон приложения",
+          "text": "Текст",
+          "links": "Ссылки и фокус",
+          "surfaces": "Поверхности",
+          "borders": "Границы",
+          "overlays": "Оверлеи и подсказки",
+          "buttons": "Кнопки",
+          "semantic": "Успех, опасность, предупреждение и инфо",
+          "messages": "Окна сообщений",
+          "states": "Выделение и подсветка",
+          "scrollbars": "Полосы прокрутки",
+          "badges": "Значки",
+          "loaders": "Акценты загрузчиков модов"
+        }
       },
       "uiSizes": {
         "small": "Маленький",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "Максимальная выделенная RAM для игры\n  - Должно быть положительным числом\n  - Должно быть больше минимальной RAM\n  - Должно быть не менее 1 байта\n\nПример: 256, 256M, 2G и т.д.\n\n(совет: выделите больше RAM для лучшей производительности, а также уравняйте с минимальной RAM для меньше падений FPS)",
       "resolution": "Разрешение:",
       "resolutionTooltip": "Используемый размер окна игры по умолчанию для версий, поддерживающих аргументы ширина и высота.",
-      "fullscreen": "Полноэкранный режим:",
-      "fullscreenTooltip": "Запускать поддерживаемые версии по умолчанию в полноэкранном режиме.",
       "demoMode": "Демо-режим:",
       "demoModeTooltip": "Запускать поддерживаемые версии с включенным Демо-режимом Minecraft.",
       "storageDir": "Директория хранения:",

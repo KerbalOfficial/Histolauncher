@@ -300,7 +300,7 @@ export const updateCardProgressUI = (vMeta, pct, text, options = {}) => {
   const { paused, statusLabel, pausedColor } = options;
   const cardId = vMeta._cardFullId || `${vMeta.category}/${vMeta.folder}`;
   const card = document.querySelector(
-    `.version-card[data-full-id="${cardId}"]`
+    `.version-card[data-full-id="${CSS.escape(cardId)}"]`
   );
   if (!card) return;
 

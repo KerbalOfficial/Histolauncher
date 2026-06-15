@@ -8,7 +8,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.notifications import send_desktop_notification
 from core.settings import (
     _apply_url_proxy,
@@ -18,7 +18,12 @@ from core.settings import (
     save_global_settings,
 )
 
-from server.api._constants import HISTOLAUNCHER_WEB_ORIGINS
+from server.api._constants import (
+    HISTOLAUNCHER_ACCOUNTS_PROXY_PREFIX,
+    HISTOLAUNCHER_TEXTURES_PROXY_PREFIX,
+    HISTOLAUNCHER_WEB_ORIGINS,
+    HISTOLAUNCHER_WEB_PROXY_PREFIX,
+)
 
 
 __all__ = [
@@ -156,7 +161,7 @@ def _send_microsoft_login_notification(
             icon_kind="success",
         )
     except Exception as exc:
-        print(colorize_log(f"[api] Could not send Microsoft login notification: {exc}"))
+        safe_print(f"[api] Could not send Microsoft login notification: {exc}")
 
 
 def _microsoft_texture_response(texture_profile: dict, *, refresh_result: dict | None = None):
@@ -228,10 +233,10 @@ def _verify_and_store_session_token(session_token: str):
         target_username=username,
     )
 
-    print(colorize_log(
+    safe_print(
         f"[api_account_verify_session] Account verified: "
         f"username={username}, uuid={account_uuid}"
-    ))
+    )
 
     return {
         "ok": True,
@@ -707,47 +712,29 @@ def api_account_refresh_assets(data=None):
         }
 
 
-def _get_histolauncher_settings_proxy_config_script() -> str:
-    return """<script>
-const IS_DEV = false;
-const LOCAL_PROXY_ORIGIN = window.location.origin;
-const ACCOUNTS_BASE = `${LOCAL_PROXY_ORIGIN}/histolauncher-proxy/accounts`;
-const TEXTURE_BASE = `${LOCAL_PROXY_ORIGIN}/histolauncher-proxy/textures`;
+def _build_histolauncher_proxy_config_script(config_js: str) -> str:
+    patched = str(config_js or "")
+    patched = re.sub(
+        r"const IS_DEV\s*=[\s\S]*?;\s*\n\s*const ACCOUNTS_BASE\s*=[\s\S]*?;\s*\n\s*const TEXTURE_BASE\s*=[\s\S]*?;",
+        (
+            "const IS_DEV = false;\n"
+            "const LOCAL_PROXY_ORIGIN = window.location.origin;\n"
+            f"const ACCOUNTS_BASE = `${{LOCAL_PROXY_ORIGIN}}{HISTOLAUNCHER_ACCOUNTS_PROXY_PREFIX}`;\n"
+            f"const TEXTURE_BASE = `${{LOCAL_PROXY_ORIGIN}}{HISTOLAUNCHER_TEXTURES_PROXY_PREFIX}`;"
+        ),
+        patched,
+        count=1,
+    )
+    return patched.replace("</script>", "<\\/script>")
 
-const CONFIG = {
-  API: {
-    BASE: `${ACCOUNTS_BASE}/api`,
-    LOGIN: `${ACCOUNTS_BASE}/api/login`,
-    SIGNUP: `${ACCOUNTS_BASE}/api/signup`,
-    ADMIN_ME: `${ACCOUNTS_BASE}/api/admin/me`,
-    ADMIN_PANEL_CONTENT: `${ACCOUNTS_BASE}/api/admin/panel-content`,
-    ADMIN_PANEL_SCRIPT: `${ACCOUNTS_BASE}/api/admin/panel-script`,
-    ADMIN_GLOBAL_MESSAGE: `${ACCOUNTS_BASE}/api/admin/global-message`,
-    GLOBAL_MESSAGE: `${ACCOUNTS_BASE}/api/global-message`,
-    UPLOAD_SKIN: `${ACCOUNTS_BASE}/api/settings/uploadSkin`,
-    CAPE_OPTIONS: `${ACCOUNTS_BASE}/api/settings/capes`,
-    TEXTURES_BASE: `${TEXTURE_BASE}`
-  },
-  GITHUB: {
-    OWNER: 'KerbalOfficial',
-    REPO: 'Histolauncher'
-  },
-  STORAGE_KEYS: {
-    UUID: 'uuid',
-    USERNAME: 'username'
-  }
-};
 
-function getGitHubReleasesUrl(owner = CONFIG.GITHUB.OWNER, repo = CONFIG.GITHUB.REPO) {
-  return `https://api.github.com/repos/${owner}/${repo}/releases`;
-}
-</script>"""
+ACCOUNT_SETTINGS_IFRAME_CACHE_NAME = "account_settings_iframe_v2.html"
 
 
 def _get_histolauncher_settings_cache_path() -> str:
     cache_dir = os.path.join(get_base_dir(), "cache")
     os.makedirs(cache_dir, exist_ok=True)
-    return os.path.join(cache_dir, "account_settings_iframe.html")
+    return os.path.join(cache_dir, ACCOUNT_SETTINGS_IFRAME_CACHE_NAME)
 
 
 def _load_cached_histolauncher_settings_html() -> str | None:
@@ -790,17 +777,6 @@ def _get_histolauncher_iframe_navigation_guard_script() -> str:
       logBlocked('window.open', targetUrl);
       return null;
     };
-  } catch (_) {}
-
-  try {
-    if (window.history) {
-      window.history.pushState = function () {
-        logBlocked('history.pushState', '');
-      };
-      window.history.replaceState = function () {
-        logBlocked('history.replaceState', '');
-      };
-    }
   } catch (_) {}
 
   document.addEventListener('click', function (event) {
@@ -909,24 +885,73 @@ def _patch_histolauncher_loader_script(script_path: str, script_body: str) -> st
             count=1,
         )
 
-    if script_path.endswith("/loaders/router.js") and "iframeSettingsRoute" not in patched:
-        router_alias_injection = (
-            "  const iframeSettingsRoute = ROUTES.find(function (route) {\n"
-            "    return route.key === 'settings';\n"
-            "  });\n"
-            "  if (iframeSettingsRoute) {\n"
-            "    for (const alias of ['/account-settings-frame', '/account-settings-frame/']) {\n"
-            "      routeLookup.set(normalizePathname(alias), iframeSettingsRoute);\n"
-            "    }\n"
-            "  }\n"
-            "\n"
+    if script_path.endswith("/loaders/router.js"):
+        if "iframeSettingsRoute" not in patched:
+            router_alias_injection = (
+                "  const iframeSettingsRoute = ROUTES.find(function (route) {\n"
+                "    return route.key === 'settings';\n"
+                "  });\n"
+                "  if (iframeSettingsRoute) {\n"
+                "    for (const alias of ['/account-settings-frame', '/account-settings-frame/']) {\n"
+                "      routeLookup.set(normalizePathname(alias), iframeSettingsRoute);\n"
+                "    }\n"
+                "  }\n"
+                "\n"
+            )
+            patched = re.sub(
+                r"(^\s*function emitRouterEvent\(name, detail\) \{\r?\n)",
+                router_alias_injection + r"\1",
+                patched,
+                count=1,
+                flags=re.MULTILINE,
+            )
+
+        if "resolveWebAssetUrl" not in patched:
+            web_asset_helper = (
+                f"  const WEB_PROXY_BASE = '{HISTOLAUNCHER_WEB_PROXY_PREFIX}';\n"
+                "  function resolveWebAssetUrl(path) {\n"
+                "    const raw = String(path || '').trim();\n"
+                "    if (!raw || /^[a-z][a-z0-9+.-]*:/i.test(raw)) return raw;\n"
+                "    if (raw.startsWith(WEB_PROXY_BASE)) return raw;\n"
+                "    if (raw.startsWith('/')) return WEB_PROXY_BASE + raw;\n"
+                "    return WEB_PROXY_BASE + '/' + raw;\n"
+                "  }\n"
+                "\n"
+            )
+            patched = re.sub(
+                r"(^\s*async function getComponentHtml\(componentPath\) \{\r?\n)",
+                web_asset_helper + r"\1",
+                patched,
+                count=1,
+                flags=re.MULTILINE,
+            )
+            patched = patched.replace(
+                "fetch(componentPath, { cache: 'default' })",
+                "fetch(resolveWebAssetUrl(componentPath), { cache: 'default' })",
+            )
+            patched = patched.replace(
+                "script.src = loaderPath;",
+                "script.src = resolveWebAssetUrl(loaderPath);",
+            )
+
+    if script_path.endswith("/loaders/auth.js"):
+        patched = patched.replace(
+            "navigateWithinSite('/login', { replaceState: true });",
+            "console.warn('[Histolauncher iframe] Login required');",
         )
-        patched = re.sub(
-            r"(^\s*function emitRouterEvent\(name, detail\) \{\r?\n)",
-            router_alias_injection + r"\1",
-            patched,
-            count=1,
-            flags=re.MULTILINE,
+        patched = patched.replace(
+            "navigateWithinSite('/login', { replaceState: true })",
+            "console.warn('[Histolauncher iframe] Login required')",
+        )
+        patched = patched.replace(
+            "navigateWithinSite('/', { replaceState: true });",
+            "console.warn('[Histolauncher iframe] Admin access denied');",
+        )
+
+    if script_path.endswith("/loaders/settings.js"):
+        patched = patched.replace(
+            "navigateWithinSite('/login', { replaceState: true });",
+            "console.warn('[Histolauncher iframe] Login required');",
         )
 
     patched = re.sub(
@@ -942,12 +967,6 @@ def _patch_histolauncher_loader_script(script_path: str, script_body: str) -> st
         flags=re.IGNORECASE,
     )
 
-    if script_path.endswith("/loaders/settings.js"):
-        patched = patched.replace(
-            'document.body.innerHTML = "<main><p>Please <a href=\'/login\'>log in</a> first</p></main>";',
-            'document.body.innerHTML = "<main><p>Please log in first.</p></main>";',
-        )
-
     return patched.replace("</script>", "<\\/script>")
 
 
@@ -957,18 +976,48 @@ def _inline_histolauncher_loader_script(html: str, script_src: str, script_body:
     return re.sub(pattern, lambda _: inline_script, html, count=1, flags=re.IGNORECASE)
 
 
+def _rewrite_histolauncher_web_urls_to_proxy(text: str) -> str:
+    rewritten = str(text or "")
+    for origin in HISTOLAUNCHER_WEB_ORIGINS:
+        rewritten = rewritten.replace(
+            f"{origin.rstrip('/')}/",
+            f"{HISTOLAUNCHER_WEB_PROXY_PREFIX}/",
+        )
+    return rewritten
+
+
+def _rewrite_histolauncher_root_asset_urls_to_proxy(text: str) -> str:
+    rewritten = str(text or "")
+    for attribute in ("href", "src"):
+        rewritten = re.sub(
+            rf'({attribute}=["\'])/(?!{re.escape(HISTOLAUNCHER_WEB_PROXY_PREFIX.lstrip("/"))})',
+            rf"\1{HISTOLAUNCHER_WEB_PROXY_PREFIX}/",
+            rewritten,
+            flags=re.IGNORECASE,
+        )
+    return rewritten
+
+
+def patch_histolauncher_web_loader_script(script_path: str, script_body: str) -> str:
+    return _patch_histolauncher_loader_script(script_path, script_body)
+
+
 def _transform_histolauncher_settings_html(raw_html: str, source_origin: str = "") -> str:
     html = str(raw_html or "")
     base_origin = str(source_origin or HISTOLAUNCHER_WEB_ORIGINS[0]).rstrip("/")
-    config_script = _get_histolauncher_settings_proxy_config_script()
     navigation_guard_script = _get_histolauncher_iframe_navigation_guard_script()
 
-    html = re.sub(
-        r"https://(?:histolauncher\.org|histolauncher\.pages\.dev)/",
-        f"{base_origin}/",
-        html,
-        flags=re.IGNORECASE,
+    remote_config_js = _fetch_histolauncher_text(
+        f"{base_origin}/loaders/config.js",
+        include_auth_cookie=False,
+        timeout_seconds=15.0,
     )
+    config_script = (
+        f"<script>\n{_build_histolauncher_proxy_config_script(remote_config_js)}\n</script>"
+    )
+
+    html = _rewrite_histolauncher_web_urls_to_proxy(html)
+    html = _rewrite_histolauncher_root_asset_urls_to_proxy(html)
 
     config_pattern = r"<script[^>]+src=[\"']/loaders/config\.js(?:\?[^\"']*)?[\"'][^>]*>\s*</script>"
     html = re.sub(config_pattern, "", html, flags=re.IGNORECASE)
@@ -977,14 +1026,12 @@ def _transform_histolauncher_settings_html(raw_html: str, source_origin: str = "
     if "Blocked navigation" not in html:
         html = html.replace("</head>", f"{navigation_guard_script}\n</head>", 1)
 
-    if "<base " not in html.lower():
-        html = re.sub(
-            r"<head([^>]*)>",
-            f'<head\\1>\n<base href="{base_origin}/">',
-            html,
-            count=1,
-            flags=re.IGNORECASE,
-        )
+    html = re.sub(
+        r"<base[^>]*>\s*",
+        "",
+        html,
+        flags=re.IGNORECASE,
+    )
 
     html = re.sub(
         r"<script[^>]*>[^<]*__CF\\$cv\\$params.*?</script>",
@@ -1103,10 +1150,13 @@ def api_account_status():
     try:
         s = load_global_settings() or {}
         account_type = s.get("account_type", "Local")
+        website_origin = HISTOLAUNCHER_WEB_ORIGINS[0].rstrip("/")
         return {
             "ok": True,
             "connected": str(account_type).strip().lower() in {"histolauncher", "microsoft"},
             "account_type": account_type,
+            "website_origin": website_origin,
+            "signup_url": f"{website_origin}/signup",
         }
     except Exception as e:
         return {"ok": False, "error": str(e)}

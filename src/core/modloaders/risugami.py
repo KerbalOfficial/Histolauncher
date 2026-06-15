@@ -4,7 +4,7 @@ import threading
 import urllib.parse
 from typing import Any, Final
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.modloaders._endpoints import RISUGAMI_MODLOADER_MANIFEST_URL
 from core.modloaders._http import _http_get_json
 from core.modloaders._versions import loader_version_sort_key
@@ -81,24 +81,23 @@ def _load_manifest() -> list[dict[str, Any]]:
     try:
         data = _http_get_json(RISUGAMI_MODLOADER_MANIFEST_URL)
     except RuntimeError as exc:
-        print(colorize_log(f"[modloaders] Failed to fetch Risugami ModLoader manifest: {exc}"))
+        safe_print(f"[modloaders] Failed to fetch Risugami ModLoader manifest: {exc}")
         with _stale_manifest_lock:
             return list(_stale_manifest or [])
 
     entries = _normalize_manifest_entries(data)
     if not entries:
-        print(colorize_log("[modloaders] Risugami ModLoader manifest was empty"))
+        safe_print("[modloaders] Risugami ModLoader manifest was empty")
         with _stale_manifest_lock:
             return list(_stale_manifest or [])
 
     _manifest_cache.set(MODLOADER_MANIFEST_CACHE_KEY, entries)
     with _stale_manifest_lock:
         _stale_manifest = entries
-    print(
-        colorize_log(
+    safe_print(
+        
             f"[modloaders] Fetched {len(entries)} Risugami ModLoader manifest entries"
         )
-    )
     return entries
 
 

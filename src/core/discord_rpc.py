@@ -5,7 +5,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Final
 
-from core.logger import colorize_log
+from core.logger import safe_print
 
 __all__ = [
     "DISCORD_CLIENT_ID",
@@ -102,7 +102,7 @@ class DiscordRpcManager:
         self._desired = _PresenceState(details=self._format_launcher_version())
 
     # ------------------------------------------------------------------
-    # Public surface
+    # public surface
     # ------------------------------------------------------------------
 
     def set_launcher_version(self, version: object) -> None:
@@ -183,10 +183,8 @@ class DiscordRpcManager:
     def start(self) -> None:
         if _Presence is None:
             if _PYPRESENCE_IMPORT_ERROR is not None:
-                print(
-                    colorize_log(
-                        f"[discord_rpc] pypresence unavailable: {_PYPRESENCE_IMPORT_ERROR}"
-                    )
+                safe_print(
+                    f"[discord_rpc] pypresence unavailable: {_PYPRESENCE_IMPORT_ERROR}"
                 )
             return
 
@@ -205,7 +203,7 @@ class DiscordRpcManager:
         self._close_rpc(clear=True)
 
     # ------------------------------------------------------------------
-    # Internals
+    # internals
     # ------------------------------------------------------------------
 
     def _format_launcher_version(self) -> str:
@@ -231,7 +229,7 @@ class DiscordRpcManager:
             if clear:
                 try:
                     self._rpc.clear()
-                except Exception:  # noqa: BLE001 — pypresence raises various
+                except Exception:  # noqa: BLE001
                     pass
             try:
                 self._rpc.close()
@@ -244,7 +242,7 @@ class DiscordRpcManager:
         message = str(exc).strip() or exc.__class__.__name__
         now = time.time()
         if message != self._last_error or (now - self._last_error_at) >= _REPEATED_ERROR_THROTTLE_S:
-            print(colorize_log(f"[discord_rpc] Connect failed: {message}"))
+            safe_print(f"[discord_rpc] Connect failed: {message}")
             self._last_error = message
             self._last_error_at = now
 
@@ -254,17 +252,15 @@ class DiscordRpcManager:
         try:
             client = _Presence(self._client_id)
             client.connect()
-        except Exception as exc:  # noqa: BLE001 — pypresence variants
+        except Exception as exc:  # noqa: BLE001
             self._close_rpc(clear=False)
             self._log_connect_failure(exc)
             self._connect_attempts += 1
             if self._connect_attempts >= RPC_MAX_CONNECT_ATTEMPTS:
                 self._disabled = True
-                print(
-                    colorize_log(
-                        f"[discord_rpc] Disabled after {RPC_MAX_CONNECT_ATTEMPTS} "
-                        "failed connect attempts; will stop retrying."
-                    )
+                safe_print(
+                    f"[discord_rpc] Disabled after {RPC_MAX_CONNECT_ATTEMPTS} "
+                    "failed connect attempts; will stop retrying."
                 )
                 self._stop_event.set()
             return False
@@ -274,7 +270,7 @@ class DiscordRpcManager:
         self._last_error = None
         self._logged_successful_update = False
         self._connect_attempts = 0
-        print(colorize_log("[discord_rpc] Connected to Discord client"))
+        safe_print("[discord_rpc] Connected to Discord client")
         return True
 
     def _push_presence(self) -> bool:
@@ -284,17 +280,15 @@ class DiscordRpcManager:
         try:
             self._rpc.update(**payload)
         except Exception as exc:  # noqa: BLE001
-            print(colorize_log(f"[discord_rpc] Update failed: {exc}"))
+            safe_print(f"[discord_rpc] Update failed: {exc}")
             self._logged_successful_update = False
             self._close_rpc(clear=False)
             return False
 
         if not self._logged_successful_update:
-            print(
-                colorize_log(
-                    "[discord_rpc] Presence update accepted: "
-                    f"details='{payload['details']}', state='{payload['state']}'"
-                )
+            safe_print(
+                "[discord_rpc] Presence update accepted: "
+                f"details='{payload['details']}', state='{payload['state']}'"
             )
             self._logged_successful_update = True
         return True
@@ -310,7 +304,7 @@ class DiscordRpcManager:
 
 
 # ---------------------------------------------------------------------------
-# Module-level singleton + thin wrappers.
+# module-level singleton + thin wrappers.
 # ---------------------------------------------------------------------------
 
 _manager = DiscordRpcManager()

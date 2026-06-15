@@ -18,7 +18,7 @@ from core.java import (
     suggest_java_feature_version,
 )
 from core.subprocess_utils import no_window_kwargs
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import get_base_dir, load_global_settings
 
 from core.launch.args import (
@@ -62,6 +62,10 @@ from core.launch.loader import (
     _get_loader_version,
     _normalize_forge_mc_version,
     _normalize_forge_mcp_version,
+)
+from core.launch.datapacks import (
+    stage_datapack_deployments_for_launch,
+    start_world_creation_datapack_watcher,
 )
 from core.launch.mods import (
     _cleanup_copied_mods,
@@ -200,19 +204,19 @@ def _prewarm_authlib_textures_for_launch(ygg_port: int, launch_auth_info: dict) 
             ready_count = int((textures or {}).get("ready") or 0)
             total_count = int((textures or {}).get("urls") or 0)
             if total_count:
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Authlib texture profile and PNG cache prewarmed ({ready_count}/{total_count})"
-                ))
+                )
             else:
-                print(colorize_log("[launcher] Authlib texture profile cache prewarmed"))
+                safe_print("[launcher] Authlib texture profile cache prewarmed")
         elif result.get("profile_ready"):
-            print(colorize_log("[launcher] Authlib texture profile cache prewarmed; PNG cache still warming"))
+            safe_print("[launcher] Authlib texture profile cache prewarmed; PNG cache still warming")
         elif result.get("already_running"):
-            print(colorize_log("[launcher] Authlib texture profile cache prewarm already running"))
+            safe_print("[launcher] Authlib texture profile cache prewarm already running")
         else:
-            print(colorize_log("[launcher] Authlib texture profile cache prewarm continuing in background"))
+            safe_print("[launcher] Authlib texture profile cache prewarm continuing in background")
     except Exception as e:
-        print(colorize_log(f"[launcher] Warning: authlib texture prewarm failed: {e}"))
+        safe_print(f"[launcher] Warning: authlib texture prewarm failed: {e}")
 
 
 def _is_direct_legacy_forge_launch(loader_key: str, legacy_runtime: bool, main_class: str) -> bool:
@@ -324,32 +328,32 @@ def _prepare_legacy_forge_appdata_shim(game_dir: str) -> str:
     try:
         _create_ntfs_junction(link_path, game_dir)
         if os.path.isdir(link_path):
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Created legacy Forge APPDATA shim: {link_path} -> {game_dir}"
-            ))
+            )
             return shim_root
     except OSError as e:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Warning: NTFS junction for legacy Forge APPDATA shim failed: {e}"
             " — trying symlink fallback"
-        ))
+        )
 
     try:
         os.symlink(game_dir, link_path, target_is_directory=True)
         if os.path.isdir(link_path):
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Created legacy Forge APPDATA shim (symlink): {link_path} -> {game_dir}"
-            ))
+            )
             return shim_root
     except (OSError, NotImplementedError):
         pass
 
-    print(colorize_log(
+    safe_print(
         "[launcher] Warning: Could not redirect APPDATA for legacy Forge "
         "(NTFS junction and symlink both failed). "
         "Old Forge will write to %APPDATA%\\.minecraft instead of the configured storage directory. "
         "If your storage directory is on a network share, move it to a local drive."
-    ))
+    )
     _cleanup_legacy_forge_appdata_shim(shim_root)
     return ""
 
@@ -363,7 +367,7 @@ def _cleanup_legacy_forge_appdata_shim(shim_root: str) -> None:
     except FileNotFoundError:
         pass
     except OSError as e:
-        print(colorize_log(f"[launcher] Warning: Could not remove legacy Forge APPDATA junction: {e}"))
+        safe_print(f"[launcher] Warning: Could not remove legacy Forge APPDATA junction: {e}")
     if os.path.exists(link_path) or os.path.islink(link_path):
         try:
             os.rmdir(shim_root)
@@ -373,7 +377,7 @@ def _cleanup_legacy_forge_appdata_shim(shim_root: str) -> None:
     try:
         shutil.rmtree(shim_root, ignore_errors=True)
     except Exception as e:
-        print(colorize_log(f"[launcher] Warning: Could not remove legacy Forge APPDATA shim: {e}"))
+        safe_print(f"[launcher] Warning: Could not remove legacy Forge APPDATA shim: {e}")
 
 
 def _cleanup_legacy_forge_appdata_shim_after_exit(process, shim_root: str) -> None:
@@ -402,7 +406,7 @@ def _launch_version_once(
     base_dir = get_base_dir()
     version_dir = _resolve_version_dir(version_identifier)
     if not version_dir:
-        print("ERROR: Version directory not found for", version_identifier)
+        safe_print("ERROR: Version directory not found for", version_identifier)
         _set_last_launch_error(version_identifier, f"Version directory not found for {version_identifier}")
         return False
     meta = _load_data_ini(version_dir)
@@ -421,7 +425,7 @@ def _launch_version_once(
             launch_auth_info = get_launch_auth_info(require_valid=True)
         except RuntimeError as e:
             message = f"Microsoft account authentication failed: {e}"
-            print(colorize_log(f"[launcher] ERROR: {message}"))
+            safe_print(f"[launcher] ERROR: {message}")
             _set_last_launch_error(version_identifier, message)
             return False
 
@@ -461,10 +465,10 @@ def _launch_version_once(
                                 pass
 
                 if not has_launchwrapper and actual_version.startswith("14"):
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] Warning: Forge {actual_version} appears incomplete (missing LaunchWrapper)"
-                    ))
-                    print(colorize_log("[launcher] Attempting to use a compatible newer version instead..."))
+                    )
+                    safe_print("[launcher] Attempting to use a compatible newer version instead...")
 
                     loaders_dir = os.path.join(version_dir, "loaders", "forge")
                     if os.path.isdir(loaders_dir):
@@ -479,12 +483,12 @@ def _launch_version_once(
                                 break
 
                         if fallback_version and fallback_version != actual_version:
-                            print(colorize_log(f"[launcher] Trying fallback: Forge {fallback_version}"))
+                            safe_print(f"[launcher] Trying fallback: Forge {fallback_version}")
                             loader_jars = _get_loader_jars(version_dir, loader, fallback_version)
                             if loader_jars:
-                                print(colorize_log(
+                                safe_print(
                                     f"[launcher] Fallback successful - using Forge {fallback_version}"
-                                ))
+                                )
                                 loader_version = fallback_version
                                 actual_version = fallback_version
 
@@ -493,7 +497,7 @@ def _launch_version_once(
             loader_main = _get_loader_main_class(version_dir, loader, lookup_version)
             if loader_main:
                 main_class = loader_main
-                print(colorize_log(f"[launcher] Using {loader} main class: {main_class}"))
+                safe_print(f"[launcher] Using {loader} main class: {main_class}")
 
             preserve_forge_client = True
             if loader.lower() in ("forge", "neoforge"):
@@ -507,7 +511,7 @@ def _launch_version_once(
             )
 
             classpath_entries = loader_jars + classpath_entries
-            print(colorize_log(f"[launcher] Injected {len(loader_jars)} {loader} JAR(s) into classpath"))
+            safe_print(f"[launcher] Injected {len(loader_jars)} {loader} JAR(s) into classpath")
 
             if loader.lower() in ("forge", "neoforge"):
                 actual_loader_version = loader_version or _get_loader_version(version_dir, loader)
@@ -520,12 +524,12 @@ def _launch_version_once(
                     )
                     if os.path.isdir(os.path.join(loader_full_path, "libraries")) and libraries_dir_rel not in classpath_entries:
                         classpath_entries.insert(len(loader_jars), libraries_dir_rel)
-                        print(colorize_log(f"[launcher] Added {loader} libraries/ to classpath"))
+                        safe_print(f"[launcher] Added {loader} libraries/ to classpath")
                 if main_class == "cpw.mods.modlauncher.Launcher":
                     classpath_entries = _prune_forge_root_jars_for_modlauncher(classpath_entries)
                 if main_class.startswith("cpw.mods.bootstraplauncher"):
                     classpath_entries = _prune_vanilla_client_jar(classpath_entries)
-            if loader.lower() == "babric" and not main_class.startswith("net.minecraft.launchwrapper."):
+            if loader.lower() in ("babric", "ornithe") and not main_class.startswith("net.minecraft.launchwrapper."):
                 classpath_entries = _prune_legacy_launchwrapper_bootstrap_jars(classpath_entries)
 
     if loader_key == "modloader" and legacy_runtime:
@@ -549,9 +553,9 @@ def _launch_version_once(
                 updated_entries.insert(0, extracted_runtime_rel)
 
             classpath_entries = updated_entries
-            print(colorize_log(
+            safe_print(
                 "[launcher] Using extracted legacy ModLoader runtime directory for compatibility"
-            ))
+            )
 
     if allow_overwrite_classpath_for_loader:
         if not modloader_overwrite_dir:
@@ -565,13 +569,12 @@ def _launch_version_once(
             }
             if overlay_real not in existing_real:
                 classpath_entries.insert(0, modloader_overwrite_dir)
-                print(colorize_log(f"[launcher] Added {loader_key} overwrite classpath layer"))
+                safe_print(f"[launcher] Added {loader_key} overwrite classpath layer")
 
     classpath_entries = _filter_platform_specific_classpath_entries(classpath_entries)
 
     if loader and loader.lower() == "forge":
-        major, minor = _parse_mc_version(version_identifier)
-        if major == 1 and minor is not None and minor < 6:
+        if _is_legacy_pre16_runtime(version_identifier):
             actual_loader_version = loader_version or _get_loader_version(version_dir, "forge")
             merged_jar_rel = _prepare_legacy_forge_merged_client_jar(version_dir, actual_loader_version)
             forge_core_abs = _find_forge_core_jar(version_dir, actual_loader_version) if actual_loader_version else ""
@@ -614,9 +617,9 @@ def _launch_version_once(
                     updated_entries.insert(0, merged_jar_rel)
 
                 classpath_entries = updated_entries
-                print(colorize_log(
+                safe_print(
                     "[launcher] Using merged legacy Forge/client jar for pre-1.6 compatibility"
-                ))
+                )
 
     legacy_direct_buffer_patch = ""
     if _is_legacy_pre16_runtime(version_identifier):
@@ -633,9 +636,9 @@ def _launch_version_once(
                     updated_entries.append(entry)
             if replaced_client:
                 classpath_entries = updated_entries
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Using unsigned legacy client.jar for compatibility: {unsigned_client_rel}"
-                ))
+                )
 
         legacy_applet_window_patch = _prepare_legacy_applet_window_patch(version_dir)
         if legacy_applet_window_patch and legacy_applet_window_patch not in classpath_entries:
@@ -657,7 +660,7 @@ def _launch_version_once(
 
             auto_launch_settings = recommend_smart_settings(global_settings)
         except Exception as exc:
-            print(colorize_log(f"[launcher] Auto Optimize failed; using saved JVM settings: {exc}"))
+            safe_print(f"[launcher] Auto Optimize failed; using saved JVM settings: {exc}")
             auto_launch_settings = {}
 
     min_ram = (
@@ -692,11 +695,11 @@ def _launch_version_once(
     ).strip()
     if auto_launch_settings:
         memory = auto_launch_settings.get("memory") if isinstance(auto_launch_settings.get("memory"), dict) else {}
-        print(colorize_log(
+        safe_print(
             "[launcher] Auto Optimize selected JVM settings: "
             f"-Xms{min_ram} -Xmx{max_ram} "
             f"({int((memory or {}).get('available_mb') or 0)} MB available)"
-        ))
+        )
     game_dir = _resolve_game_dir(global_settings, version_dir)
     if loader and loader.lower() == "neoforge":
         _restore_neoforge_early_window(game_dir)
@@ -721,16 +724,16 @@ def _launch_version_once(
             parsed_extra_args = global_extra_jvm_args_raw.split()
         if parsed_extra_args:
             cmd.extend(parsed_extra_args)
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Added {len(parsed_extra_args)} user-configured JVM argument(s)"
-            ))
+            )
 
     try:
         if _is_legacy_pre16_runtime(version_identifier):
             legacy_flag = "-Djava.util.Arrays.useLegacyMergeSort=true"
             if not any(str(a).strip().startswith("-Djava.util.Arrays.useLegacyMergeSort") for a in cmd):
                 cmd.append(legacy_flag)
-                print(colorize_log(f"[launcher] Added JVM arg for legacy sorting: {legacy_flag}"))
+                safe_print(f"[launcher] Added JVM arg for legacy sorting: {legacy_flag}")
     except Exception:
         pass
 
@@ -756,9 +759,9 @@ def _launch_version_once(
 
         if metadata_jvm_args:
             cmd.extend(metadata_jvm_args)
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Added {len(metadata_jvm_args)} Forge metadata JVM argument(s)"
-            ))
+            )
         else:
             try:
                 java_version_output = subprocess.check_output(
@@ -773,14 +776,14 @@ def _launch_version_once(
                         "--add-opens=java.base/java.util.jar=ALL-UNNAMED",
                         "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
                     ])
-                    print(colorize_log("[launcher] Added Java 9+ Forge compatibility arguments"))
+                    safe_print("[launcher] Added Java 9+ Forge compatibility arguments")
             except Exception:
                 pass
 
         if is_modlauncher:
-            print(colorize_log(
+            safe_print(
                 "[launcher] Detected ModLauncher-based Forge, will add FML properties as command-line arguments"
-            ))
+            )
 
             forge_fml_metadata = _get_forge_fml_metadata(version_dir, loader_version)
 
@@ -796,7 +799,7 @@ def _launch_version_once(
                 forge_fml_metadata["forge_group"] = "net.minecraftforge"
 
         elif is_launchwrapper:
-            print(colorize_log("[launcher] Detected LaunchWrapper-based Forge, skipping FML properties"))
+            safe_print("[launcher] Detected LaunchWrapper-based Forge, skipping FML properties")
 
     elif loader and loader.lower() == "neoforge":
         metadata_jvm_args_raw = _get_loader_metadata_args(version_dir, "neoforge", loader_version, "jvm")
@@ -810,9 +813,9 @@ def _launch_version_once(
 
         if metadata_jvm_args:
             cmd.extend(metadata_jvm_args)
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Added {len(metadata_jvm_args)} NeoForge metadata JVM argument(s)"
-            ))
+            )
 
         try:
             actual_loader_version = loader_version or _get_loader_version(version_dir, "neoforge")
@@ -827,9 +830,9 @@ def _launch_version_once(
                         neoforge_version_data = _json.load(f)
                     neoforge_profile_version = str(neoforge_version_data.get("id") or "").strip()
         except Exception as e:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Warning: Could not read NeoForge metadata version id: {e}"
-            ))
+            )
 
     ygg_port = 0
     port_str = os.environ.get("HISTOLAUNCHER_PORT")
@@ -847,7 +850,7 @@ def _launch_version_once(
     if os.path.exists(authlib_path):
         if ygg_port > 0:
             ygg_url = f"http://127.0.0.1:{ygg_port}/authserver"
-            print(colorize_log(f"[launcher] Using authlib-injector: {authlib_path}"))
+            safe_print(f"[launcher] Using authlib-injector: {authlib_path}")
             cmd.append(f"-javaagent:{authlib_path}={ygg_url}")
 
     if (
@@ -862,9 +865,9 @@ def _launch_version_once(
             "-Dhttp.nonProxyHosts=localhost|127.*",
             "-Dhttps.nonProxyHosts=localhost|127.*",
         ])
-        print(colorize_log(
+        safe_print(
             f"[launcher] Enabled legacy HTTP proxy bridge via 127.0.0.1:{ygg_port}"
-        ))
+        )
 
     native_folder = meta.get("native_subfolder") or _native_subfolder_for_platform()
     native_path = os.path.join(version_dir, native_folder)
@@ -889,19 +892,19 @@ def _launch_version_once(
                 native_folder,
             )
             refresh_native_binaries = True
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Using isolated {loader_type_for_natives} native runtime directory"
-            ))
+            )
     if any(_is_platform_specific_runtime_jar(os.path.basename(entry)) for entry in classpath_entries):
         if refresh_native_binaries or not _native_directory_has_binaries(native_path):
             used_jars, extracted_files = _extract_current_platform_native_binaries(
                 version_dir, classpath_entries, native_path,
             )
             if extracted_files:
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Prepared native runtime directory with {extracted_files} binary file(s) "
                     f"from {used_jars} JAR(s)"
-                ))
+                )
 
         native_props_added = 0
         if os.path.isdir(native_path):
@@ -910,10 +913,10 @@ def _launch_version_once(
             native_props_added += int(_append_system_property_if_missing(cmd, "org.lwjgl.system.SharedLibraryExtractPath", native_path))
             native_props_added += int(_append_system_property_if_missing(cmd, "io.netty.native.workdir", native_path))
             if native_props_added:
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Added {native_props_added} native runtime JVM propert"
                     f"{'y' if native_props_added == 1 else 'ies'}"
-                ))
+                )
     elif os.path.isdir(native_path):
         _append_system_property_if_missing(cmd, "java.library.path", native_path)
 
@@ -926,8 +929,8 @@ def _launch_version_once(
         if uses_intermediary:
             yarn_mappings = _download_yarn_mappings(version_dir, mc_version, "launch")
             if not yarn_mappings:
-                print(colorize_log("[launcher] WARNING: Yarn mappings not available for Fabric"))
-                print(colorize_log("[launcher] Some mods may not work properly without Yarn mappings"))
+                safe_print("[launcher] WARNING: Yarn mappings not available for Fabric")
+                safe_print("[launcher] Some mods may not work properly without Yarn mappings")
             classpath_file = os.path.join(version_dir, ".fabric_remap_classpath.txt")
             classpath_entries = []
             try:
@@ -938,11 +941,11 @@ def _launch_version_once(
                             abs_path = os.path.abspath(entry)
                             f.write(abs_path + "\n")
                             classpath_entries.append(abs_path)
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Created Fabric remapping classpath file ({len(classpath_entries)} entries)"
-                ))
+                )
             except Exception as e:
-                print(colorize_log(f"[launcher] ERROR creating Fabric remapping classpath file: {e}"))
+                safe_print(f"[launcher] ERROR creating Fabric remapping classpath file: {e}")
                 _set_last_launch_error(
                     version_identifier,
                     f"Could not prepare Fabric runtime remap classpath: {e}",
@@ -959,21 +962,27 @@ def _launch_version_once(
             cmd.append(f"-Dfabric.remapClasspathFile={classpath_file}")
             cmd.append(f"-Dfabric.gameJarPath={os.path.join(version_dir, 'client.jar')}")
 
-            print("[launcher] Fabric runtime remapping configured:")
+            safe_print("[launcher] Fabric runtime remapping configured:")
             if yarn_mappings:
-                print(f"  [OK] Yarn mappings: {os.path.basename(yarn_mappings)}")
+                safe_print(f"  [OK] Yarn mappings: {os.path.basename(yarn_mappings)}")
             else:
-                print("  [NO] Yarn mappings: Not available (mods may warn or fail)")
-            print(f"  [OK] Remapping classpath: {len(classpath_entries)} JARs")
-            print("  [OK] Namespace: official -> intermediary")
+                safe_print("  [NO] Yarn mappings: Not available (mods may warn or fail)")
+            safe_print(f"  [OK] Remapping classpath: {len(classpath_entries)} JARs")
+            safe_print("  [OK] Namespace: official -> intermediary")
         else:
-            print("[launcher] Fabric intermediary mappings not detected; using official runtime namespace")
-            print("  [OK] Namespace: official")
+            safe_print("[launcher] Fabric intermediary mappings not detected; using official runtime namespace")
+            safe_print("  [OK] Namespace: official")
 
         cmd.append("-Dfabric.development=false")
 
-    if loader and loader.lower() == "babric":
-        metadata_jvm_args_raw = _get_loader_metadata_args(version_dir, "babric", loader_version, "jvm")
+    if loader and loader.lower() in ("babric", "legacyfabric", "ornithe"):
+        knot_loader_type = loader.lower()
+        knot_loader_label = {
+            "babric": "Babric",
+            "legacyfabric": "Legacy Fabric",
+            "ornithe": "Ornithe",
+        }[knot_loader_type]
+        metadata_jvm_args_raw = _get_loader_metadata_args(version_dir, knot_loader_type, loader_version, "jvm")
         metadata_jvm_args = []
         skip_next = False
         for raw_arg in metadata_jvm_args_raw or []:
@@ -994,24 +1003,24 @@ def _launch_version_once(
 
         if metadata_jvm_args:
             cmd.extend(metadata_jvm_args)
-            print(colorize_log(
-                f"[launcher] Added {len(metadata_jvm_args)} Babric metadata JVM argument(s)"
-            ))
+            safe_print(
+                f"[launcher] Added {len(metadata_jvm_args)} {knot_loader_label} metadata JVM argument(s)"
+            )
 
-        metadata_game_args_raw = _get_loader_metadata_args(version_dir, "babric", loader_version, "game")
+        metadata_game_args_raw = _get_loader_metadata_args(version_dir, knot_loader_type, loader_version, "game")
         if metadata_game_args_raw:
             babric_metadata_game_args = _expand_loader_metadata_args(
                 metadata_game_args_raw,
                 version_dir,
-                "babric",
+                knot_loader_type,
                 loader_version,
                 version_identifier,
                 assets_root_override=assets_root_override,
             )
             if babric_metadata_game_args:
-                print(colorize_log(
-                    f"[launcher] Prepared {len(babric_metadata_game_args)} Babric metadata game argument(s)"
-                ))
+                safe_print(
+                    f"[launcher] Prepared {len(babric_metadata_game_args)} {knot_loader_label} metadata game argument(s)"
+                )
 
         cmd.append("-Dfabric.development=false")
 
@@ -1019,7 +1028,7 @@ def _launch_version_once(
         cmd.append("-Dloader.development=false")
 
     if loader and loader.lower() in ("forge", "neoforge"):
-        print(f"[launcher] Configuring {loader} environment...")
+        safe_print(f"[launcher] Configuring {loader} environment...")
 
         loader_version = loader_version or _get_loader_version(version_dir, loader.lower())
         if loader_version:
@@ -1030,7 +1039,7 @@ def _launch_version_once(
                 config_path = os.path.join(forge_loader_dir, config_file)
                 if os.path.exists(config_path):
                     log4j_config = config_path
-                    print(colorize_log(f"[launcher] Found {loader} log4j config: {config_file}"))
+                    safe_print(f"[launcher] Found {loader} log4j config: {config_file}")
                     break
 
             if log4j_config:
@@ -1038,48 +1047,48 @@ def _launch_version_once(
                     cmd.append(f"-Dlog4j.configurationFile=file:///{log4j_config.replace(chr(92), '/')}")
                 else:
                     cmd.append(f"-Dlog4j.configuration=file:///{log4j_config.replace(chr(92), '/')}")
-                print(colorize_log(f"[launcher] Set log4j configuration: {log4j_config}"))
+                safe_print(f"[launcher] Set log4j configuration: {log4j_config}")
             else:
                 fallback_log4j_path = os.path.join(forge_loader_dir, "log4j2.xml")
                 if _create_fallback_log4j2_config(fallback_log4j_path):
                     log4j_config = fallback_log4j_path
                     cmd.append(f"-Dlog4j.configurationFile=file:///{log4j_config.replace(chr(92), '/')}")
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] Created fallback {loader} log4j config: {log4j_config}"
-                    ))
+                    )
                 else:
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] WARNING: No log4j configuration found in {loader} directory"
-                    ))
-                    print(colorize_log(
+                    )
+                    safe_print(
                         f"[launcher] {loader} may have startup issues without proper logging configuration"
-                    ))
+                    )
 
         if loader.lower() == "forge" and (not main_class or main_class == ""):
             main_class = "net.minecraft.client.main.Main"
-            print(colorize_log(f"[launcher] Using vanilla main class for Forge: {main_class}"))
+            safe_print(f"[launcher] Using vanilla main class for Forge: {main_class}")
 
     cmd.extend(["-cp", classpath])
     cmd.append(main_class)
 
     if loader and loader.lower() == "forge" and main_class == "cpw.mods.modlauncher.Launcher":
         cmd.extend(["--launchTarget", "fmlclient"])
-        print(colorize_log("[launcher] Added launch target: --launchTarget fmlclient"))
+        safe_print("[launcher] Added launch target: --launchTarget fmlclient")
 
         if forge_fml_metadata.get("mc_version"):
             mc_ver = _normalize_forge_mc_version(forge_fml_metadata["mc_version"])
             cmd.extend(["--fml.mcVersion", mc_ver])
-            print(colorize_log(f"[launcher] Added FML argument: --fml.mcVersion {mc_ver}"))
+            safe_print(f"[launcher] Added FML argument: --fml.mcVersion {mc_ver}")
 
         if forge_fml_metadata.get("forge_version"):
             cmd.extend(["--fml.forgeVersion", forge_fml_metadata["forge_version"]])
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Added FML argument: --fml.forgeVersion {forge_fml_metadata['forge_version']}"
-            ))
+            )
 
         forge_group = forge_fml_metadata.get("forge_group") or "net.minecraftforge"
         cmd.extend(["--fml.forgeGroup", forge_group])
-        print(colorize_log(f"[launcher] Added FML argument: --fml.forgeGroup {forge_group}"))
+        safe_print(f"[launcher] Added FML argument: --fml.forgeGroup {forge_group}")
 
         mcp_version = _normalize_forge_mcp_version(
             forge_fml_metadata.get("mcp_version", ""),
@@ -1088,11 +1097,11 @@ def _launch_version_once(
 
         if mcp_version:
             cmd.extend(["--fml.mcpVersion", mcp_version])
-            print(colorize_log(f"[launcher] Added FML argument: --fml.mcpVersion {mcp_version}"))
+            safe_print(f"[launcher] Added FML argument: --fml.mcpVersion {mcp_version}")
         else:
-            print(colorize_log(
+            safe_print(
                 "[launcher] WARNING: Forge MCP version metadata is missing; launching without --fml.mcpVersion"
-            ))
+            )
 
     if loader and loader.lower() == "forge" and (
         main_class.startswith("cpw.mods.bootstraplauncher")
@@ -1108,9 +1117,9 @@ def _launch_version_once(
             has_launch_target = any(arg == "--launchTarget" for arg in cmd)
             if not has_launch_target:
                 cmd.extend(metadata_game_args)
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Added {len(metadata_game_args)} Forge metadata game argument(s) for bootstrap launch"
-                ))
+                )
 
     if loader and loader.lower() == "neoforge":
         metadata_game_args_raw = _get_loader_metadata_args(version_dir, "neoforge", loader_version, "game")
@@ -1125,9 +1134,9 @@ def _launch_version_once(
             has_launch_target = any(arg == "--launchTarget" for arg in cmd)
             if not has_launch_target:
                 cmd.extend(metadata_game_args)
-                print(colorize_log(
+                safe_print(
                     f"[launcher] Added {len(metadata_game_args)} NeoForge metadata game argument(s)"
-                ))
+                )
 
     if loader and loader.lower() == "forge" and main_class == "net.minecraft.launchwrapper.Launch":
         tweak_class = None
@@ -1154,9 +1163,9 @@ def _launch_version_once(
 
                         forge_jar = os.path.join(root, filename)
                         jars_checked.append(filename)
-                        print(colorize_log(
+                        safe_print(
                             f"[launcher] Debug: Checking JAR for Tweak-Class: {filename}"
-                        ))
+                        )
                         try:
                             with zipfile.ZipFile(forge_jar, "r") as jar:
                                 try:
@@ -1165,53 +1174,53 @@ def _launch_version_once(
                                         line = line.strip()
                                         if line.startswith("Tweak-Class:"):
                                             tweak_class = line.split(":", 1)[1].strip()
-                                            print(colorize_log(
+                                            safe_print(
                                                 f"[launcher] Found Tweak-Class in {filename}: {tweak_class}"
-                                            ))
+                                            )
                                             break
                                         elif line.startswith("TweakClass:"):
                                             tweak_class = line.split(":", 1)[1].strip()
-                                            print(colorize_log(
+                                            safe_print(
                                                 f"[launcher] Found TweakClass (old format) in {filename}: {tweak_class}"
-                                            ))
+                                            )
                                             break
                                 except KeyError:
-                                    print(colorize_log(
+                                    safe_print(
                                         f"[launcher] Debug: No META-INF/MANIFEST.MF in {filename}"
-                                    ))
+                                    )
                                     pass
 
                             if tweak_class:
                                 break
                         except Exception as jar_err:
-                            print(colorize_log(
+                            safe_print(
                                 f"[launcher] Debug: Could not read {filename}: {jar_err}"
-                            ))
+                            )
 
                     if tweak_class:
                         break
 
                 if not tweak_class and jars_checked:
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] Debug: Checked {len(jars_checked)} JAR(s) but no Tweak-Class found"
-                    ))
+                    )
                 elif not jars_checked:
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] Debug: No Forge core JAR files found in {forge_loader_path}"
-                    ))
+                    )
 
                 if not tweak_class:
                     metadata_tweak = _get_forge_tweak_class_from_metadata(version_dir, actual_loader_version)
                     if metadata_tweak:
                         tweak_class = metadata_tweak
-                        print(colorize_log(
+                        safe_print(
                             f"[launcher] Using Forge tweak class from metadata: {tweak_class}"
-                        ))
+                        )
 
                 if tweak_class and not _classpath_has_class(version_dir, classpath_entries, tweak_class):
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] Ignoring Forge tweak class not found on classpath: {tweak_class}"
-                    ))
+                    )
                     tweak_class = None
 
                 if not tweak_class:
@@ -1221,26 +1230,40 @@ def _launch_version_once(
                     ):
                         if _classpath_has_class(version_dir, classpath_entries, fallback_tweak):
                             tweak_class = fallback_tweak
-                            print(colorize_log(
+                            safe_print(
                                 f"[launcher] Falling back to detected Forge tweak class: {tweak_class}"
-                            ))
+                            )
                             break
 
         except Exception as e:
-            print(colorize_log(f"[launcher] Warning: Could not extract tweak class: {e}"))
+            safe_print(f"[launcher] Warning: Could not extract tweak class: {e}")
 
         if tweak_class:
             cmd.extend(["--tweakClass", tweak_class])
-            print(colorize_log(f"[launcher] Added Forge tweaker: {tweak_class}"))
+            safe_print(f"[launcher] Added Forge tweaker: {tweak_class}")
         else:
-            print(colorize_log(
+            safe_print(
                 "[launcher] Warning: Could not determine Forge tweak class (mods may not load)"
-            ))
+            )
+
+    if loader and loader.lower() == "liteloader" and main_class == "net.minecraft.launchwrapper.Launch":
+        liteloader_tweak = ""
+        try:
+            metadata_tweak_args = _get_loader_metadata_args(
+                version_dir, "liteloader", loader_version, "game"
+            )
+            liteloader_tweak = _extract_tweak_class_from_arg_list(metadata_tweak_args) or ""
+        except Exception as e:
+            safe_print(f"[launcher] Warning: Could not read LiteLoader tweak metadata: {e}")
+        if not liteloader_tweak:
+            liteloader_tweak = "com.mumfrey.liteloader.launch.LiteLoaderTweaker"
+        cmd.extend(["--tweakClass", liteloader_tweak])
+        safe_print(f"[launcher] Added LiteLoader tweaker: {liteloader_tweak}")
 
     if loader and loader.lower() == "forge" and not main_class:
-        print(colorize_log("[launcher] ERROR: Could not determine Forge main class!"))
-        print(colorize_log("[launcher] This Forge version may not be properly supported yet."))
-        print(colorize_log("[launcher] Attempting to use vanilla launcher as fallback..."))
+        safe_print("[launcher] ERROR: Could not determine Forge main class!")
+        safe_print("[launcher] This Forge version may not be properly supported yet.")
+        safe_print("[launcher] Attempting to use vanilla launcher as fallback...")
         main_class = "net.minecraft.client.Minecraft"
         cmd[-1] = main_class
 
@@ -1260,7 +1283,7 @@ def _launch_version_once(
     expanded_game_args: list = []
     extra = meta.get("extra_jvm_args")
     if extra:
-        expanded = _expand_placeholders(
+        expanded_game_args = _expand_placeholders(
             extra,
             version_identifier,
             game_dir,
@@ -1269,15 +1292,19 @@ def _launch_version_once(
             meta,
             assets_root_override=assets_root_override,
         )
-        expanded_game_args = expanded.split()
 
-    if not expanded_game_args and loader and loader.lower() == "babric" and babric_metadata_game_args:
+    if (
+        not expanded_game_args
+        and loader
+        and loader.lower() in ("babric", "legacyfabric", "ornithe")
+        and babric_metadata_game_args
+    ):
         expanded_game_args = list(babric_metadata_game_args)
-        print(colorize_log("[launcher] Using Babric metadata game arguments"))
+        safe_print(f"[launcher] Using {loader} metadata game arguments")
 
     if not expanded_game_args and main_class == "net.minecraft.launchwrapper.Launch" and _is_legacy_pre16_runtime(version_identifier):
         legacy_assets_dir = assets_root_override or os.path.join(game_dir, "resources")
-        if loader and loader.lower() == "forge":
+        if loader and loader.lower() in ("forge", "liteloader"):
             expanded_game_args = [
                 "--username",
                 username,
@@ -1290,7 +1317,7 @@ def _launch_version_once(
                 "--gameDir",
                 game_dir,
             ]
-            print(colorize_log("[launcher] Applied legacy Forge LaunchWrapper args"))
+            safe_print("[launcher] Applied legacy Forge LaunchWrapper args")
         else:
             expanded_game_args = [
                 username,
@@ -1302,20 +1329,20 @@ def _launch_version_once(
                 "--gameDir",
                 game_dir,
             ]
-            print(colorize_log("[launcher] Applied runtime fallback legacy LaunchWrapper args"))
+            safe_print("[launcher] Applied runtime fallback legacy LaunchWrapper args")
 
     if expanded_game_args:
         if (
             main_class == "net.minecraft.launchwrapper.Launch"
             and _is_legacy_pre16_runtime(version_identifier)
-            and not (loader and loader.lower() == "forge")
+            and not (loader and loader.lower() in ("forge", "liteloader"))
         ):
             tweak = _extract_tweak_class_from_arg_list(expanded_game_args)
             if not tweak:
                 expanded_game_args.extend(["--tweakClass", "net.minecraft.launchwrapper.AlphaVanillaTweaker"])
-                print(colorize_log(
+                safe_print(
                     "[launcher] Added missing legacy --tweakClass AlphaVanillaTweaker"
-                ))
+                )
         cmd.extend(expanded_game_args)
     else:
         cmd.append(username)
@@ -1330,9 +1357,9 @@ def _launch_version_once(
     if server_host and has_flag_style_game_args and not _is_legacy_pre16_runtime(version_identifier):
         _set_or_append_cli_arg(cmd, "--server", server_host)
         _set_or_append_cli_arg(cmd, "--port", str(server_port_value))
-        print(colorize_log(
+        safe_print(
             f"[launcher] Connecting to server: {server_host}:{server_port_value}"
-        ))
+        )
 
     if loader and loader.lower() == "forge" and main_class == "cpw.mods.modlauncher.Launcher":
         mc_ver = (
@@ -1343,27 +1370,27 @@ def _launch_version_once(
         if mc_ver and forge_ver:
             forge_profile_version = f"{mc_ver}-forge-{forge_ver}"
             _set_or_append_cli_arg(cmd, "--version", forge_profile_version)
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Set Forge profile --version argument: {forge_profile_version}"
-            ))
+            )
 
     if loader and loader.lower() == "neoforge":
         if neoforge_profile_version:
             _set_or_append_cli_arg(cmd, "--version", neoforge_profile_version)
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Set NeoForge profile --version argument: {neoforge_profile_version}"
-            ))
+            )
 
     if loader and loader.lower() == "forge":
-        print("[launcher] Validating Forge configuration...")
+        safe_print("[launcher] Validating Forge configuration...")
         actual_loader_version = loader_version or _get_loader_version(version_dir, "forge")
         if actual_loader_version:
             forge_loader_dir = os.path.join(version_dir, "loaders", "forge", actual_loader_version)
 
             if not os.path.isdir(forge_loader_dir):
-                print(colorize_log(
+                safe_print(
                     f"[launcher] ERROR: Forge loader directory not found: {forge_loader_dir}"
-                ))
+                )
                 _set_last_launch_error(
                     version_identifier,
                     f"Forge loader directory not found: {forge_loader_dir}",
@@ -1387,12 +1414,12 @@ def _launch_version_once(
 
             if not root_jar_files:
                 if uses_library_only_layout and runtime_jar_entries:
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] [OK] Forge library-only layout valid "
                         f"({len(runtime_jar_entries)} runtime JARs from metadata, {recursive_jar_count} total on disk)"
-                    ))
+                    )
                 else:
-                    print(colorize_log("[launcher] ERROR: No JAR files found in Forge directory"))
+                    safe_print("[launcher] ERROR: No JAR files found in Forge directory")
                     _set_last_launch_error(
                         version_identifier,
                         "No JAR files were found in the Forge loader directory.",
@@ -1400,16 +1427,16 @@ def _launch_version_once(
                     return False
 
             if _legacy_forge_requires_modloader(version_dir, actual_loader_version) and not _has_modloader_runtime(version_dir):
-                print(colorize_log(
+                safe_print(
                     "[launcher] ERROR: This pre-FML Forge build requires ModLoader, but no ModLoader runtime was found."
-                ))
-                print(colorize_log(
+                )
+                safe_print(
                     "[launcher] Forge 1.1-era builds are ModLoader addons and cannot function as standalone Forge installs."
-                ))
-                print(colorize_log(
+                )
+                safe_print(
                     "[launcher] Add a matching ModLoader jar (containing BaseMod.class and ModLoader.class) "
                     "to the version root, e.g. clients/<category>/<version>/modloader-<version>.jar, then relaunch Forge."
-                ))
+                )
                 _set_last_launch_error(
                     version_identifier,
                     "This pre-FML Forge build requires ModLoader runtime classes, but no compatible ModLoader runtime was found.",
@@ -1417,13 +1444,13 @@ def _launch_version_once(
                 return False
 
             if root_jar_files:
-                print(colorize_log(
+                safe_print(
                     f"[launcher] [OK] Forge loader directory valid "
                     f"({len(root_jar_files)} root JARs, {recursive_jar_count} total)"
-                ))
+                )
 
             if main_class and main_class == "cpw.mods.modlauncher.Launcher":
-                print(colorize_log("[launcher] Setting up ModLauncher forge JAR paths..."))
+                safe_print("[launcher] Setting up ModLauncher forge JAR paths...")
                 try:
                     universal_jar = None
                     for jar_file in root_jar_files:
@@ -1441,9 +1468,9 @@ def _launch_version_once(
                                 f"{mc_ver}-{forge_ver}",
                             )
 
-                            print(colorize_log(
+                            safe_print(
                                 f"[launcher] Forge JAR: {universal_jar} -> MC:{mc_ver} Forge:{forge_ver}"
-                            ))
+                            )
 
                             os.makedirs(maven_path, exist_ok=True)
 
@@ -1452,18 +1479,18 @@ def _launch_version_once(
 
                             try:
                                 if os.path.exists(dst_jar):
-                                    print(colorize_log("[launcher] Maven universal JAR already exists"))
+                                    safe_print("[launcher] Maven universal JAR already exists")
                                 else:
                                     try:
                                         os.link(src_jar, dst_jar)
-                                        print(colorize_log("[launcher] Linked universal JAR to Maven path"))
+                                        safe_print("[launcher] Linked universal JAR to Maven path")
                                     except (OSError, NotImplementedError):
                                         shutil.copy2(src_jar, dst_jar)
-                                        print(colorize_log("[launcher] Copied universal JAR to Maven path"))
+                                        safe_print("[launcher] Copied universal JAR to Maven path")
                             except Exception as link_err:
-                                print(colorize_log(
+                                safe_print(
                                     f"[launcher] Warning: Could not link/copy universal JAR: {link_err}"
-                                ))
+                                )
 
                             client_jar_name = f"forge-{mc_ver}-{forge_ver}.jar"
                             client_jar_path = os.path.join(forge_loader_dir, client_jar_name)
@@ -1476,14 +1503,14 @@ def _launch_version_once(
                                     if not os.path.exists(dst_client_jar):
                                         try:
                                             os.link(client_jar_path, dst_client_jar)
-                                            print(colorize_log("[launcher] Linked client JAR to Maven path"))
+                                            safe_print("[launcher] Linked client JAR to Maven path")
                                         except (OSError, NotImplementedError):
                                             shutil.copy2(client_jar_path, dst_client_jar)
-                                            print(colorize_log("[launcher] Copied client JAR to Maven path"))
+                                            safe_print("[launcher] Copied client JAR to Maven path")
                                 except Exception as e:
-                                    print(colorize_log(
+                                    safe_print(
                                         f"[launcher] Warning: Could not link/copy client JAR: {e}"
-                                    ))
+                                    )
 
                             try:
                                 raw_mcp = _normalize_forge_mcp_version(
@@ -1525,35 +1552,35 @@ def _launch_version_once(
                                             os.link(source_client, target_jar)
                                         except (OSError, NotImplementedError):
                                             shutil.copy2(source_client, target_jar)
-                                        print(colorize_log(
+                                        safe_print(
                                             f"[launcher] Staged missing ModLauncher MCP client resource: "
                                             f"libraries/net/minecraft/client/{token}/client-{token}-{suffix}.jar"
-                                        ))
+                                        )
                             except Exception as e:
-                                print(colorize_log(
+                                safe_print(
                                     f"[launcher] Warning: Could not stage MCP client resources: {e}"
-                                ))
+                                )
                         else:
-                            print(colorize_log(
+                            safe_print(
                                 f"[launcher] Warning: Could not parse forge JAR version from {universal_jar}"
-                            ))
+                            )
                 except Exception as maven_err:
-                    print(colorize_log(
+                    safe_print(
                         f"[launcher] Warning: Could not set up Maven path: {maven_err}"
-                    ))
+                    )
 
             has_log4j = any(
                 f in os.listdir(forge_loader_dir)
                 for f in ["log4j2.xml", "log4j.properties", "log4j.xml"]
             )
             if has_log4j:
-                print(colorize_log("[launcher] [OK] Log4j configuration found"))
+                safe_print("[launcher] [OK] Log4j configuration found")
             else:
-                print(colorize_log(
+                safe_print(
                     "[launcher] [WARN] No log4j configuration found (may cause startup warnings)"
-                ))
+                )
         else:
-            print(colorize_log("[launcher] ERROR: Could not determine Forge version"))
+            safe_print("[launcher] ERROR: Could not determine Forge version")
             return False
 
     if loader and loader.lower() == "fabric":
@@ -1565,15 +1592,15 @@ def _launch_version_once(
         if remap_classpath_arg:
             classpath_file = remap_classpath_arg.split("=", 1)[1]
             if not os.path.exists(classpath_file):
-                print(colorize_log("[launcher] ERROR: Fabric remapping classpath file missing"))
-                print(colorize_log(f"[launcher] Expected: {classpath_file}"))
+                safe_print("[launcher] ERROR: Fabric remapping classpath file missing")
+                safe_print(f"[launcher] Expected: {classpath_file}")
                 return False
 
             with open(classpath_file, "r") as f:
                 classpath_lines = [line.strip() for line in f if line.strip()]
 
             if not classpath_lines:
-                print(colorize_log("[launcher] ERROR: Fabric remapping classpath file is empty"))
+                safe_print("[launcher] ERROR: Fabric remapping classpath file is empty")
                 return False
 
             relative_entries = []
@@ -1582,45 +1609,44 @@ def _launch_version_once(
                     relative_entries.append(path)
 
             if relative_entries:
-                print(colorize_log(
+                safe_print(
                     "[launcher] ERROR: Relative paths in classpath file (must be absolute):"
-                ))
+                )
                 for path in relative_entries[:3]:
-                    print(f"    {path}")
+                    safe_print(f"    {path}")
                 return False
 
-            print(colorize_log(
+            safe_print(
                 f"[launcher] [OK] Fabric configuration validated ({len(classpath_lines)} JARs"
-            ))
+            )
         else:
-            print(colorize_log(
+            safe_print(
                 "[launcher] Fabric remapping classpath not required for this namespace"
-            ))
+            )
 
     skins_cache_dir = os.path.join(base_dir, "assets", "skins")
     if os.path.isdir(skins_cache_dir):
         try:
             shutil.rmtree(skins_cache_dir)
-            print(colorize_log("[launcher] Cleared skin texture cache"))
+            safe_print("[launcher] Cleared skin texture cache")
         except Exception as e:
-            print(colorize_log(f"[launcher] Warning: could not clear skin cache: {e}"))
+            safe_print(f"[launcher] Warning: could not clear skin cache: {e}")
 
     copied_mods = list(copied_mods_override or [])
     if copied_mods_override is None and game_dir:
         copied_mods = _stage_addons_for_launch(game_dir, loader)
+        stage_datapack_deployments_for_launch(game_dir)
     if modloader_overwrite_dir and os.path.isdir(modloader_overwrite_dir):
         if modloader_overwrite_dir not in copied_mods:
             copied_mods.append(modloader_overwrite_dir)
 
-    print("Launching version:", version_identifier)
-    print("Version dir:", version_dir)
+    safe_print("Launching version:", version_identifier)
+    safe_print("Version dir:", version_dir)
     if loader:
-        print(f"Mod loader: {loader}")
+        safe_print(f"Mod loader: {loader}")
     launch_cwd = game_dir if (game_dir and os.path.isdir(game_dir)) else version_dir
-    print("Working dir:", launch_cwd)
-    print("Command:", _format_command_for_logging(cmd))
-    # Suppress the stray Windows console java.exe would otherwise allocate
-    # when pythonw (no console) is the parent process.
+    safe_print("Working dir:", launch_cwd)
+    safe_print("Command:", _format_command_for_logging(cmd))
     _popen_kwargs = no_window_kwargs()
     if server_host and _is_legacy_pre16_runtime(version_identifier):
         launch_env = _popen_kwargs.get("env") or os.environ.copy()
@@ -1631,9 +1657,9 @@ def _launch_version_once(
         else:
             launch_env.pop("HISTOLAUNCHER_SERVER_MPPASS", None)
         _popen_kwargs["env"] = launch_env
-        print(colorize_log(
+        safe_print(
             f"[launcher] Prepared legacy applet server parameters for {server_host}:{server_port_value}"
-        ))
+        )
     legacy_forge_appdata_shim = ""
     if _is_direct_legacy_forge_launch(loader_key, legacy_runtime, main_class):
         legacy_forge_appdata_shim = _prepare_legacy_forge_appdata_shim(game_dir)
@@ -1641,9 +1667,9 @@ def _launch_version_once(
             launch_env = _popen_kwargs.get("env") or os.environ.copy()
             launch_env["APPDATA"] = legacy_forge_appdata_shim
             _popen_kwargs["env"] = launch_env
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Redirecting legacy Forge APPDATA to selected game directory via {legacy_forge_appdata_shim}"
-            ))
+            )
     if ygg_port > 0 and launch_auth_info:
         launch_env = _popen_kwargs.get("env") or os.environ.copy()
         launch_env["HISTOLAUNCHER_AUTHLIB_PRELOAD_UUID"] = str(
@@ -1686,7 +1712,7 @@ def _launch_version_once(
                 daemon=True,
             )
             reader_thread.start()
-            print(colorize_log("[launcher] Output reader thread started"))
+            safe_print("[launcher] Output reader thread started")
 
         if legacy_forge_appdata_shim:
             threading.Thread(
@@ -1709,13 +1735,14 @@ def _launch_version_once(
             notify_on_crash=notify_on_crash,
             loader=loader_key or None,
         )
+        start_world_creation_datapack_watcher(process)
 
-        print(colorize_log(f"[launcher] Process launched with ID: {process_id}"))
+        safe_print(f"[launcher] Process launched with ID: {process_id}")
         return process_id
     except Exception as e:
         if legacy_forge_appdata_shim:
             _cleanup_legacy_forge_appdata_shim(legacy_forge_appdata_shim)
-        print("ERROR launching:", e)
+        safe_print("ERROR launching:", e)
         _set_last_launch_error(version_identifier, f"Could not start Java process: {e}")
         return None
 
@@ -1830,6 +1857,7 @@ def launch_version(
     copied_mods = []
     if game_dir:
         copied_mods = _stage_addons_for_launch(game_dir, loader)
+        stage_datapack_deployments_for_launch(game_dir)
     if modloader_overwrite_dir and os.path.isdir(modloader_overwrite_dir):
         copied_mods.append(modloader_overwrite_dir)
 
@@ -1898,7 +1926,7 @@ def launch_version(
             java_display = f"{java_label} (major {java_major})"
         tried_labels.append(java_display)
 
-        print(colorize_log(f"[launcher] Trying Java runtime: {java_label} -> {java_path}"))
+        safe_print(f"[launcher] Trying Java runtime: {java_label} -> {java_path}")
 
         process_id = _launch_version_once(
             version_identifier,
@@ -1965,7 +1993,7 @@ def launch_version(
         if launch_stable:
             _attach_copied_mods_to_process(process_id, copied_mods)
             _set_process_crash_notification_enabled(process_id, True)
-            print(colorize_log(f"[launcher] Auto Java selection succeeded with {java_label}"))
+            safe_print(f"[launcher] Auto Java selection succeeded with {java_label}")
             return process_id
 
         status_info = _get_process_status(process_id) or {}
@@ -1976,14 +2004,14 @@ def launch_version(
         attempt_detail = f"{java_display}: exit code {exit_code if exit_code is not None else 'unknown'}"
         if log_path:
             attempt_detail += f", log: {log_path}"
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Auto Java attempt failed with exit code {exit_code}; "
                 f"log: {log_path}"
-            ))
+            )
         else:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Auto Java attempt failed with exit code {exit_code}"
-            ))
+            )
         attempt_details.append(attempt_detail)
         attempt_records.append({
             "java": java_display,

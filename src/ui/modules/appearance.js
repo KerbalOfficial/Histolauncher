@@ -1,13 +1,16 @@
 // ui/modules/appearance.js
 
-export const APPEARANCE_SETTING_KEYS = new Set([
-  'launcher_theme',
-  'launcher_ui_size',
-  'layout_density',
-  'compact_sidebar',
-]);
+export const CUSTOM_THEME = 'custom';
+const OVERRIDE_STYLE_ID = 'histolauncher-theme-overrides';
 
-const VALID_THEMES = new Set([
+export const THEME_ALIASES = {
+  'lavender-dark': 'amethyst-dark',
+  'lavender-light': 'amethyst-light',
+  'sunset-dark': 'orange-dark',
+  'sunset-light': 'orange-light',
+};
+
+export const PRESET_THEMES = [
   'dark',
   'light',
   'dark-contrast',
@@ -20,8 +23,29 @@ const VALID_THEMES = new Set([
   'blueberry-light',
   'leaf-dark',
   'leaf-light',
+  'orange-dark',
+  'orange-light',
+  'midnight-dark',
+  'midnight-light',
+  'graphite-dark',
+  'graphite-light',
+  'ocean-dark',
+  'ocean-light',
+  'amethyst-dark',
+  'amethyst-light',
   'aero-dark',
   'aero-light',
+];
+
+export const VALID_THEMES = new Set([...PRESET_THEMES, CUSTOM_THEME]);
+
+export const APPEARANCE_SETTING_KEYS = new Set([
+  'launcher_theme',
+  'launcher_theme_base',
+  'launcher_theme_overrides',
+  'launcher_ui_size',
+  'layout_density',
+  'compact_sidebar',
 ]);
 
 const LIGHT_THEMES = new Set([
@@ -31,6 +55,11 @@ const LIGHT_THEMES = new Set([
   'strawberry-light',
   'blueberry-light',
   'leaf-light',
+  'orange-light',
+  'midnight-light',
+  'graphite-light',
+  'ocean-light',
+  'amethyst-light',
   'aero-light',
 ]);
 
@@ -41,11 +70,11 @@ const DARKABLE_ICON_NAMES = new Set([
   'info.png',
 ]);
 const DARKABLE_ICON_RE = new RegExp(
-  `(^|/)(${Array.from(DARKABLE_ICON_NAMES).map((n) => n.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')).join('|')})(\\?|#|$)`,
+  `(^|/)(${Array.from(DARKABLE_ICON_NAMES).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(\\?|#|$)`,
   'i',
 );
 const DARKED_ICON_RE = new RegExp(
-  `(^|/)dark_(${Array.from(DARKABLE_ICON_NAMES).map((n) => n.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')).join('|')})(\\?|#|$)`,
+  `(^|/)dark_(${Array.from(DARKABLE_ICON_NAMES).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(\\?|#|$)`,
   'i',
 );
 
@@ -56,9 +85,86 @@ export const isTruthySetting = (value, defaultValue = false) => {
   return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
 };
 
+const normalizePresetTheme = (value) => {
+  let theme = String(value || 'dark').trim().toLowerCase();
+  theme = THEME_ALIASES[theme] || theme;
+  return PRESET_THEMES.includes(theme) ? theme : 'dark';
+};
+
 const normalizeTheme = (value) => {
-  const theme = String(value || 'dark').trim().toLowerCase();
+  let theme = String(value || 'dark').trim().toLowerCase();
+  theme = THEME_ALIASES[theme] || theme;
   return VALID_THEMES.has(theme) ? theme : 'dark';
+};
+
+export const parseThemeOverrides = (value) => {
+  if (!value) return {};
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    const out = {};
+    Object.entries(parsed).forEach(([key, rawValue]) => {
+      const token = String(key || '').trim();
+      const cssValue = String(rawValue || '').trim();
+      // Validate the value too: braces/semicolons/comments would let an
+      // imported theme break out of its declaration and inject arbitrary CSS.
+      const valueIsSafe = cssValue
+        && cssValue.length <= 256
+        && !/[;{}<>]|\/\*|@/.test(cssValue);
+      if (token.startsWith('--color-') && /^--[a-z0-9-]+$/i.test(token) && valueIsSafe) {
+        out[token] = cssValue;
+      }
+    });
+    return out;
+  } catch {
+    return {};
+  }
+};
+
+export const serializeThemeOverrides = (overrides) => {
+  const clean = parseThemeOverrides(overrides);
+  return Object.keys(clean).length ? JSON.stringify(clean) : '';
+};
+
+const getOverridesStyleEl = () => {
+  let styleEl = document.getElementById(OVERRIDE_STYLE_ID);
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = OVERRIDE_STYLE_ID;
+    document.head.appendChild(styleEl);
+  }
+  return styleEl;
+};
+
+export const applyThemeOverrideStyles = (overrides = {}) => {
+  const styleEl = getOverridesStyleEl();
+  const entries = Object.entries(overrides || {}).filter(([key, value]) => key.startsWith('--color-') && value);
+  if (!entries.length) {
+    styleEl.textContent = '';
+    return;
+  }
+  const body = entries.map(([key, value]) => `  ${key}: ${value};`).join('\n');
+  styleEl.textContent = `:root[data-custom-theme="1"][data-theme] {\n${body}\n}`;
+};
+
+export const clearThemeOverrideStyles = () => {
+  const styleEl = document.getElementById(OVERRIDE_STYLE_ID);
+  if (styleEl) {
+    styleEl.textContent = '';
+  }
+};
+
+export const resolveEffectiveTheme = (settings = {}) => {
+  const selectedTheme = normalizeTheme(settings.launcher_theme);
+  const baseTheme = normalizePresetTheme(settings.launcher_theme_base);
+  const isCustom = selectedTheme === CUSTOM_THEME;
+  return {
+    selectedTheme,
+    baseTheme,
+    isCustom,
+    dataTheme: isCustom ? baseTheme : selectedTheme,
+    overrides: isCustom ? parseThemeOverrides(settings.launcher_theme_overrides) : {},
+  };
 };
 
 const normalizeLayoutDensity = (value) => {
@@ -145,7 +251,17 @@ const syncSidebarAccessibility = () => {
 
 export const applyAppearanceSettings = (settings = {}) => {
   const root = document.documentElement;
-  root.dataset.theme = normalizeTheme(settings.launcher_theme);
+  const { selectedTheme, dataTheme, isCustom, overrides } = resolveEffectiveTheme(settings);
+
+  root.dataset.theme = dataTheme;
+  root.dataset.customTheme = isCustom ? '1' : '0';
+
+  if (isCustom) {
+    applyThemeOverrideStyles(overrides);
+  } else {
+    clearThemeOverrideStyles();
+  }
+
   const uiSize = normalizeUiSize(settings.launcher_ui_size);
   root.dataset.uiSize = uiSize;
   applyUiSizeZoom(uiSize);
@@ -154,7 +270,9 @@ export const applyAppearanceSettings = (settings = {}) => {
 
   syncSidebarAccessibility();
   applyIconVariantPreference(document);
-  window.dispatchEvent(new CustomEvent('histolauncher:appearance-changed'));
+  window.dispatchEvent(new CustomEvent('histolauncher:appearance-changed', {
+    detail: { theme: selectedTheme, baseTheme: dataTheme, isCustom },
+  }));
 };
 
 export const initAppearanceObserver = () => {

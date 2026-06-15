@@ -13,12 +13,10 @@ from core.downloader.installers.loaders import _lib_harvest, fake_mc_dir as fake
 from core.downloader.installers.loaders.installer_runner import run_installer_jar
 from core.downloader.jobs import Job
 from core.downloader.progress import LOADER_STAGES, ProgressTracker
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.zip_utils import safe_extract_zip
 
 
-# Substrings that, when present in installer output, indicate the run failed
-# because of a network/proxy/certificate problem rather than a real error.
 _NETWORK_FAILURE_MARKERS: Tuple[str, ...] = (
     "failed to validate certificates",
     "unsupported or unrecognized ssl message",
@@ -27,8 +25,6 @@ _NETWORK_FAILURE_MARKERS: Tuple[str, ...] = (
     "unable to tunnel through proxy",
 )
 
-# JAR paths the installer always re-emits with patched bytes — these MUST
-# overwrite any earlier copy from the bundled installer ZIP.
 def _neoforge_overwrite_predicate(rel: str, src: str, dest: str) -> bool:
     norm = rel.replace("\\", "/").lower()
     if norm.startswith("net/minecraft/client/") and (
@@ -59,12 +55,12 @@ def _try_download_installer(
             or "neoforge-artifact.jar"
         )
         if "-installer.jar" not in name.lower():
-            print(colorize_log(
+            safe_print(
                 f"[neoforge] skipping non-installer artifact {name}"
-            ))
+            )
             continue
         path = os.path.join(dest_dir, name)
-        print(colorize_log(f"[neoforge] downloading installer from {url}"))
+        safe_print(f"[neoforge] downloading installer from {url}")
 
         def _progress(done: int, total: int, *, _name: str = name) -> None:
             job.checkpoint()
@@ -87,7 +83,7 @@ def _try_download_installer(
             raise
         except Exception as exc:
             last_error = exc
-            print(colorize_log(f"[neoforge] {url} failed: {exc}"))
+            safe_print(f"[neoforge] {url} failed: {exc}")
             try:
                 os.remove(path)
             except OSError:
@@ -128,9 +124,9 @@ def _pre_stage_bundled_libs(
                     try:
                         shutil.copy2(src, dst)
                     except Exception as exc:
-                        print(colorize_log(
+                        safe_print(
                             f"[neoforge] could not stage {fn}: {exc}"
-                        ))
+                        )
                 jars_staged += 1
 
         configs_copied = 0
@@ -149,8 +145,6 @@ def _pre_stage_bundled_libs(
                     except Exception:
                         pass
 
-        # Read profile_id from version.json or install_profile.json so the
-        # caller knows where the installer will write the profile.
         return (jars_staged, configs_copied)
 
 
@@ -242,7 +236,6 @@ def install_neoforge(
     tracker.set_status("running")
 
     # ---- prepare_vanilla --------------------------------------------------
-    # We import here lazily to avoid a circular import chain on package init.
     from core.downloader.installers.loaders.pipeline import _ensure_vanilla_installed
 
     tracker.update("download", 0,
@@ -290,9 +283,9 @@ def install_neoforge(
                 fake_libs_dir=fake_libs_dir,
                 loader_libs_dir=loader_libs_dir,
             )
-            print(colorize_log(
+            safe_print(
                 f"[neoforge] staged {jars_staged} embedded JARs"
-            ))
+            )
 
             # ---- predict profile id --------------------------------------
             fallback_id = f"neoforge-{loader_version}"
@@ -300,9 +293,6 @@ def install_neoforge(
                 installer_path, fallback=fallback_id,
             )
             if embedded_version_data is not None:
-                # Persist a copy of the embedded version.json so the launch
-                # system can read it even if the online installer step fails
-                # outright (it usually still produces useful output).
                 try:
                     with open(
                         os.path.join(metadata_dir, "version.json"),
@@ -421,10 +411,10 @@ def install_neoforge(
                 f"({new_jars} new / {replaced_jars} updated libs)"
             ),
         )
-        print(colorize_log(
+        safe_print(
             f"[neoforge] {loader_version} installed: "
             f"{new_jars} new, {replaced_jars} replaced"
-        ))
+        )
 
     except DownloadCancelled:
         tracker.finish(status="cancelled",
@@ -456,7 +446,7 @@ def _run_with_variants(
             seg.replace("{fake_mc}", fake_dir) for seg in template
         ]
 
-    # --- online attempts -------------------------------------------------
+    # ---- online attempts -------------------------------------------------
     for i, variant in enumerate(_INSTALLER_ARG_VARIANTS, 1):
         job.checkpoint()
         args = _format_args(variant)
@@ -481,7 +471,6 @@ def _run_with_variants(
         except DownloadCancelled:
             raise
         except DownloadFailed:
-            # Java missing or timeout — bubble up.
             raise
 
         combined = "\n".join(out_lines).lower()
@@ -495,7 +484,7 @@ def _run_with_variants(
         ):
             return (True, network_failure)
 
-    # --- offline retries -------------------------------------------------
+    # ---- offline retries -------------------------------------------------
     if network_failure:
         tracker.update("downloading_libs", 50,
                        "Re-running NeoForge installer in offline mode...")

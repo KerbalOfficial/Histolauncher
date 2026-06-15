@@ -3,14 +3,20 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import subprocess
+import sys
+import tempfile
 import zipfile
 from collections.abc import Callable
 
 from core.constants import ZIP_MAX_ENTRIES, ZIP_MAX_FILE_BYTES, ZIP_MAX_TOTAL_BYTES
+from core.subprocess_utils import no_window_kwargs
 
 __all__ = [
     "ZipSecurityError",
+    "ArchiveExtractionError",
     "safe_extract_zip",
+    "extract_rar",
     "MAX_ZIP_ENTRIES",
     "MAX_ZIP_SINGLE_FILE_SIZE",
     "MAX_ZIP_TOTAL_UNCOMPRESSED",
@@ -25,6 +31,10 @@ _DRIVE_LETTER_RE = re.compile(r"^[a-zA-Z]:")
 
 
 class ZipSecurityError(RuntimeError):
+    pass
+
+
+class ArchiveExtractionError(RuntimeError):
     pass
 
 
@@ -180,3 +190,170 @@ def safe_extract_zip(
     finally:
         if close_after:
             zf.close()
+
+
+def _rar_extractor_candidates(archive_path: str, dest_dir: str) -> list[list[str]]:
+    candidates: list[list[str]] = []
+
+    if sys.platform == "win32":
+        sys_tar = os.path.join(
+            os.environ.get("SystemRoot", r"C:\Windows"), "System32", "tar.exe"
+        )
+        if os.path.isfile(sys_tar):
+            candidates.append([sys_tar, "-xf", archive_path, "-C", dest_dir])
+
+    bsdtar = shutil.which("bsdtar")
+    if bsdtar:
+        candidates.append([bsdtar, "-xf", archive_path, "-C", dest_dir])
+
+    unrar = shutil.which("unrar") or shutil.which("unrar-free")
+    if unrar:
+        candidates.append(
+            [unrar, "x", "-o+", "-y", "-idq", archive_path, dest_dir + os.sep]
+        )
+
+    for name in ("7z", "7za", "7zz"):
+        seven = shutil.which(name)
+        if seven:
+            candidates.append(
+                [seven, "x", "-y", "-bso0", "-bsp0", "-o" + dest_dir, archive_path]
+            )
+            break
+
+    generic_tar = shutil.which("tar")
+    if generic_tar:
+        candidates.append([generic_tar, "-xf", archive_path, "-C", dest_dir])
+
+    return candidates
+
+
+def _dir_has_files(root: str) -> bool:
+    for _root, _dirs, files in os.walk(root):
+        if files:
+            return True
+    return False
+
+
+def _clear_dir(root: str) -> None:
+    for name in os.listdir(root):
+        path = os.path.join(root, name)
+        if os.path.isdir(path) and not os.path.islink(path):
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+
+
+def _copy_tree_into(
+    src_root: str,
+    destination_dir: str,
+    *,
+    max_entries: int,
+    max_single_file_size: int,
+    max_total_uncompressed: int,
+) -> int:
+    files: list[str] = []
+    for root, _dirs, names in os.walk(src_root):
+        for name in names:
+            files.append(os.path.join(root, name))
+
+    if len(files) > max_entries:
+        raise ArchiveExtractionError(
+            f"Archive has too many entries ({len(files)} > {max_entries})"
+        )
+
+    total = 0
+    copied = 0
+    for src_path in files:
+        if os.path.islink(src_path):
+            raise ArchiveExtractionError(
+                f"Archive symlink entries are not allowed: {src_path}"
+            )
+
+        size = os.path.getsize(src_path)
+        if size > max_single_file_size:
+            raise ArchiveExtractionError(
+                f"Archive entry exceeds max file size "
+                f"({size} > {max_single_file_size})"
+            )
+        total += size
+        if total > max_total_uncompressed:
+            raise ArchiveExtractionError(
+                f"Archive exceeds max uncompressed size "
+                f"({total} > {max_total_uncompressed})"
+            )
+
+        rel = os.path.relpath(src_path, src_root)
+        normalized = _normalize_member_name(rel)
+        if not normalized:
+            continue
+        target_path = _resolve_safe_target(destination_dir, normalized)
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        shutil.copy2(src_path, target_path)
+        copied += 1
+
+    return copied
+
+
+def extract_rar(
+    archive_path: str,
+    destination_dir: str,
+    *,
+    max_entries: int = ZIP_MAX_ENTRIES,
+    max_single_file_size: int = ZIP_MAX_FILE_BYTES,
+    max_total_uncompressed: int = ZIP_MAX_TOTAL_BYTES,
+) -> int:
+    os.makedirs(destination_dir, exist_ok=True)
+
+    candidates = _rar_extractor_candidates(archive_path, "")
+    if not candidates:
+        raise ArchiveExtractionError(
+            "Cannot extract RAR archive: no RAR-capable extractor found. "
+            "Install 'unrar' or '7-Zip' (or re-host the file as .zip)."
+        )
+
+    with tempfile.TemporaryDirectory(prefix="histolauncher-rar-") as staging:
+        attempts: list[str] = []
+        extracted_ok = False
+        for argv in _rar_extractor_candidates(archive_path, staging):
+            tool = os.path.basename(argv[0])
+            try:
+                result = subprocess.run(
+                    argv,
+                    stdin=subprocess.DEVNULL,
+                    capture_output=True,
+                    timeout=120,
+                    **no_window_kwargs(),
+                )
+            except (OSError, subprocess.SubprocessError) as exc:
+                attempts.append(f"{tool}: {exc}")
+                _clear_dir(staging)
+                continue
+
+            if result.returncode == 0 and _dir_has_files(staging):
+                extracted_ok = True
+                break
+
+            detail = (result.stderr or b"").decode("utf-8", "replace").strip()
+            attempts.append(
+                f"{tool} rc={result.returncode}"
+                + (f" ({detail[:120]})" if detail else "")
+            )
+            _clear_dir(staging)
+
+        if not extracted_ok:
+            raise ArchiveExtractionError(
+                "Failed to extract RAR archive with any available extractor. "
+                "Install 'unrar' or '7-Zip' (or re-host the file as .zip). "
+                "Tried: " + "; ".join(attempts)
+            )
+
+        return _copy_tree_into(
+            staging,
+            destination_dir,
+            max_entries=max_entries,
+            max_single_file_size=max_single_file_size,
+            max_total_uncompressed=max_total_uncompressed,
+        )

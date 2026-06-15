@@ -10,14 +10,13 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.downloader._paths import PROGRESS_DIR, ensure_progress_dir
-from core.logger import colorize_log
+from core.logger import safe_print
 
-#: Minimum interval between disk flushes, seconds.
 DEFAULT_FLUSH_INTERVAL: float = 0.1
 
 
 # ---------------------------------------------------------------------------
-# Global SSE PubSub implementation
+# global SSE PubSub implementation
 # ---------------------------------------------------------------------------
 
 _listeners_lock = threading.Lock()
@@ -27,9 +26,9 @@ _MAX_LISTENERS: int = 64
 def add_progress_listener(q: queue.Queue) -> None:
     with _listeners_lock:
         if len(_listeners) >= _MAX_LISTENERS:
-            print(colorize_log(
+            safe_print(
                 f"[progress] refusing new listener: cap of {_MAX_LISTENERS} reached"
-            ))
+            )
             return
         _listeners.append(q)
 
@@ -48,13 +47,13 @@ def _broadcast_progress(key: str, data: Dict[str, Any]) -> None:
             except queue.Full:
                 dropped += 1
     if dropped:
-        print(colorize_log(
+        safe_print(
             f"[progress] dropped event for key={key!r} on {dropped} slow listener(s)"
-        ))
+        )
 
 
 # ---------------------------------------------------------------------------
-# On-disk store (preserves legacy JSON shape and filename encoding)
+# on-disk store (preserves legacy JSON shape and filename encoding)
 # ---------------------------------------------------------------------------
 
 
@@ -132,18 +131,18 @@ def cleanup_orphaned_progress_files(max_age_seconds: int = 3600) -> None:
                 status = str(data.get("status") or "").lower()
                 if status in ("downloading", "starting", "paused", "error"):
                     os.remove(path)
-                    print(colorize_log(
+                    safe_print(
                         f"[cleanup] Removed orphaned progress for "
                         f"{_decode_key(name[:-5])}"
-                    ))
+                    )
             except Exception:
                 continue
     except Exception as exc:  # noqa: BLE001
-        print(colorize_log(f"[cleanup] Error scanning progress dir: {exc}"))
+        safe_print(f"[cleanup] Error scanning progress dir: {exc}")
 
 
 # ---------------------------------------------------------------------------
-# Stage definitions
+# stage definitions
 # ---------------------------------------------------------------------------
 
 
@@ -153,8 +152,6 @@ class StageWeight:
     weight: int
 
 
-# Legacy weights, retained verbatim so saved progress files are interpreted
-# the same way by the current UI.
 VANILLA_STAGES: Tuple[StageWeight, ...] = (
     StageWeight("version_json", 5),
     StageWeight("client", 20),
@@ -179,7 +176,7 @@ def stage_weights_for_kind(kind: str) -> Tuple[StageWeight, ...]:
 
 
 # ---------------------------------------------------------------------------
-# Tracker
+# tracker
 # ---------------------------------------------------------------------------
 
 
@@ -226,7 +223,6 @@ class ProgressTracker:
         with self._lock:
             self._bytes_done += int(delta)
             if self._bytes_total and self._bytes_done > self._bytes_total:
-                # Allow over-shoot rather than clamp — legacy code did the same.
                 pass
             self._dirty = True
         self._maybe_flush()
@@ -250,7 +246,7 @@ class ProgressTracker:
                 self._bytes_total = int(bytes_total)
             self._status = "downloading"
             self._dirty = True
-        self._maybe_flush(force=True)
+        self._maybe_flush()
 
     def set_status(self, status: str, message: Optional[str] = None) -> None:
         with self._lock:
@@ -276,12 +272,10 @@ class ProgressTracker:
             }
 
     def _compute_overall_locked(self) -> float:
-        # Prefer byte-accurate overall when totals are known.
         if self._bytes_total > 0:
             pct = (self._bytes_done * 100.0) / self._bytes_total
             return max(0.0, min(100.0, pct))
 
-        # Fall back to weighted-stage approach (matches legacy semantics).
         total_weight = sum(s.weight for s in self._stages) or 1
         accumulated = 0.0
         for stage in self._stages:

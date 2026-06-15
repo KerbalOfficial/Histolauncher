@@ -266,8 +266,6 @@
       "customVersionFolder": "Benutzerdefiniert (versionsspezifischer Ordner)",
       "launchSettings": "Starteinstellungen",
       "useGlobal": "Global verwenden",
-      "overrideFullscreen": "Vollbildmodus überschreiben",
-      "fullscreen": "Vollbild",
       "overrideDemoMode": "Demo-Modus überschreiben",
       "demoMode": "Demo-Modus",
       "minimumRamOverride": "Minimale RAM überschreiben",
@@ -419,10 +417,14 @@
     "typeModpacks": "Modpacks",
     "typeResourcePacks": "Ressourcenpakete",
     "typeShaderPacks": "Shader-Pakete",
+    "typeDatapacks": "Datenpakete",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "Shader-Paket importieren",
         "emptyInstalled": "Keine Shader-Pakete installiert",
         "emptyAvailable": "Keine Shader-Pakete gefunden"
+      },
+      "datapacks": {
+        "label": "Datenpakete",
+        "singular": "Datenpaket",
+        "singularTitle": "Datenpaket",
+        "plural": "Datenpakete",
+        "pluralTitle": "Datenpakete",
+        "importTitle": "Datenpaket importieren",
+        "emptyInstalled": "Keine Datenpakete installiert",
+        "emptyAvailable": "Keine Datenpakete gefunden"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "Auf Welt anwenden",
+      "manageWorlds": "Welten verwalten",
+      "appliedWorlds": "Angewendet auf: {worlds}",
+      "noAppliedWorlds": "Auf keine Welten angewendet",
+      "applyTitle": "Datenpaket auf Welt anwenden",
+      "applyPrompt": "Wähle den Welt-Speicherort und die Welten für <b>{datapack}</b> aus.",
+      "storageLabel": "Welt-Speicherort:",
+      "customFolderLabel": "Eigener Ordner:",
+      "selectFolder": "Ordner auswählen",
+      "worldsLabel": "Welten:",
+      "noWorlds": "An diesem Speicherort wurden keine Welten gefunden.",
+      "applyFailed": "Datenpaket konnte nicht angewendet werden.",
+      "applySuccess": "Datenpaket auf {count} Welt(en) angewendet.",
+      "removeFailed": "Datenpaket konnte nicht aus der Welt entfernt werden.",
+      "removeSuccess": "Datenpaket aus {world} entfernt.",
+      "manageTitle": "Welt-Bereitstellungen",
+      "managePrompt": "Das Datenpaket <b>{datapack}</b> ist auf diese Welten angewendet:",
+      "removeFromWorld": "Entfernen",
+      "selectWorlds": "Wähle mindestens eine Welt aus."
     },
     "import": {
       "selectLoaderForFile": "Wähle den Mod-Loader für \"{file}\":",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "Wird importiert...",
+      "importButton": "Importieren",
+      "successTitle": "Import erfolgreich",
+      "successMessage": "{addon} erfolgreich importiert.",
+      "errorTitle": "Importfehler",
+      "failedMessage": "{addon} konnte nicht importiert werden.",
+      "modpackImporting": "Modpack wird importiert...",
+      "modpackImportingPercent": "Modpack wird importiert... {percent}%",
+      "modpackCancelling": "Modpack-Import wird abgebrochen...",
+      "modpackSuccess": "Modpack <b>{name}</b> erfolgreich importiert.",
+      "modpackDetectedFormat": "<br><br>Erkanntes Format: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>Die folgenden eigenständigen Mods wurden deaktiviert, da sie mit dem Modpack in Konflikt stehen:<br>",
+      "modpackWarnings": "<br><br>Import-Warnungen:<br>",
+      "modpackMoreWarnings": "<br>...und {count} weitere Warnung(en).",
+      "modpackCancelledTitle": "Import abgebrochen",
+      "modpackCancelledMessage": "Du hast den Modpack-Import abgebrochen.",
+      "modpackFailed": "Modpack konnte nicht importiert werden.",
+      "modpackNetworkError": "Netzwerkfehler beim Importieren des Modpacks."
     },
     "status": {
       "installed": "Installiert",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "{count} {addon}(s) gelöscht.<br><br>Fehlschläge:<br>{failures}",
       "confirmMessage": "{count} ausgewählte {addon}(s) löschen?<br><i>Das kann nicht rückgängig gemacht werden!</i>"
     },
+    "bulkMove": {
+      "title": "Mods gesammelt verschieben",
+      "noSelected": "Keine installierten Mods ausgewählt.",
+      "prompt": "{count} ausgewählte Mod(s) verschieben nach:",
+      "moveButton": "Verschieben",
+      "movingProgress": "Ausgewählte Mods werden verschoben... ({current}/{total})",
+      "cancelling": "Sammelverschiebung wird nach Abschluss des aktuellen Mods abgebrochen...",
+      "moveFailed": "Verschieben fehlgeschlagen",
+      "requestFailed": "Anfrage fehlgeschlagen",
+      "skippedSuffix": ", {count} übersprungen",
+      "cancelledTitle": "Sammelverschiebung abgebrochen",
+      "cancelledMessage": "{moved} Mod(s){skipped} vor dem Abbruch verschoben.{failures}",
+      "failuresCountSuffix": "<br><br>Fehler: {count}",
+      "completeTitle": "Sammelverschiebung abgeschlossen",
+      "completeMessage": "{moved} Mod(s){skipped} verschoben.",
+      "finishedWithErrorsTitle": "Sammelverschiebung mit Fehlern beendet",
+      "finishedWithErrorsMessage": "{moved} Mod(s){skipped} verschoben.<br><br>Fehler:<br>{preview}{more}",
+      "moreFailures": "<br>...und {count} weitere."
+    },
+    "modpackDetail": {
+      "loader": "Loader: {loader}",
+      "version": "Version: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "Autor: {author}",
+      "modsCount": "Mods: {count}",
+      "resourcePacksCount": "Ressourcenpakete: {count}",
+      "shaderPacksCount": "Shader-Pakete: {count}",
+      "datapacksCount": "Datenpakete: {count}",
+      "notAvailable": "k. A."
+    },
+    "modpackActions": {
+      "deleteFailed": "Modpack konnte nicht gelöscht werden.",
+      "cannotEnableTitle": "Aktivieren nicht möglich",
+      "cannotEnableMessage": "Dieser Mod wird vom Modpack <b>{name}</b> verwaltet. Deaktiviere oder lösche zuerst dieses Modpack."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "CurseForge erfordert einen API-Schlüssel. Füge einen Schlüssel hinzu, um den CurseForge-Anbieter zu nutzen, oder wechsle zu Modrinth.",
+      "providerError": "Anbieterfehler: {error}"
+    },
     "detail": {
       "loadingDetails": "{addon}-Details werden geladen...",
       "screenshots": "Screenshots",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "Modpack exportieren",
-      "selectFormat": "Wähle das Modpack-Format für den Export:",
-      "selectLoader": "Wähle den Mod-Loader für dieses Modpack:",
+      "tabs": {
+        "metadata": "Metadaten",
+        "mods": "Mods",
+        "resourcepacks": "Ressourcenpakete",
+        "shaderpacks": "Shader-Pakete",
+        "datapacks": "Datenpakete",
+        "export": "Exportieren"
+      },
+      "selectFormat": "Wähle das Modpack-Format für den Export",
+      "selectLoader": "Wähle den Mod-Loader für dieses Modpack",
+      "minecraftVersion": "Minecraft-Version",
+      "minecraftVersionHint": "Die Minecraft-Version, die für das Modpack verwendet werden soll.",
+      "loaderVersion": "Loader-Version",
+      "loaderVersionHint": "Die Loader-Version, die für das Modpack verwendet werden soll.",
+      "vanillaModsHint": "Vanilla-Modpacks enthalten keine Mods. Wähle Ressourcenpakete, Shader-Pakete und/oder Datenpakete in den anderen Tabs aus.",
       "noLoaderMods": "Keine {loader}-Mods installiert. Installiere zuerst einige Mods.",
       "selectMods": "Wähle Mods aus, die eingeschlossen werden sollen ({count} {loader}-Mods verfügbar):",
       "disabledHint": "Optional: Markiere Mods als deaktiviert im Modpack, damit sie enthalten sind, aber standardmäßig nicht aktiv.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "Quellordner konnte nicht aktualisiert werden",
       "failedSaveSourceFolder": "Quellordner-Einstellung konnte nicht gespeichert werden.",
       "selectAtLeastOneMod": "Wähle mindestens eine Mod aus.",
+      "selectAtLeastOneItem": "Wähle mindestens einen Mod, ein Ressourcenpaket, ein Shader-Paket oder ein Datenpaket aus.",
+      "selectMinecraftVersion": "Wähle eine Minecraft-Version aus",
+      "selectLoaderVersion": "Wähle eine Loader-Version aus",
+      "validationErrorBanner": "Bitte behebe die unten markierten Probleme und versuche es erneut.",
+      "externalVersionRequired": "Gib eine Minecraft-Version für Modrinth-/CurseForge-Exporte ein (oder wähle Inhalte mit Versions-Metadaten aus).",
+      "externalLoaderVersionRequired": "Gib eine Loader-Version für Modrinth-/CurseForge-Exporte ein, wenn ein Mod-Loader verwendet wird.",
       "selectOptionalAddons": "Wähle optionale {plural} aus, die gebündelt werden sollen ({count} verfügbar):",
       "noOptionalAddons": "Keine {plural} sind installiert. Du kannst ohne sie fortfahren.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "Eine Modpack-Beschreibung..."
       },
       "summary": "{format} {extension} | {mods} Mods | {resourcepacks} Ressourcenpakete | {shaderpacks} Shader-Pakete | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "Loader {version}",
       "validation": {
         "nameLength": "Name muss zwischen 1 und 64 Zeichen lang sein.",
         "nameForbidden": "Name enthält unzulässige Zeichen.",
@@ -1014,13 +1125,25 @@
       "description": "Leicht und schnell",
       "subtitle": "Wird meist zur Spieloptimierung verwendet"
     },
+    "legacyfabric": {
+      "description": "Fabric für ältere Versionen",
+      "subtitle": "Eine Fabric-Portierung für Minecraft 1.3 - 1.13.2"
+    },
     "babric": {
       "description": "Fabric-Fork für Minecraft Beta",
       "subtitle": "Ein Fabric-Fork für Beta 1.7.3"
     },
+    "ornithe": {
+      "description": "Fabric für Legacy-Minecraft",
+      "subtitle": "Fabric-basierte Toolchain von Alpha bis 1.14.x"
+    },
     "forge": {
       "description": "Beliebt und umfangreich",
       "subtitle": "Wird meist für Spielmodifikationen verwendet"
+    },
+    "liteloader": {
+      "description": "Leichtgewichtige Client-Mods",
+      "subtitle": "Tweak-artige Mods für Minecraft 1.5.2 - 1.12.2"
     },
     "modloader": {
       "description": "Legacy-Jar-Mod-Laufzeit",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "Flexibel und modern",
       "subtitle": "Wird meist für leichtes modernes Modding genutzt"
+    },
+    "vanilla": {
+      "description": "Kein Mod-Loader",
+      "subtitle": "Nur Ressourcenpakete, Shader-Pakete und Datenpakete"
     },
     "fallback": {
       "description": "Benutzerdefinierter Loader",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "Blaubeere (Hell)",
         "leafDark": "Blatt (Dunkel)",
         "leafLight": "Blatt (Hell)",
+        "orangeDark": "Orange (Dunkel)",
+        "orangeLight": "Orange (Hell)",
+        "midnightDark": "Mitternacht (Dunkel)",
+        "midnightLight": "Mitternacht (Hell)",
+        "graphiteDark": "Graphit (Dunkel)",
+        "graphiteLight": "Graphit (Hell)",
+        "oceanDark": "Ozean (Dunkel)",
+        "oceanLight": "Ozean (Hell)",
+        "amethystDark": "Amethyst (Dunkel)",
+        "amethystLight": "Amethyst (Hell)",
         "aeroDark": "Aero-Glas (Dunkel)",
-        "aeroLight": "Aero-Glas (Hell)"
+        "aeroLight": "Aero-Glas (Hell)",
+        "custom": "Benutzerdefiniert"
+      },
+      "themeBase": "Basis-Thema:",
+      "themeEditor": {
+        "dockTitle": "Themen-Editor",
+        "openDock": "Themen-Editor öffnen",
+        "hint": "Wähle ein Basis-Thema und passe dann unten einzelne Farben an. Überschreibungen werden in deinem Profil gespeichert.",
+        "resetAll": "Alle Überschreibungen zurücksetzen",
+        "export": "Thema-JSON kopieren",
+        "import": "Thema-JSON importieren",
+        "resetToken": "Zurücksetzen",
+        "resetTokenTooltip": "Diese Farbüberschreibung entfernen und den Wert des Basis-Themas verwenden",
+        "groups": {
+          "app": "App-Hintergrund",
+          "text": "Text",
+          "links": "Links & Fokus",
+          "surfaces": "Oberflächen",
+          "borders": "Rahmen",
+          "overlays": "Overlays & Tooltips",
+          "buttons": "Schaltflächen",
+          "semantic": "Erfolg, Gefahr, Warnung & Info",
+          "messages": "Meldungsfenster",
+          "states": "Auswahl & Hervorhebungen",
+          "scrollbars": "Bildlaufleisten",
+          "badges": "Badges",
+          "loaders": "Modloader-Akzente"
+        }
       },
       "uiSizes": {
         "small": "Klein",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "Maximale RAM, die dem Spiel zugewiesen ist\n  - Muss eine positive Zahl sein\n  - Muss größer sein als Minimale RAM\n  - Muss mindestens 1 Byte betragen\n\nBeispielformat: 256, 256M, 2G usw.\n\n(Leistungstipp: Weise mehr RAM für bessere Leistung zu, gleiche es idealerweise mit der minimalen RAM ab für weniger Frame Drops)",
       "resolution": "Auflösung:",
       "resolutionTooltip": "Standard-Spielfenstergröße für Versionen, die Breiten- und Höhenübergabe-Parameter unterstützen.",
-      "fullscreen": "Vollbild:",
-      "fullscreenTooltip": "Starte unterstützte Versionen standardmäßig im Vollbild.",
       "demoMode": "Demo-Modus:",
       "demoModeTooltip": "Starte unterstützte Versionen mit aktiviertem Minecraft-Demo-Modus.",
       "storageDir": "Speicherverzeichnis:",

@@ -7,7 +7,7 @@ import re as _re
 import shutil
 import tempfile
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.notifications import send_desktop_notification
 from core.version_manager import get_version_loaders, scan_categories
 
@@ -92,6 +92,7 @@ def _addon_type_display_name(addon_type: str) -> str:
         "modpacks": "Modpack",
         "resourcepacks": "Resource Pack",
         "shaderpacks": "Shader Pack",
+        "datapacks": "Datapack",
     }.get(str(addon_type or "").strip().lower(), "Addon")
 
 
@@ -117,7 +118,7 @@ def _send_addon_install_notification(
             icon_kind="installed",
         )
     except Exception as exc:
-        print(colorize_log(f"[api] Could not send addon notification: {exc}"))
+        safe_print(f"[api] Could not send addon notification: {exc}")
 
 
 def api_mods_installed(data=None):
@@ -138,7 +139,7 @@ def api_mods_installed(data=None):
             "addon_type": addon_type,
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to get installed mods: {e}"))
+        safe_print(f"[api] Failed to get installed mods: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -199,7 +200,7 @@ def api_mods_search(data):
             **result,
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to search mods: {e}"))
+        safe_print(f"[api] Failed to search mods: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -251,7 +252,7 @@ def api_mods_version_options(data=None):
             "addon_type": addon_type,
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to get mod version options: {e}"))
+        safe_print(f"[api] Failed to get mod version options: {e}")
         return {"ok": False, "error": str(e), "versions": []}
 
 
@@ -285,6 +286,7 @@ def api_mods_versions(data):
                 mod_id=mod_id,
                 game_version=game_version,
                 mod_loader=mod_loader,
+                addon_type=addon_type,
             )
             if versions is None:
                 return {"ok": False, "error": "Failed to fetch mod versions"}
@@ -297,7 +299,7 @@ def api_mods_versions(data):
             "addon_type": addon_type,
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to get mod versions: {e}"))
+        safe_print(f"[api] Failed to get mod versions: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -485,7 +487,7 @@ def api_mods_dependencies(data):
 
         return {"ok": True, "dependencies": resolved}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to resolve mod dependencies: {e}"))
+        safe_print(f"[api] Failed to resolve mod dependencies: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -536,7 +538,18 @@ def api_mods_install(data):
             return {"ok": False, "error": f"Invalid mod_loader (must be one of: {valid})"}
 
         if not _validate_mod_slug(mod_slug):
-            return {"ok": False, "error": "Invalid mod_slug format"}
+            coerced = _re.sub(r"[^a-z0-9]+", "-", mod_slug).strip("-")
+            if not _validate_mod_slug(coerced):
+                coerced = _re.sub(r"[^a-z0-9]+", "-", str(mod_name or "").lower()).strip("-")
+            if not _validate_mod_slug(coerced):
+                safe_print(
+                    f"[api] Rejected mod install: unusable mod_slug {mod_slug!r}"
+                )
+                return {"ok": False, "error": "Invalid mod_slug format"}
+            safe_print(
+                f"[api] Normalized mod_slug {mod_slug!r} -> {coerced!r} for install"
+            )
+            mod_slug = coerced
 
         if not _validate_addon_filename(file_name, addon_type):
             return {"ok": False, "error": "Invalid file_name format"}
@@ -666,6 +679,30 @@ def api_mods_install(data):
             _finish_install_progress(tracker, "failed", "Failed to download addon file")
             return {"ok": False, "error": "Failed to download mod file"}
 
+        if addon_type == "datapacks":
+            from core.mod_manager.archives import validate_datapack_archive
+
+            ver_dir = mod_manager.get_addon_version_dir(
+                addon_type, mod_slug, version_label, mod_loader=mod_loader
+            )
+            archive_path = os.path.join(ver_dir, file_name)
+            try:
+                with open(archive_path, "rb") as archive_file:
+                    archive_bytes = archive_file.read()
+            except Exception as exc:
+                _finish_install_progress(tracker, "failed", "Failed to read downloaded datapack")
+                return {"ok": False, "error": f"Failed to read downloaded datapack: {exc}"}
+            valid_archive, archive_error = validate_datapack_archive(archive_bytes)
+            if not valid_archive:
+                try:
+                    mod_manager.delete_addon(
+                        addon_type, mod_slug, version_label=version_label, mod_loader=mod_loader
+                    )
+                except Exception:
+                    pass
+                _finish_install_progress(tracker, "failed", archive_error or "Invalid datapack archive")
+                return {"ok": False, "error": archive_error or "Invalid datapack archive"}
+
         tracker.update("finalize", 15, f"Saving {mod_name}")
 
         mod_manager.save_addon_version_metadata(
@@ -729,10 +766,10 @@ def api_mods_install(data):
             mod_loader=mod_loader,
         )
 
-        print(colorize_log(
+        safe_print(
             f"[api] Installed {addon_type} version: {mod_name} v{raw_version} "
             f"({mod_loader or addon_type})"
-        ))
+        )
 
         return {
             "ok": True,
@@ -742,17 +779,19 @@ def api_mods_install(data):
         }
     except Exception as e:
         _finish_install_progress(tracker, "failed", str(e))
-        print(colorize_log(f"[api] Failed to install mod: {e}"))
+        safe_print(f"[api] Failed to install mod: {e}")
         return {"ok": False, "error": str(e)}
 
 
 def _addon_import_filetypes(addon_type: str):
     if addon_type == "mods":
-        return [("Mod archives", "*.jar *.zip")], {".jar", ".zip"}
+        return [("Mod archives", "*.jar *.zip *.litemod")], {".jar", ".zip", ".litemod"}
     if addon_type == "resourcepacks":
         return [("Resource pack archives", "*.zip")], {".zip"}
     if addon_type == "shaderpacks":
         return [("Shader pack archives", "*.zip")], {".zip"}
+    if addon_type == "datapacks":
+        return [("Datapack archives", "*.zip")], {".zip"}
     return [("Addon archives", "*.zip")], {".zip"}
 
 
@@ -784,7 +823,7 @@ def api_mods_import_select(data):
         })
         return api_mods_import(import_payload)
     except Exception as e:
-        print(colorize_log(f"[api] Failed to select addon import file: {e}"))
+        safe_print(f"[api] Failed to select addon import file: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -819,7 +858,7 @@ def api_mods_import(data):
             return {"ok": False, "error": f"mod_loader must be one of: {valid}"}
         if not _validate_addon_filename(file_name, addon_type):
             if addon_type == "mods":
-                expected_exts = ".jar or .zip"
+                expected_exts = ".jar, .zip, or .litemod"
             elif addon_type == "modpacks":
                 expected_exts = ".hlmp, .mrpack, or .zip"
             else:
@@ -837,6 +876,13 @@ def api_mods_import(data):
             return {"ok": False, "error": "Invalid addon file data"}
         if not file_data or len(file_data) == 0:
             return {"ok": False, "error": "Addon file data is empty"}
+
+        if addon_type == "datapacks":
+            from core.mod_manager.archives import validate_datapack_archive
+
+            valid_archive, archive_error = validate_datapack_archive(bytes(file_data))
+            if not valid_archive:
+                return {"ok": False, "error": archive_error or "Invalid datapack archive"}
 
         if addon_type == "modpacks":
             ext = os.path.splitext(file_name)[1].lower()
@@ -917,7 +963,7 @@ def api_mods_import(data):
             existing = {}
 
         import_description = f"Imported from local archive: {file_name}"
-        if addon_type == "resourcepacks":
+        if addon_type in ("resourcepacks", "datapacks"):
             extracted_description = _extract_pack_mcmeta_description(file_data)
             if extracted_description:
                 import_description = extracted_description
@@ -936,14 +982,14 @@ def api_mods_import(data):
             existing["active_version"] = version_label
         mod_manager.save_addon_metadata(addon_type, mod_slug, existing, mod_loader=mod_loader)
 
-        if addon_type in ("resourcepacks", "shaderpacks"):
+        if addon_type in ("resourcepacks", "shaderpacks", "datapacks"):
             mod_manager.save_addon_import_icon(
                 addon_type, mod_slug, file_data, mod_loader=mod_loader
             )
 
-        print(colorize_log(
+        safe_print(
             f"[api] Imported custom {addon_type}: {file_name} ({mod_loader or addon_type})"
-        ))
+        )
 
         response = {
             "ok": True,
@@ -959,7 +1005,7 @@ def api_mods_import(data):
             )
         return response
     except Exception as e:
-        print(colorize_log(f"[api] Failed to import mod: {e}"))
+        safe_print(f"[api] Failed to import mod: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -998,7 +1044,7 @@ def api_mods_delete(data):
             return {"ok": True, "message": f"Deleted {what}", "addon_type": addon_type}
         return {"ok": False, "error": "Failed to delete mod"}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to delete mod: {e}"))
+        safe_print(f"[api] Failed to delete mod: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -1032,7 +1078,7 @@ def api_mods_toggle(data):
             return {"ok": True, "disabled": disabled, "addon_type": addon_type}
         return {"ok": False, "error": "Failed to toggle mod"}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to toggle mod: {e}"))
+        safe_print(f"[api] Failed to toggle mod: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -1097,7 +1143,7 @@ def api_mods_move(data):
             "mod_loader": target_loader,
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to move mod: {e}"))
+        safe_print(f"[api] Failed to move mod: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -1131,10 +1177,16 @@ def api_mods_set_active_version(data):
             addon_type, mod_slug, version_label, mod_loader=mod_loader
         )
         if success:
-            return {"ok": True, "active_version": version_label, "addon_type": addon_type}
+            sync_result = None
+            if addon_type == "datapacks":
+                sync_result = mod_manager.sync_deployments_for_active_version(mod_slug)
+            response = {"ok": True, "active_version": version_label, "addon_type": addon_type}
+            if sync_result is not None:
+                response["deployment_sync"] = sync_result
+            return response
         return {"ok": False, "error": "Failed to set active version"}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to set active version: {e}"))
+        safe_print(f"[api] Failed to set active version: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -1191,7 +1243,7 @@ def api_mods_archive_subfolders(data):
 
         return {"ok": True, "subfolders": options}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to list archive subfolders: {e}"))
+        safe_print(f"[api] Failed to list archive subfolders: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -1272,7 +1324,7 @@ def api_mods_update_version_settings(data):
             "source_subfolder": source_subfolder,
         }
     except Exception as e:
-        print(colorize_log(f"[api] Failed to update version settings: {e}"))
+        safe_print(f"[api] Failed to update version settings: {e}")
         return {"ok": False, "error": str(e)}
 
 
@@ -1301,5 +1353,5 @@ def api_mods_detail(data):
             return {"ok": True, "addon_type": addon_type, **detail}
         return {"ok": False, "error": "Failed to fetch mod details"}
     except Exception as e:
-        print(colorize_log(f"[api] Failed to get mod detail: {e}"))
+        safe_print(f"[api] Failed to get mod detail: {e}")
         return {"ok": False, "error": str(e)}

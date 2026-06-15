@@ -266,8 +266,6 @@
       "customVersionFolder": "カスタム (バージョン専用フォルダ)",
       "launchSettings": "起動設定",
       "useGlobal": "グローバルを使用",
-      "overrideFullscreen": "フルスクリーンを上書き",
-      "fullscreen": "フルスクリーン",
       "overrideDemoMode": "デモモードを上書き",
       "demoMode": "デモモード",
       "minimumRamOverride": "最小RAMを上書き",
@@ -419,10 +417,14 @@
     "typeModpacks": "モッドパック",
     "typeResourcePacks": "リソースパック",
     "typeShaderPacks": "シェーダーパック",
+    "typeDatapacks": "データパック",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "シェーダーパックをインポート",
         "emptyInstalled": "インストールされているシェーダーパックはありません",
         "emptyAvailable": "シェーダーパックが見つかりません"
+      },
+      "datapacks": {
+        "label": "データパック",
+        "singular": "データパック",
+        "singularTitle": "データパック",
+        "plural": "データパック",
+        "pluralTitle": "データパック",
+        "importTitle": "データパックをインポート",
+        "emptyInstalled": "インストールされているデータパックはありません",
+        "emptyAvailable": "データパックが見つかりません"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "ワールドに適用",
+      "manageWorlds": "ワールドを管理",
+      "appliedWorlds": "適用先: {worlds}",
+      "noAppliedWorlds": "どのワールドにも適用されていません",
+      "applyTitle": "データパックをワールドに適用",
+      "applyPrompt": "<b>{datapack}</b> を適用するワールドの保存場所とワールドを選択してください。",
+      "storageLabel": "ワールドの保存場所:",
+      "customFolderLabel": "カスタムフォルダー:",
+      "selectFolder": "フォルダーを選択",
+      "worldsLabel": "ワールド:",
+      "noWorlds": "この保存場所にワールドが見つかりませんでした。",
+      "applyFailed": "データパックを適用できませんでした。",
+      "applySuccess": "データパックを {count} 個のワールドに適用しました。",
+      "removeFailed": "ワールドからデータパックを削除できませんでした。",
+      "removeSuccess": "{world} からデータパックを削除しました。",
+      "manageTitle": "ワールドへの適用状況",
+      "managePrompt": "データパック <b>{datapack}</b> は次のワールドに適用されています:",
+      "removeFromWorld": "削除",
+      "selectWorlds": "ワールドを少なくとも1つ選択してください。"
     },
     "import": {
       "selectLoaderForFile": "\"{file}\" の Mod ローダーを選択してください:",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "インポート中...",
+      "importButton": "インポート",
+      "successTitle": "インポート成功",
+      "successMessage": "{addon} を正常にインポートしました。",
+      "errorTitle": "インポートエラー",
+      "failedMessage": "{addon} をインポートできませんでした。",
+      "modpackImporting": "モッドパックをインポート中...",
+      "modpackImportingPercent": "モッドパックをインポート中... {percent}%",
+      "modpackCancelling": "モッドパックのインポートをキャンセル中...",
+      "modpackSuccess": "モッドパック <b>{name}</b> を正常にインポートしました。",
+      "modpackDetectedFormat": "<br><br>検出された形式: <b>{format}</b>。",
+      "modpackDisabledStandalone": "<br><br>次の単体 Mod は、モッドパックと競合するため無効化されました:<br>",
+      "modpackWarnings": "<br><br>インポートの警告:<br>",
+      "modpackMoreWarnings": "<br>...ほか {count} 件の警告。",
+      "modpackCancelledTitle": "インポートをキャンセルしました",
+      "modpackCancelledMessage": "モッドパックのインポートをキャンセルしました。",
+      "modpackFailed": "モッドパックをインポートできませんでした。",
+      "modpackNetworkError": "モッドパックのインポート中にネットワークエラーが発生しました。"
     },
     "status": {
       "installed": "インストール済み",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "{count} 個の {addon} を削除しました。<br><br>失敗:<br>{failures}",
       "confirmMessage": "選択した {count} 個の {addon} を削除しますか?<br><i>この操作は元に戻せません!</i>"
     },
+    "bulkMove": {
+      "title": "Mod を一括移動",
+      "noSelected": "インストール済みの Mod が選択されていません。",
+      "prompt": "選択した {count} 個の Mod の移動先:",
+      "moveButton": "移動",
+      "movingProgress": "選択した Mod を移動中... ({current}/{total})",
+      "cancelling": "現在の Mod の完了後に一括移動をキャンセルします...",
+      "moveFailed": "移動に失敗しました",
+      "requestFailed": "リクエストに失敗しました",
+      "skippedSuffix": "、{count} 個をスキップ",
+      "cancelledTitle": "一括移動をキャンセルしました",
+      "cancelledMessage": "キャンセル前に {moved} 個の Mod を移動しました{skipped}。{failures}",
+      "failuresCountSuffix": "<br><br>失敗: {count}",
+      "completeTitle": "一括移動が完了しました",
+      "completeMessage": "{moved} 個の Mod を移動しました{skipped}。",
+      "finishedWithErrorsTitle": "一括移動がエラーで終了しました",
+      "finishedWithErrorsMessage": "{moved} 個の Mod を移動しました{skipped}。<br><br>失敗:<br>{preview}{more}",
+      "moreFailures": "<br>...ほか {count} 件。"
+    },
+    "modpackDetail": {
+      "loader": "ローダー: {loader}",
+      "version": "バージョン: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "作者: {author}",
+      "modsCount": "Mod: {count}",
+      "resourcePacksCount": "リソースパック: {count}",
+      "shaderPacksCount": "シェーダーパック: {count}",
+      "datapacksCount": "データパック: {count}",
+      "notAvailable": "該当なし"
+    },
+    "modpackActions": {
+      "deleteFailed": "モッドパックを削除できませんでした。",
+      "cannotEnableTitle": "有効化できません",
+      "cannotEnableMessage": "この Mod はモッドパック <b>{name}</b> によって管理されています。先にそのモッドパックを無効化または削除してください。"
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "CurseForge には API キーが必要です。CurseForge プロバイダーを使用するにはキーを追加するか、Modrinth に切り替えてください。",
+      "providerError": "プロバイダーエラー: {error}"
+    },
     "detail": {
       "loadingDetails": "{addon} の詳細を読み込んでいます...",
       "screenshots": "スクリーンショット",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "モッドパックをエクスポート",
-      "selectFormat": "エクスポートするモッドパック形式を選択してください:",
-      "selectLoader": "このモッドパックの Mod ローダーを選択してください:",
+      "tabs": {
+        "metadata": "メタデータ",
+        "mods": "Mod",
+        "resourcepacks": "リソースパック",
+        "shaderpacks": "シェーダーパック",
+        "datapacks": "データパック",
+        "export": "エクスポート"
+      },
+      "selectFormat": "エクスポートするモッドパック形式を選択してください",
+      "selectLoader": "このモッドパックの Mod ローダーを選択してください",
+      "minecraftVersion": "Minecraft バージョン",
+      "minecraftVersionHint": "モッドパックに使用する Minecraft のバージョン。",
+      "loaderVersion": "ローダーバージョン",
+      "loaderVersionHint": "モッドパックに使用するローダーのバージョン。",
+      "vanillaModsHint": "バニラのモッドパックには Mod は含まれません。他のタブでリソースパック、シェーダーパック、データパックを選択してください。",
       "noLoaderMods": "インストールされている {loader} の Mod がありません。先にいくつかの Mod をインストールしてください。",
       "selectMods": "含める Mod を選択してください ({count} 個の {loader} Mod が利用可能):",
       "disabledHint": "オプション: モッドパック内で Mod を無効としてマークすると、含まれますがデフォルトでは有効になりません。",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "ソースフォルダの更新に失敗しました",
       "failedSaveSourceFolder": "ソースフォルダ設定の保存に失敗しました。",
       "selectAtLeastOneMod": "少なくとも 1 つの Mod を選択してください。",
+      "selectAtLeastOneItem": "Mod、リソースパック、シェーダーパック、データパックを少なくとも1つ選択してください。",
+      "selectMinecraftVersion": "Minecraft のバージョンを選択してください",
+      "selectLoaderVersion": "ローダーのバージョンを選択してください",
+      "validationErrorBanner": "下記の強調表示された問題を修正して、もう一度お試しください。",
+      "externalVersionRequired": "Modrinth/CurseForge へのエクスポートには Minecraft のバージョンを入力してください（またはバージョンのメタデータを持つコンテンツを選択してください）。",
+      "externalLoaderVersionRequired": "Mod ローダーを使用する場合、Modrinth/CurseForge へのエクスポートにはローダーのバージョンを入力してください。",
       "selectOptionalAddons": "バンドルするオプションの {plural} を選択してください (利用可能: {count}):",
       "noOptionalAddons": "インストールされている {plural} はありません。何もバンドルせずに続行できます。",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "モッドパックの説明..."
       },
       "summary": "{format} {extension} | Mod {mods} 個 | リソースパック {resourcepacks} 個 | シェーダーパック {shaderpacks} 個 | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "ローダー {version}",
       "validation": {
         "nameLength": "名前は1〜64文字である必要があります。",
         "nameForbidden": "名前に使用できない文字が含まれています。",
@@ -1014,13 +1125,25 @@
       "description": "軽量かつ高速",
       "subtitle": "主にゲームの最適化に使用されます"
     },
+    "legacyfabric": {
+      "description": "古いバージョン向けの Fabric",
+      "subtitle": "Minecraft 1.3 - 1.13.2 に対応する Fabric の移植版"
+    },
     "babric": {
       "description": "Minecraft Beta Fabric フォーク",
       "subtitle": "Beta 1.7.3 をサポートするための Fabric フォークです"
     },
+    "ornithe": {
+      "description": "レガシー Minecraft 向けの Fabric",
+      "subtitle": "Alpha から 1.14.x までをカバーする Fabric ベースのツールチェーン"
+    },
     "forge": {
       "description": "本格的で人気",
       "subtitle": "主にゲームの改変に使用されます"
+    },
+    "liteloader": {
+      "description": "軽量なクライアント Mod",
+      "subtitle": "Minecraft 1.5.2 - 1.12.2 向けのツイーク系 Mod"
     },
     "modloader": {
       "description": "レガシー Mod ランタイム",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "柔軟でモダン",
       "subtitle": "主に軽量でモダンな Mod に使用されます"
+    },
+    "vanilla": {
+      "description": "Mod ローダーなし",
+      "subtitle": "リソースパック、シェーダーパック、データパックのみ"
     },
     "fallback": {
       "description": "カスタムローダー",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "ブルーベリー (ライト)",
         "leafDark": "リーフ (ダーク)",
         "leafLight": "リーフ (ライト)",
+        "orangeDark": "オレンジ（ダーク）",
+        "orangeLight": "オレンジ（ライト）",
+        "midnightDark": "ミッドナイト（ダーク）",
+        "midnightLight": "ミッドナイト（ライト）",
+        "graphiteDark": "グラファイト（ダーク）",
+        "graphiteLight": "グラファイト（ライト）",
+        "oceanDark": "オーシャン（ダーク）",
+        "oceanLight": "オーシャン（ライト）",
+        "amethystDark": "アメジスト（ダーク）",
+        "amethystLight": "アメジスト（ライト）",
         "aeroDark": "Aeroグラス (ダーク)",
-        "aeroLight": "Aeroグラス (ライト)"
+        "aeroLight": "Aeroグラス (ライト)",
+        "custom": "カスタム"
+      },
+      "themeBase": "ベーステーマ:",
+      "themeEditor": {
+        "dockTitle": "テーマエディター",
+        "openDock": "テーマエディターを開く",
+        "hint": "ベーステーマを選び、下で各色を調整してください。上書き設定はプロファイルに保存されます。",
+        "resetAll": "すべての上書きをリセット",
+        "export": "テーマ JSON をコピー",
+        "import": "テーマ JSON をインポート",
+        "resetToken": "リセット",
+        "resetTokenTooltip": "この色の上書きを削除して、ベーステーマの値を使用します",
+        "groups": {
+          "app": "アプリの背景",
+          "text": "テキスト",
+          "links": "リンクとフォーカス",
+          "surfaces": "サーフェス",
+          "borders": "枠線",
+          "overlays": "オーバーレイとツールチップ",
+          "buttons": "ボタン",
+          "semantic": "成功・危険・警告・情報",
+          "messages": "メッセージボックス",
+          "states": "選択とハイライト",
+          "scrollbars": "スクロールバー",
+          "badges": "バッジ",
+          "loaders": "Mod ローダーのアクセント"
+        }
       },
       "uiSizes": {
         "small": "小",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "ゲームに割り当てられる最大 RAM\n  - 正の数でなければなりません\n  - 最小 RAM より大きくなければなりません\n  - 少なくとも 1 バイトである必要があります\n\n記述例: 256, 256M, 2G など。\n\n(パフォーマンスのヒント: より多くの RAM を割り当てるとパフォーマンスが向上します。また、最小 RAM と一致させるとフレーム落ちが少なくなります)",
       "resolution": "解像度:",
       "resolutionTooltip": "幅と高さの起動引数をサポートするバージョンのデフォルトのゲームウィンドウサイズ。",
-      "fullscreen": "フルスクリーン:",
-      "fullscreenTooltip": "サポートされているバージョンをデフォルトでフルスクリーンで起動します。",
       "demoMode": "デモモード:",
       "demoModeTooltip": "サポートされているバージョンに Minecraft のデモモードを有効にして起動します。",
       "storageDir": "保存先ディレクトリ:",

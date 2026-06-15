@@ -90,6 +90,18 @@ from core.mod_manager.archives import (
     extract_archive_path_subfolder,
     extract_mod_archive_subfolder,
     list_mod_archive_source_folders,
+    validate_datapack_archive,
+)
+from core.mod_manager.datapacks import (
+    apply_datapack_to_world,
+    apply_datapack_to_worlds,
+    get_datapack_source_path,
+    list_deployments,
+    list_deployments_for_world,
+    list_world_datapacks,
+    remove_datapack_from_world,
+    sync_datapack_deployments_at_launch,
+    sync_deployments_for_active_version,
 )
 from core.mod_manager.providers import (
     _cf_resolve_download_url,
@@ -132,6 +144,8 @@ from core.mod_manager.modpacks import (
     _verify_external_file_hash,
     delete_modpack,
     export_modpack,
+    get_modpack_export_loader_versions,
+    get_modpack_export_minecraft_versions,
     get_installed_modpacks,
     get_modpacks_storage_dir,
     import_modpack,
@@ -161,7 +175,7 @@ __all__ = [
     "normalize_addon_compatibility_types",
     "normalize_addon_type",
     "normalize_version_label",
-    # Storage / lifecycle
+    # --- storage / lifecycle ---
     "delete_addon",
     "delete_mod",
     "download_addon_icon",
@@ -185,11 +199,22 @@ __all__ = [
     "set_addon_active_version",
     "toggle_addon_disabled",
     "toggle_mod_disabled",
-    # Archives
+    # --- archives ---
     "extract_archive_path_subfolder",
     "extract_mod_archive_subfolder",
     "list_mod_archive_source_folders",
-    # Providers
+    "validate_datapack_archive",
+    # --- datapacks ---
+    "apply_datapack_to_world",
+    "apply_datapack_to_worlds",
+    "get_datapack_source_path",
+    "list_deployments",
+    "list_deployments_for_world",
+    "list_world_datapacks",
+    "remove_datapack_from_world",
+    "sync_datapack_deployments_at_launch",
+    "sync_deployments_for_active_version",
+    # --- providers ---
     "download_addon_file",
     "download_mod_file",
     "get_mod_detail_curseforge",
@@ -205,9 +230,11 @@ __all__ = [
     "search_mods_modrinth",
     "search_projects_curseforge",
     "search_projects_modrinth",
-    # Modpacks
+    # --- modpacks ---
     "delete_modpack",
     "export_modpack",
+    "get_modpack_export_loader_versions",
+    "get_modpack_export_minecraft_versions",
     "get_installed_modpacks",
     "get_modpacks_storage_dir",
     "import_modpack",

@@ -266,8 +266,6 @@
       "customVersionFolder": "Kustom (folder khusus versi)",
       "launchSettings": "Pengaturan peluncuran",
       "useGlobal": "Gunakan global",
-      "overrideFullscreen": "Ganti layar penuh",
-      "fullscreen": "Layar penuh",
       "overrideDemoMode": "Ganti Mode Demo",
       "demoMode": "Mode Demo",
       "minimumRamOverride": "Ganti RAM minimum",
@@ -419,10 +417,14 @@
     "typeModpacks": "Modpack",
     "typeResourcePacks": "Paket Sumber Daya",
     "typeShaderPacks": "Paket Shader",
+    "typeDatapacks": "Paket Data",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "Impor Paket Shader",
         "emptyInstalled": "Belum ada paket shader terpasang",
         "emptyAvailable": "Paket shader tidak ditemukan"
+      },
+      "datapacks": {
+        "label": "Paket Data",
+        "singular": "paket data",
+        "singularTitle": "Paket Data",
+        "plural": "paket data",
+        "pluralTitle": "Paket Data",
+        "importTitle": "Impor Paket Data",
+        "emptyInstalled": "Belum ada paket data terpasang",
+        "emptyAvailable": "Tidak ada paket data ditemukan"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "Terapkan ke Dunia",
+      "manageWorlds": "Kelola Dunia",
+      "appliedWorlds": "Diterapkan ke: {worlds}",
+      "noAppliedWorlds": "Tidak diterapkan ke dunia mana pun",
+      "applyTitle": "Terapkan Paket Data ke Dunia",
+      "applyPrompt": "Pilih lokasi penyimpanan dunia dan dunia untuk <b>{datapack}</b>.",
+      "storageLabel": "Penyimpanan dunia:",
+      "customFolderLabel": "Folder khusus:",
+      "selectFolder": "Pilih Folder",
+      "worldsLabel": "Dunia:",
+      "noWorlds": "Tidak ada dunia ditemukan di lokasi penyimpanan ini.",
+      "applyFailed": "Gagal menerapkan paket data.",
+      "applySuccess": "Paket data diterapkan ke {count} dunia.",
+      "removeFailed": "Gagal menghapus paket data dari dunia.",
+      "removeSuccess": "Paket data dihapus dari {world}.",
+      "manageTitle": "Penerapan di Dunia",
+      "managePrompt": "Paket data <b>{datapack}</b> diterapkan ke dunia berikut:",
+      "removeFromWorld": "Hapus",
+      "selectWorlds": "Pilih setidaknya satu dunia."
     },
     "import": {
       "selectLoaderForFile": "Pilih mod loader untuk \"{file}\":",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "Mengimpor...",
+      "importButton": "Impor",
+      "successTitle": "Impor Berhasil",
+      "successMessage": "Berhasil mengimpor {addon}.",
+      "errorTitle": "Kesalahan Impor",
+      "failedMessage": "Gagal mengimpor {addon}.",
+      "modpackImporting": "Mengimpor modpack...",
+      "modpackImportingPercent": "Mengimpor modpack... {percent}%",
+      "modpackCancelling": "Membatalkan impor modpack...",
+      "modpackSuccess": "Berhasil mengimpor modpack <b>{name}</b>.",
+      "modpackDetectedFormat": "<br><br>Format terdeteksi: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>Mod mandiri berikut dinonaktifkan karena bertentangan dengan modpack:<br>",
+      "modpackWarnings": "<br><br>Peringatan impor:<br>",
+      "modpackMoreWarnings": "<br>...dan {count} peringatan lagi.",
+      "modpackCancelledTitle": "Impor Dibatalkan",
+      "modpackCancelledMessage": "Anda membatalkan impor modpack.",
+      "modpackFailed": "Gagal mengimpor modpack.",
+      "modpackNetworkError": "Kesalahan jaringan saat mengimpor modpack."
     },
     "status": {
       "installed": "Terpasang",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "Menghapus {count} {addon}.<br><br>Kegagalan:<br>{failures}",
       "confirmMessage": "Hapus {count} {addon} yang dipilih?<br><i>Tindakan ini tidak dapat dibatalkan!</i>"
     },
+    "bulkMove": {
+      "title": "Pindahkan Mod Massal",
+      "noSelected": "Tidak ada mod terpasang yang dipilih.",
+      "prompt": "Pindahkan {count} mod terpilih ke:",
+      "moveButton": "Pindahkan",
+      "movingProgress": "Memindahkan mod terpilih... ({current}/{total})",
+      "cancelling": "Membatalkan pemindahan massal setelah mod saat ini selesai...",
+      "moveFailed": "pemindahan gagal",
+      "requestFailed": "permintaan gagal",
+      "skippedSuffix": ", {count} dilewati",
+      "cancelledTitle": "Pemindahan Massal Dibatalkan",
+      "cancelledMessage": "{moved} mod dipindahkan{skipped} sebelum pembatalan.{failures}",
+      "failuresCountSuffix": "<br><br>Kegagalan: {count}",
+      "completeTitle": "Pemindahan Massal Selesai",
+      "completeMessage": "{moved} mod dipindahkan{skipped}.",
+      "finishedWithErrorsTitle": "Pemindahan Massal Selesai dengan Kesalahan",
+      "finishedWithErrorsMessage": "{moved} mod dipindahkan{skipped}.<br><br>Kegagalan:<br>{preview}{more}",
+      "moreFailures": "<br>...dan {count} lagi."
+    },
+    "modpackDetail": {
+      "loader": "Pemuat: {loader}",
+      "version": "Versi: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "Penulis: {author}",
+      "modsCount": "Mod: {count}",
+      "resourcePacksCount": "Paket Sumber Daya: {count}",
+      "shaderPacksCount": "Paket Shader: {count}",
+      "datapacksCount": "Paket Data: {count}",
+      "notAvailable": "T/A"
+    },
+    "modpackActions": {
+      "deleteFailed": "Gagal menghapus modpack.",
+      "cannotEnableTitle": "Tidak Dapat Mengaktifkan",
+      "cannotEnableMessage": "Mod ini dikelola oleh modpack <b>{name}</b>. Nonaktifkan atau hapus modpack tersebut terlebih dahulu."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "CurseForge memerlukan kunci API. Tambahkan kunci untuk menggunakan penyedia CurseForge, atau beralih ke Modrinth.",
+      "providerError": "Kesalahan penyedia: {error}"
+    },
     "detail": {
       "loadingDetails": "Memuat detail {addon}...",
       "screenshots": "Tangkapan layar",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "Ekspor Modpack",
-      "selectFormat": "Pilih format modpack yang akan diekspor:",
-      "selectLoader": "Pilih mod loader untuk modpack ini:",
+      "tabs": {
+        "metadata": "Metadata",
+        "mods": "Mod",
+        "resourcepacks": "Paket Sumber Daya",
+        "shaderpacks": "Paket Shader",
+        "datapacks": "Paket Data",
+        "export": "Ekspor"
+      },
+      "selectFormat": "Pilih format modpack yang akan diekspor",
+      "selectLoader": "Pilih mod loader untuk modpack ini",
+      "minecraftVersion": "Versi Minecraft",
+      "minecraftVersionHint": "Versi Minecraft yang digunakan untuk modpack.",
+      "loaderVersion": "Versi pemuat",
+      "loaderVersionHint": "Versi pemuat yang digunakan untuk modpack.",
+      "vanillaModsHint": "Modpack vanilla tidak menyertakan mod. Pilih paket sumber daya, paket shader, dan/atau paket data di tab lain.",
       "noLoaderMods": "Belum ada mod {loader} terpasang. Pasang beberapa mod terlebih dahulu.",
       "selectMods": "Pilih mod yang akan disertakan ({count} mod {loader} tersedia):",
       "disabledHint": "Opsional: tandai mod sebagai dinonaktifkan dalam modpack sehingga disertakan tetapi tidak aktif secara default.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "Gagal memperbarui folder sumber",
       "failedSaveSourceFolder": "Gagal menyimpan pengaturan folder sumber.",
       "selectAtLeastOneMod": "Pilih setidaknya satu mod.",
+      "selectAtLeastOneItem": "Pilih setidaknya satu mod, paket sumber daya, paket shader, atau paket data.",
+      "selectMinecraftVersion": "Pilih versi Minecraft",
+      "selectLoaderVersion": "Pilih versi pemuat",
+      "validationErrorBanner": "Perbaiki masalah yang disorot di bawah, lalu coba lagi.",
+      "externalVersionRequired": "Masukkan versi Minecraft untuk ekspor Modrinth/CurseForge (atau pilih konten dengan metadata versi).",
+      "externalLoaderVersionRequired": "Masukkan versi pemuat untuk ekspor Modrinth/CurseForge saat menggunakan pemuat mod.",
       "selectOptionalAddons": "Pilih {plural} opsional untuk disertakan ({count} tersedia):",
       "noOptionalAddons": "Belum ada {plural} yang terpasang. Anda dapat melanjutkan tanpa menyertakan satu pun.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "Deskripsi modpack..."
       },
       "summary": "{format} {extension} | {mods} mod | {resourcepacks} paket sumber daya | {shaderpacks} paket shader | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "Pemuat {version}",
       "validation": {
         "nameLength": "Nama harus 1-64 karakter.",
         "nameForbidden": "Nama mengandung karakter yang tidak diizinkan.",
@@ -1014,13 +1125,25 @@
       "description": "Ringan & cepat",
       "subtitle": "Umumnya digunakan untuk optimasi permainan"
     },
+    "legacyfabric": {
+      "description": "Fabric untuk versi lama",
+      "subtitle": "Port Fabric yang mendukung Minecraft 1.3 - 1.13.2"
+    },
     "babric": {
       "description": "Fork Fabric untuk Minecraft Beta",
       "subtitle": "Fork Fabric untuk mendukung Beta 1.7.3"
     },
+    "ornithe": {
+      "description": "Fabric untuk Minecraft lawas",
+      "subtitle": "Toolchain berbasis Fabric dari Alpha hingga 1.14.x"
+    },
     "forge": {
       "description": "Modifikasi penuh & populer",
       "subtitle": "Umumnya digunakan untuk modifikasi permainan"
+    },
+    "liteloader": {
+      "description": "Mod klien ringan",
+      "subtitle": "Mod gaya tweak untuk Minecraft 1.5.2 - 1.12.2"
     },
     "modloader": {
       "description": "Runtime jar-mod lawas",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "Fleksibel & modern",
       "subtitle": "Umumnya digunakan untuk modding modern yang ringan"
+    },
+    "vanilla": {
+      "description": "Tanpa pemuat mod",
+      "subtitle": "Hanya paket sumber daya, paket shader, dan paket data"
     },
     "fallback": {
       "description": "Loader kustom",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "Blueberry (Terang)",
         "leafDark": "Daun (Gelap)",
         "leafLight": "Daun (Terang)",
+        "orangeDark": "Oranye (Gelap)",
+        "orangeLight": "Oranye (Terang)",
+        "midnightDark": "Tengah Malam (Gelap)",
+        "midnightLight": "Tengah Malam (Terang)",
+        "graphiteDark": "Grafit (Gelap)",
+        "graphiteLight": "Grafit (Terang)",
+        "oceanDark": "Samudra (Gelap)",
+        "oceanLight": "Samudra (Terang)",
+        "amethystDark": "Ametis (Gelap)",
+        "amethystLight": "Ametis (Terang)",
         "aeroDark": "Kaca Aero (Gelap)",
-        "aeroLight": "Kaca Aero (Terang)"
+        "aeroLight": "Kaca Aero (Terang)",
+        "custom": "Khusus"
+      },
+      "themeBase": "Tema dasar:",
+      "themeEditor": {
+        "dockTitle": "Editor tema",
+        "openDock": "Buka editor tema",
+        "hint": "Pilih tema dasar, lalu sesuaikan masing-masing warna di bawah. Penggantian disimpan bersama profil Anda.",
+        "resetAll": "Atur ulang semua penggantian",
+        "export": "Salin JSON tema",
+        "import": "Impor JSON tema",
+        "resetToken": "Atur ulang",
+        "resetTokenTooltip": "Hapus penggantian warna ini dan gunakan nilai tema dasar",
+        "groups": {
+          "app": "Latar belakang aplikasi",
+          "text": "Teks",
+          "links": "Tautan & fokus",
+          "surfaces": "Permukaan",
+          "borders": "Batas",
+          "overlays": "Hamparan & tooltip",
+          "buttons": "Tombol",
+          "semantic": "Sukses, bahaya, peringatan & info",
+          "messages": "Kotak pesan",
+          "states": "Pilihan & sorotan",
+          "scrollbars": "Bilah gulir",
+          "badges": "Lencana",
+          "loaders": "Aksen pemuat mod"
+        }
       },
       "uiSizes": {
         "small": "Kecil",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "RAM maksimum yang dialokasikan untuk permainan\n  - Harus berupa angka positif\n  - Harus lebih besar dari RAM Minimum\n  - Harus setidaknya 1 byte\n\nFormat contoh: 256, 256M, 2G, dll.\n\n(tips performa: alokasikan lebih banyak RAM untuk performa lebih baik, sesuaikan juga dengan RAM minimum untuk mengurangi frame drop)",
       "resolution": "Resolusi:",
       "resolutionTooltip": "Ukuran jendela game default yang digunakan untuk versi yang mendukung argumen peluncuran lebar dan tinggi.",
-      "fullscreen": "Layar Penuh:",
-      "fullscreenTooltip": "Luncurkan versi yang didukung dalam layar penuh secara default.",
       "demoMode": "Mode Demo:",
       "demoModeTooltip": "Luncurkan versi yang didukung dengan Mode Demo Minecraft diaktifkan.",
       "storageDir": "Direktori penyimpanan:",

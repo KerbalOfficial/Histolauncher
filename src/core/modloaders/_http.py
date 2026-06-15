@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from typing import Any
 
 from core.http_client import HttpClient, HttpClientError
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.modloaders.cache import TTLCache, register_cache
 
 __all__ = [
@@ -40,20 +40,20 @@ def fetch_maven_metadata_versions(url: str, cache_key: str, label: str) -> list[
     try:
         xml_data = _client().get_bytes(url)
     except HttpClientError as exc:
-        print(colorize_log(f"[modloaders] Failed to fetch {label} versions: {exc}"))
+        safe_print(f"[modloaders] Failed to fetch {label} versions: {exc}")
         return None
 
     try:
         root = ET.fromstring(xml_data)
     except ET.ParseError as exc:
-        print(colorize_log(f"[modloaders] Failed to parse {label} maven-metadata.xml: {exc}"))
+        safe_print(f"[modloaders] Failed to parse {label} maven-metadata.xml: {exc}")
         return None
 
     versions = [el.text for el in root.findall(".//version") if el.text]
     if not versions:
-        print(colorize_log(f"[modloaders] No {label} versions found in metadata"))
+        safe_print(f"[modloaders] No {label} versions found in metadata")
         return None
 
     _maven_metadata_cache.set(cache_key, versions)
-    print(colorize_log(f"[modloaders] Fetched {len(versions)} {label} versions"))
+    safe_print(f"[modloaders] Fetched {len(versions)} {label} versions")
     return versions

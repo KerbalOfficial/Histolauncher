@@ -7,7 +7,7 @@ import urllib.request
 
 from typing import Dict, Optional, Tuple
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import _apply_url_proxy, load_global_settings
 
 from server.auth.http import ACCOUNT_API_URL, TIMEOUT, _make_request
@@ -52,24 +52,24 @@ def login_with_session(
             if session_token:
                 return True, session_token, None, status
 
-            print(colorize_log(
+            safe_print(
                 f"[auth] Warning: No session token returned for user '{username}'! "
                 f"Response data: {data} Headers: {resp_headers}"
-            ))
+            )
             return False, None, "No session token returned", status
 
         error = "Invalid credentials"
         if data and data.get("error"):
             error = str(data["error"])
         elif status >= 500:
-            print(colorize_log(
+            safe_print(
                 f"[auth] Server error for user '{username}'. Status: {status}. Response data: {data}"
-            ))
+            )
             error = "Server error"
         elif status == 429:
-            print(colorize_log(
+            safe_print(
                 f"[auth] Too many login attempts for user '{username}'. Response data: {data}"
-            ))
+            )
             error = "Too many login attempts"
 
         return False, None, error, status
@@ -100,14 +100,14 @@ def login(username: str, password: str) -> Tuple[bool, Optional[str], Optional[s
     if data and data.get("error"):
         error = data["error"]
     elif status >= 500:
-        print(colorize_log(
+        safe_print(
             f"[auth] Server error for user '{username}'. Status: {status}. Response data: {data}"
-        ))
+        )
         error = "Server error"
     elif status == 429:
-        print(colorize_log(
+        safe_print(
             f"[auth] Too many login attempts for user '{username}'. Response data: {data}"
-        ))
+        )
         error = "Too many login attempts"
 
     return False, None, error
@@ -127,14 +127,14 @@ def signup(username: str, password: str) -> Tuple[bool, Optional[str], Optional[
     elif status == 409:
         error = "Username already taken"
     elif status >= 500:
-        print(colorize_log(
+        safe_print(
             f"[auth] Server error for user '{username}'. Status: {status}. Response data: {data}"
-        ))
+        )
         error = "Server error"
     elif status == 429:
-        print(colorize_log(
+        safe_print(
             f"[auth] Too many signup attempts for user '{username}'. Response data: {data}"
-        ))
+        )
         error = "Too many signup attempts"
 
     return False, None, error

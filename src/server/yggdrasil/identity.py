@@ -4,7 +4,7 @@ import hashlib
 import uuid
 from typing import Tuple
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import load_global_settings
 
 
@@ -66,7 +66,7 @@ def _get_username_and_uuid() -> Tuple[str, str]:
                     except Exception:
                         pass
         except Exception as e:
-            print(colorize_log(f"[yggdrasil] Failed to verify Microsoft session: {e}"))
+            safe_print(f"[yggdrasil] Failed to verify Microsoft session: {e}")
 
     if account_type_norm == "histolauncher":
         try:
@@ -83,7 +83,7 @@ def _get_username_and_uuid() -> Tuple[str, str]:
                     except Exception:
                         pass
         except Exception as e:
-            print(colorize_log(f"[yggdrasil] Failed to verify Histolauncher session: {e}"))
+            safe_print(f"[yggdrasil] Failed to verify Histolauncher session: {e}")
 
     username = (settings.get("username") or "Player").strip() or "Player"
     u = _ensure_uuid(username)

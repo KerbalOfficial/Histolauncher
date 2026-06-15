@@ -14,6 +14,7 @@ import {
   JAVA_RUNTIME_PATH,
   LOADER_UI_ORDER,
   getLoaderUi,
+  setHistolauncherWebsiteUrls,
 } from './config.js';
 import {
   formatBytes,
@@ -37,6 +38,7 @@ import {
 import { applyModsViewMode } from './mods.js';
 import { applyVersionsViewMode } from './version-controls.js';
 import { applyAppearanceSettings } from './appearance.js';
+import { syncThemeEditor } from './theme-editor.js';
 import { setLauncherLanguage, t } from './i18n.js';
 import {
   applyProfilesState,
@@ -908,6 +910,9 @@ export const updateHomeInfo = () => {
           .then((ok) => {
             if (ok) state.javaRuntimesLoaded = true;
           })
+          .catch((err) => {
+            console.warn('Failed to refresh Java runtime options:', err);
+          })
           .finally(() => {
             state.javaRuntimesLoading = false;
             updateHomeInfo();
@@ -1056,7 +1061,10 @@ export const startHomeLiveStream = () => {
         el.classList.add('hidden');
       }
     };
-    es.onerror = () => { if (_homeLiveEs === es) _homeLiveEs = null; };
+    // Keep the reference on error: EventSource auto-reconnects, and nulling
+    // it here would orphan a reconnecting stream that stop/restart can no
+    // longer close (leaked connections).
+    es.onerror = () => {};
   } catch (_) { /* EventSource not supported */ }
 };
 
@@ -1134,6 +1142,15 @@ export const initSettings = async (data, profilePayload = null) => {
 
   state.settingsState.account_type = normalizeAccountType(state.settingsState.account_type);
 
+  try {
+    const accountStatus = await api('/api/account/status', 'GET');
+    if (accountStatus?.ok) {
+      setHistolauncherWebsiteUrls(accountStatus);
+    }
+  } catch (e) {
+    console.warn('[Account] Could not load website URLs:', e);
+  }
+
   if (isOnlineAccountType(state.settingsState.account_type)) {
     try {
       const currentUser = await api('/api/account/current', 'GET');
@@ -1193,7 +1210,7 @@ export const initSettings = async (data, profilePayload = null) => {
   }
 
   const minRamInput = getEl('settings-min-ram');
-  if (minRamInput) minRamInput.value = state.settingsState.min_ram || '32M';
+  if (minRamInput) minRamInput.value = state.settingsState.min_ram || '2048M';
 
   const maxRamInput = getEl('settings-max-ram');
   if (maxRamInput) maxRamInput.value = state.settingsState.max_ram || '4096M';
@@ -1214,9 +1231,6 @@ export const initSettings = async (data, profilePayload = null) => {
   const resolutionHeightInput = getEl('settings-resolution-height');
   if (resolutionHeightInput) resolutionHeightInput.value = state.settingsState.game_resolution_height || '480';
 
-  const fullscreenInput = getEl('settings-game-fullscreen');
-  if (fullscreenInput) fullscreenInput.checked = isTruthySetting(state.settingsState.game_fullscreen);
-
   const demoModeInput = getEl('settings-demo-mode');
   if (demoModeInput) demoModeInput.checked = isTruthySetting(state.settingsState.game_demo_mode);
 
@@ -1225,6 +1239,7 @@ export const initSettings = async (data, profilePayload = null) => {
 
   const themeSelect = getEl('settings-launcher-theme');
   if (themeSelect) themeSelect.value = state.settingsState.launcher_theme || 'dark';
+  syncThemeEditor();
 
   const validUiSizes = ['small', 'normal', 'large', 'extra-large'];
   const launcherUiSize = validUiSizes.includes(String(state.settingsState.launcher_ui_size || '').trim().toLowerCase())

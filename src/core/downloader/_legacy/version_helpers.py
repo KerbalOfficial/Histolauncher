@@ -14,12 +14,12 @@ from core.downloader._legacy._constants import (
 )
 from core.downloader._legacy.progress import _maybe_abort
 from core.downloader._legacy.transport import download_file
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import load_global_settings
 
 
 # ---------------------------------------------------------------------------
-# Version-json argument helpers
+# version-json argument helpers
 # ---------------------------------------------------------------------------
 
 
@@ -54,7 +54,7 @@ def _extract_extra_args(vjson: Dict[str, Any]) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
-# Library artifact resolution
+# library artifact resolution
 # ---------------------------------------------------------------------------
 
 
@@ -108,7 +108,7 @@ def _resolve_library_artifact(lib: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# Legacy LaunchWrapper handling
+# legacy LaunchWrapper handling
 # ---------------------------------------------------------------------------
 
 
@@ -161,7 +161,7 @@ def _ensure_legacy_launchwrapper(
             return True
 
         try:
-            print(colorize_log(f"[install] Ensuring legacy runtime dependency: {base_name}"))
+            safe_print(f"[install] Ensuring legacy runtime dependency: {base_name}")
             download_file(
                 runtime["url"],
                 cache_path,
@@ -180,10 +180,10 @@ def _ensure_legacy_launchwrapper(
                         dst.write(chunk)
 
             copied_lib_basenames.append(base_name)
-            print(colorize_log(f"[install] Added legacy runtime dependency: {base_name}"))
+            safe_print(f"[install] Added legacy runtime dependency: {base_name}")
             return True
         except Exception as e:
-            print(colorize_log(f"[install] Failed to fetch {base_name}: {e}"))
+            safe_print(f"[install] Failed to fetch {base_name}: {e}")
             return False
 
     lw_ok = False
@@ -204,7 +204,7 @@ def _ensure_legacy_launchwrapper(
 
 
 # ---------------------------------------------------------------------------
-# Main-class inference
+# main-class inference
 # ---------------------------------------------------------------------------
 
 
@@ -259,7 +259,7 @@ def _infer_main_class_from_client_jar(client_jar_path: str, version_id: str = ""
 
 
 # ---------------------------------------------------------------------------
-# Asset / version helpers
+# asset / version helpers
 # ---------------------------------------------------------------------------
 
 
@@ -388,7 +388,7 @@ def _normalize_storage_category(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Wiki display image URL
+# wiki display image URL
 # ---------------------------------------------------------------------------
 
 

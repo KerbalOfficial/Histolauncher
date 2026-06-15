@@ -17,6 +17,8 @@ import {
   SHADER_TYPE_ORDER,
   ADD_PROFILE_OPTION,
   getLoaderUi,
+  getModpackExportLoaderOrder,
+  getModsLoaderFilterOrder,
   getShaderTypeUi,
   normalizeAddonCompatibilityToken,
   unicodeList,
@@ -72,6 +74,7 @@ let modsState = {
   availableMods: [],
   installedMods: [],
   installedModpacks: [],
+  datapackDeployments: {},
   searchRequestId: 0,
   lastError: null,
   installedGroupsCollapsed: {
@@ -99,7 +102,7 @@ const ADDON_TYPE_CONFIG = {
     pluralTitle: 'Mods',
     pluralTitleKey: 'mods.addonTypes.mods.pluralTitle',
     defaultIcon: 'assets/images/java_icon.png',
-    importAccept: '.jar,.zip',
+    importAccept: '.jar,.zip,.litemod',
     supportsLoader: true,
     supportsCategory: true,
     supportsMove: true,
@@ -185,6 +188,30 @@ const ADDON_TYPE_CONFIG = {
     emptyAvailable: 'No shader packs found',
     emptyAvailableKey: 'mods.addonTypes.shaderpacks.emptyAvailable',
   },
+  datapacks: {
+    label: 'Datapacks',
+    labelKey: 'mods.addonTypes.datapacks.label',
+    singular: 'datapack',
+    singularKey: 'mods.addonTypes.datapacks.singular',
+    singularTitle: 'Datapack',
+    singularTitleKey: 'mods.addonTypes.datapacks.singularTitle',
+    plural: 'datapacks',
+    pluralKey: 'mods.addonTypes.datapacks.plural',
+    pluralTitle: 'Datapacks',
+    pluralTitleKey: 'mods.addonTypes.datapacks.pluralTitle',
+    defaultIcon: 'assets/images/placeholder_pack.png',
+    importAccept: '.zip',
+    supportsLoader: false,
+    supportsCategory: true,
+    supportsMove: false,
+    supportsModpacks: false,
+    importTitle: 'Import Datapack',
+    importTitleKey: 'mods.addonTypes.datapacks.importTitle',
+    emptyInstalled: 'No datapacks installed',
+    emptyInstalledKey: 'mods.addonTypes.datapacks.emptyInstalled',
+    emptyAvailable: 'No datapacks found',
+    emptyAvailableKey: 'mods.addonTypes.datapacks.emptyAvailable',
+  },
 };
 
 const getAddonConfig = (addonType = modsState.addonType) => {
@@ -219,17 +246,22 @@ const appendOption = (select, value, label) => {
 const isModsAddonType = (addonType = modsState.addonType) => String(addonType || 'mods').toLowerCase() === 'mods';
 const isModpacksAddonType = (addonType = modsState.addonType) => String(addonType || 'mods').toLowerCase() === 'modpacks';
 const isShaderpacksAddonType = (addonType = modsState.addonType) => String(addonType || 'mods').toLowerCase() === 'shaderpacks';
+const isDatapacksAddonType = (addonType = modsState.addonType) => String(addonType || 'mods').toLowerCase() === 'datapacks';
 const getShaderTypeLabel = (shaderType) => {
   const shaderTypeUi = getShaderTypeUi(shaderType);
   return shaderTypeUi.nameKey ? t(shaderTypeUi.nameKey) : shaderTypeUi.name;
 };
-const getAddonCompatibilityFilterConfig = (addonType = modsState.addonType) => {
+const getAddonCompatibilityFilterConfig = (
+  addonType = modsState.addonType,
+  provider = modsState.provider,
+) => {
   const normalizedType = String(addonType || 'mods').toLowerCase();
   if (normalizedType === 'mods' || normalizedType === 'modpacks') {
+    const loaderOrder = getModsLoaderFilterOrder(normalizedType, provider);
     return {
       label: t('mods.compatibility.modLoader'),
       detailAllLabel: t('mods.compatibility.allLoaders'),
-      options: LOADER_UI_ORDER.map((loaderType) => ({
+      options: loaderOrder.map((loaderType) => ({
         value: loaderType,
         label: getLoaderUi(loaderType).name,
       })),
@@ -248,15 +280,15 @@ const getAddonCompatibilityFilterConfig = (addonType = modsState.addonType) => {
   return null;
 };
 const addonTypeSupportsCompatibilityFilter = (addonType = modsState.addonType) => !!getAddonCompatibilityFilterConfig(addonType);
-const normalizeAddonCompatibilityValue = (addonType, value) => {
-  const config = getAddonCompatibilityFilterConfig(addonType);
+const normalizeAddonCompatibilityValue = (addonType, value, provider = modsState.provider) => {
+  const config = getAddonCompatibilityFilterConfig(addonType, provider);
   if (!config) return '';
   const normalized = normalizeAddonCompatibilityToken(value);
   return config.options.some((option) => option.value === normalized) ? normalized : '';
 };
-const extractAddonCompatibilityValues = (values, addonType = modsState.addonType) => {
+const extractAddonCompatibilityValues = (values, addonType = modsState.addonType, provider = modsState.provider) => {
   const normalizedType = String(addonType || 'mods').toLowerCase();
-  const config = getAddonCompatibilityFilterConfig(normalizedType);
+  const config = getAddonCompatibilityFilterConfig(normalizedType, provider);
   if (!config) return [];
   const rawValues = Array.isArray(values) ? values : [values];
   const seen = new Set();
@@ -338,7 +370,8 @@ const refreshModsCompatibilityOptions = () => {
 
   const previousValue = normalizeAddonCompatibilityValue(
     modsState.addonType,
-    modsState.modLoader || loaderSelect.value || ''
+    modsState.modLoader || loaderSelect.value || '',
+    modsState.provider,
   );
   loaderSelect.innerHTML = '';
 
@@ -625,6 +658,8 @@ const startInlineInstallProgress = ({ installKey, button, card, activeLabel = t(
 
   let eventSource = null;
   let closed = false;
+  let fallbackTimer = null;
+  let fallbackFailures = 0;
   const target = { card, button };
   updateInlineInstallProgress(target, 0, t('mods.install.starting'), t('mods.install.activeEllipsis', { label: activeLabel }));
 
@@ -632,6 +667,10 @@ const startInlineInstallProgress = ({ installKey, button, card, activeLabel = t(
     if (closed) return;
     closed = true;
     if (eventSource) eventSource.close();
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = null;
+    }
   };
 
   const complete = (message = doneLabel) => {
@@ -645,6 +684,47 @@ const startInlineInstallProgress = ({ installKey, button, card, activeLabel = t(
     close();
   };
 
+  const handleProgress = (progress) => {
+    if (closed || !progress) return;
+    const status = String(progress.status || '').toLowerCase();
+    const pct = clampInstallPercent(progress.overall_percent);
+    if (status === 'installed') {
+      complete(progress.message || doneLabel);
+      return;
+    }
+    if (status === 'failed' || status === 'cancelled') {
+      fail(progress.message || (status === 'cancelled' ? t('mods.install.cancelled') : t('mods.install.failed')));
+      return;
+    }
+
+    const text = formatInstallProgressText(progress, activeLabel);
+    updateInlineInstallProgress(target, pct, text, `${activeLabel} ${Math.round(pct)}%`);
+  };
+
+  // HTTP polling fallback for when the SSE stream drops, so the card cannot
+  // be stuck on "Starting..." forever after a disconnect.
+  const pollStatusFallback = async () => {
+    if (closed) return;
+    try {
+      const progress = await api(`/api/status/${encodeURIComponent(installKey)}`);
+      const status = String((progress && progress.status) || '').toLowerCase();
+      if (!progress || !status || status === 'unknown') {
+        fallbackFailures += 1;
+      } else {
+        fallbackFailures = 0;
+        handleProgress(progress);
+      }
+    } catch (_err) {
+      fallbackFailures += 1;
+    }
+    if (closed) return;
+    if (fallbackFailures >= 5) {
+      fail(t('mods.install.failed'));
+      return;
+    }
+    fallbackTimer = setTimeout(pollStatusFallback, 2000);
+  };
+
   try {
     eventSource = new EventSource(`/api/stream/install/${encodeURIComponent(installKey)}`);
     eventSource.onmessage = (event) => {
@@ -655,24 +735,18 @@ const startInlineInstallProgress = ({ installKey, button, card, activeLabel = t(
       } catch (_err) {
         return;
       }
-      if (!progress) return;
-
-      const status = String(progress.status || '').toLowerCase();
-      const pct = clampInstallPercent(progress.overall_percent);
-      if (status === 'installed') {
-        complete(progress.message || doneLabel);
-        return;
+      handleProgress(progress);
+    };
+    eventSource.onerror = () => {
+      if (closed) return;
+      if (eventSource) {
+        eventSource.close();
+        eventSource = null;
       }
-      if (status === 'failed' || status === 'cancelled') {
-        fail(progress.message || (status === 'cancelled' ? t('mods.install.cancelled') : t('mods.install.failed')));
-        return;
-      }
-
-      const text = formatInstallProgressText(progress, activeLabel);
-      updateInlineInstallProgress(target, pct, text, `${activeLabel} ${Math.round(pct)}%`);
+      fallbackTimer = setTimeout(pollStatusFallback, 1000);
     };
   } catch (_err) {
-    updateInlineInstallProgress(target, 0, t('mods.install.starting'), t('mods.install.activeEllipsis', { label: activeLabel }));
+    fallbackTimer = setTimeout(pollStatusFallback, 1000);
   }
 
   return { complete, fail, close };
@@ -686,9 +760,9 @@ const bulkMoveSelectedMods = () => {
 
   if (!selectedMods.length) {
     showMessageBox({
-      title: 'Bulk Move Mods',
-      message: 'No installed mods selected.',
-      buttons: [{ label: 'OK' }],
+      title: t('mods.bulkMove.title'),
+      message: t('mods.bulkMove.noSelected'),
+      buttons: [{ label: t('common.ok') }],
     });
     return;
   }
@@ -702,7 +776,7 @@ const bulkMoveSelectedMods = () => {
   const content = document.createElement('div');
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
-  label.textContent = `Move ${selectedMods.length} selected mod${selectedMods.length !== 1 ? 's' : ''} to:`;
+  label.textContent = t('mods.bulkMove.prompt', { count: selectedMods.length });
 
   const select = document.createElement('select');
   select.className = 'mod-version-select';
@@ -722,27 +796,27 @@ const bulkMoveSelectedMods = () => {
   content.appendChild(select);
 
   showMessageBox({
-    title: 'Bulk Move Mods',
+    title: t('mods.bulkMove.title'),
     customContent: content,
     buttons: [
       {
-        label: 'Move',
+        label: t('mods.bulkMove.moveButton'),
         classList: ['important'],
         onClick: async () => {
           const targetLoader = String(select.value || '').toLowerCase();
           let cancelRequested = false;
           let processed = 0;
-          showLoadingOverlay(`Moving selected mods... (0/${selectedMods.length})`, {
+          showLoadingOverlay(t('mods.bulkMove.movingProgress', { current: 0, total: selectedMods.length }), {
             buttons: [
               {
-                label: 'Cancel',
+                label: t('common.cancel'),
                 classList: ['danger'],
                 closeOnClick: false,
                 onClick: (_values, controls) => {
                   if (cancelRequested) return;
                   cancelRequested = true;
                   controls.update({
-                    message: 'Cancelling bulk move after the current mod finishes...',
+                    message: t('mods.bulkMove.cancelling'),
                     buttons: [],
                   });
                 },
@@ -760,7 +834,7 @@ const bulkMoveSelectedMods = () => {
             if (!sourceLoader || sourceLoader === targetLoader) {
               skipped += 1;
               processed += 1;
-              setLoadingOverlayText(`Moving selected mods... (${processed}/${selectedMods.length})`);
+              setLoadingOverlayText(t('mods.bulkMove.movingProgress', { current: processed, total: selectedMods.length }));
               continue;
             }
 
@@ -774,47 +848,53 @@ const bulkMoveSelectedMods = () => {
               if (res && res.ok) {
                 moved += 1;
               } else {
-                failures.push(`${mod.mod_slug}: ${(res && res.error) || 'move failed'}`);
+                failures.push(`${mod.mod_slug}: ${(res && res.error) || t('mods.bulkMove.moveFailed')}`);
               }
             } catch (err) {
-              failures.push(`${mod.mod_slug}: ${(err && err.message) || 'request failed'}`);
+              failures.push(`${mod.mod_slug}: ${(err && err.message) || t('mods.bulkMove.requestFailed')}`);
             }
             processed += 1;
-            setLoadingOverlayText(`Moving selected mods... (${processed}/${selectedMods.length})`);
+            setLoadingOverlayText(t('mods.bulkMove.movingProgress', { current: processed, total: selectedMods.length }));
           }
 
           hideLoadingOverlay();
           setModsBulkMode(false);
           await loadInstalledMods();
 
+          const skippedSuffix = skipped ? t('mods.bulkMove.skippedSuffix', { count: skipped }) : '';
+
           if (cancelRequested) {
             showMessageBox({
-              title: 'Bulk Move Cancelled',
-              message: `Moved ${moved} mod${moved !== 1 ? 's' : ''}${skipped ? `, skipped ${skipped}` : ''} before cancellation.${failures.length ? `<br><br>Failures: ${failures.length}` : ''}`,
-              buttons: [{ label: 'OK' }],
+              title: t('mods.bulkMove.cancelledTitle'),
+              message: t('mods.bulkMove.cancelledMessage', {
+                moved,
+                skipped: skippedSuffix,
+                failures: failures.length ? t('mods.bulkMove.failuresCountSuffix', { count: failures.length }) : '',
+              }),
+              buttons: [{ label: t('common.ok') }],
             });
             return;
           }
 
           if (!failures.length) {
             showMessageBox({
-              title: 'Bulk Move Complete',
-              message: `Moved ${moved} mod${moved !== 1 ? 's' : ''}${skipped ? `, skipped ${skipped}` : ''}.`,
-              buttons: [{ label: 'OK' }],
+              title: t('mods.bulkMove.completeTitle'),
+              message: t('mods.bulkMove.completeMessage', { moved, skipped: skippedSuffix }),
+              buttons: [{ label: t('common.ok') }],
             });
             return;
           }
 
           const preview = failures.slice(0, 8).join('<br>');
-          const more = failures.length > 8 ? `<br>...and ${failures.length - 8} more.` : '';
+          const more = failures.length > 8 ? t('mods.bulkMove.moreFailures', { count: failures.length - 8 }) : '';
           showMessageBox({
-            title: 'Bulk Move Finished With Errors',
-            message: `Moved ${moved} mod${moved !== 1 ? 's' : ''}${skipped ? `, skipped ${skipped}` : ''}.<br><br>Failures:<br>${preview}${more}`,
-            buttons: [{ label: 'OK' }],
+            title: t('mods.bulkMove.finishedWithErrorsTitle'),
+            message: t('mods.bulkMove.finishedWithErrorsMessage', { moved, skipped: skippedSuffix, preview, more }),
+            buttons: [{ label: t('common.ok') }],
           });
         },
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -1088,6 +1168,7 @@ export const initModsPage = () => {
   if (providerSelect) {
     providerSelect.addEventListener('change', () => {
       modsState.provider = providerSelect.value;
+      refreshModsCompatibilityOptions();
       resetModsSearch();
       updateModsProviderDisplay();
       clearTimeout(filterTimeout);
@@ -1222,6 +1303,8 @@ const updateModsProviderDisplay = () => {
   }
 };
 
+let modsVersionDropdownRequestId = 0;
+
 const populateModsVersionDropdown = () => {
   const select = getEl('mods-version-select');
   if (!select) return;
@@ -1230,10 +1313,13 @@ const populateModsVersionDropdown = () => {
   select.innerHTML = '';
   appendOption(select, '', t('common.all'));
 
+  const requestId = ++modsVersionDropdownRequestId;
   api('/api/addons/version-options', 'POST', {
     addon_type: modsState.addonType,
   })
     .then((res) => {
+      // Ignore stale responses from rapid addon-type switches.
+      if (requestId !== modsVersionDropdownRequestId) return;
       if (!res || !res.ok) return;
       const versions = Array.isArray(res.versions) ? res.versions : [];
       versions.slice(0, 100).forEach((entry) => {
@@ -1314,6 +1400,13 @@ export const loadInstalledMods = async () => {
     } else {
       modsState.installedModpacks = [];
     }
+
+    if (isDatapacksAddonType()) {
+      await loadDatapackDeployments();
+    } else {
+      modsState.datapackDeployments = {};
+    }
+
     renderInstalledMods();
     return !!(modsRes && modsRes.ok) && (!loadModpackList || !!(packsRes && packsRes.ok));
   } catch (err) {
@@ -1369,8 +1462,8 @@ const searchMods = async () => {
       if (warn) {
         if (res.error) {
           warn.textContent = res.requires_api_key
-            ? 'CurseForge requires an API key. Add a key to use CurseForge provider, or switch to Modrinth.'
-            : `Provider error: ${res.error}`;
+            ? t('mods.providers.curseforgeApiKeyRequired')
+            : t('mods.providers.providerError', { error: res.error });
           warn.classList.remove('hidden');
         }
       }
@@ -1594,8 +1687,11 @@ const renderInstalledMods = () => {
 
   const groups = {
     fabric: [],
+    legacyfabric: [],
     babric: [],
+    ornithe: [],
     forge: [],
+    liteloader: [],
     modloader: [],
     neoforge: [],
     quilt: [],
@@ -1604,26 +1700,19 @@ const renderInstalledMods = () => {
 
   filtered.forEach((mod) => {
     const loader = (mod.mod_loader || '').toLowerCase();
-    if (loader === 'fabric') {
-      groups.fabric.push(mod);
-    } else if (loader === 'babric') {
-      groups.babric.push(mod);
-    } else if (loader === 'forge') {
-      groups.forge.push(mod);
-    } else if (loader === 'modloader') {
-      groups.modloader.push(mod);
-    } else if (loader === 'neoforge') {
-      groups.neoforge.push(mod);
-    } else if (loader === 'quilt') {
-      groups.quilt.push(mod);
+    if (Object.prototype.hasOwnProperty.call(groups, loader) && loader !== 'other') {
+      groups[loader].push(mod);
     } else {
       groups.other.push(mod);
     }
   });
 
   appendInstalledGroup(list, 'fabric', groups.fabric, (mod) => createModCard(mod, true));
+  appendInstalledGroup(list, 'legacyfabric', groups.legacyfabric, (mod) => createModCard(mod, true));
   appendInstalledGroup(list, 'babric', groups.babric, (mod) => createModCard(mod, true));
+  appendInstalledGroup(list, 'ornithe', groups.ornithe, (mod) => createModCard(mod, true));
   appendInstalledGroup(list, 'forge', groups.forge, (mod) => createModCard(mod, true));
+  appendInstalledGroup(list, 'liteloader', groups.liteloader, (mod) => createModCard(mod, true));
   appendInstalledGroup(list, 'modloader', groups.modloader, (mod) => createModCard(mod, true));
   appendInstalledGroup(list, 'neoforge', groups.neoforge, (mod) => createModCard(mod, true));
   appendInstalledGroup(list, 'quilt', groups.quilt, (mod) => createModCard(mod, true));
@@ -1656,6 +1745,318 @@ const renderAvailableMods = () => {
   applyModsViewMode();
 };
 
+const loadDatapackDeployments = async () => {
+  const deploymentsBySlug = {};
+  const requests = modsState.installedMods.map(async (mod) => {
+    const modSlug = String(mod.mod_slug || '').trim();
+    if (!modSlug) return;
+    try {
+      const res = await api('/api/datapacks/deployments', 'POST', { mod_slug: modSlug });
+      if (res && res.ok) {
+        deploymentsBySlug[modSlug] = Array.isArray(res.deployments) ? res.deployments : [];
+      } else {
+        deploymentsBySlug[modSlug] = [];
+      }
+    } catch (err) {
+      console.error(`Failed to load datapack deployments for ${modSlug}:`, err);
+      deploymentsBySlug[modSlug] = [];
+    }
+  });
+  await Promise.allSettled(requests);
+  modsState.datapackDeployments = deploymentsBySlug;
+};
+
+const refreshDatapackDeploymentsFor = async (modSlug) => {
+  const slug = String(modSlug || '').trim();
+  if (!slug) return;
+  try {
+    const res = await api('/api/datapacks/deployments', 'POST', { mod_slug: slug });
+    modsState.datapackDeployments[slug] = (res && res.ok && Array.isArray(res.deployments))
+      ? res.deployments
+      : [];
+  } catch (err) {
+    console.error(`Failed to refresh datapack deployments for ${slug}:`, err);
+    modsState.datapackDeployments[slug] = [];
+  }
+};
+
+const showApplyDatapackToWorldModal = async (mod) => {
+  const modSlug = String(mod.mod_slug || '').trim();
+  const datapackName = mod.mod_name || mod.name || modSlug || getAddonConfigText('singularTitle', 'datapacks');
+  if (!modSlug) return;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'datapack-apply-modal';
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px;text-align:left;min-width:min(520px,80vw);';
+
+  const prompt = document.createElement('p');
+  prompt.innerHTML = t('mods.datapacks.applyPrompt', { datapack: escapeInfoHtml(datapackName) });
+  wrap.appendChild(prompt);
+
+  const storageRow = document.createElement('div');
+  storageRow.style.cssText = 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+  const storageLabel = document.createElement('label');
+  storageLabel.textContent = t('mods.datapacks.storageLabel');
+  const storageSelect = document.createElement('select');
+  storageSelect.className = 'mod-version-select';
+  storageRow.appendChild(storageLabel);
+  storageRow.appendChild(storageSelect);
+  wrap.appendChild(storageRow);
+
+  const customRow = document.createElement('div');
+  customRow.style.cssText = 'display:none;align-items:center;gap:8px;flex-wrap:wrap;';
+  const customLabel = document.createElement('label');
+  customLabel.textContent = t('mods.datapacks.customFolderLabel');
+  const customInput = document.createElement('input');
+  customInput.type = 'text';
+  customInput.className = 'text-input';
+  customInput.style.minWidth = '240px';
+  customRow.appendChild(customLabel);
+  customRow.appendChild(customInput);
+  wrap.appendChild(customRow);
+
+  const worldsLabel = document.createElement('div');
+  worldsLabel.textContent = t('mods.datapacks.worldsLabel');
+  worldsLabel.style.fontWeight = '600';
+  wrap.appendChild(worldsLabel);
+
+  const worldsList = document.createElement('div');
+  worldsList.style.cssText = 'max-height:240px;overflow-y:auto;border:1px solid var(--color-border-input);padding:8px;';
+  wrap.appendChild(worldsList);
+
+  let storageTarget = 'default';
+  let customPath = '';
+
+  const syncCustomVisibility = () => {
+    customRow.style.display = storageTarget === 'custom' ? 'flex' : 'none';
+  };
+
+  const renderWorldChoices = (worlds) => {
+    worldsList.innerHTML = '';
+    if (!Array.isArray(worlds) || worlds.length === 0) {
+      const empty = document.createElement('p');
+      empty.style.cssText = 'margin:0;color:var(--color-text-muted);';
+      empty.textContent = t('mods.datapacks.noWorlds');
+      worldsList.appendChild(empty);
+      return;
+    }
+
+    worlds.forEach((world) => {
+      const worldId = String(world.world_id || '').trim();
+      if (!worldId) return;
+      const row = document.createElement('label');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:4px 0;cursor:pointer;';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = worldId;
+      checkbox.className = 'datapack-world-checkbox';
+      const title = String(world.title || worldId).trim() || worldId;
+      row.appendChild(checkbox);
+      row.appendChild(document.createTextNode(title));
+      worldsList.appendChild(row);
+    });
+  };
+
+  const loadWorldChoices = async () => {
+    worldsList.innerHTML = '';
+    worldsList.appendChild(createInlineLoadingState(t('worlds.list.loading')));
+    try {
+      const res = await api('/api/worlds/installed', 'POST', {
+        storage_target: storageTarget,
+        custom_path: customPath,
+      });
+      renderWorldChoices((res && res.ok && Array.isArray(res.worlds)) ? res.worlds : []);
+    } catch (err) {
+      console.error('Failed to load worlds for datapack apply:', err);
+      renderWorldChoices([]);
+    }
+  };
+
+  try {
+    const storageRes = await api('/api/worlds/storage-options', 'POST', {});
+    const options = (storageRes && storageRes.ok && Array.isArray(storageRes.options))
+      ? storageRes.options
+      : [{ value: 'default', label: t('common.defaultName') }];
+    storageSelect.innerHTML = '';
+    options.forEach((optionData) => {
+      const option = document.createElement('option');
+      option.value = optionData.value || 'default';
+      option.textContent = optionData.label || option.value || t('common.defaultName');
+      storageSelect.appendChild(option);
+    });
+    storageTarget = storageSelect.value || 'default';
+  } catch (err) {
+    console.error('Failed to load world storage options:', err);
+    storageSelect.innerHTML = `<option value="default">${t('common.defaultName')}</option>`;
+  }
+
+  storageSelect.addEventListener('change', async () => {
+    storageTarget = storageSelect.value || 'default';
+    syncCustomVisibility();
+    await loadWorldChoices();
+  });
+  customInput.addEventListener('change', async () => {
+    customPath = String(customInput.value || '').trim();
+    await loadWorldChoices();
+  });
+
+  syncCustomVisibility();
+  await loadWorldChoices();
+
+  let settled = false;
+  showMessageBox({
+    title: t('mods.datapacks.applyTitle'),
+    customContent: wrap,
+    onClose: () => {
+      settled = true;
+    },
+    buttons: [
+      { label: t('common.cancel') },
+      {
+        label: t('mods.datapacks.applyToWorld'),
+        classList: ['primary'],
+        closeOnClick: false,
+        onClick: async (_values, controls) => {
+          const selectedWorldIds = Array.from(wrap.querySelectorAll('.datapack-world-checkbox'))
+            .filter((input) => input.checked)
+            .map((input) => String(input.value || '').trim())
+            .filter(Boolean);
+          if (!selectedWorldIds.length) {
+            showMessageBox({
+              title: t('common.error'),
+              message: t('mods.datapacks.selectWorlds'),
+              buttons: [{ label: t('common.ok') }],
+            });
+            return;
+          }
+
+          try {
+            const res = await api('/api/datapacks/apply', 'POST', {
+              mod_slug: modSlug,
+              storage_target: storageTarget,
+              custom_path: customPath,
+              world_ids: selectedWorldIds,
+            });
+            if (!res || !res.ok) {
+              showMessageBox({
+                title: t('common.error'),
+                message: (res && res.error) || t('mods.datapacks.applyFailed'),
+                buttons: [{ label: t('common.ok') }],
+              });
+              return;
+            }
+            settled = true;
+            controls.close();
+            await refreshDatapackDeploymentsFor(modSlug);
+            renderInstalledMods();
+            const appliedCount = Array.isArray(res.applied) ? res.applied.length : selectedWorldIds.length;
+            showMessageBox({
+              title: t('mods.datapacks.applyTitle'),
+              message: t('mods.datapacks.applySuccess', { count: appliedCount }),
+              buttons: [{ label: t('common.ok') }],
+            });
+          } catch (err) {
+            console.error('Failed to apply datapack:', err);
+            showMessageBox({
+              title: t('common.error'),
+              message: t('mods.datapacks.applyFailed'),
+              buttons: [{ label: t('common.ok') }],
+            });
+          }
+        },
+      },
+    ],
+  });
+};
+
+const showManageDatapackDeploymentsModal = async (mod) => {
+  const modSlug = String(mod.mod_slug || '').trim();
+  const datapackName = mod.mod_name || mod.name || modSlug || getAddonConfigText('singularTitle', 'datapacks');
+  if (!modSlug) return;
+
+  await refreshDatapackDeploymentsFor(modSlug);
+  const deployments = modsState.datapackDeployments[modSlug] || [];
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:10px;text-align:left;min-width:min(480px,80vw);';
+
+  const prompt = document.createElement('p');
+  prompt.innerHTML = t('mods.datapacks.managePrompt', { datapack: escapeInfoHtml(datapackName) });
+  wrap.appendChild(prompt);
+
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  wrap.appendChild(list);
+
+  const renderDeployments = () => {
+    list.innerHTML = '';
+    const current = modsState.datapackDeployments[modSlug] || [];
+    if (!current.length) {
+      const empty = document.createElement('p');
+      empty.style.cssText = 'margin:0;color:var(--color-text-muted);';
+      empty.textContent = t('mods.datapacks.noAppliedWorlds');
+      list.appendChild(empty);
+      return;
+    }
+
+    current.forEach((deployment) => {
+      const worldId = String(deployment.world_id || '').trim();
+      if (!worldId) return;
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid var(--color-border-input);';
+
+      const label = document.createElement('span');
+      label.textContent = worldId;
+      row.appendChild(label);
+
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'mild';
+      removeBtn.textContent = t('mods.datapacks.removeFromWorld');
+      removeBtn.addEventListener('click', async () => {
+        removeBtn.disabled = true;
+        try {
+          const res = await api('/api/datapacks/remove', 'POST', {
+            mod_slug: modSlug,
+            world_id: worldId,
+            storage_target: deployment.storage_target || 'default',
+            custom_path: deployment.custom_path || '',
+          });
+          if (!res || !res.ok) {
+            showMessageBox({
+              title: t('common.error'),
+              message: (res && res.error) || t('mods.datapacks.removeFailed'),
+              buttons: [{ label: t('common.ok') }],
+            });
+            removeBtn.disabled = false;
+            return;
+          }
+          await refreshDatapackDeploymentsFor(modSlug);
+          renderInstalledMods();
+          renderDeployments();
+        } catch (err) {
+          console.error('Failed to remove datapack from world:', err);
+          showMessageBox({
+            title: t('common.error'),
+            message: t('mods.datapacks.removeFailed'),
+            buttons: [{ label: t('common.ok') }],
+          });
+          removeBtn.disabled = false;
+        }
+      });
+      row.appendChild(removeBtn);
+      list.appendChild(row);
+    });
+  };
+
+  renderDeployments();
+
+  showMessageBox({
+    title: t('mods.datapacks.manageTitle'),
+    customContent: wrap,
+    buttons: [{ label: t('common.ok') }],
+  });
+};
+
 // --- Import Mod Handler ---
 const handleImportMod = () => {
   if (isModpacksAddonType()) {
@@ -1666,7 +2067,7 @@ const handleImportMod = () => {
   const config = getAddonConfig();
 
   const runImport = async (modLoader = '') => {
-    showLoadingOverlay('Importing...');
+    showLoadingOverlay(t('mods.import.importing'));
     try {
       const result = await api('/api/mods/import-select', 'POST', {
         addon_type: modsState.addonType,
@@ -1677,30 +2078,30 @@ const handleImportMod = () => {
       if (result && result.cancelled) return;
 
       if (result && result.ok) {
-        let successMsg = result.message || `Successfully imported ${config.singular}.`;
+        let successMsg = result.message || t('mods.import.successMessage', { addon: getAddonConfigText('singular') });
         if (result.warning) {
           successMsg += `<br><br><i>${result.warning}</i>`;
         }
         showMessageBox({
-          title: 'Import Successful',
+          title: t('mods.import.successTitle'),
           message: successMsg,
-          buttons: [{ label: 'OK' }],
+          buttons: [{ label: t('common.ok') }],
         });
         loadInstalledMods();
       } else {
         showMessageBox({
-          title: 'Import Error',
-          message: (result && result.error) || `Failed to import ${config.singular}.`,
-          buttons: [{ label: 'OK' }],
+          title: t('mods.import.errorTitle'),
+          message: (result && result.error) || t('mods.import.failedMessage', { addon: getAddonConfigText('singular') }),
+          buttons: [{ label: t('common.ok') }],
         });
       }
     } catch (err) {
       hideLoadingOverlay();
       console.error('Failed to import addon:', err);
       showMessageBox({
-        title: 'Import Error',
-        message: (err && err.message) || `Failed to import ${config.singular}.`,
-        buttons: [{ label: 'OK' }],
+        title: t('mods.import.errorTitle'),
+        message: (err && err.message) || t('mods.import.failedMessage', { addon: getAddonConfigText('singular') }),
+        buttons: [{ label: t('common.ok') }],
       });
     }
   };
@@ -1735,13 +2136,13 @@ const handleImportMod = () => {
     customContent: content,
     buttons: [
       {
-        label: 'Import',
+        label: t('mods.import.importButton'),
         classList: ['primary'],
         onClick: async () => {
           runImport(select.value);
         },
       },
-      { label: 'Cancel' },
+      { label: t('common.cancel') },
     ],
   });
 };
@@ -1795,6 +2196,18 @@ const createModCard = (mod, isInstalled) => {
   headerRow.appendChild(name);
   info.appendChild(headerRow);
   info.appendChild(desc);
+
+  if (isInstalled && isDatapacksAddonType()) {
+    const deployments = modsState.datapackDeployments[mod.mod_slug] || [];
+    const deploymentRow = document.createElement('div');
+    deploymentRow.className = 'mod-card-deployment-status';
+    deploymentRow.textContent = deployments.length
+      ? t('mods.datapacks.appliedWorlds', {
+        worlds: deployments.map((entry) => entry.world_id).filter(Boolean).join(', '),
+      })
+      : t('mods.datapacks.noAppliedWorlds');
+    info.appendChild(deploymentRow);
+  }
 
   let versionSelect = null;
   const getSelectedVersionMeta = () => {
@@ -2133,6 +2546,34 @@ const createModCard = (mod, isInstalled) => {
       toggleModDisabled(mod);
     };
     actions.appendChild(toggleBtn);
+
+    if (isDatapacksAddonType()) {
+      const applyBtn = document.createElement('button');
+      applyBtn.className = 'primary';
+      applyBtn.textContent = t('mods.datapacks.applyToWorld');
+      applyBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (state.modsBulkState.enabled) {
+          toggleModBulkSelection(mod);
+          return;
+        }
+        showApplyDatapackToWorldModal(mod);
+      };
+      actions.appendChild(applyBtn);
+
+      const manageBtn = document.createElement('button');
+      manageBtn.className = 'important';
+      manageBtn.textContent = t('mods.datapacks.manageWorlds');
+      manageBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (state.modsBulkState.enabled) {
+          toggleModBulkSelection(mod);
+          return;
+        }
+        showManageDatapackDeploymentsModal(mod);
+      };
+      actions.appendChild(manageBtn);
+    }
 
     if (config.supportsMove) {
       const moveBtn = document.createElement('button');
@@ -2606,7 +3047,7 @@ export const showModDetailModal = async (mod) => {
       const cats = Array.isArray(detailRes.categories) ? detailRes.categories : (mod.categories || []);
       statsRow.innerHTML = `<span>${t('mods.detail.downloads', { count: Number(downloads).toLocaleString() })}</span>`;
       if (cats.length > 0) {
-        statsRow.innerHTML += ` <span>${t('mods.detail.categories', { categories: cats.join(', ') })}</span>`;
+        statsRow.innerHTML += ` <span>${t('mods.detail.categories', { categories: escapeInfoHtml(cats.join(', ')) })}</span>`;
       }
       content.appendChild(statsRow);
     }
@@ -2633,11 +3074,11 @@ export const showModDetailModal = async (mod) => {
       filterRow.className = 'mod-detail-version-filters';
 
       let loaderFilter = null;
-      const compatibilityConfig = getAddonCompatibilityFilterConfig(detailAddonType);
+      const compatibilityConfig = getAddonCompatibilityFilterConfig(detailAddonType, detailProvider);
       if (compatibilityConfig) {
         const loaderSet = new Set();
         allVersions.forEach((v) => {
-          extractAddonCompatibilityValues(v.loaders, detailAddonType).forEach((value) => loaderSet.add(value));
+          extractAddonCompatibilityValues(v.loaders, detailAddonType, detailProvider).forEach((value) => loaderSet.add(value));
         });
         loaderFilter = document.createElement('select');
         loaderFilter.innerHTML = `<option value="">${compatibilityConfig.detailAllLabel}</option>`;
@@ -2670,7 +3111,7 @@ export const showModDetailModal = async (mod) => {
 
       // Pre-select dropdowns to match the active search filters
       const activeLoader = addonTypeSupportsCompatibilityFilter(detailAddonType)
-        ? normalizeAddonCompatibilityValue(detailAddonType, modsState.modLoader)
+        ? normalizeAddonCompatibilityValue(detailAddonType, modsState.modLoader, detailProvider)
         : '';
       const activeGV = modsState.gameVersion || '';
       if (loaderFilter && activeLoader && loaderFilter.querySelector(`option[value="${activeLoader}"]`)) {
@@ -3084,9 +3525,9 @@ const toggleModDisabled = async (mod) => {
     );
     if (blockingPack) {
       showMessageBox({
-        title: 'Cannot Enable',
-        message: `This mod is managed by the modpack <b>${blockingPack.name || blockingPack.slug}</b>. Disable or delete that modpack first.`,
-        buttons: [{ label: 'OK' }],
+        title: t('mods.modpackActions.cannotEnableTitle'),
+        message: t('mods.modpackActions.cannotEnableMessage', { name: escapeInfoHtml(blockingPack.name || blockingPack.slug) }),
+        buttons: [{ label: t('common.ok') }],
       });
       return;
     }
@@ -3105,7 +3546,7 @@ const toggleModDisabled = async (mod) => {
       } else {
         showMessageBox({
           title: t('common.error'),
-          message: res.error || t('mods.actions.toggleFailed', { addon: getAddonConfigText('singular') }),
+          message: (res && res.error) || t('mods.actions.toggleFailed', { addon: getAddonConfigText('singular') }),
           buttons: [{ label: t('common.ok') }],
         });
       }
@@ -3227,7 +3668,7 @@ const moveMod = (mod) => {
 
   const label = document.createElement('p');
   label.style.marginBottom = '8px';
-  label.innerHTML = t('mods.move.prompt', { addon: mod.mod_name || mod.mod_slug || t('mods.move.thisMod'), loader: sourceLoaderUi.name });
+  label.innerHTML = t('mods.move.prompt', { addon: escapeInfoHtml(mod.mod_name || mod.mod_slug || t('mods.move.thisMod')), loader: escapeInfoHtml(sourceLoaderUi.name) });
 
   const select = document.createElement('select');
   select.className = 'mod-version-select';
@@ -3446,16 +3887,20 @@ const showModpackDetailModal = (pack) => {
   statsRow.className = 'mod-detail-stats';
   const packResourcepacks = Array.isArray(pack.resourcepacks) ? pack.resourcepacks : [];
   const packShaderpacks = Array.isArray(pack.shaderpacks) ? pack.shaderpacks : [];
+  const packDatapacks = Array.isArray(pack.datapacks) ? pack.datapacks : [];
   const detailStats = [
-    `Loader: ${(pack.mod_loader || '').toUpperCase()}`,
-    `Version: ${pack.version || 'N/A'}`,
+    t('mods.modpackDetail.loader', { loader: (pack.mod_loader || '').toUpperCase() }),
+    t('mods.modpackDetail.version', { version: pack.version || t('mods.modpackDetail.notAvailable') }),
   ];
+  const packMinecraftVersion = String(pack.minecraft_version || '').trim();
+  if (packMinecraftVersion) detailStats.push(t('mods.modpackDetail.minecraft', { version: packMinecraftVersion }));
   const packAuthor = String(pack.author || '').trim();
-  if (packAuthor) detailStats.push(`Author: ${packAuthor}`);
+  if (packAuthor) detailStats.push(t('mods.modpackDetail.author', { author: packAuthor }));
   detailStats.push(
-    `Mods: ${(pack.mods || []).length}`,
-    `Resource Packs: ${packResourcepacks.length}`,
-    `Shader Packs: ${packShaderpacks.length}`,
+    t('mods.modpackDetail.modsCount', { count: (pack.mods || []).length }),
+    t('mods.modpackDetail.resourcePacksCount', { count: packResourcepacks.length }),
+    t('mods.modpackDetail.shaderPacksCount', { count: packShaderpacks.length }),
+    t('mods.modpackDetail.datapacksCount', { count: packDatapacks.length }),
   );
   detailStats.forEach((text) => {
     const stat = document.createElement('span');
@@ -3873,6 +4318,7 @@ const showModpackDetailModal = (pack) => {
 
   appendPackAddonSection('resourcepacks', packResourcepacks);
   appendPackAddonSection('shaderpacks', packShaderpacks);
+  appendPackAddonSection('datapacks', packDatapacks);
 
   if (detailMenuSections.length > 0) {
     const menuTabs = document.createElement('div');
@@ -3911,7 +4357,7 @@ const showModpackDetailModal = (pack) => {
     title: pack.name || pack.slug || 'Modpack',
     customContent: content,
     boxClassList: ['modpack-detail-dialog'],
-    buttons: [{ label: 'Close' }],
+    buttons: [{ label: t('common.close') }],
   });
 };
 
@@ -3947,7 +4393,7 @@ const deleteModpack = (pack, options = {}) => {
       } else {
         showMessageBox({
           title: t('common.error'),
-          message: res.error || 'Failed to delete modpack.',
+          message: (res && res.error) || t('mods.modpackActions.deleteFailed'),
           buttons: [{ label: t('common.ok') }],
         });
       }
@@ -3980,17 +4426,17 @@ const handleImportModpack = () => {
   const importId = createOperationId('modpack_import');
   let cancelRequested = false;
 
-  showLoadingOverlay('Importing modpack...', {
+  showLoadingOverlay(t('mods.import.modpackImporting'), {
     buttons: [
       {
-        label: 'Cancel',
+        label: t('common.cancel'),
         classList: ['danger'],
         closeOnClick: false,
         onClick: async (_values, controls) => {
           if (cancelRequested) return;
           cancelRequested = true;
           controls.update({
-            message: 'Cancelling modpack import...',
+            message: t('mods.import.modpackCancelling'),
             buttons: [],
           });
           await requestOperationCancel(importId);
@@ -4004,7 +4450,7 @@ const handleImportModpack = () => {
       const res = await fetch(`/api/modpacks/import/progress/?id=${encodeURIComponent(importId)}`);
       const data = await res.json();
       if (!cancelRequested && data && data.ok && data.percent !== undefined) {
-        setLoadingOverlayText(`Importing modpack... ${data.percent}%`);
+        setLoadingOverlayText(t('mods.import.modpackImportingPercent', { percent: data.percent }));
       }
     } catch (e) {
       // ignore errors during polling
@@ -4019,38 +4465,38 @@ const handleImportModpack = () => {
       clearInterval(progressInterval);
       hideLoadingOverlay();
       if (result && result.ok) {
-        let msg = `Successfully imported modpack <b>${escapeInfoHtml(result.name || '')}</b>.`;
+        let msg = t('mods.import.modpackSuccess', { name: escapeInfoHtml(result.name || '') });
         if (result.source_format) {
-          msg += `<br><br>Detected format: <b>${escapeInfoHtml(String(result.source_format).toUpperCase())}</b>.`;
+          msg += t('mods.import.modpackDetectedFormat', { format: escapeInfoHtml(String(result.source_format).toUpperCase()) });
         }
         if (result.disabled_standalone && result.disabled_standalone.length > 0) {
-          msg += `<br><br>The following standalone mods were disabled because they conflict with the modpack:<br>` +
+          msg += t('mods.import.modpackDisabledStandalone') +
                   result.disabled_standalone.map((s) => `- ${escapeInfoHtml(s)}`).join('<br>');
         }
         if (result.import_warnings && result.import_warnings.length > 0) {
           const preview = result.import_warnings.slice(0, 8).map((w) => `- ${escapeInfoHtml(w)}`).join('<br>');
-          const more = result.import_warnings.length > 8 ? `<br>...and ${result.import_warnings.length - 8} more warning(s).` : '';
-          msg += `<br><br>Import warnings:<br>${preview}${more}`;
+          const more = result.import_warnings.length > 8 ? t('mods.import.modpackMoreWarnings', { count: result.import_warnings.length - 8 }) : '';
+          msg += t('mods.import.modpackWarnings') + preview + more;
         }
         showMessageBox({
-          title: 'Import Successful',
+          title: t('mods.import.successTitle'),
           message: msg,
-          buttons: [{ label: 'OK' }],
+          buttons: [{ label: t('common.ok') }],
         });
         loadInstalledMods();
       } else {
         if (result && (result.cancelled || String(result.error || '').toLowerCase().includes('cancelled'))) {
           showMessageBox({
-            title: 'Import Cancelled',
-            message: 'You cancelled the modpack import.',
-            buttons: [{ label: 'OK' }],
+            title: t('mods.import.modpackCancelledTitle'),
+            message: t('mods.import.modpackCancelledMessage'),
+            buttons: [{ label: t('common.ok') }],
           });
           return;
         }
         showMessageBox({
-          title: 'Import Error',
-          message: result.error || 'Failed to import modpack.',
-          buttons: [{ label: 'OK' }],
+          title: t('mods.import.errorTitle'),
+          message: (result && result.error) || t('mods.import.modpackFailed'),
+          buttons: [{ label: t('common.ok') }],
         });
       }
     })
@@ -4059,9 +4505,9 @@ const handleImportModpack = () => {
       hideLoadingOverlay();
       console.error('Failed to import modpack:', err);
       showMessageBox({
-        title: 'Import Error',
-        message: 'Network error while importing modpack.',
-        buttons: [{ label: 'OK' }],
+        title: t('mods.import.errorTitle'),
+        message: t('mods.import.modpackNetworkError'),
+        buttons: [{ label: t('common.ok') }],
       });
     });
 };
@@ -4093,346 +4539,6 @@ const getModpackExportFormat = (value) => (
   || MODPACK_EXPORT_FORMATS[0]
 );
 
-const showExportModpackWizard = () => {
-  const content = document.createElement('div');
-  const label = document.createElement('p');
-  label.style.marginBottom = '8px';
-  label.textContent = t('mods.exportModpack.selectFormat');
-
-  const formatSelect = document.createElement('select');
-  formatSelect.className = 'mod-version-select';
-  formatSelect.style.cssText = 'width:100%;margin-top:4px;max-width:100%;';
-  MODPACK_EXPORT_FORMATS.forEach((format) => {
-    const opt = document.createElement('option');
-    opt.value = format.value;
-    opt.textContent = `${format.label} (${format.extension})`;
-    formatSelect.appendChild(opt);
-  });
-
-  content.appendChild(label);
-  content.appendChild(formatSelect);
-
-  showMessageBox({
-    title: t('mods.exportModpack.title'),
-    customContent: content,
-    buttons: [
-      {
-        label: t('common.next'),
-        classList: ['primary'],
-        onClick: () => showExportLoaderStep(formatSelect.value),
-      },
-      { label: t('common.cancel') },
-    ],
-  });
-};
-
-const showExportLoaderStep = (exportFormat = 'histolauncher') => {
-  const step1Content = document.createElement('div');
-  const step1Label = document.createElement('p');
-  step1Label.style.marginBottom = '8px';
-  step1Label.textContent = t('mods.exportModpack.selectLoader');
-
-  const loaderSelect = document.createElement('select');
-  loaderSelect.className = 'mod-version-select';
-  loaderSelect.style.cssText = 'width:100%;margin-top:4px;max-width:100%;';
-  LOADER_UI_ORDER.forEach((loaderType) => {
-    const loaderName = getLoaderUi(loaderType).name;
-    const opt = document.createElement('option');
-    opt.value = loaderType;
-    opt.textContent = loaderName;
-    loaderSelect.appendChild(opt);
-  });
-
-  step1Content.appendChild(step1Label);
-  step1Content.appendChild(loaderSelect);
-
-  showMessageBox({
-    title: t('mods.exportModpack.title'),
-    customContent: step1Content,
-    buttons: [
-      {
-        label: t('common.back'),
-        onClick: () => showExportModpackWizard(),
-      },
-      {
-        label: t('common.next'),
-        classList: ['primary'],
-        onClick: () => showExportStep2(exportFormat, loaderSelect.value),
-      },
-      { label: t('common.cancel') },
-    ],
-  });
-};
-
-const showExportStep2 = async (exportFormat, modLoader) => {
-  // Step 2: Mod selection
-  let installedMods = modsState.installedMods || [];
-  if (!isModsAddonType()) {
-    try {
-      const res = await api('/api/addons/installed', 'POST', { addon_type: 'mods' });
-      if (res && res.ok) installedMods = res.addons || res.mods || [];
-    } catch (err) {
-      console.warn('Failed to load mods for modpack export:', err);
-    }
-  }
-
-  const modsForLoader = installedMods.filter(
-    (m) => (m.mod_loader || '').toLowerCase() === modLoader
-  );
-
-  if (modsForLoader.length === 0) {
-    showMessageBox({
-      title: t('mods.exportModpack.title'),
-      message: t('mods.exportModpack.noLoaderMods', { loader: modLoader }),
-      buttons: [{ label: t('common.ok') }],
-    });
-    return;
-  }
-
-  const step2Content = document.createElement('div');
-  const step2Label = document.createElement('p');
-  step2Label.style.marginBottom = '8px';
-  step2Label.textContent = t('mods.exportModpack.selectMods', { count: modsForLoader.length, loader: modLoader });
-  step2Content.appendChild(step2Label);
-
-  const selectAll = document.createElement('label');
-  selectAll.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;cursor:pointer;font-size:12px;color:var(--color-text-muted);';
-  const selectAllCb = document.createElement('input');
-  selectAllCb.type = 'checkbox';
-  selectAll.appendChild(selectAllCb);
-  selectAll.appendChild(document.createTextNode(t('common.selectAll')));
-  step2Content.appendChild(selectAll);
-
-  const disableHint = document.createElement('p');
-  disableHint.style.cssText = 'font-size:11px;color:var(--color-text-muted);margin:0 0 8px 0;';
-  disableHint.textContent = t('mods.exportModpack.disabledHint');
-  step2Content.appendChild(disableHint);
-
-  const allowAllModloaderOverwrite = _deps.isTruthySetting(state.settingsState.allow_override_classpath_all_modloaders);
-  const canShowOverwriteControls = (String(modLoader || '').toLowerCase() === 'modloader') || allowAllModloaderOverwrite;
-
-  if (canShowOverwriteControls) {
-    const overwriteHint = document.createElement('p');
-    overwriteHint.style.cssText = 'font-size:11px;color:var(--color-text-muted);margin:0 0 8px 0;';
-    overwriteHint.textContent = t('mods.exportModpack.overwriteHint');
-    step2Content.appendChild(overwriteHint);
-  }
-
-  const modListEl = document.createElement('div');
-  modListEl.style.cssText = 'max-height:320px;overflow-y:auto;border:1px solid var(--color-border-input);padding:8px;';
-
-  const modEntries = [];
-
-  modsForLoader.forEach((mod) => {
-    const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--color-border-input);flex-wrap:wrap;';
-
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = false;
-
-    const disabledWrap = document.createElement('label');
-    disabledWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-muted);white-space:nowrap;';
-    const disabledCb = document.createElement('input');
-    disabledCb.type = 'checkbox';
-    disabledCb.checked = false;
-    const disabledTxt = document.createElement('span');
-    disabledTxt.textContent = t('mods.exportModpack.disabled');
-    disabledWrap.appendChild(disabledCb);
-    disabledWrap.appendChild(disabledTxt);
-
-    let overwriteCb = null;
-    let overwriteWrap = null;
-    let sourceWrap = null;
-    let sourceSelect = null;
-
-    const sourceMeta = (mod.versions || []).find((v) => v.version_label === mod.active_version)
-      || (mod.versions || [])[0]
-      || null;
-
-    if (canShowOverwriteControls) {
-      overwriteWrap = document.createElement('label');
-      overwriteWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-muted);white-space:nowrap;';
-      overwriteCb = document.createElement('input');
-      overwriteCb.type = 'checkbox';
-      overwriteCb.checked = !!(sourceMeta && sourceMeta.overwrite_classes);
-      const overwriteTxt = document.createElement('span');
-      overwriteTxt.textContent = t('mods.exportModpack.overwriteClasspath');
-      overwriteWrap.appendChild(overwriteCb);
-      overwriteWrap.appendChild(overwriteTxt);
-
-      sourceWrap = document.createElement('label');
-      sourceWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-muted);white-space:nowrap;';
-      const sourceTxt = document.createElement('span');
-      sourceTxt.textContent = t('mods.exportModpack.sourceLabel');
-      sourceSelect = document.createElement('select');
-      sourceSelect.className = 'mod-version-select';
-      sourceSelect.style.cssText = 'max-width:160px;font-size:11px;';
-      const placeholder = document.createElement('option');
-      placeholder.value = String((sourceMeta && sourceMeta.source_subfolder) || '');
-      placeholder.textContent = placeholder.value || t('mods.exportModpack.defaultSource');
-      sourceSelect.appendChild(placeholder);
-      sourceSelect.disabled = !overwriteCb.checked;
-      sourceWrap.style.display = overwriteCb.checked ? '' : 'none';
-      sourceWrap.appendChild(sourceTxt);
-      sourceWrap.appendChild(sourceSelect);
-
-      let sourceLoadedFor = null;
-      const populateSourceFolders = async (versionLabel) => {
-        if (!overwriteCb.checked) return;
-        if (sourceLoadedFor === versionLabel) return;
-        sourceLoadedFor = versionLabel;
-        const preferred = String((sourceMeta && sourceMeta.source_subfolder) || '');
-        try {
-          const res = await api('/api/mods/archive-subfolders', 'POST', {
-            mod_slug: mod.mod_slug,
-            mod_loader: mod.mod_loader,
-            version_label: versionLabel,
-          });
-          if (!res || !res.ok) throw new Error((res && res.error) || t('mods.exportModpack.failedSourceFolders'));
-          const subfolders = Array.isArray(res.subfolders) ? res.subfolders : [];
-          const seen = new Set();
-          sourceSelect.innerHTML = '';
-          const optDefault = document.createElement('option');
-          optDefault.value = '';
-          optDefault.textContent = t('mods.exportModpack.defaultSource');
-          sourceSelect.appendChild(optDefault);
-          seen.add('');
-          subfolders.forEach((entry) => {
-            const value = typeof entry === 'string'
-              ? entry
-              : String((entry && (entry.value !== undefined ? entry.value : entry.path)) || '').trim();
-            const labelText = typeof entry === 'string'
-              ? entry
-              : String((entry && (entry.label !== undefined ? entry.label : entry.name)) || value).trim();
-            if (seen.has(value)) return;
-            seen.add(value);
-            const opt = document.createElement('option');
-            opt.value = value;
-            opt.textContent = labelText || value;
-            sourceSelect.appendChild(opt);
-          });
-          sourceSelect.value = seen.has(preferred) ? preferred : '';
-        } catch (err) {
-          console.warn('Failed to load source folders for export wizard:', err);
-        }
-      };
-
-      overwriteCb.addEventListener('change', () => {
-        const enabled = overwriteCb.checked;
-        sourceSelect.disabled = !enabled;
-        sourceWrap.style.display = enabled ? '' : 'none';
-        if (enabled) populateSourceFolders(versionSel.value);
-      });
-    }
-
-    const label = document.createElement('span');
-    label.style.cssText = 'flex:1;font-size:13px;color:var(--color-text-primary);';
-    label.textContent = mod.mod_name || mod.mod_slug;
-
-    const versionSel = document.createElement('select');
-    versionSel.className = 'mod-version-select';
-    versionSel.style.cssText = 'max-width:140px;';
-    (mod.versions || []).forEach((v) => {
-      const opt = document.createElement('option');
-      opt.value = v.version_label;
-      opt.textContent = v.version_label;
-      if (v.version_label === mod.active_version) opt.selected = true;
-      versionSel.appendChild(opt);
-    });
-
-    versionSel.addEventListener('change', () => {
-      const selectedVersion = (mod.versions || []).find((v) => v.version_label === versionSel.value) || null;
-      if (overwriteCb) {
-        overwriteCb.checked = !!(selectedVersion && selectedVersion.overwrite_classes);
-        sourceSelect.disabled = !overwriteCb.checked;
-        sourceWrap.style.display = overwriteCb.checked ? '' : 'none';
-        if (overwriteCb.checked) {
-          // Force reload for new version
-          sourceSelect.innerHTML = '';
-          const placeholder = document.createElement('option');
-          placeholder.value = String((selectedVersion && selectedVersion.source_subfolder) || '');
-          placeholder.textContent = placeholder.value || t('mods.exportModpack.defaultSource');
-          sourceSelect.appendChild(placeholder);
-        }
-      }
-    });
-
-    row.appendChild(cb);
-    row.appendChild(label);
-    row.appendChild(disabledWrap);
-    if (overwriteWrap) row.appendChild(overwriteWrap);
-    if (sourceWrap) row.appendChild(sourceWrap);
-    row.appendChild(versionSel);
-    modListEl.appendChild(row);
-
-    modEntries.push({
-      mod,
-      checkbox: cb,
-      disabledCheckbox: disabledCb,
-      overwriteCheckbox: overwriteCb,
-      sourceSelect,
-      versionSelect: versionSel,
-    });
-
-    if (canShowOverwriteControls && overwriteCb && overwriteCb.checked) {
-      // Trigger source folder load asynchronously for initial state
-      overwriteCb.dispatchEvent(new Event('change'));
-    }
-  });
-
-  selectAllCb.addEventListener('change', () => {
-    modEntries.forEach((e) => {
-      e.checkbox.checked = selectAllCb.checked;
-    });
-  });
-
-  step2Content.appendChild(modListEl);
-
-  showMessageBox({
-    title: t('mods.exportModpack.title'),
-    customContent: step2Content,
-    buttons: [
-      {
-        label: t('common.back'),
-        onClick: () => showExportLoaderStep(exportFormat),
-      },
-      {
-        label: t('common.next'),
-        classList: ['primary'],
-        onClick: () => {
-          const selected = modEntries
-            .filter((e) => e.checkbox.checked)
-            .map((e) => {
-              const selectedVersion = (e.mod.versions || []).find((v) => v.version_label === e.versionSelect.value) || null;
-              const overwriteOn = !!(e.overwriteCheckbox && e.overwriteCheckbox.checked);
-              const sourceFromSelect = e.sourceSelect ? String(e.sourceSelect.value || '') : '';
-              const sourceFromMeta = String((selectedVersion && selectedVersion.source_subfolder) || '');
-              return {
-                mod_slug: e.mod.mod_slug,
-                version_label: e.versionSelect.value,
-                mod_name: e.mod.mod_name || e.mod.mod_slug,
-                disabled: e.disabledCheckbox.checked,
-                overwrite_classes: overwriteOn,
-                source_subfolder: overwriteOn ? (sourceFromSelect || sourceFromMeta) : '',
-              };
-            });
-          if (selected.length === 0) {
-            showMessageBox({
-              title: t('mods.exportModpack.title'),
-              message: t('mods.exportModpack.selectAtLeastOneMod'),
-              buttons: [{ label: t('common.ok'), onClick: () => showExportStep2(exportFormat, modLoader) }],
-            });
-            return;
-          }
-          showExportResourcePacksStep(exportFormat, modLoader, selected);
-        },
-      },
-      { label: t('common.cancel') },
-    ],
-  });
-};
-
 const loadInstalledAddonsForModpackExport = async (addonType) => {
   try {
     const res = await api('/api/addons/installed', 'POST', { addon_type: addonType });
@@ -4443,419 +4549,954 @@ const loadInstalledAddonsForModpackExport = async (addonType) => {
   return [];
 };
 
-const showExportAddonSelectionStep = async (
-  exportFormat,
-  modLoader,
-  selectedMods,
-  addonType,
-  selectedResourcepacks = []
-) => {
-  const config = getAddonConfig(addonType);
-  const installedAddons = await loadInstalledAddonsForModpackExport(addonType);
-  const isResourceStep = addonType === 'resourcepacks';
-  const stepContent = document.createElement('div');
+const buildExportFormField = (labelText, inputType, maxLen, placeholder) => {
+  const wrap = document.createElement('div');
+  wrap.className = 'modpack-export-field';
+  const lbl = document.createElement('label');
+  lbl.textContent = labelText;
+  wrap.appendChild(lbl);
+  if (inputType === 'textarea') {
+    const ta = document.createElement('textarea');
+    ta.maxLength = maxLen;
+    ta.placeholder = placeholder || '';
+    wrap.appendChild(ta);
+    return { wrap, input: ta };
+  }
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.maxLength = maxLen;
+  inp.placeholder = placeholder || '';
+  wrap.appendChild(inp);
+  return { wrap, input: inp };
+};
 
-  const label = document.createElement('p');
-  label.style.marginBottom = '8px';
-  label.textContent = installedAddons.length > 0
-    ? t('mods.exportModpack.selectOptionalAddons', { plural: getAddonConfigText('plural', addonType), count: installedAddons.length })
-    : t('mods.exportModpack.noOptionalAddons', { plural: getAddonConfigText('plural', addonType) });
-  stepContent.appendChild(label);
+const populateExportVersionSelect = (selectEl, versions, placeholderText, preferredValue = '') => {
+  if (!selectEl) return;
+  const previous = preferredValue || selectEl.value || '';
+  selectEl.innerHTML = '';
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = placeholderText;
+  selectEl.appendChild(placeholder);
+  (Array.isArray(versions) ? versions : []).forEach((version) => {
+    const label = String(version || '').trim();
+    if (!label) return;
+    const opt = document.createElement('option');
+    opt.value = label;
+    opt.textContent = label;
+    selectEl.appendChild(opt);
+  });
+  if (previous && [...selectEl.options].some((opt) => opt.value === previous)) {
+    selectEl.value = previous;
+  }
+};
 
-  const addonEntries = [];
-  if (installedAddons.length > 0) {
+const executeModpackExport = async (payload, formatInfo, packName, callbacks = {}) => {
+  const onError = typeof callbacks.onError === 'function' ? callbacks.onError : null;
+  const operationId = createOperationId('modpack_export');
+  let cancelRequested = false;
+
+  showLoadingOverlay(t('mods.exportModpack.exporting'), {
+    buttons: [
+      {
+        label: t('common.cancel'),
+        classList: ['danger'],
+        closeOnClick: false,
+        onClick: async (_values, controls) => {
+          if (cancelRequested) return;
+          cancelRequested = true;
+          controls.update({
+            message: t('mods.exportModpack.cancelling'),
+            buttons: [],
+          });
+          await requestOperationCancel(operationId);
+        },
+      },
+    ],
+  });
+
+  try {
+    const res = await api('/api/modpacks/export', 'POST', {
+      ...payload,
+      save_to_disk: true,
+      operation_id: operationId,
+    });
+
+    if (res && res.ok) {
+      if (res.filepath) {
+        hideLoadingOverlay();
+        const fileSize = Number(res.size_bytes || 0);
+        const fileSizeMb = fileSize > 0 ? (fileSize / (1024 * 1024)).toFixed(2) : null;
+        showMessageBox({
+          title: t('mods.exportModpack.successTitle'),
+          message: fileSizeMb
+            ? t('mods.exportModpack.successSavedSize', { name: packName, filepath: res.filepath, size: fileSizeMb })
+            : t('mods.exportModpack.successSaved', { name: packName, filepath: res.filepath }),
+          buttons: [{ label: t('common.ok') }],
+        });
+        return;
+      }
+
+      if (res.modpack_data || res.hlmp_data) {
+        const fileName = res.filename || `${packName}${formatInfo.extension}`;
+        const bytes = Uint8Array.from(atob(res.modpack_data || res.hlmp_data), (c) => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        let savedLabel = '';
+
+        if (window.showSaveFilePicker) {
+          try {
+            const fileHandle = await window.showSaveFilePicker({
+              suggestedName: fileName,
+              types: [{
+                description: res.type_description || formatInfo.description,
+                accept: { 'application/octet-stream': [res.extension || formatInfo.extension] },
+              }],
+            });
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            savedLabel = fileName;
+          } catch (saveErr) {
+            if (saveErr && saveErr.name === 'AbortError') {
+              hideLoadingOverlay();
+              showMessageBox({
+                title: t('mods.exportModpack.cancelledTitle'),
+                message: t('mods.exportModpack.cancelledMessage'),
+                buttons: [{ label: t('common.ok') }],
+              });
+              return;
+            }
+            console.error('Save dialog failed, falling back to download:', saveErr);
+          }
+        }
+
+        if (!savedLabel) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          savedLabel = `Downloads/${fileName}`;
+        }
+
+        hideLoadingOverlay();
+        showMessageBox({
+          title: t('mods.exportModpack.successTitle'),
+          message: t('mods.exportModpack.successSavedAs', { name: packName, filepath: savedLabel }),
+          buttons: [{ label: t('common.ok') }],
+        });
+        return;
+      }
+    }
+
+    hideLoadingOverlay();
+    if (res && (res.cancelled || String(res.error || '').toLowerCase().includes('cancelled'))) {
+      showMessageBox({
+        title: t('mods.exportModpack.cancelledTitle'),
+        message: t('mods.exportModpack.cancelledMessage'),
+        buttons: [{ label: t('common.ok') }],
+      });
+    } else if (onError) {
+      onError((res && res.error) || t('mods.exportModpack.failed'));
+    } else {
+      showMessageBox({
+        title: t('mods.exportModpack.errorTitle'),
+        message: (res && res.error) || t('mods.exportModpack.failed'),
+        buttons: [{ label: t('common.ok') }],
+      });
+    }
+  } catch (err) {
+    hideLoadingOverlay();
+    console.error('Failed to export modpack:', err);
+    const message = t('mods.exportModpack.failedWithError', {
+      error: (err && err.message) || t('mods.exportModpack.networkError'),
+    });
+    if (onError) {
+      onError(message);
+    } else {
+      showMessageBox({
+        title: t('mods.exportModpack.errorTitle'),
+        message,
+        buttons: [{ label: t('common.ok') }],
+      });
+    }
+  }
+};
+
+const showExportModpackWizard = () => {
+  const exportState = {
+    exportFormat: 'histolauncher',
+    modLoader: 'vanilla',
+    imageBase64: null,
+    installedMods: [],
+    installedResourcepacks: [],
+    installedShaderpacks: [],
+    installedDatapacks: [],
+    contentLoaded: false,
+  };
+
+  const root = document.createElement('div');
+  root.className = 'modpack-export-root';
+
+  const errorBanner = document.createElement('div');
+  errorBanner.className = 'modpack-export-error';
+  root.appendChild(errorBanner);
+
+  const showExportError = (message, tabKey = null) => {
+    errorBanner.textContent = message;
+    errorBanner.classList.add('visible');
+    if (tabKey) activateTab(tabKey);
+  };
+  const clearExportError = () => {
+    errorBanner.textContent = '';
+    errorBanner.classList.remove('visible');
+  };
+
+  const isHistolauncherExport = () => exportState.exportFormat === 'histolauncher';
+  const isExternalExport = () => (
+    exportState.exportFormat === 'modrinth' || exportState.exportFormat === 'curseforge'
+  );
+
+  const tabBar = document.createElement('div');
+  tabBar.className = 'world-nbt-tabs';
+
+  const panelHost = document.createElement('div');
+  panelHost.className = 'world-nbt-tab-panel modpack-export-panel';
+
+  const tabDefs = [
+    { key: 'metadata', labelKey: 'mods.exportModpack.tabs.metadata' },
+    { key: 'mods', labelKey: 'mods.exportModpack.tabs.mods' },
+    { key: 'resourcepacks', labelKey: 'mods.exportModpack.tabs.resourcepacks' },
+    { key: 'shaderpacks', labelKey: 'mods.exportModpack.tabs.shaderpacks' },
+    { key: 'datapacks', labelKey: 'mods.exportModpack.tabs.datapacks' },
+  ];
+
+  const panels = {};
+  const tabButtons = {};
+  let activeTab = 'metadata';
+  let modEntries = [];
+  let resourcepackEntries = [];
+  let shaderpackEntries = [];
+  let datapackEntries = [];
+
+  const formatSelect = document.createElement('select');
+  formatSelect.className = 'mod-version-select';
+  MODPACK_EXPORT_FORMATS.forEach((format) => {
+    const opt = document.createElement('option');
+    opt.value = format.value;
+    opt.textContent = `${format.label} (${format.extension})`;
+    formatSelect.appendChild(opt);
+  });
+  formatSelect.addEventListener('change', () => {
+    exportState.exportFormat = formatSelect.value;
+    clearExportError();
+    refreshExportLoaderOptions();
+    updateTabVisibility();
+    rebuildModsPanel();
+    rebuildAddonPanel('resourcepacks', resourcepacksPanel);
+    rebuildAddonPanel('shaderpacks', shaderpacksPanel);
+    rebuildAddonPanel('datapacks', datapacksPanel);
+    updateVersionFieldsVisibility();
+  });
+
+  const loaderSelect = document.createElement('select');
+  loaderSelect.className = 'mod-version-select';
+  const refreshExportLoaderOptions = () => {
+    const allowedLoaders = getModpackExportLoaderOrder(exportState.exportFormat);
+    const currentLoader = String(exportState.modLoader || loaderSelect.value || 'vanilla').toLowerCase();
+    const previousLoader = allowedLoaders.includes(currentLoader)
+      ? currentLoader
+      : (allowedLoaders.includes('vanilla') ? 'vanilla' : allowedLoaders[0]);
+    loaderSelect.innerHTML = '';
+    allowedLoaders.forEach((loaderType) => {
+      const opt = document.createElement('option');
+      opt.value = loaderType;
+      opt.textContent = getLoaderUi(loaderType).name;
+      loaderSelect.appendChild(opt);
+    });
+    loaderSelect.value = previousLoader;
+    exportState.modLoader = loaderSelect.value;
+  };
+  refreshExportLoaderOptions();
+  loaderSelect.addEventListener('change', () => {
+    exportState.modLoader = loaderSelect.value;
+    clearExportError();
+    updateTabVisibility();
+    rebuildModsPanel();
+    if (isExternalExport()) refreshMinecraftVersions();
+  });
+
+  const nameField = buildExportFormField(
+    t('mods.exportModpack.fields.name'),
+    'text',
+    64,
+    t('mods.exportModpack.placeholders.name'),
+  );
+  const versionField = buildExportFormField(t('mods.exportModpack.fields.version'), 'text', 16, '1.0.0');
+  const authorField = buildExportFormField(
+    t('mods.exportModpack.fields.author'),
+    'text',
+    64,
+    t('mods.exportModpack.placeholders.author'),
+  );
+  const descField = buildExportFormField(
+    t('mods.exportModpack.fields.description'),
+    'textarea',
+    8192,
+    t('mods.exportModpack.placeholders.description'),
+  );
+  const mcVersionField = document.createElement('div');
+  mcVersionField.className = 'modpack-export-field';
+  const mcVersionLabel = document.createElement('label');
+  mcVersionLabel.textContent = t('mods.exportModpack.minecraftVersion');
+  const mcVersionSelect = document.createElement('select');
+  mcVersionSelect.className = 'mod-version-select';
+  mcVersionField.appendChild(mcVersionLabel);
+  mcVersionField.appendChild(mcVersionSelect);
+
+  const loaderVersionField = document.createElement('div');
+  loaderVersionField.className = 'modpack-export-field';
+  const loaderVersionLabel = document.createElement('label');
+  loaderVersionLabel.textContent = t('mods.exportModpack.loaderVersion');
+  const loaderVersionSelect = document.createElement('select');
+  loaderVersionSelect.className = 'mod-version-select';
+  loaderVersionField.appendChild(loaderVersionLabel);
+  loaderVersionField.appendChild(loaderVersionSelect);
+
+  mcVersionSelect.addEventListener('change', () => {
+    clearExportError();
+    refreshLoaderVersions();
+  });
+
+  const imgPreview = document.createElement('img');
+  const imgInput = document.createElement('input');
+  imgInput.type = 'file';
+  imgInput.accept = 'image/png,image/jpeg';
+  imgInput.style.display = 'none';
+  const imgPickBtn = document.createElement('button');
+  imgPickBtn.type = 'button';
+  imgPickBtn.textContent = t('common.chooseFile');
+  const imgPickLabel = document.createElement('span');
+  imgPickLabel.style.cssText = 'font-size:12px;color:var(--color-text-muted);overflow-wrap:anywhere;font-style:italic;';
+  imgPickLabel.textContent = t('common.noFileChosen');
+  imgPickBtn.addEventListener('click', () => imgInput.click());
+  imgInput.addEventListener('change', () => {
+    const file = imgInput.files && imgInput.files[0];
+    imgPickLabel.textContent = file && file.name ? file.name : t('common.noFileChosen');
+    if (!file) {
+      exportState.imageBase64 = null;
+      imgPreview.classList.remove('visible');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      exportState.imageBase64 = e.target.result.split(',')[1];
+      imgPreview.src = e.target.result;
+      imgPreview.classList.add('visible');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const metadataPanel = document.createElement('div');
+  metadataPanel.dataset.tab = 'metadata';
+  const formatField = document.createElement('div');
+  formatField.className = 'modpack-export-field';
+  const formatLabel = document.createElement('label');
+  formatLabel.textContent = t('mods.exportModpack.selectFormat');
+  formatField.appendChild(formatLabel);
+  formatField.appendChild(formatSelect);
+  metadataPanel.appendChild(formatField);
+
+  const loaderField = document.createElement('div');
+  loaderField.className = 'modpack-export-field';
+  const loaderLabel = document.createElement('label');
+  loaderLabel.textContent = t('mods.exportModpack.selectLoader');
+  loaderField.appendChild(loaderLabel);
+  loaderField.appendChild(loaderSelect);
+  metadataPanel.appendChild(loaderField);
+
+  const mcHint = document.createElement('p');
+  mcHint.className = 'modpack-export-hint';
+  mcHint.textContent = t('mods.exportModpack.minecraftVersionHint');
+  const loaderVersionHint = document.createElement('p');
+  loaderVersionHint.className = 'modpack-export-hint';
+  loaderVersionHint.textContent = t('mods.exportModpack.loaderVersionHint');
+  const versionFieldsWrap = document.createElement('div');
+  versionFieldsWrap.className = 'modpack-export-version-fields';
+  versionFieldsWrap.appendChild(mcVersionField);
+  versionFieldsWrap.appendChild(mcHint);
+  versionFieldsWrap.appendChild(loaderVersionField);
+  versionFieldsWrap.appendChild(loaderVersionHint);
+  metadataPanel.appendChild(versionFieldsWrap);
+  metadataPanel.appendChild(nameField.wrap);
+  metadataPanel.appendChild(versionField.wrap);
+  metadataPanel.appendChild(authorField.wrap);
+  metadataPanel.appendChild(descField.wrap);
+
+  const iconField = document.createElement('div');
+  iconField.className = 'modpack-export-field modpack-export-icon-field';
+  const iconLabel = document.createElement('label');
+  iconLabel.textContent = t('mods.exportModpack.fields.icon');
+  iconField.appendChild(iconLabel);
+  const iconPreviewWrap = document.createElement('div');
+  iconPreviewWrap.className = 'modpack-export-icon-preview-wrap';
+  iconPreviewWrap.appendChild(imgPreview);
+  const iconActions = document.createElement('div');
+  iconActions.className = 'modpack-export-icon-actions';
+  iconActions.appendChild(imgPickBtn);
+  iconActions.appendChild(imgPickLabel);
+  iconActions.appendChild(imgInput);
+  iconPreviewWrap.appendChild(iconActions);
+  iconField.appendChild(iconPreviewWrap);
+  metadataPanel.appendChild(iconField);
+  panels.metadata = metadataPanel;
+
+  const modsPanel = document.createElement('div');
+  modsPanel.dataset.tab = 'mods';
+  panels.mods = modsPanel;
+
+  const resourcepacksPanel = document.createElement('div');
+  resourcepacksPanel.dataset.tab = 'resourcepacks';
+  panels.resourcepacks = resourcepacksPanel;
+
+  const shaderpacksPanel = document.createElement('div');
+  shaderpacksPanel.dataset.tab = 'shaderpacks';
+  panels.shaderpacks = shaderpacksPanel;
+
+  const datapacksPanel = document.createElement('div');
+  datapacksPanel.dataset.tab = 'datapacks';
+  panels.datapacks = datapacksPanel;
+
+  const buildAddonSelectionPanel = (addonType, items, options = {}) => {
+    const showDisabled = !!options.showDisabled;
+    const panel = document.createElement('div');
+    const config = getAddonConfig(addonType);
+    const label = document.createElement('p');
+    label.style.marginBottom = '8px';
+    label.textContent = items.length > 0
+      ? t('mods.exportModpack.selectOptionalAddons', {
+        plural: getAddonConfigText('plural', addonType),
+        count: items.length,
+      })
+      : t('mods.exportModpack.noOptionalAddons', { plural: getAddonConfigText('plural', addonType) });
+    panel.appendChild(label);
+
+    const entries = [];
+    if (items.length > 0) {
+      const selectAll = document.createElement('label');
+      selectAll.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;cursor:pointer;font-size:12px;color:var(--color-text-muted);';
+      const selectAllCb = document.createElement('input');
+      selectAllCb.type = 'checkbox';
+      selectAll.appendChild(selectAllCb);
+      selectAll.appendChild(document.createTextNode(t('common.selectAll')));
+      panel.appendChild(selectAll);
+
+      const listEl = document.createElement('div');
+      listEl.className = 'modpack-export-selection-list';
+      items.forEach((addon) => {
+        const row = document.createElement('div');
+        row.className = 'modpack-export-selection-row';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        const labelEl = document.createElement('span');
+        labelEl.style.cssText = 'flex:1;font-size:13px;color:var(--color-text-primary);';
+        labelEl.textContent = addon.mod_name || addon.mod_slug || addon.name || config.singularTitle;
+        let disabledWrap = null;
+        let disabledCb = null;
+        if (showDisabled) {
+          disabledWrap = document.createElement('label');
+          disabledWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-muted);white-space:nowrap;';
+          disabledCb = document.createElement('input');
+          disabledCb.type = 'checkbox';
+          disabledWrap.appendChild(disabledCb);
+          disabledWrap.appendChild(document.createTextNode(t('mods.exportModpack.disabled')));
+        }
+        const versionSel = document.createElement('select');
+        versionSel.className = 'mod-version-select';
+        versionSel.style.cssText = 'max-width:160px;';
+        (addon.versions || []).forEach((versionEntry) => {
+          const opt = document.createElement('option');
+          opt.value = versionEntry.version_label;
+          opt.textContent = versionEntry.version_label;
+          if (versionEntry.version_label === addon.active_version) opt.selected = true;
+          versionSel.appendChild(opt);
+        });
+        row.appendChild(cb);
+        row.appendChild(labelEl);
+        if (disabledWrap) row.appendChild(disabledWrap);
+        row.appendChild(versionSel);
+        listEl.appendChild(row);
+        entries.push({ addon, checkbox: cb, disabledCheckbox: disabledCb, versionSelect: versionSel });
+      });
+      selectAllCb.addEventListener('change', () => {
+        entries.forEach((entry) => { entry.checkbox.checked = selectAllCb.checked; });
+      });
+      panel.appendChild(listEl);
+    }
+    return { panel, entries };
+  };
+
+  const rebuildModsPanel = () => {
+    modsPanel.innerHTML = '';
+    modEntries = [];
+    const loader = String(exportState.modLoader || '').toLowerCase();
+    if (loader === 'vanilla') {
+      return;
+    }
+
+    const modsForLoader = exportState.installedMods.filter(
+      (mod) => (mod.mod_loader || '').toLowerCase() === loader,
+    );
+    const label = document.createElement('p');
+    label.style.marginBottom = '8px';
+    label.textContent = modsForLoader.length > 0
+      ? t('mods.exportModpack.selectMods', { count: modsForLoader.length, loader })
+      : t('mods.exportModpack.noLoaderMods', { loader });
+    modsPanel.appendChild(label);
+
+    if (modsForLoader.length === 0) {
+      return;
+    }
+
     const selectAll = document.createElement('label');
     selectAll.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:8px;cursor:pointer;font-size:12px;color:var(--color-text-muted);';
     const selectAllCb = document.createElement('input');
     selectAllCb.type = 'checkbox';
     selectAll.appendChild(selectAllCb);
     selectAll.appendChild(document.createTextNode(t('common.selectAll')));
-    stepContent.appendChild(selectAll);
+    modsPanel.appendChild(selectAll);
 
-    const addonListEl = document.createElement('div');
-    addonListEl.style.cssText = 'max-height:320px;overflow-y:auto;border:1px solid var(--color-border-input);padding:8px;';
+    const showHlFeatures = isHistolauncherExport();
+    if (showHlFeatures) {
+      const disableHint = document.createElement('p');
+      disableHint.className = 'modpack-export-hint';
+      disableHint.textContent = t('mods.exportModpack.disabledHint');
+      modsPanel.appendChild(disableHint);
+    }
 
-    installedAddons.forEach((addon) => {
+    const allowAllModloaderOverwrite = _deps.isTruthySetting(state.settingsState.allow_override_classpath_all_modloaders);
+    const canShowOverwriteControls = showHlFeatures && (loader === 'modloader' || allowAllModloaderOverwrite);
+    if (canShowOverwriteControls) {
+      const overwriteHint = document.createElement('p');
+      overwriteHint.className = 'modpack-export-hint';
+      overwriteHint.textContent = t('mods.exportModpack.overwriteHint');
+      modsPanel.appendChild(overwriteHint);
+    }
+
+    const modListEl = document.createElement('div');
+    modListEl.className = 'modpack-export-selection-list';
+
+    modsForLoader.forEach((mod) => {
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--color-border-input);flex-wrap:wrap;';
-
+      row.className = 'modpack-export-selection-row';
       const cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.checked = false;
+      let disabledWrap = null;
+      let disabledCb = null;
+      if (showHlFeatures) {
+        disabledWrap = document.createElement('label');
+        disabledWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-muted);white-space:nowrap;';
+        disabledCb = document.createElement('input');
+        disabledCb.type = 'checkbox';
+        disabledWrap.appendChild(disabledCb);
+        disabledWrap.appendChild(document.createTextNode(t('mods.exportModpack.disabled')));
+      }
+
+      let overwriteCb = null;
+      let overwriteWrap = null;
+      let sourceWrap = null;
+      let sourceSelect = null;
+      const sourceMeta = (mod.versions || []).find((v) => v.version_label === mod.active_version)
+        || (mod.versions || [])[0]
+        || null;
+
+      if (canShowOverwriteControls) {
+        overwriteWrap = document.createElement('label');
+        overwriteWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-muted);white-space:nowrap;';
+        overwriteCb = document.createElement('input');
+        overwriteCb.type = 'checkbox';
+        overwriteCb.checked = !!(sourceMeta && sourceMeta.overwrite_classes);
+        overwriteWrap.appendChild(overwriteCb);
+        overwriteWrap.appendChild(document.createTextNode(t('mods.exportModpack.overwriteClasspath')));
+
+        sourceWrap = document.createElement('label');
+        sourceWrap.style.cssText = 'display:flex;align-items:center;gap:4px;font-size:11px;color:var(--color-text-muted);white-space:nowrap;';
+        sourceWrap.appendChild(document.createTextNode(t('mods.exportModpack.sourceLabel')));
+        sourceSelect = document.createElement('select');
+        sourceSelect.className = 'mod-version-select';
+        sourceSelect.style.cssText = 'max-width:160px;font-size:11px;';
+        const placeholder = document.createElement('option');
+        placeholder.value = String((sourceMeta && sourceMeta.source_subfolder) || '');
+        placeholder.textContent = placeholder.value || t('mods.exportModpack.defaultSource');
+        sourceSelect.appendChild(placeholder);
+        sourceSelect.disabled = !overwriteCb.checked;
+        sourceWrap.style.display = overwriteCb.checked ? '' : 'none';
+        sourceWrap.appendChild(sourceSelect);
+
+        let sourceLoadedFor = null;
+        const populateSourceFolders = async (versionLabel) => {
+          if (!overwriteCb.checked) return;
+          if (sourceLoadedFor === versionLabel) return;
+          sourceLoadedFor = versionLabel;
+          const preferred = String((sourceMeta && sourceMeta.source_subfolder) || '');
+          try {
+            const res = await api('/api/mods/archive-subfolders', 'POST', {
+              mod_slug: mod.mod_slug,
+              mod_loader: mod.mod_loader,
+              version_label: versionLabel,
+            });
+            if (!res || !res.ok) throw new Error((res && res.error) || t('mods.exportModpack.failedSourceFolders'));
+            sourceSelect.innerHTML = '';
+            const optDefault = document.createElement('option');
+            optDefault.value = '';
+            optDefault.textContent = t('mods.exportModpack.defaultSource');
+            sourceSelect.appendChild(optDefault);
+            const seen = new Set(['']);
+            (Array.isArray(res.subfolders) ? res.subfolders : []).forEach((entry) => {
+              const value = typeof entry === 'string'
+                ? entry
+                : String((entry && (entry.value !== undefined ? entry.value : entry.path)) || '').trim();
+              const labelText = typeof entry === 'string'
+                ? entry
+                : String((entry && (entry.label !== undefined ? entry.label : entry.name)) || value).trim();
+              if (seen.has(value)) return;
+              seen.add(value);
+              const opt = document.createElement('option');
+              opt.value = value;
+              opt.textContent = labelText || value;
+              sourceSelect.appendChild(opt);
+            });
+            sourceSelect.value = seen.has(preferred) ? preferred : '';
+          } catch (err) {
+            console.warn('Failed to load source folders for export wizard:', err);
+          }
+        };
+
+        overwriteCb.addEventListener('change', () => {
+          const enabled = overwriteCb.checked;
+          sourceSelect.disabled = !enabled;
+          sourceWrap.style.display = enabled ? '' : 'none';
+          if (enabled) populateSourceFolders(versionSel.value);
+        });
+      }
 
       const labelEl = document.createElement('span');
       labelEl.style.cssText = 'flex:1;font-size:13px;color:var(--color-text-primary);';
-      labelEl.textContent = addon.mod_name || addon.mod_slug || addon.name || 'Unknown';
+      labelEl.textContent = mod.mod_name || mod.mod_slug;
 
       const versionSel = document.createElement('select');
       versionSel.className = 'mod-version-select';
-      versionSel.style.cssText = 'max-width:160px;';
-      (addon.versions || []).forEach((versionEntry) => {
+      versionSel.style.cssText = 'max-width:140px;';
+      (mod.versions || []).forEach((v) => {
         const opt = document.createElement('option');
-        opt.value = versionEntry.version_label;
-        opt.textContent = versionEntry.version_label;
-        if (versionEntry.version_label === addon.active_version) opt.selected = true;
+        opt.value = v.version_label;
+        opt.textContent = v.version_label;
+        if (v.version_label === mod.active_version) opt.selected = true;
         versionSel.appendChild(opt);
+      });
+      versionSel.addEventListener('change', () => {
+        const selectedVersion = (mod.versions || []).find((v) => v.version_label === versionSel.value) || null;
+        if (overwriteCb) {
+          overwriteCb.checked = !!(selectedVersion && selectedVersion.overwrite_classes);
+          sourceSelect.disabled = !overwriteCb.checked;
+          sourceWrap.style.display = overwriteCb.checked ? '' : 'none';
+        }
       });
 
       row.appendChild(cb);
       row.appendChild(labelEl);
+      if (disabledWrap) row.appendChild(disabledWrap);
+      if (overwriteWrap) row.appendChild(overwriteWrap);
+      if (sourceWrap) row.appendChild(sourceWrap);
       row.appendChild(versionSel);
-      addonListEl.appendChild(row);
+      modListEl.appendChild(row);
 
-      addonEntries.push({ addon, checkbox: cb, versionSelect: versionSel });
+      modEntries.push({
+        mod,
+        checkbox: cb,
+        disabledCheckbox: disabledCb,
+        overwriteCheckbox: overwriteCb,
+        sourceSelect,
+        versionSelect: versionSel,
+      });
+
+      if (canShowOverwriteControls && overwriteCb && overwriteCb.checked) {
+        overwriteCb.dispatchEvent(new Event('change'));
+      }
     });
 
     selectAllCb.addEventListener('change', () => {
-      addonEntries.forEach((entry) => {
-        entry.checkbox.checked = selectAllCb.checked;
-      });
+      modEntries.forEach((entry) => { entry.checkbox.checked = selectAllCb.checked; });
     });
+    modsPanel.appendChild(modListEl);
+  };
 
-    stepContent.appendChild(addonListEl);
-  }
+  const rebuildAddonPanel = (addonType, panelRef) => {
+    panelRef.innerHTML = '';
+    const items = addonType === 'resourcepacks'
+      ? exportState.installedResourcepacks
+      : addonType === 'shaderpacks'
+        ? exportState.installedShaderpacks
+        : exportState.installedDatapacks;
+    const builtPanel = buildAddonSelectionPanel(addonType, items, {
+      showDisabled: isHistolauncherExport(),
+    });
+    panelRef.appendChild(builtPanel.panel);
+    if (addonType === 'resourcepacks') resourcepackEntries = builtPanel.entries;
+    else if (addonType === 'shaderpacks') shaderpackEntries = builtPanel.entries;
+    else datapackEntries = builtPanel.entries;
+  };
 
-  const continueWithSelection = () => {
-    const selectedAddons = addonEntries
-      .filter((entry) => entry.checkbox.checked)
+  const updateVersionFieldsVisibility = () => {
+    const show = isExternalExport();
+    versionFieldsWrap.style.display = show ? '' : 'none';
+    if (!show) {
+      mcVersionSelect.value = '';
+      loaderVersionSelect.value = '';
+      return;
+    }
+    refreshMinecraftVersions();
+  };
+
+  const refreshMinecraftVersions = async () => {
+    if (!isExternalExport()) {
+      populateExportVersionSelect(mcVersionSelect, [], t('mods.exportModpack.selectMinecraftVersion'));
+      populateExportVersionSelect(loaderVersionSelect, [], t('mods.exportModpack.selectLoaderVersion'));
+      return;
+    }
+    try {
+      const res = await api('/api/modpacks/export-versions', 'POST', {
+        export_format: exportState.exportFormat,
+        mod_loader: exportState.modLoader,
+      });
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Failed to load Minecraft versions');
+      populateExportVersionSelect(
+        mcVersionSelect,
+        res.minecraft_versions,
+        t('mods.exportModpack.selectMinecraftVersion'),
+      );
+      await refreshLoaderVersions();
+    } catch (err) {
+      console.warn('Failed to load export Minecraft versions:', err);
+      populateExportVersionSelect(mcVersionSelect, [], t('mods.exportModpack.selectMinecraftVersion'));
+      populateExportVersionSelect(loaderVersionSelect, [], t('mods.exportModpack.selectLoaderVersion'));
+    }
+  };
+
+  const refreshLoaderVersions = async () => {
+    if (!isExternalExport()) {
+      loaderVersionField.style.display = 'none';
+      loaderVersionHint.style.display = 'none';
+      populateExportVersionSelect(loaderVersionSelect, [], t('mods.exportModpack.selectLoaderVersion'));
+      return;
+    }
+    const loader = String(exportState.modLoader || '').toLowerCase();
+    const mcVersion = mcVersionSelect.value.trim();
+    const showLoaderVersions = loader !== 'vanilla';
+    loaderVersionField.style.display = showLoaderVersions ? '' : 'none';
+    loaderVersionHint.style.display = showLoaderVersions ? '' : 'none';
+    if (!showLoaderVersions || !mcVersion) {
+      populateExportVersionSelect(loaderVersionSelect, [], t('mods.exportModpack.selectLoaderVersion'));
+      return;
+    }
+    try {
+      const res = await api('/api/modpacks/export-versions', 'POST', {
+        export_format: exportState.exportFormat,
+        mod_loader: exportState.modLoader,
+        minecraft_version: mcVersion,
+      });
+      if (!res || !res.ok) throw new Error((res && res.error) || 'Failed to load loader versions');
+      populateExportVersionSelect(
+        loaderVersionSelect,
+        res.loader_versions,
+        t('mods.exportModpack.selectLoaderVersion'),
+      );
+    } catch (err) {
+      console.warn('Failed to load export loader versions:', err);
+      populateExportVersionSelect(loaderVersionSelect, [], t('mods.exportModpack.selectLoaderVersion'));
+    }
+  };
+
+  const updateTabVisibility = () => {
+    const showMods = String(exportState.modLoader || '').toLowerCase() !== 'vanilla';
+    if (tabButtons.mods) tabButtons.mods.style.display = showMods ? '' : 'none';
+    if (!showMods && activeTab === 'mods') activateTab('metadata');
+  };
+
+  const activateTab = (key) => {
+    activeTab = key;
+    Object.entries(tabButtons).forEach(([tabKey, button]) => {
+      button.classList.toggle('active', tabKey === key);
+    });
+    Object.entries(panels).forEach(([tabKey, panel]) => {
+      panel.classList.toggle('hidden', tabKey !== key);
+    });
+  };
+
+  tabDefs.forEach((tabDef, index) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'world-nbt-tab';
+    button.textContent = t(tabDef.labelKey);
+    button.addEventListener('click', () => activateTab(tabDef.key));
+    tabButtons[tabDef.key] = button;
+    tabBar.appendChild(button);
+    panelHost.appendChild(panels[tabDef.key]);
+    panels[tabDef.key].classList.toggle('hidden', index !== 0);
+  });
+
+  root.appendChild(tabBar);
+  root.appendChild(panelHost);
+
+  const collectSelections = () => {
+    const loader = String(exportState.modLoader || '').toLowerCase();
+    const selectedMods = loader === 'vanilla'
+      ? []
+      : modEntries
+        .filter((e) => e.checkbox && e.checkbox.checked)
+        .map((e) => {
+          const selectedVersion = (e.mod.versions || []).find((v) => v.version_label === e.versionSelect.value) || null;
+          const overwriteOn = !!(e.overwriteCheckbox && e.overwriteCheckbox.checked);
+          const sourceFromSelect = e.sourceSelect ? String(e.sourceSelect.value || '') : '';
+          const sourceFromMeta = String((selectedVersion && selectedVersion.source_subfolder) || '');
+          return {
+            mod_slug: e.mod.mod_slug,
+            version_label: e.versionSelect.value,
+            mod_name: e.mod.mod_name || e.mod.mod_slug,
+            disabled: !!(e.disabledCheckbox && e.disabledCheckbox.checked),
+            overwrite_classes: overwriteOn,
+            source_subfolder: overwriteOn ? (sourceFromSelect || sourceFromMeta) : '',
+          };
+        });
+
+    const mapAddonSelection = (entries) => entries
+      .filter((entry) => entry.checkbox && entry.checkbox.checked)
       .map((entry) => ({
         mod_slug: entry.addon.mod_slug,
         version_label: entry.versionSelect.value,
         mod_name: entry.addon.mod_name || entry.addon.mod_slug,
-        disabled: false,
+        disabled: !!(entry.disabledCheckbox && entry.disabledCheckbox.checked),
       }))
       .filter((entry) => entry.mod_slug && entry.version_label);
 
-    if (isResourceStep) {
-      showExportShaderPacksStep(exportFormat, modLoader, selectedMods, selectedAddons);
-    } else {
-      showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedAddons);
-    }
-  };
-
-  showMessageBox({
-    title: t('mods.exportModpack.title'),
-    customContent: stepContent,
-    buttons: [
-      {
-        label: t('common.back'),
-        onClick: () => (isResourceStep
-          ? showExportStep2(exportFormat, modLoader)
-          : showExportResourcePacksStep(exportFormat, modLoader, selectedMods)),
-      },
-      {
-        label: t('common.next'),
-        classList: ['primary'],
-        onClick: continueWithSelection,
-      },
-      { label: t('common.cancel') },
-    ],
-  });
-};
-
-const showExportResourcePacksStep = (exportFormat, modLoader, selectedMods) => (
-  showExportAddonSelectionStep(exportFormat, modLoader, selectedMods, 'resourcepacks')
-);
-
-const showExportShaderPacksStep = (exportFormat, modLoader, selectedMods, selectedResourcepacks) => (
-  showExportAddonSelectionStep(exportFormat, modLoader, selectedMods, 'shaderpacks', selectedResourcepacks)
-);
-
-const showExportStep3 = (exportFormat, modLoader, selectedMods, selectedResourcepacks = [], selectedShaderpacks = []) => {
-  const step3Content = document.createElement('div');
-
-  const makeField = (labelText, inputType, maxLen, placeholder) => {
-    const wrap = document.createElement('div');
-    wrap.style.marginBottom = '10px';
-    const lbl = document.createElement('label');
-    lbl.style.cssText = 'display:block;font-size:12px;color:var(--color-text-muted);margin-bottom:4px;';
-    lbl.textContent = labelText;
-    wrap.appendChild(lbl);
-    if (inputType === 'textarea') {
-      const ta = document.createElement('textarea');
-      ta.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;background:var(--color-surface-input);border:1px solid var(--color-border-input);color:var(--color-text-primary);resize:vertical;min-height:60px;';
-      ta.maxLength = maxLen;
-      ta.placeholder = placeholder || '';
-      wrap.appendChild(ta);
-      return { wrap, input: ta };
-    }
-    const inp = document.createElement('input');
-    inp.type = 'text';
-    inp.style.cssText = 'width:100%;box-sizing:border-box;padding:6px 8px;background:var(--color-surface-input);border:1px solid var(--color-border-input);color:var(--color-text-primary);';
-    inp.maxLength = maxLen;
-    inp.placeholder = placeholder || '';
-    wrap.appendChild(inp);
-    return { wrap, input: inp };
-  };
-
-  const nameField = makeField(t('mods.exportModpack.fields.name'), 'text', 64, t('mods.exportModpack.placeholders.name'));
-  const versionField = makeField(t('mods.exportModpack.fields.version'), 'text', 16, '1.0.0');
-  const authorField = makeField(t('mods.exportModpack.fields.author'), 'text', 64, t('mods.exportModpack.placeholders.author'));
-  const descField = makeField(t('mods.exportModpack.fields.description'), 'textarea', 8192, t('mods.exportModpack.placeholders.description'));
-
-  step3Content.appendChild(nameField.wrap);
-  step3Content.appendChild(versionField.wrap);
-  step3Content.appendChild(authorField.wrap);
-  step3Content.appendChild(descField.wrap);
-
-  // Image upload
-  const imgWrap = document.createElement('div');
-  imgWrap.style.marginBottom = '10px';
-  const imgLabel = document.createElement('label');
-  imgLabel.style.cssText = 'display:block;font-size:12px;color:var(--color-text-soft-alt);margin-bottom:4px;align:center;';
-  imgLabel.textContent = t('mods.exportModpack.fields.icon');
-  imgWrap.appendChild(imgLabel);
-
-  const imgRow = document.createElement('div');
-  imgRow.style.cssText = 'display:flex;align-items:center;gap:10px;';
-
-  const imgPreview = document.createElement('img');
-  imgPreview.style.cssText = 'width:64px;height:64px;object-fit:cover;border:2px solid var(--color-border-quiet);display:none;';
-
-  const imgInput = document.createElement('input');
-  imgInput.type = 'file';
-  imgInput.accept = 'image/png,image/jpeg';
-  imgInput.style.display = 'none';
-
-  const imgPickBtn = document.createElement('button');
-  imgPickBtn.type = 'button';
-  imgPickBtn.textContent = t('common.chooseFile');
-
-  const imgPickLabel = document.createElement('span');
-  imgPickLabel.style.cssText =
-    'font-size:12px;color:var(--color-text-muted);overflow-wrap:anywhere;font-style:italic;';
-  imgPickLabel.textContent = t('common.noFileChosen');
-
-  const renderImgPickLabel = () => {
-    const file = imgInput.files && imgInput.files[0];
-    if (file && file.name) {
-      imgPickLabel.textContent = file.name;
-      imgPickLabel.style.color = 'var(--color-text-secondary-strong)';
-      imgPickLabel.style.fontStyle = 'normal';
-    } else {
-      imgPickLabel.textContent = t('common.noFileChosen');
-      imgPickLabel.style.color = 'var(--color-text-muted)';
-      imgPickLabel.style.fontStyle = 'italic';
-    }
-  };
-
-  let imageBase64 = null;
-  imgPickBtn.addEventListener('click', () => imgInput.click());
-  imgInput.addEventListener('change', () => {
-    renderImgPickLabel();
-    const file = imgInput.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      imageBase64 = e.target.result.split(',')[1]; // strip data:... prefix
-      imgPreview.src = e.target.result;
-      imgPreview.style.display = 'block';
+    return {
+      selectedMods,
+      selectedResourcepacks: mapAddonSelection(resourcepackEntries),
+      selectedShaderpacks: mapAddonSelection(shaderpackEntries),
+      selectedDatapacks: mapAddonSelection(datapackEntries),
     };
-    reader.readAsDataURL(file);
-  });
+  };
 
-  imgRow.appendChild(imgPreview);
-  imgRow.appendChild(imgPickBtn);
-  imgRow.appendChild(imgPickLabel);
-  imgRow.appendChild(imgInput);
-  imgWrap.appendChild(imgRow);
-  step3Content.appendChild(imgWrap);
+  const validateAndExport = async () => {
+    clearExportError();
+    const packName = nameField.input.value.trim();
+    const packVersion = versionField.input.value.trim();
+    const packAuthor = authorField.input.value.trim();
+    const packDesc = descField.input.value.trim();
+    const minecraftVersion = mcVersionSelect.value.trim();
+    const loaderVersion = loaderVersionSelect.value.trim();
+    const formatInfo = getModpackExportFormat(exportState.exportFormat);
 
-  const summary = document.createElement('p');
-  summary.style.cssText = 'font-size:12px;color:var(--color-text-muted);margin-top:8px;';
-  const formatInfo = getModpackExportFormat(exportFormat);
-  summary.textContent = t('mods.exportModpack.summary', {
-    format: formatInfo.label,
-    extension: formatInfo.extension,
-    mods: selectedMods.length,
-    resourcepacks: selectedResourcepacks.length,
-    shaderpacks: selectedShaderpacks.length,
-    loader: modLoader,
-  });
-  step3Content.appendChild(summary);
+    if (!packName || packName.length > 64) {
+      showExportError(t('mods.exportModpack.validation.nameLength'), 'metadata');
+      return;
+    }
+    if (/[<>:"/\\|?*]/.test(packName)) {
+      showExportError(t('mods.exportModpack.validation.nameForbidden'), 'metadata');
+      return;
+    }
+    if (!packVersion || packVersion.length > 16) {
+      showExportError(t('mods.exportModpack.validation.versionLength'), 'metadata');
+      return;
+    }
+    if (packAuthor.length > 64) {
+      showExportError(t('mods.exportModpack.validation.authorLength'), 'metadata');
+      return;
+    }
+    if (/[<>:"/\\|?*]/.test(packAuthor)) {
+      showExportError(t('mods.exportModpack.validation.authorForbidden'), 'metadata');
+      return;
+    }
+
+    const {
+      selectedMods,
+      selectedResourcepacks,
+      selectedShaderpacks,
+      selectedDatapacks,
+    } = collectSelections();
+
+    if (isExternalExport() && !minecraftVersion) {
+      showExportError(t('mods.exportModpack.externalVersionRequired'), 'metadata');
+      return;
+    }
+    if (
+      isExternalExport()
+      && exportState.modLoader !== 'vanilla'
+      && !loaderVersion
+    ) {
+      showExportError(t('mods.exportModpack.externalLoaderVersionRequired'), 'metadata');
+      return;
+    }
+
+    await executeModpackExport({
+      export_format: exportState.exportFormat,
+      name: packName,
+      version: packVersion,
+      author: packAuthor,
+      description: packDesc,
+      mod_loader: exportState.modLoader,
+      minecraft_version: minecraftVersion,
+      loader_version: loaderVersion,
+      mods: selectedMods,
+      resourcepacks: selectedResourcepacks,
+      shaderpacks: selectedShaderpacks,
+      datapacks: selectedDatapacks,
+      image_data: exportState.imageBase64 || null,
+    }, formatInfo, packName, {
+      onError: (message) => showExportError(message, 'metadata'),
+    });
+  };
 
   showMessageBox({
     title: t('mods.exportModpack.title'),
-    customContent: step3Content,
+    customContent: root,
+    boxClassList: ['modpack-export-dialog'],
     buttons: [
-      {
-        label: t('common.back'),
-        onClick: () => showExportShaderPacksStep(exportFormat, modLoader, selectedMods, selectedResourcepacks),
-      },
       {
         label: t('common.export'),
         classList: ['primary'],
-        onClick: async () => {
-          const packName = nameField.input.value.trim();
-          const packVersion = versionField.input.value.trim();
-          const packAuthor = authorField.input.value.trim();
-          const packDesc = descField.input.value.trim();
-
-          if (!packName || packName.length > 64) {
-            showMessageBox({ title: t('common.error'), message: t('mods.exportModpack.validation.nameLength'), buttons: [{ label: t('common.ok'), onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
-            return;
-          }
-          if (/[<>:"/\\|?*]/.test(packName)) {
-            showMessageBox({ title: t('common.error'), message: t('mods.exportModpack.validation.nameForbidden'), buttons: [{ label: t('common.ok'), onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
-            return;
-          }
-          if (!packVersion || packVersion.length > 16) {
-            showMessageBox({ title: t('common.error'), message: t('mods.exportModpack.validation.versionLength'), buttons: [{ label: t('common.ok'), onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
-            return;
-          }
-          if (packAuthor.length > 64) {
-            showMessageBox({ title: t('common.error'), message: t('mods.exportModpack.validation.authorLength'), buttons: [{ label: t('common.ok'), onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
-            return;
-          }
-          if (/[<>:"/\\|?*]/.test(packAuthor)) {
-            showMessageBox({ title: t('common.error'), message: t('mods.exportModpack.validation.authorForbidden'), buttons: [{ label: t('common.ok'), onClick: () => showExportStep3(exportFormat, modLoader, selectedMods, selectedResourcepacks, selectedShaderpacks) }] });
-            return;
-          }
-
-          try {
-            const operationId = createOperationId('modpack_export');
-            let cancelRequested = false;
-
-            showLoadingOverlay(t('mods.exportModpack.exporting'), {
-              buttons: [
-                {
-                  label: t('common.cancel'),
-                  classList: ['danger'],
-                  closeOnClick: false,
-                  onClick: async (_values, controls) => {
-                    if (cancelRequested) return;
-                    cancelRequested = true;
-                    controls.update({
-                      message: t('mods.exportModpack.cancelling'),
-                      buttons: [],
-                    });
-                    await requestOperationCancel(operationId);
-                  },
-                },
-              ],
-            });
-
-            const res = await api('/api/modpacks/export', 'POST', {
-              export_format: exportFormat,
-              name: packName,
-              version: packVersion,
-              author: packAuthor,
-              description: packDesc,
-              mod_loader: modLoader,
-              mods: selectedMods,
-              resourcepacks: selectedResourcepacks,
-              shaderpacks: selectedShaderpacks,
-              image_data: imageBase64 || null,
-              save_to_disk: true,
-              operation_id: operationId,
-            });
-
-            if (res && res.ok) {
-              if (res.filepath) {
-                hideLoadingOverlay();
-                const fileSize = Number(res.size_bytes || 0);
-                const fileSizeMb = fileSize > 0 ? (fileSize / (1024 * 1024)).toFixed(2) : null;
-                showMessageBox({
-                  title: t('mods.exportModpack.successTitle'),
-                  message: fileSizeMb
-                    ? t('mods.exportModpack.successSavedSize', { name: packName, filepath: res.filepath, size: fileSizeMb })
-                    : t('mods.exportModpack.successSaved', { name: packName, filepath: res.filepath }),
-                  buttons: [{ label: t('common.ok') }],
-                });
-                return;
-              }
-
-              if (res.modpack_data || res.hlmp_data) {
-                const fileName = res.filename || `${packName}${formatInfo.extension}`;
-                const bytes = Uint8Array.from(atob(res.modpack_data || res.hlmp_data), (c) => c.charCodeAt(0));
-                const blob = new Blob([bytes], { type: 'application/octet-stream' });
-                let savedLabel = '';
-
-                if (window.showSaveFilePicker) {
-                  try {
-                    const fileHandle = await window.showSaveFilePicker({
-                      suggestedName: fileName,
-                      types: [{
-                        description: res.type_description || formatInfo.description,
-                        accept: { 'application/octet-stream': [res.extension || formatInfo.extension] },
-                      }],
-                    });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
-                    savedLabel = fileName;
-                  } catch (saveErr) {
-                    if (saveErr && saveErr.name === 'AbortError') {
-                      hideLoadingOverlay();
-                      showMessageBox({
-                        title: t('mods.exportModpack.cancelledTitle'),
-                        message: t('mods.exportModpack.cancelledMessage'),
-                        buttons: [{ label: t('common.ok') }],
-                      });
-                      return;
-                    }
-                    console.error('Save dialog failed, falling back to download:', saveErr);
-                  }
-                }
-
-                if (!savedLabel) {
-                  try {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = fileName;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
-                    savedLabel = `Downloads/${fileName}`;
-                  } catch (downloadErr) {
-                    hideLoadingOverlay();
-                    showMessageBox({
-                      title: t('mods.exportModpack.errorTitle'),
-                      message: t('mods.exportModpack.failedSave', { error: (downloadErr && downloadErr.message) || t('common.unknownError') }),
-                      buttons: [{ label: t('common.ok') }],
-                    });
-                    return;
-                  }
-                }
-
-                hideLoadingOverlay();
-                showMessageBox({
-                  title: t('mods.exportModpack.successTitle'),
-                  message: t('mods.exportModpack.successSavedAs', { name: packName, filepath: savedLabel }),
-                  buttons: [{ label: t('common.ok') }],
-                });
-                return;
-              }
-            }
-
-            hideLoadingOverlay();
-            if (res && (res.cancelled || String(res.error || '').toLowerCase().includes('cancelled'))) {
-              showMessageBox({
-                title: t('mods.exportModpack.cancelledTitle'),
-                message: t('mods.exportModpack.cancelledMessage'),
-                buttons: [{ label: t('common.ok') }],
-              });
-            } else {
-              showMessageBox({
-                title: t('mods.exportModpack.errorTitle'),
-                message: (res && res.error) || t('mods.exportModpack.failed'),
-                buttons: [{ label: t('common.ok') }],
-              });
-            }
-          } catch (err) {
-            hideLoadingOverlay();
-            console.error('Failed to export modpack:', err);
-            showMessageBox({
-              title: t('mods.exportModpack.errorTitle'),
-              message: t('mods.exportModpack.failedWithError', { error: (err && err.message) || t('mods.exportModpack.networkError') }),
-              buttons: [{ label: t('common.ok') }],
-            });
-          }
-        },
+        closeOnClick: false,
+        onClick: validateAndExport,
       },
       { label: t('common.cancel') },
     ],
   });
+
+  activateTab('metadata');
+  updateTabVisibility();
+  updateVersionFieldsVisibility();
+
+  (async () => {
+    let installedMods = modsState.installedMods || [];
+    if (!isModsAddonType()) {
+      try {
+        const res = await api('/api/addons/installed', 'POST', { addon_type: 'mods' });
+        if (res && res.ok) installedMods = res.addons || res.mods || [];
+      } catch (err) {
+        console.warn('Failed to load mods for modpack export:', err);
+      }
+    }
+    exportState.installedMods = installedMods;
+    exportState.installedResourcepacks = await loadInstalledAddonsForModpackExport('resourcepacks');
+    exportState.installedShaderpacks = await loadInstalledAddonsForModpackExport('shaderpacks');
+    exportState.installedDatapacks = await loadInstalledAddonsForModpackExport('datapacks');
+    exportState.contentLoaded = true;
+    rebuildModsPanel();
+    rebuildAddonPanel('resourcepacks', resourcepacksPanel);
+    rebuildAddonPanel('shaderpacks', shaderpacksPanel);
+    rebuildAddonPanel('datapacks', datapacksPanel);
+  })();
 };

@@ -12,7 +12,7 @@ from core.java import (
     suggest_java_feature_version,
 )
 from core.launch.paths import _resolve_version_dir
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import get_base_dir
 from core.version_manager import get_clients_dir
 
@@ -274,10 +274,10 @@ def api_launch_status(process_id):
     ):
         is_crash = False
 
-    print(colorize_log(
+    safe_print(
         f"[api_launch_status] exit_code={exit_code}, category={category}, "
         f"is_crash={is_crash}, log_path={log_path}"
-    ))
+    )
     set_launcher_presence()
 
     return {
@@ -880,20 +880,14 @@ def _remove_bad_jvm_arg(args: str, bad_arg: str) -> str:
     def _matches(token: str) -> bool:
         t = token.strip()
         t_lower = t.lower()
-        # 1. Exact match
         if t_lower == bad_lower:
             return True
-        # 2. Leading dashes stripped from both (e.g. bad='Xss2m', token='-Xss2m')
         if t_lower.lstrip('-') == bad_lower.lstrip('-'):
             return True
-        # 3. bad is the suffix after ':' in token (e.g. bad='+UseZGC', token='-XX:+UseZGC')
         if t_lower.endswith(':' + bad_lower):
             return True
-        # 4. Token is bad prefixed with a dash
         if t_lower in (f'-{bad_lower}', f'--{bad_lower}'):
             return True
-        # 5. Core name match — handles JVMs that strip the +/- boolean marker from
-        #    the reported option name (e.g. bad='Badoptiontest', token='-XX:+Badoptiontest')
         t_core = _core(t_lower)
         if bad_core and t_core == bad_core:
             return True
@@ -946,10 +940,10 @@ def api_crash_autofix(data: Any):
                 ini_data.pop("launch_max_ram", None)
                 _write_data_ini_file(data_ini_path, ini_data)
             save_global_settings({"auto_optimize_launch_settings": "1"})
-            print(colorize_log(
+            safe_print(
                 f"[api_crash_autofix] enable_auto_optimize "
                 f"(version={category}/{folder} if set)"
-            ))
+            )
             return {
                 "ok": True,
                 "message": (
@@ -982,10 +976,10 @@ def api_crash_autofix(data: Any):
                 ini_data["launch_extra_jvm_args"] = _apply_removal(old_args_version)
                 _write_data_ini_file(data_ini_path, ini_data)
             old_args = old_args_global or old_args_version
-            print(colorize_log(
+            safe_print(
                 f"[api_crash_autofix] clear_jvm_args: removed '{bad_arg_token or 'all'}' from '{old_args}' "
                 f"(version={category}/{folder} if set)"
-            ))
+            )
             action_desc = f'"{bad_arg_token}"' if bad_arg_token else "all extra launch options"
             return {
                 "ok": True,
@@ -1061,11 +1055,11 @@ def api_open_crash_log(data: Any):
         import platform
         import subprocess
 
-        print(colorize_log(f"[api_open_crash_log] Opening file: {log_path}"))
-        print(colorize_log(f"[api_open_crash_log] File exists: {os.path.isfile(log_path)}"))
+        safe_print(f"[api_open_crash_log] Opening file: {log_path}")
+        safe_print(f"[api_open_crash_log] File exists: {os.path.isfile(log_path)}")
         if os.path.isfile(log_path):
             file_size = os.path.getsize(log_path)
-            print(colorize_log(f"[api_open_crash_log] File size: {file_size} bytes"))
+            safe_print(f"[api_open_crash_log] File size: {file_size} bytes")
 
         system = platform.system()
 
@@ -1078,7 +1072,7 @@ def api_open_crash_log(data: Any):
 
         return {"ok": True, "message": f"Opening {os.path.basename(log_path)}..."}
     except Exception as e:
-        print(colorize_log(f"[api] Error opening crash log: {e}"))
+        safe_print(f"[api] Error opening crash log: {e}")
         return {"ok": False, "error": f"Failed to open log file: {str(e)}"}
 
 
@@ -1101,7 +1095,7 @@ def api_clear_logs():
                     deleted_count += 1
                 except (OSError, PermissionError):
                     skipped_files.append(os.path.basename(file_path))
-                    print(colorize_log(f"[api_clear_logs] Skipped (in use): {file_path}"))
+                    safe_print(f"[api_clear_logs] Skipped (in use): {file_path}")
 
             for dir_name in dirs:
                 dir_path = os.path.join(root, dir_name)
@@ -1117,10 +1111,10 @@ def api_clear_logs():
         except (OSError, PermissionError):
             pass
 
-        print(colorize_log(
+        safe_print(
             f"[api_clear_logs] Cleared logs: {deleted_count} files deleted, "
             f"{len(skipped_files)} files skipped"
-        ))
+        )
 
         message = f"Deleted {deleted_count} log files."
         if skipped_files:
@@ -1136,5 +1130,5 @@ def api_clear_logs():
             "skipped": len(skipped_files),
         }
     except Exception as e:
-        print(colorize_log(f"[api_clear_logs] Error clearing logs: {e}"))
+        safe_print(f"[api_clear_logs] Error clearing logs: {e}")
         return {"ok": False, "error": f"Failed to clear logs: {str(e)}"}

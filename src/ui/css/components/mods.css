@@ -24,15 +24,27 @@
 }
 
 .mod-card.mod-card-installed.mod-card-loader-fabric,
+.mod-card.mod-card-installed.mod-card-loader-legacyfabric,
 .mod-card.mod-card-installed.mod-card-loader-babric {
   background: var(--color-loader-fabric-card-bg);
   border-color: var(--color-loader-fabric-card-border);
 }
 
 .mod-card.mod-card-installed.mod-card-loader-fabric:hover,
+.mod-card.mod-card-installed.mod-card-loader-legacyfabric:hover,
 .mod-card.mod-card-installed.mod-card-loader-babric:hover {
   background: var(--color-loader-fabric-card-hover);
   border-color: var(--color-loader-fabric-card-hover-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-liteloader {
+  background: var(--color-loader-liteloader-card-bg);
+  border-color: var(--color-loader-liteloader-card-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-liteloader:hover {
+  background: var(--color-loader-liteloader-card-hover);
+  border-color: var(--color-loader-liteloader-card-hover-border);
 }
 
 .mod-card.mod-card-installed.mod-card-loader-forge {
@@ -73,6 +85,16 @@
 .mod-card.mod-card-installed.mod-card-loader-quilt:hover {
   background: var(--color-loader-quilt-card-hover);
   border-color: var(--color-loader-quilt-card-hover-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-ornithe {
+  background: var(--color-loader-ornithe-card-bg);
+  border-color: var(--color-loader-ornithe-card-border);
+}
+
+.mod-card.mod-card-installed.mod-card-loader-ornithe:hover {
+  background: var(--color-loader-ornithe-card-hover);
+  border-color: var(--color-loader-ornithe-card-hover-border);
 }
 
 /* MOD IMAGE */
@@ -132,6 +154,30 @@
   -webkit-line-clamp: 4;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.versions-list:not(.list-view) .version-card.mod-card .mod-card-deployment-status {
+  grid-column: 2;
+  grid-row: 3;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.version-card.mod-card .mod-card-deployment-status {
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.versions-list.list-view .version-card.mod-card .mod-card-deployment-status {
+  font-size: 11px;
+  line-height: 1.25;
+  color: var(--color-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .versions-list:not(.list-view) .version-card.mod-entry-card .mod-card-control-row {
@@ -528,7 +574,8 @@
   }
 
   .versions-list:not(.list-view) .version-card.mod-card .version-header-row,
-  .versions-list:not(.list-view) .version-card.mod-card .mod-card-description {
+  .versions-list:not(.list-view) .version-card.mod-card .mod-card-description,
+  .versions-list:not(.list-view) .version-card.mod-card .mod-card-deployment-status {
     grid-column: 1;
     grid-row: auto;
   }

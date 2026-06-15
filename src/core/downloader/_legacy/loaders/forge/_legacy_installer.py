@@ -15,13 +15,15 @@ from core.subprocess_utils import no_window_kwargs
 from core.downloader._legacy.loaders.forge._context import ForgeContext
 from core.downloader._legacy.loaders.forge._jar_inspect import find_runtime_jars
 
+from core.logger import safe_print
+
 
 def run_legacy_installer_if_needed(ctx: ForgeContext) -> None:
     existing = find_runtime_jars([ctx.loader_dest_dir])
     if existing or not ctx.is_installer_archive:
         return
 
-    print(
+    safe_print(
         "[forge] LaunchWrapper not found, attempting to run installer to "
         "finish installation"
     )
@@ -29,7 +31,7 @@ def run_legacy_installer_if_needed(ctx: ForgeContext) -> None:
         java_exe = _get_java_executable() or "java"
         proxy_jvm_args: List[str] = []
         if _is_url_proxy_enabled():
-            print(
+            safe_print(
                 "[forge] URL proxy mode detected; installer JVM proxy flags "
                 "disabled (online default, offline fallback enabled)"
             )
@@ -48,7 +50,7 @@ def run_legacy_installer_if_needed(ctx: ForgeContext) -> None:
         ]
         for cmd in candidate_cmds:
             try:
-                print(
+                safe_print(
                     f"[forge] Running installer: {' '.join(cmd)} "
                     f"(cwd={ctx.version_dir})"
                 )
@@ -57,21 +59,21 @@ def run_legacy_installer_if_needed(ctx: ForgeContext) -> None:
                     capture_output=True, text=True, timeout=180,
                     **no_window_kwargs(),
                 )
-                print(
+                safe_print(
                     f"[forge] Installer exit {proc.returncode}; "
                     f"stdout[:1024]: {proc.stdout[:1024]!r}"
                 )
                 if proc.stderr:
-                    print(
+                    safe_print(
                         f"[forge] Installer stderr[:1024]: "
                         f"{proc.stderr[:1024]!r}"
                     )
                 if proc.returncode == 0:
                     break
             except Exception as e:
-                print(f"[forge] Installer invocation failed: {e}")
+                safe_print(f"[forge] Installer invocation failed: {e}")
     except Exception as e:
-        print(f"[forge] Error attempting to run installer: {e}")
+        safe_print(f"[forge] Error attempting to run installer: {e}")
 
     search_paths = [ctx.loader_dest_dir, ctx.version_dir]
     try:
@@ -90,17 +92,17 @@ def run_legacy_installer_if_needed(ctx: ForgeContext) -> None:
             if not os.path.exists(dst):
                 shutil.copy2(src, dst)
                 ctx.jars_copied += 1
-                print(
+                safe_print(
                     "[forge] Copied runtime jar from installer output: "
                     f"{os.path.basename(src)}"
                 )
         except Exception as e:
-            print(
+            safe_print(
                 f"[forge] Warning: could not copy runtime jar {src}: {e}"
             )
 
     if not found_runtimes:
-        print(
+        safe_print(
             "[forge] Installer did not produce LaunchWrapper jars in known "
             "locations"
         )

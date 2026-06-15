@@ -266,8 +266,6 @@
       "customVersionFolder": "Personalizat (folder specific versiunii)",
       "launchSettings": "Setări de lansare",
       "useGlobal": "Folosește setările globale",
-      "overrideFullscreen": "Suprascrie ecranul complet",
-      "fullscreen": "Ecran complet",
       "overrideDemoMode": "Suprascrie modul demo",
       "demoMode": "Mod demo",
       "minimumRamOverride": "Suprascriere RAM minim",
@@ -419,10 +417,14 @@
     "typeModpacks": "Pachete de mod",
     "typeResourcePacks": "Pachete de resurse",
     "typeShaderPacks": "Pachete shader",
+    "typeDatapacks": "Pachete de date",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "Importă pachet shader",
         "emptyInstalled": "Nu sunt instalate pachete de shader",
         "emptyAvailable": "Nu s-au găsit pachete de shader"
+      },
+      "datapacks": {
+        "label": "Pachete de date",
+        "singular": "pachet de date",
+        "singularTitle": "Pachet de date",
+        "plural": "pachete de date",
+        "pluralTitle": "Pachete de date",
+        "importTitle": "Importă pachet de date",
+        "emptyInstalled": "Nu sunt instalate pachete de date",
+        "emptyAvailable": "Nu s-au găsit pachete de date"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "Aplică la lume",
+      "manageWorlds": "Gestionează lumile",
+      "appliedWorlds": "Aplicat la: {worlds}",
+      "noAppliedWorlds": "Nu este aplicat la nicio lume",
+      "applyTitle": "Aplică pachetul de date la lume",
+      "applyPrompt": "Selectează locația de stocare a lumilor și lumile pentru <b>{datapack}</b>.",
+      "storageLabel": "Stocare lumi:",
+      "customFolderLabel": "Folder personalizat:",
+      "selectFolder": "Alege folderul",
+      "worldsLabel": "Lumi:",
+      "noWorlds": "Nu s-a găsit nicio lume în această locație de stocare.",
+      "applyFailed": "Aplicarea pachetului de date a eșuat.",
+      "applySuccess": "Pachet de date aplicat la {count} lume/lumi.",
+      "removeFailed": "Eliminarea pachetului de date din lume a eșuat.",
+      "removeSuccess": "Pachet de date eliminat din {world}.",
+      "manageTitle": "Implementări în lumi",
+      "managePrompt": "Pachetul de date <b>{datapack}</b> este aplicat la aceste lumi:",
+      "removeFromWorld": "Elimină",
+      "selectWorlds": "Selectează cel puțin o lume."
     },
     "import": {
       "selectLoaderForFile": "Alege loaderul de mod pentru „{file}”:",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "Se importă...",
+      "importButton": "Importă",
+      "successTitle": "Import reușit",
+      "successMessage": "{addon} a fost importat cu succes.",
+      "errorTitle": "Eroare la import",
+      "failedMessage": "Importarea {addon} a eșuat.",
+      "modpackImporting": "Se importă pachetul de mod...",
+      "modpackImportingPercent": "Se importă pachetul de mod... {percent}%",
+      "modpackCancelling": "Se anulează importul pachetului de mod...",
+      "modpackSuccess": "Pachetul de mod <b>{name}</b> a fost importat cu succes.",
+      "modpackDetectedFormat": "<br><br>Format detectat: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>Următoarele moduri independente au fost dezactivate deoarece intră în conflict cu pachetul de mod:<br>",
+      "modpackWarnings": "<br><br>Avertismente la import:<br>",
+      "modpackMoreWarnings": "<br>...și încă {count} avertisment(e).",
+      "modpackCancelledTitle": "Import anulat",
+      "modpackCancelledMessage": "Ai anulat importul pachetului de mod.",
+      "modpackFailed": "Importarea pachetului de mod a eșuat.",
+      "modpackNetworkError": "Eroare de rețea la importul pachetului de mod."
     },
     "status": {
       "installed": "Instalat",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "{count} {addon} șterse.<br><br>Eșecuri:<br>{failures}",
       "confirmMessage": "Ștergi cele {count} {addon} selectate?<br><i>Această acțiune nu poate fi anulată!</i>"
     },
+    "bulkMove": {
+      "title": "Mută moduri în masă",
+      "noSelected": "Niciun mod instalat selectat.",
+      "prompt": "Mută {count} mod(uri) selectat(e) în:",
+      "moveButton": "Mută",
+      "movingProgress": "Se mută modurile selectate... ({current}/{total})",
+      "cancelling": "Se anulează mutarea în masă după finalizarea modului curent...",
+      "moveFailed": "mutarea a eșuat",
+      "requestFailed": "cererea a eșuat",
+      "skippedSuffix": ", {count} omise",
+      "cancelledTitle": "Mutare în masă anulată",
+      "cancelledMessage": "S-au mutat {moved} mod(uri){skipped} înainte de anulare.{failures}",
+      "failuresCountSuffix": "<br><br>Erori: {count}",
+      "completeTitle": "Mutare în masă finalizată",
+      "completeMessage": "S-au mutat {moved} mod(uri){skipped}.",
+      "finishedWithErrorsTitle": "Mutare în masă finalizată cu erori",
+      "finishedWithErrorsMessage": "S-au mutat {moved} mod(uri){skipped}.<br><br>Erori:<br>{preview}{more}",
+      "moreFailures": "<br>...și încă {count}."
+    },
+    "modpackDetail": {
+      "loader": "Încărcător: {loader}",
+      "version": "Versiune: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "Autor: {author}",
+      "modsCount": "Moduri: {count}",
+      "resourcePacksCount": "Pachete de resurse: {count}",
+      "shaderPacksCount": "Pachete shader: {count}",
+      "datapacksCount": "Pachete de date: {count}",
+      "notAvailable": "N/A"
+    },
+    "modpackActions": {
+      "deleteFailed": "Ștergerea pachetului de mod a eșuat.",
+      "cannotEnableTitle": "Nu se poate activa",
+      "cannotEnableMessage": "Acest mod este gestionat de pachetul de mod <b>{name}</b>. Dezactivează sau șterge mai întâi acel pachet de mod."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "CurseForge necesită o cheie API. Adaugă o cheie pentru a folosi furnizorul CurseForge sau comută la Modrinth.",
+      "providerError": "Eroare a furnizorului: {error}"
+    },
     "detail": {
       "loadingDetails": "Se încarcă detaliile {addon}...",
       "screenshots": "Capturi de ecran",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "Export Modpack",
-      "selectFormat": "Alege formatul modpackului de exportat:",
-      "selectLoader": "Alege loaderul de mod pentru acest modpack:",
+      "tabs": {
+        "metadata": "Metadate",
+        "mods": "Moduri",
+        "resourcepacks": "Pachete de resurse",
+        "shaderpacks": "Pachete shader",
+        "datapacks": "Pachete de date",
+        "export": "Exportă"
+      },
+      "selectFormat": "Alege formatul modpackului de exportat",
+      "selectLoader": "Alege loaderul de mod pentru acest modpack",
+      "minecraftVersion": "Versiunea Minecraft",
+      "minecraftVersionHint": "Versiunea Minecraft folosită pentru pachetul de mod.",
+      "loaderVersion": "Versiunea încărcătorului",
+      "loaderVersionHint": "Versiunea încărcătorului folosită pentru pachetul de mod.",
+      "vanillaModsHint": "Pachetele de mod vanilla nu includ moduri. Selectează pachete de resurse, pachete shader și/sau pachete de date din celelalte file.",
       "noLoaderMods": "Nu există moduri {loader} instalate. Instalează mai întâi câteva moduri.",
       "selectMods": "Alege modurile de inclus ({count} moduri {loader} disponibile):",
       "disabledHint": "Opțional: marchează modurile ca dezactivate în modpack, astfel încât să fie incluse, dar să nu fie active implicit.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "Nu s-a putut actualiza folderul sursă",
       "failedSaveSourceFolder": "Nu s-a salvat setarea folderului sursă.",
       "selectAtLeastOneMod": "Selectează cel puțin un mod.",
+      "selectAtLeastOneItem": "Selectează cel puțin un mod, un pachet de resurse, un pachet shader sau un pachet de date.",
+      "selectMinecraftVersion": "Selectează o versiune Minecraft",
+      "selectLoaderVersion": "Selectează o versiune a încărcătorului",
+      "validationErrorBanner": "Te rugăm să remediezi problemele evidențiate mai jos și să încerci din nou.",
+      "externalVersionRequired": "Introdu o versiune Minecraft pentru exporturile către Modrinth/CurseForge (sau selectează conținut cu metadate de versiune).",
+      "externalLoaderVersionRequired": "Introdu o versiune a încărcătorului pentru exporturile către Modrinth/CurseForge atunci când folosești un încărcător de moduri.",
       "selectOptionalAddons": "Alege opțional {plural} de inclus în pachet ({count} disponibile):",
       "noOptionalAddons": "Nu există {plural} instalate. Poți continua fără să incluzi niciunul.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "O descriere a modpackului..."
       },
       "summary": "{format} {extension} | {mods} moduri | {resourcepacks} pachete de resurse | {shaderpacks} pachete shader | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "Încărcător {version}",
       "validation": {
         "nameLength": "Numele trebuie să aibă 1-64 de caractere.",
         "nameForbidden": "Numele conține caractere interzise.",
@@ -1014,13 +1125,25 @@
       "description": "Ușor și rapid",
       "subtitle": "Folosit în special pentru optimizarea jocului"
     },
+    "legacyfabric": {
+      "description": "Fabric pentru versiunile mai vechi",
+      "subtitle": "Un port Fabric care acceptă Minecraft 1.3 - 1.13.2"
+    },
     "babric": {
       "description": "Fork Fabric pentru Minecraft Beta",
       "subtitle": "Un fork Fabric pentru suport Beta 1.7.3"
     },
+    "ornithe": {
+      "description": "Fabric pentru Minecraft mai vechi",
+      "subtitle": "Set de instrumente bazat pe Fabric, de la Alpha la 1.14.x"
+    },
     "forge": {
       "description": "Complet și popular",
       "subtitle": "Folosit în special pentru moduri complexe"
+    },
+    "liteloader": {
+      "description": "Moduri client ușoare",
+      "subtitle": "Moduri de tip tweak pentru Minecraft 1.5.2 - 1.12.2"
     },
     "modloader": {
       "description": "Runtime vechi pentru jar-mod",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "Flexibil și modern",
       "subtitle": "Folosit în principal pentru modding modern și ușor"
+    },
+    "vanilla": {
+      "description": "Fără încărcător de moduri",
+      "subtitle": "Doar pachete de resurse, pachete shader și pachete de date"
     },
     "fallback": {
       "description": "Încărcător personalizat",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "Afine (ușoară)",
         "leafDark": "Frunză (întunecată)",
         "leafLight": "Frunză (luminoasă)",
+        "orangeDark": "Portocaliu (Întunecată)",
+        "orangeLight": "Portocaliu (Luminoasă)",
+        "midnightDark": "Miez de noapte (Întunecată)",
+        "midnightLight": "Miez de noapte (Luminoasă)",
+        "graphiteDark": "Grafit (Întunecată)",
+        "graphiteLight": "Grafit (Luminoasă)",
+        "oceanDark": "Ocean (Întunecată)",
+        "oceanLight": "Ocean (Luminoasă)",
+        "amethystDark": "Ametist (Întunecată)",
+        "amethystLight": "Ametist (Luminoasă)",
         "aeroDark": "Sticlă aero (întunecată)",
-        "aeroLight": "Sticlă aero (luminoasă)"
+        "aeroLight": "Sticlă aero (luminoasă)",
+        "custom": "Personalizat"
+      },
+      "themeBase": "Temă de bază:",
+      "themeEditor": {
+        "dockTitle": "Editor de teme",
+        "openDock": "Deschide editorul de teme",
+        "hint": "Alege o temă de bază, apoi ajustează culorile individuale de mai jos. Suprascrierile sunt salvate împreună cu profilul tău.",
+        "resetAll": "Resetează toate suprascrierile",
+        "export": "Copiază JSON-ul temei",
+        "import": "Importă JSON de temă",
+        "resetToken": "Resetează",
+        "resetTokenTooltip": "Elimină această suprascriere de culoare și folosește valoarea temei de bază",
+        "groups": {
+          "app": "Fundalul aplicației",
+          "text": "Text",
+          "links": "Linkuri și focalizare",
+          "surfaces": "Suprafețe",
+          "borders": "Margini",
+          "overlays": "Suprapuneri și indicii",
+          "buttons": "Butoane",
+          "semantic": "Succes, pericol, avertisment și informații",
+          "messages": "Casete de mesaj",
+          "states": "Selecție și evidențieri",
+          "scrollbars": "Bare de derulare",
+          "badges": "Insigne",
+          "loaders": "Accente pentru încărcătoarele de moduri"
+        }
       },
       "uiSizes": {
         "small": "Mic",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "RAM maximă alocată jocului\n  - Trebuie să fie un număr pozitiv\n  - Trebuie să fie mai mare decât RAM minimă\n  - Trebuie să aibă cel puțin 1 octet\n\nExemplu de format: 256, 256M, 2G etc.\n\n(sfat de performanță: alocă mai multă RAM pentru performanță mai bună și încearcă să o apropii de RAM-ul minim pentru mai puține căderi de cadre)",
       "resolution": "Rezoluție:",
       "resolutionTooltip": "Dimensiunea implicită a ferestrei jocului folosită pentru versiunile care acceptă argumente de lansare pentru lățime și înălțime.",
-      "fullscreen": "Ecran complet:",
-      "fullscreenTooltip": "Lansați versiunile acceptate în mod implicit pe ecran complet.",
       "demoMode": "Mod demo:",
       "demoModeTooltip": "Lansează versiunile compatibile cu modul demo Minecraft activat.",
       "storageDir": "Director de stocare:",

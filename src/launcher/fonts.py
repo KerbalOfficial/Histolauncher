@@ -7,7 +7,7 @@ import sys
 import tkinter
 from tkinter import font as tkfont
 
-from core.logger import colorize_log
+from core.logger import safe_print
 
 from launcher._constants import SPLASH_FONT_FAMILY, SPLASH_FONT_PATH
 
@@ -53,7 +53,7 @@ def preinstall_linux_font(
     if _LINUX_FONT_INSTALLED:
         return True
     if not os.path.isfile(font_path):
-        print(colorize_log(f"[launcher] Linux font pre-install: source not found: {font_path}"))
+        safe_print(f"[launcher] Linux font pre-install: source not found: {font_path}")
         return False
 
     fonts_dir = os.path.join(
@@ -68,7 +68,7 @@ def preinstall_linux_font(
         if detected:
             _STATE["native_family"] = detected
             _LINUX_FONT_INSTALLED = True
-            print(colorize_log(f"[launcher] UI font already installed (family: '{detected}')"))
+            safe_print(f"[launcher] UI font already installed (family: '{detected}')")
             return True
 
     try:
@@ -98,18 +98,18 @@ def preinstall_linux_font(
         detected = _fc_query_family(dest)
         if detected:
             _STATE["native_family"] = detected
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Installed UI font '{detected}' to {dest}"
-            ))
+            )
         else:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] Installed UI font to {dest} "
                 f"(fc-query unavailable; family name undetected)"
-            ))
+            )
         _LINUX_FONT_INSTALLED = True
         return True
     except Exception as e:
-        print(colorize_log(f"[launcher] Could not install Linux UI font: {e}"))
+        safe_print(f"[launcher] Could not install Linux UI font: {e}")
         return False
 
 
@@ -138,7 +138,7 @@ def register_private_ui_fonts():
         if gdi32.AddFontResourceExW(SPLASH_FONT_PATH, FR_PRIVATE, 0):
             _REGISTERED_PRIVATE_UI_FONTS.add(normalized_path)
     except Exception as e:
-        print(colorize_log(f"[launcher] Could not register native UI font: {e}"))
+        safe_print(f"[launcher] Could not register native UI font: {e}")
 
 
 def get_native_ui_font_family(root, fallbacks=("Segoe UI", "TkDefaultFont")):

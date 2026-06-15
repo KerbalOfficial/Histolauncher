@@ -12,20 +12,13 @@ from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Iterator, List, Optional, Tuple
 
 from core.constants import DOWNLOAD_PARALLEL_WORKERS
-from core.downloader.errors import DownloadFailed, HashMismatch
-from core.logger import colorize_log
+from core.downloader.errors import DownloadCancelled, DownloadFailed, HashMismatch
+from core.logger import safe_print
 
-#: Streaming read size. Tuned for asset-heavy installs (~64 KiB == one OS page batch).
 DEFAULT_CHUNK_SIZE: int = 64 * 1024
-
-#: Default user agent. Mirrors legacy "Histolauncher/1.0" so downstream metrics
-#: don't change.
 DEFAULT_USER_AGENT: str = "Histolauncher/1.0"
 
-#: Progress callback shape: ``(bytes_done, bytes_total_or_None)``.
 ProgressCallback = Callable[[int, Optional[int]], None]
-
-#: Cancel-check callable. Called between chunks; should raise to abort.
 CancelCheck = Callable[[], None]
 
 
@@ -54,7 +47,7 @@ def iter_url_candidates(url: str) -> List[str]:
 
 
 # ---------------------------------------------------------------------------
-# Hashing
+# hashing
 # ---------------------------------------------------------------------------
 
 
@@ -91,7 +84,7 @@ def verify_existing(
 
 
 # ---------------------------------------------------------------------------
-# File locking helpers (per-destination, bounded LRU eviction)
+# file locking helpers (per-destination, bounded LRU eviction)
 # ---------------------------------------------------------------------------
 
 
@@ -115,7 +108,6 @@ class _FileLockTable:
     def _evict_locked(self) -> None:
         if len(self._locks) <= self._max:
             return
-        # Drop oldest unheld locks until we're back at threshold.
         for path, _ in sorted(self._touched.items(), key=lambda kv: kv[1]):
             if len(self._locks) <= self._max:
                 return
@@ -184,7 +176,7 @@ class HttpClient:
         self.chunk_size = chunk_size
         self.retries = max(1, int(retries))
         self.backoff_base = backoff_base
-        self._opener = opener  # if None, use module-level urllib
+        self._opener = opener
 
     # ---- public API ---------------------------------------------------------
 
@@ -212,7 +204,6 @@ class HttpClient:
 
         file_lock = _FILE_LOCKS.get(dest_path)
         with file_lock:
-            # Fast path: destination already valid.
             if not force and verify_existing(
                 dest_path,
                 expected_sha1=expected_sha1,
@@ -223,9 +214,6 @@ class HttpClient:
                     progress_cb(int(expected_size), int(expected_size))
                 return
 
-            # If file exists but we have no way to verify it, preserve
-            # legacy behaviour and assume valid (skip download). This avoids
-            # re-fetching libraries cached without sha metadata.
             if (
                 not force
                 and
@@ -242,12 +230,17 @@ class HttpClient:
             tmp_path = dest_path + ".part"
             if force:
                 _safe_remove(tmp_path)
+            verifiable = bool(expected_sha1 or expected_sha256 or expected_size is not None)
+            allow_resume = resume and not force and verifiable
+            if not allow_resume:
+                _safe_remove(tmp_path)
             insecure_allowed = _settings_flag("allow_insecure_fallback")
             last_error: Optional[BaseException] = None
 
             for c_index, candidate in enumerate(candidates):
                 if c_index > 0:
-                    print(colorize_log(f"[http] Falling back to {candidate}"))
+                    safe_print(f"[http] Falling back to {candidate}")
+                hash_retry_used = False
                 for attempt in range(1, self.retries + 1):
                     if cancel_check:
                         cancel_check()
@@ -257,7 +250,7 @@ class HttpClient:
                             tmp_path,
                             progress_cb=progress_cb,
                             cancel_check=cancel_check,
-                            resume=resume and not force,
+                            resume=allow_resume,
                             ssl_context=None,
                         )
                         self._finalize(
@@ -268,13 +261,15 @@ class HttpClient:
                             expected_size=expected_size,
                         )
                         return
+                    except DownloadCancelled:
+                        raise
                     except ssl.SSLError as exc:
                         last_error = exc
                         if insecure_allowed:
-                            print(colorize_log(
+                            safe_print(
                                 "[http] !! INSECURE: retrying with TLS verification "
                                 f"disabled for {candidate}"
-                            ))
+                            )
                             ctx = ssl.create_default_context()
                             ctx.check_hostname = False
                             ctx.verify_mode = ssl.CERT_NONE
@@ -284,7 +279,7 @@ class HttpClient:
                                     tmp_path,
                                     progress_cb=progress_cb,
                                     cancel_check=cancel_check,
-                                    resume=resume and not force,
+                                    resume=allow_resume,
                                     ssl_context=ctx,
                                 )
                                 self._finalize(
@@ -295,6 +290,8 @@ class HttpClient:
                                     expected_size=expected_size,
                                 )
                                 return
+                            except DownloadCancelled:
+                                raise
                             except HashMismatch:
                                 _safe_remove(tmp_path)
                                 raise
@@ -302,16 +299,36 @@ class HttpClient:
                                 last_error = inner
                                 _safe_remove(tmp_path)
                         self._backoff(attempt)
-                    except HashMismatch:
-                        # Hash mismatch is terminal for this URL; clean up.
-                        _safe_remove(tmp_path)
-                        raise
-                    except Exception as exc:  # noqa: BLE001
+                    except HashMismatch as exc:
                         last_error = exc
-                        print(colorize_log(
+                        _safe_remove(tmp_path)
+                        if hash_retry_used:
+                            raise
+                        hash_retry_used = True
+                        safe_print(
+                            f"[http] hash mismatch for {dest_path}; retrying from scratch"
+                        )
+                    except urllib.error.HTTPError as exc:
+                        last_error = exc
+                        _safe_remove(tmp_path)
+                        if exc.code in (400, 401, 403, 404, 405, 410):
+                            safe_print(
+                                f"[http] {exc.code} for {candidate}; not retrying"
+                            )
+                            break
+                        safe_print(
                             f"[http] attempt {attempt}/{self.retries} failed for "
                             f"{candidate}: {exc}"
-                        ))
+                        )
+                        if cancel_check:
+                            cancel_check()
+                        self._backoff(attempt)
+                    except Exception as exc:  # noqa: BLE001
+                        last_error = exc
+                        safe_print(
+                            f"[http] attempt {attempt}/{self.retries} failed for "
+                            f"{candidate}: {exc}"
+                        )
                         _safe_remove(tmp_path)
                         if cancel_check:
                             cancel_check()
@@ -345,8 +362,6 @@ class HttpClient:
                     try:
                         cancel_check()
                     except BaseException as exc:
-                        # Cancel propagates immediately; outstanding tasks
-                        # will check cancel themselves.
                         errors.append(exc)
                         break
                 futures.append(executor.submit(
@@ -368,7 +383,6 @@ class HttpClient:
                     errors.append(exc)
 
         if errors:
-            # Re-raise the first error; preserve cancellations preferentially.
             from core.downloader.errors import DownloadCancelled
             for err in errors:
                 if isinstance(err, DownloadCancelled):
@@ -405,7 +419,7 @@ class HttpClient:
 
         for c_index, candidate in enumerate(candidates):
             if c_index > 0:
-                print(colorize_log(f"[http] fetch_bytes falling back to {candidate}"))
+                safe_print(f"[http] fetch_bytes falling back to {candidate}")
             for attempt in range(1, self.retries + 1):
                 if cancel_check:
                     cancel_check()
@@ -416,6 +430,7 @@ class HttpClient:
                     ctx.verify_mode = ssl.CERT_NONE
                     ctx_options.append(ctx)
                 tried_insecure = False
+                permanent_failure = False
                 for ctx_opt in ctx_options:
                     try:
                         req = urllib.request.Request(candidate, headers=merged_headers)
@@ -431,21 +446,19 @@ class HttpClient:
                     except urllib.error.HTTPError as exc:
                         last_error = exc
                         last_status = exc.code
-                        # Non-retryable client errors: stop attempting this URL.
-                        if exc.code in (400, 401, 403, 404, 410):
+                        if exc.code in (400, 401, 403, 404, 405, 410):
+                            permanent_failure = True
                             break
                     except ssl.SSLError as exc:
                         last_error = exc
                         if not insecure_allowed or tried_insecure:
                             break
-                        # Allow the insecure-context retry pass.
                         continue
                     except Exception as exc:  # noqa: BLE001
                         last_error = exc
-                    break  # break ctx loop after first non-SSL exception
-                else:
-                    continue
-                # Attempt failed; back off and retry.
+                    break
+                if permanent_failure:
+                    break
                 if attempt < self.retries:
                     self._backoff(attempt)
 
@@ -511,7 +524,6 @@ class HttpClient:
         try:
             response = self._open(request, ssl_context=ssl_context)
         except urllib.error.HTTPError as exc:
-            # Server doesn't support resume — start from scratch.
             if existing_bytes and exc.code in (416,):
                 _safe_remove(tmp_path)
                 existing_bytes = 0
@@ -522,8 +534,6 @@ class HttpClient:
                 raise
 
         with response:
-            # If we asked for a Range and the server returned 200, it doesn't
-            # support resume — restart.
             status = getattr(response, "status", None) or response.getcode()
             mode = "ab" if (existing_bytes and status == 206) else "wb"
             if mode == "wb":
@@ -551,7 +561,6 @@ class HttpClient:
 
     @staticmethod
     def _read_content_length(response: Any) -> Optional[int]:
-        # Prefer Content-Length; falls back to ``response.length`` if present.
         length_header = response.headers.get("Content-Length")
         if length_header:
             try:
@@ -595,21 +604,27 @@ class HttpClient:
                 raise HashMismatch(dest_path, expected_sha256, actual, "sha256")
 
         if os.path.exists(dest_path):
-            # Another worker won the race; drop our copy.
             _safe_remove(tmp_path)
             return
 
-        # os.replace is atomic on Windows and POSIX.
         try:
             os.replace(tmp_path, dest_path)
         except OSError:
-            # Cross-device or other rename failure: fall back to copy.
-            shutil.copyfile(tmp_path, dest_path)
+            swap_path = dest_path + ".swap"
+            try:
+                shutil.copyfile(tmp_path, swap_path)
+                os.replace(swap_path, dest_path)
+            except OSError as exc:
+                _safe_remove(swap_path)
+                raise DownloadFailed(
+                    f"could not move downloaded file into place: {dest_path}",
+                    cause=exc,
+                ) from exc
             _safe_remove(tmp_path)
 
 
 # ---------------------------------------------------------------------------
-# Parallel-download task
+# parallel-download task
 # ---------------------------------------------------------------------------
 
 
@@ -625,7 +640,6 @@ class DownloadTask:
     force: bool = False
 
 
-#: Process-wide singleton client.
 CLIENT = HttpClient()
 
 

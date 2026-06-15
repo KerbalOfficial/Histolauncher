@@ -9,7 +9,7 @@ import urllib.request
 import uuid
 from urllib.parse import urlparse
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import _apply_url_proxy, load_global_settings
 
 from server.yggdrasil.identity import (
@@ -49,6 +49,8 @@ __all__ = [
 
 
 OFFICIAL_SESSION_JOIN_URL = "https://sessionserver.mojang.com/session/minecraft/join"
+OFFICIAL_SESSION_HAS_JOINED_URL = "https://sessionserver.mojang.com/session/minecraft/hasJoined"
+_MAX_SESSION_RESPONSE_BYTES = 1 * 1024 * 1024
 
 
 def _settings_profile_name_for_uuid(uuid_hex: str) -> str:
@@ -99,6 +101,102 @@ def _official_join_urls() -> list[str]:
     return urls
 
 
+def _official_has_joined_urls(raw_query: str) -> list[str]:
+    query = str(raw_query or "").lstrip("?")
+    official_url = OFFICIAL_SESSION_HAS_JOINED_URL
+    if query:
+        official_url += f"?{query}"
+
+    urls: list[str] = []
+    try:
+        proxied = _apply_url_proxy(official_url)
+    except Exception:
+        proxied = official_url
+    if proxied:
+        urls.append(proxied)
+    if official_url not in urls:
+        urls.append(official_url)
+    return urls
+
+
+def _forward_microsoft_has_joined(path: str) -> tuple[int, dict | None] | None:
+    if not _microsoft_account_enabled():
+        return None
+
+    parsed = urlparse(path)
+    raw_query = parsed.query or ""
+    query = urllib.parse.parse_qs(raw_query)
+    server_id = str((query.get("serverId") or [""])[0]).strip()
+    username_q = str((query.get("username") or [""])[0]).strip()
+    if not server_id or not username_q:
+        return None
+
+    for url in _official_has_joined_urls(raw_query):
+        req = urllib.request.Request(
+            url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "Histolauncher",
+            },
+            method="GET",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                status = int(getattr(resp, "status", 0) or resp.getcode() or 0)
+                if status == 204:
+                    return None
+                if status != 200:
+                    safe_print(
+                        f"[yggdrasil] Mojang hasJoined returned HTTP {status}; "
+                        "falling back to local join cache"
+                    )
+                    continue
+
+                payload = resp.read(_MAX_SESSION_RESPONSE_BYTES + 1)
+                if len(payload) > _MAX_SESSION_RESPONSE_BYTES:
+                    safe_print(
+                        "[yggdrasil] Mojang hasJoined response exceeded size limit; "
+                        "falling back to local join cache"
+                    )
+                    continue
+                try:
+                    data = json.loads(
+                        payload.decode("utf-8", errors="replace") or "{}"
+                    )
+                except Exception:
+                    data = {}
+                if not isinstance(data, dict):
+                    continue
+
+                out_uuid = _normalize_uuid_hex(data.get("id"))
+                out_name = str(data.get("name") or username_q).strip()
+                if not out_uuid or not out_name:
+                    continue
+
+                data["id"] = out_uuid
+                data["name"] = out_name
+                STATE.uuid_name_cache[out_uuid] = out_name
+                safe_print(
+                    f"[yggdrasil] Microsoft hasJoined forwarded to Mojang: "
+                    f"username={out_name}, uuid={out_uuid}"
+                )
+                return 200, data
+        except urllib.error.HTTPError as exc:
+            if exc.code == 204:
+                return None
+            safe_print(
+                f"[yggdrasil] Mojang hasJoined returned HTTP {exc.code}; "
+                "falling back to local join cache"
+            )
+        except Exception as exc:
+            safe_print(
+                f"[yggdrasil] Mojang hasJoined forward failed: {exc}; "
+                "falling back to local join cache"
+            )
+
+    return None
+
+
 def _forward_microsoft_session_join(data: dict) -> bool:
     if not _microsoft_account_enabled():
         return False
@@ -113,16 +211,16 @@ def _forward_microsoft_session_join(data: dict) -> bool:
 
         success, account, error = get_microsoft_launch_account()
     except Exception as exc:
-        print(colorize_log(
+        safe_print(
             f"[yggdrasil] Could not load Microsoft join token: {exc}"
-        ))
+        )
         return False
 
     if not success or not account:
         detail = str(error or "Microsoft account is not authenticated.").strip()
-        print(colorize_log(
+        safe_print(
             f"[yggdrasil] Could not load Microsoft join token: {detail}"
-        ))
+        )
         return False
 
     access_token = str(account.get("access_token") or "").strip()
@@ -131,9 +229,9 @@ def _forward_microsoft_session_join(data: dict) -> bool:
         return False
 
     if requested_profile and requested_profile != selected_profile:
-        print(colorize_log(
+        safe_print(
             "[yggdrasil] Microsoft join requested a stale profile id; using the active Microsoft account profile"
-        ))
+        )
 
     body = json.dumps({
         "accessToken": access_token,
@@ -154,16 +252,16 @@ def _forward_microsoft_session_join(data: dict) -> bool:
         try:
             with urllib.request.urlopen(req, timeout=8) as resp:
                 if getattr(resp, "status", 0) == 204:
-                    print(colorize_log("[yggdrasil] Microsoft session join forwarded to Mojang"))
+                    safe_print("[yggdrasil] Microsoft session join forwarded to Mojang")
                     return True
         except urllib.error.HTTPError as exc:
-            print(colorize_log(
+            safe_print(
                 f"[yggdrasil] Mojang session join returned HTTP {exc.code}; local join remains cached"
-            ))
+            )
         except Exception as exc:
-            print(colorize_log(
+            safe_print(
                 f"[yggdrasil] Mojang session join forward failed: {exc}; local join remains cached"
-            ))
+            )
     return False
 
 
@@ -244,10 +342,10 @@ def handle_session_get(path: str, port: int, require_signature: bool = True):
         "signatureRequired": signature_required,
         "profileActions": [],
     }
-    print(colorize_log(
+    safe_print(
         f"[yggdrasil] session profile served: uuid={req_uuid}, "
         f"signature_required={signature_required}"
-    ))
+    )
     return 200, resp
 
 
@@ -328,9 +426,9 @@ def handle_services_profile_get(port: int):
         "capes": capes,
         "signatureRequired": signature_required,
     }
-    print(colorize_log(
+    safe_print(
         f"[yggdrasil] services profile served: uuid={u_hex}, variant={variant}"
-    ))
+    )
     return 200, resp
 
 
@@ -346,19 +444,16 @@ def handle_player_certificates():
 
         success, payload, error = get_microsoft_player_certificates()
     except Exception as exc:
-        # Log the full exception locally but do not echo internal details to
-        # the Minecraft client – the exception text can leak file paths,
-        # tokens, or library internals to log scrapers and crash reporters.
-        print(colorize_log(
+        safe_print(
             f"[yggdrasil] Microsoft player certificate fetch failed: {exc}"
-        ))
+        )
         return 503, {
             "error": "ServiceUnavailableException",
             "errorMessage": "Could not fetch Minecraft player certificates.",
         }
 
     if success and payload:
-        print(colorize_log("[yggdrasil] Microsoft player certificate served"))
+        safe_print("[yggdrasil] Microsoft player certificate served")
         return 200, payload
 
     return 503, {
@@ -413,9 +508,9 @@ def handle_session_join_post(path: str, body: str):
         "at": now,
     }
     STATE.uuid_name_cache[current_uuid_hex] = (username or "Player").strip() or "Player"
-    print(colorize_log(
+    safe_print(
         f"[yggdrasil] session join accepted: serverId={server_id}, uuid={current_uuid_hex}"
-    ))
+    )
     return 204, None
 
 
@@ -430,6 +525,10 @@ def handle_has_joined_get(path: str, port: int, require_signature: bool = True):
             "error": "IllegalArgumentException",
             "errorMessage": "Missing username/serverId",
         }
+
+    official_result = _forward_microsoft_has_joined(path)
+    if official_result is not None:
+        return official_result
 
     joined = STATE.session_join_cache.get(server_id) or {}
     joined_uuid = _normalize_uuid_hex(joined.get("uuid"))
@@ -475,8 +574,8 @@ def handle_has_joined_get(path: str, port: int, require_signature: bool = True):
         "signatureRequired": signature_required,
         "profileActions": [],
     }
-    print(colorize_log(
+    safe_print(
         f"[yggdrasil] hasJoined served: serverId={server_id}, "
         f"username={out_name}, uuid={out_uuid}"
-    ))
+    )
     return 200, resp

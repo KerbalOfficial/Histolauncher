@@ -6,7 +6,7 @@ import sys
 import time
 from datetime import datetime
 
-from core.logger import colorize_log
+from core.logger import safe_print
 
 
 __all__ = ["TeeOutput", "setup_launcher_logging"]
@@ -40,8 +40,12 @@ class TeeOutput:
         try:
             self.original_stream.write(message)
         except UnicodeEncodeError:
-            safe_message = message.encode("utf-8", errors="replace").decode("utf-8")
-            self.original_stream.write(safe_message)
+            enc = getattr(self.original_stream, "encoding", None) or "ascii"
+            safe_message = message.encode(enc, errors="replace").decode(enc, errors="replace")
+            try:
+                self.original_stream.write(safe_message)
+            except UnicodeEncodeError:
+                pass
         try:
             self.original_stream.flush()
         except Exception:
@@ -91,8 +95,8 @@ def setup_launcher_logging():
         sys.stdout = TeeOutput(log_handle, original_stdout)
         sys.stderr = TeeOutput(log_handle, original_stderr)
 
-        print(colorize_log(f"[launcher] Logging to: {log_file}"))
+        safe_print(f"[launcher] Logging to: {log_file}")
         return log_handle
     except Exception as e:
-        print(colorize_log(f"[launcher] ERROR: Could not set up logging: {e}"))
+        safe_print(f"[launcher] ERROR: Could not set up logging: {e}")
         return None

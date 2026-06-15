@@ -9,6 +9,7 @@ from core.settings import _apply_url_proxy
 
 from core.mod_manager._constants import (
     ADDON_IMPORT_EXTENSIONS,
+    CURSEFORGE_ADDON_SEARCH_LOADERS,
     SUPPORTED_ADDON_TYPES,
     SUPPORTED_MOD_LOADERS,
     SUPPORTED_SHADER_TYPES,
@@ -86,6 +87,10 @@ def normalize_addon_type(addon_type: str) -> str:
         "shaderpacks": "shaderpacks",
         "shader-pack": "shaderpacks",
         "shader-packs": "shaderpacks",
+        "datapack": "datapacks",
+        "datapacks": "datapacks",
+        "data-pack": "datapacks",
+        "data-packs": "datapacks",
     }
     normalized = aliases.get(raw, raw)
     return normalized if normalized in SUPPORTED_ADDON_TYPES else "mods"
@@ -99,8 +104,11 @@ def _normalize_addon_compatibility_token(value: Any) -> str:
     compact = re.sub(r"[^a-z0-9]+", "", str(value or "").strip().lower())
     aliases = {
         "fabric": "fabric",
+        "legacyfabric": "legacyfabric",
         "babric": "babric",
+        "ornithe": "ornithe",
         "forge": "forge",
+        "liteloader": "liteloader",
         "modloader": "modloader",
         "neoforge": "neoforge",
         "quilt": "quilt",
@@ -120,10 +128,14 @@ def normalize_addon_compatibility_types(
     addon_type: str,
     values: Any,
     fallback: Any = None,
+    provider: str | None = None,
 ) -> List[str]:
     normalized_type = normalize_addon_type(addon_type)
     if normalized_type in ("mods", "modpacks"):
-        allowed = set(SUPPORTED_MOD_LOADERS)
+        if str(provider or "").strip().lower() == "curseforge":
+            allowed = set(CURSEFORGE_ADDON_SEARCH_LOADERS)
+        else:
+            allowed = set(SUPPORTED_MOD_LOADERS)
     elif normalized_type == "shaderpacks":
         allowed = set(SUPPORTED_SHADER_TYPES)
     else:

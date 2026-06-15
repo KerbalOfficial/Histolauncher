@@ -12,14 +12,13 @@ from core.downloader.errors import DownloadCancelled, DownloadFailed
 from core.downloader.http import CLIENT
 from core.downloader.jobs import Job
 from core.downloader.progress import LOADER_STAGES, ProgressTracker
-from core.logger import colorize_log
-from core.zip_utils import safe_extract_zip
+from core.logger import safe_print
+from core.zip_utils import ArchiveExtractionError, extract_rar, safe_extract_zip
 
 
 def _resolve_download_url(url: str) -> str:
     if "mediafire.com" not in urllib.parse.urlparse(url).netloc.lower():
         return url
-    # Lazy import — keep new package independent of legacy except where needed.
     from core.downloader._legacy.installer_subprocess import _resolve_mediafire_download_url
     return _resolve_mediafire_download_url(url)
 
@@ -81,7 +80,7 @@ def install_modloader(
     download_url = str(entry.get("download_url") or "").strip()
     archive_type = str(entry.get("archive_type") or "zip").strip().lower()
     expected_sha256 = str(entry.get("sha256") or "").strip().lower() or None
-    if archive_type != "zip":
+    if archive_type not in ("zip", "rar"):
         raise DownloadFailed(
             f"Unsupported ModLoader archive format: {archive_type}", url=None,
         )
@@ -135,7 +134,13 @@ def install_modloader(
         tracker.update("extracting_loader", 30, "Extracting ModLoader archive...")
         extract_dir = os.path.join(temp_dir, "extracted")
         os.makedirs(extract_dir, exist_ok=True)
-        safe_extract_zip(archive_path, extract_dir)
+        if archive_type == "rar":
+            try:
+                extract_rar(archive_path, extract_dir)
+            except ArchiveExtractionError as exc:
+                raise DownloadFailed(str(exc), url=None)
+        else:
+            safe_extract_zip(archive_path, extract_dir)
 
         job.checkpoint()
         tracker.update("extracting_loader", 70, "Packaging ModLoader runtime jar...")
@@ -158,9 +163,6 @@ def install_modloader(
         ) as fp:
             json.dump(metadata, fp, indent=2)
 
-        # ModLoader's "main class" lives inside the patched MC client jar at
-        # runtime; the launch system already knows how to handle this loader,
-        # so we just record a sentinel.
         _write_data_ini(
             install_dir=install_dir,
             loader_version=loader_version,
@@ -172,9 +174,9 @@ def install_modloader(
         status="installed",
         message=f"ModLoader {loader_version} installed",
     )
-    print(colorize_log(
+    safe_print(
         f"[modloader] Installed ModLoader runtime jar: modloader-{loader_version}.jar"
-    ))
+    )
 
 
 def _write_data_ini(

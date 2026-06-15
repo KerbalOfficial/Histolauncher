@@ -68,9 +68,6 @@ class StageRunner:
             except DownloadCancelled:
                 raise
             except Exception:
-                # Stages are responsible for setting tracker error state if
-                # they want a custom message; the runner just re-raises so
-                # the JobRegistry can transition to FAILED.
                 raise
 
 

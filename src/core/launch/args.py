@@ -6,8 +6,8 @@ import zipfile
 import hashlib
 import uuid
 
-from core.launch.paths import _load_data_ini  # noqa: F401  (re-export potential)
-from core.logger import colorize_log
+from core.launch.paths import _load_data_ini  # noqa: F401
+from core.logger import safe_print
 from core.settings import get_base_dir
 
 __all__ = [
@@ -107,10 +107,10 @@ def _resolve_runtime_main_class(
         return main_class
 
     if main_class.startswith("net.minecraft.launchwrapper"):
-        print(colorize_log(
+        safe_print(
             f"[launcher] main_class '{main_class}' not found on classpath; "
             f"keeping configured class (missing LaunchWrapper dependency)"
-        ))
+        )
         return main_class
 
     legacy_hint = _is_legacy_pre16_runtime(version_identifier)
@@ -134,9 +134,9 @@ def _resolve_runtime_main_class(
 
     for candidate in candidates:
         if _jar_has_class(client_jar, candidate):
-            print(colorize_log(
+            safe_print(
                 f"[launcher] main_class '{main_class}' not found in client.jar; using '{candidate}'"
-            ))
+            )
             return candidate
 
     return main_class
@@ -202,10 +202,10 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir,
     }
 
     if not asset_index_name:
-        print(colorize_log(f"[launcher] DEBUG: asset_index not in metadata for {version_identifier}"))
-    print(colorize_log(
+        safe_print(f"[launcher] DEBUG: asset_index not in metadata for {version_identifier}")
+    safe_print(
         f"[launcher] DEBUG: Expanding placeholders - assets_root={assets_root}, asset_index={asset_index_name}"
-    ))
+    )
 
     args_before_expand = args_str.split()
     filtered_before_expand: list[str] = []
@@ -225,17 +225,16 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir,
             continue
         filtered_before_expand.append(arg)
 
-    args_str_filtered = " ".join(filtered_before_expand)
-
-    out = args_str_filtered
-    for k, v in replacements.items():
-        if k in out:
-            out = out.replace(k, v)
-    args = out.split()
+    args: list[str] = []
+    for token in filtered_before_expand:
+        for k, v in replacements.items():
+            if k in token:
+                token = token.replace(k, v)
+        args.append(token)
 
     unresolved = [arg for arg in args if "${" in arg and "}" in arg]
     if unresolved:
-        print(colorize_log(f"[launcher] DEBUG: Unresolved placeholders found: {unresolved}"))
+        safe_print(f"[launcher] DEBUG: Unresolved placeholders found: {unresolved}")
 
     filtered: list[str] = []
     skip_next = False
@@ -244,7 +243,7 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir,
             skip_next = False
             continue
         if "${" in arg and "}" in arg:
-            print(colorize_log(f"[launcher] DEBUG: Filtering out unresolved placeholder: {arg}"))
+            safe_print(f"[launcher] DEBUG: Filtering out unresolved placeholder: {arg}")
             continue
         if arg.startswith("--gameDir"):
             if "=" not in arg:
@@ -287,7 +286,7 @@ def _expand_placeholders(args_str, version_identifier, game_dir, version_dir,
                 final.append(arg)
             i += 1
 
-    return " ".join(final)
+    return final
 
 
 def _extract_tweak_class_from_arg_string(arg_str: str) -> str:

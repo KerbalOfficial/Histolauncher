@@ -48,6 +48,8 @@ from core.downloader._legacy.loaders.forge._recovery import (
 def _install_forge_loader(
     mc_version: str, loader_version: str, loaders_dir: str, version_key: str
 ) -> Dict[str, Any]:
+    from core.logger import safe_print
+
     STATE.cancel_flags.pop(version_key, None)
 
     ctx = ForgeContext(
@@ -79,7 +81,7 @@ def _install_forge_loader(
                 return {"ok": False, "error": err}
 
             if is_new_format_installer(ctx):
-                print(
+                safe_print(
                     "[forge] Detected new-format installer (1.13+), running "
                     "installer to apply binary patches..."
                 )
@@ -107,7 +109,7 @@ def _install_forge_loader(
             return write_forge_metadata_and_finalize(ctx)
 
     except Exception as e:
-        print(f"[forge] Error: {e}")
+        safe_print(f"[forge] Error: {e}")
         traceback.print_exc()
         return {"ok": False, "error": str(e)}
 

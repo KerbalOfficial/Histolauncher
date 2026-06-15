@@ -3,7 +3,7 @@ from __future__ import annotations
 import urllib.parse
 from typing import Any
 
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.modloaders._endpoints import BABRIC_META_API
 from core.modloaders._http import _http_get_json
 from core.modloaders._versions import (
@@ -34,13 +34,13 @@ def fetch_babric_game_versions() -> list[dict[str, Any]] | None:
     try:
         data = _http_get_json(f"{BABRIC_META_API}/versions/game")
     except RuntimeError as exc:
-        print(colorize_log(f"[modloaders] Failed to fetch Babric game versions: {exc}"))
+        safe_print(f"[modloaders] Failed to fetch Babric game versions: {exc}")
         return None
     if not isinstance(data, list):
-        print(colorize_log("[modloaders] Unexpected Babric game versions response format"))
+        safe_print("[modloaders] Unexpected Babric game versions response format")
         return None
     _game_cache.set("game", data)
-    print(colorize_log(f"[modloaders] Fetched {len(data)} Babric game versions"))
+    safe_print(f"[modloaders] Fetched {len(data)} Babric game versions")
     return data
 
 
@@ -65,17 +65,15 @@ def fetch_babric_loaders(mc_version: str) -> list[dict[str, Any]] | None:
         encoded_mc = urllib.parse.quote(str(mc_version or "").strip(), safe="")
         data = _http_get_json(f"{BABRIC_META_API}/versions/loader/{encoded_mc}")
     except RuntimeError as exc:
-        print(
-            colorize_log(f"[modloaders] Failed to fetch Babric loaders for {mc_version}: {exc}")
-        )
+        safe_print(
+            f"[modloaders] Failed to fetch Babric loaders for {mc_version}: {exc}")
         return None
     if not isinstance(data, list):
-        print(colorize_log("[modloaders] Unexpected Babric response format"))
+        safe_print("[modloaders] Unexpected Babric response format")
         return None
     _loaders_cache.set(cache_key, data)
-    print(
-        colorize_log(f"[modloaders] Fetched {len(data)} Babric loader versions for {mc_version}")
-    )
+    safe_print(
+        f"[modloaders] Fetched {len(data)} Babric loader versions for {mc_version}")
     return data
 
 
@@ -124,12 +122,11 @@ def fetch_babric_loader_profile_libraries(
             f"{BABRIC_META_API}/versions/loader/{mc_enc}/{loader_enc}/profile/json"
         )
     except RuntimeError as exc:
-        print(
-            colorize_log(
+        safe_print(
+            
                 "[modloaders] Failed to fetch Babric profile libraries for "
                 f"{mc_version}/{loader_version}: {exc}"
             )
-        )
         return None
 
     deps: list[tuple[str, str]] = []
@@ -156,33 +153,29 @@ def fetch_babric_loader_profile_libraries(
             deps.append((lib_name, lib_url))
 
     if deps:
-        print(
-            colorize_log(
+        safe_print(
+            
                 f"[modloaders] Extracted {len(deps)} official Babric libraries "
                 f"from profile {mc_version}/{loader_version}"
             )
-        )
         return deps
 
-    print(
-        colorize_log(f"[modloaders] Babric profile {mc_version}/{loader_version} had no libraries")
-    )
+    safe_print(
+        f"[modloaders] Babric profile {mc_version}/{loader_version} had no libraries")
     return None
 
 
 def get_babric_loader_libraries(
     loader_version: str, mc_version: str
 ) -> list[tuple[str, str]]:
-    print(
-        colorize_log(f"[modloaders] Fetching official Babric libraries for {loader_version}...")
-    )
+    safe_print(
+        f"[modloaders] Fetching official Babric libraries for {loader_version}...")
     profile_deps = fetch_babric_loader_profile_libraries(loader_version, mc_version)
     if profile_deps:
         return profile_deps
 
-    print(
-        colorize_log(f"[modloaders] Using fallback dependencies for Babric {loader_version}")
-    )
+    safe_print(
+        f"[modloaders] Using fallback dependencies for Babric {loader_version}")
     deps: list[tuple[str, str]] = [
         (f"net.fabricmc:fabric-loader:{loader_version}", "https://maven.fabricmc.net/"),
         (

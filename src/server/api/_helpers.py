@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 from typing import Any, Dict
@@ -199,11 +200,23 @@ def _sanitize_settings_payload(data: Dict[str, Any]) -> Dict[str, Any]:
         "blueberry-light",
         "leaf-dark",
         "leaf-light",
+        "orange-dark",
+        "orange-light",
+        "midnight-dark",
+        "midnight-light",
+        "graphite-dark",
+        "graphite-light",
+        "ocean-dark",
+        "ocean-light",
+        "amethyst-dark",
+        "amethyst-light",
         "aero-dark",
         "aero-light",
+        "custom",
     }
+    valid_base_themes = valid_themes - {"custom"}
+    theme_override_key_re = re.compile(r"^--color-[a-z0-9-]+$")
     boolean_keys = {
-        "game_fullscreen",
         "game_demo_mode",
         "auto_optimize_launch_settings",
         "compact_sidebar",
@@ -225,6 +238,30 @@ def _sanitize_settings_payload(data: Dict[str, Any]) -> Dict[str, Any]:
     if "launcher_theme" in sanitized:
         theme = str(sanitized.get("launcher_theme") or "dark").strip().lower()
         sanitized["launcher_theme"] = theme if theme in valid_themes else "dark"
+
+    if "launcher_theme_base" in sanitized:
+        base_theme = str(sanitized.get("launcher_theme_base") or "dark").strip().lower()
+        sanitized["launcher_theme_base"] = base_theme if base_theme in valid_base_themes else "dark"
+
+    if "launcher_theme_overrides" in sanitized:
+        raw_overrides = sanitized.get("launcher_theme_overrides")
+        if raw_overrides in (None, "", "{}", {}):
+            sanitized["launcher_theme_overrides"] = ""
+        else:
+            try:
+                parsed = json.loads(raw_overrides) if isinstance(raw_overrides, str) else raw_overrides
+            except (json.JSONDecodeError, TypeError):
+                parsed = {}
+            clean_overrides: dict[str, str] = {}
+            if isinstance(parsed, dict):
+                for key, value in parsed.items():
+                    token = str(key or "").strip()
+                    css_value = str(value or "").strip()
+                    if theme_override_key_re.fullmatch(token) and css_value and len(css_value) <= 96:
+                        clean_overrides[token] = css_value
+            sanitized["launcher_theme_overrides"] = (
+                json.dumps(clean_overrides, separators=(",", ":")) if clean_overrides else ""
+            )
 
     if "launcher_ui_size" in sanitized:
         ui_size = str(sanitized.get("launcher_ui_size") or "normal").strip().lower()

@@ -438,6 +438,8 @@ def _write_editor_root(
     if isinstance(selected_player_value, dict):
         _normalize_player_item_stacks(selected_player_value, use_modern_format=use_modern_item_format)
 
+    pending_writes: list[tuple[str, Dict[str, Any], str, str]] = []
+
     if isinstance(selected_player_entry, dict) and str(selected_player_entry.get("source") or "") == "file":
         player_path = str(selected_player_entry.get("path") or "")
         player_root, player_compression = _load_aux_root(player_path)
@@ -446,9 +448,10 @@ def _write_editor_root(
         player_root["value"] = _clone_nbt(selected_player_value or {})
         _normalize_player_item_stacks(player_root.get("value"), use_modern_format=use_modern_item_format)
         if player_path:
-            os.makedirs(os.path.dirname(player_path), exist_ok=True)
-            if not _write_level_dat(player_path, player_root, player_compression or "gzip"):
-                return False, "Failed to save selected player data."
+            pending_writes.append((
+                player_path, player_root, player_compression or "gzip",
+                "Failed to save selected player data.",
+            ))
 
         embedded_player = _compound_tag_value(_compound_child(original_data_value, "Player"))
         if isinstance(embedded_player, dict):
@@ -510,9 +513,10 @@ def _write_editor_root(
             TAG_INT,
             _int_value(_tag_value(data_value, "clearWeatherTime", 0), 0) or 0,
         )
-        os.makedirs(os.path.dirname(weather_path), exist_ok=True)
-        if not _write_level_dat(weather_path, weather_root, weather_compression or "gzip"):
-            return False, "Failed to save world weather data."
+        pending_writes.append((
+            weather_path, weather_root, weather_compression or "gzip",
+            "Failed to save world weather data.",
+        ))
         for key in ("raining", "thundering", "rainTime", "thunderTime", "clearWeatherTime"):
             _remove_compound_tag(data_value, key)
 
@@ -526,9 +530,10 @@ def _write_editor_root(
         selected_game_rules = _compound_tag_value(_compound_child(data_value, "GameRules"))
         if isinstance(selected_game_rules, dict):
             game_rules_value.update(_clone_nbt(selected_game_rules))
-        os.makedirs(os.path.dirname(game_rules_path), exist_ok=True)
-        if not _write_level_dat(game_rules_path, game_rules_root, game_rules_compression or "gzip"):
-            return False, "Failed to save world gamerules data."
+        pending_writes.append((
+            game_rules_path, game_rules_root, game_rules_compression or "gzip",
+            "Failed to save world gamerules data.",
+        ))
         _remove_compound_tag(data_value, "GameRules")
 
     world_clocks_path = str(storage_paths.get("world_clocks_path") or "")
@@ -544,13 +549,37 @@ def _write_editor_root(
             TAG_LONG,
             _int_value(_tag_value(data_value, "DayTime", _tag_value(data_value, "Time", 0)), 0) or 0,
         )
-        os.makedirs(os.path.dirname(world_clocks_path), exist_ok=True)
-        if not _write_level_dat(world_clocks_path, world_clocks_root, world_clocks_compression or "gzip"):
-            return False, "Failed to save world clock data."
+        pending_writes.append((
+            world_clocks_path, world_clocks_root, world_clocks_compression or "gzip",
+            "Failed to save world clock data.",
+        ))
         _remove_compound_tag(data_value, "DayTime")
 
-    if not _write_level_dat(str(loaded.get("level_dat_path") or ""), level_root, str(loaded.get("compression") or "gzip")):
+    pending_writes.append((
+        str(loaded.get("level_dat_path") or ""), level_root,
+        str(loaded.get("compression") or "gzip"),
+        "Failed to save world NBT data.",
+    ))
+
+    staged: list[tuple[str, str]] = []
+    try:
+        for final_path, root_tag, compression, error_message in pending_writes:
+            os.makedirs(os.path.dirname(final_path) or ".", exist_ok=True)
+            stage_path = f"{final_path}.{os.getpid()}.stage"
+            if not _write_level_dat(stage_path, root_tag, compression):
+                return False, error_message
+            staged.append((stage_path, final_path))
+        for stage_path, final_path in staged:
+            os.replace(stage_path, final_path)
+    except Exception:
         return False, "Failed to save world NBT data."
+    finally:
+        for stage_path, _final_path in staged:
+            if os.path.exists(stage_path):
+                try:
+                    os.remove(stage_path)
+                except OSError:
+                    pass
 
     return True, selected_player_id
 

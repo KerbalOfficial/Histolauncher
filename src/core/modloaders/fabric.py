@@ -8,7 +8,7 @@ import zipfile
 from typing import Any
 
 from core.http_client import HttpClient, HttpClientError
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.modloaders._endpoints import FABRIC_META_API
 from core.modloaders._http import MODLOADER_HTTP_TIMEOUT_S, _http_get_json
 from core.modloaders._versions import fabric_version_meets_minimum
@@ -37,13 +37,13 @@ def fetch_fabric_loaders() -> list[dict[str, Any]] | None:
     try:
         data = _http_get_json(f"{FABRIC_META_API}/versions/loader")
     except RuntimeError as exc:
-        print(colorize_log(f"[modloaders] Failed to fetch Fabric loaders: {exc}"))
+        safe_print(f"[modloaders] Failed to fetch Fabric loaders: {exc}")
         return None
     if not isinstance(data, list):
-        print(colorize_log("[modloaders] Unexpected Fabric response format"))
+        safe_print("[modloaders] Unexpected Fabric response format")
         return None
     _loaders_cache.set("loaders", data)
-    print(colorize_log(f"[modloaders] Fetched {len(data)} Fabric loader versions"))
+    safe_print(f"[modloaders] Fetched {len(data)} Fabric loader versions")
     return data
 
 
@@ -54,13 +54,13 @@ def fetch_fabric_game_versions() -> list[dict[str, Any]] | None:
     try:
         data = _http_get_json(f"{FABRIC_META_API}/versions/game")
     except RuntimeError as exc:
-        print(colorize_log(f"[modloaders] Failed to fetch Fabric game versions: {exc}"))
+        safe_print(f"[modloaders] Failed to fetch Fabric game versions: {exc}")
         return None
     if not isinstance(data, list):
-        print(colorize_log("[modloaders] Unexpected Fabric game versions response format"))
+        safe_print("[modloaders] Unexpected Fabric game versions response format")
         return None
     _game_versions_cache.set("game", data)
-    print(colorize_log(f"[modloaders] Fetched {len(data)} Fabric game versions"))
+    safe_print(f"[modloaders] Fetched {len(data)} Fabric game versions")
     return data
 
 
@@ -91,7 +91,7 @@ def get_fabric_loaders_for_version(
 
 
 # ---------------------------------------------------------------------------
-# Library / installer resolution
+# library / installer resolution
 # ---------------------------------------------------------------------------
 
 
@@ -123,11 +123,9 @@ def fetch_fabric_loader_profile_libraries(
             f"{FABRIC_META_API}/versions/loader/{mc_enc}/{loader_enc}/profile/json"
         )
     except RuntimeError as exc:
-        print(
-            colorize_log(
-                "[modloaders] Failed to fetch Fabric profile libraries for "
-                f"{mc_version}/{loader_version}: {exc}"
-            )
+        safe_print(
+            "[modloaders] Failed to fetch Fabric profile libraries for "
+            f"{mc_version}/{loader_version}: {exc}"
         )
         return None
 
@@ -140,16 +138,14 @@ def fetch_fabric_loader_profile_libraries(
         deps.append((lib_name, lib_url))
 
     if deps:
-        print(
-            colorize_log(
-                f"[modloaders] Extracted {len(deps)} official Fabric libraries "
-                f"from profile {mc_version}/{loader_version}"
-            )
+        safe_print(
+            f"[modloaders] Extracted {len(deps)} official Fabric libraries "
+            f"from profile {mc_version}/{loader_version}"
         )
         return deps
 
-    print(
-        colorize_log(f"[modloaders] Fabric profile {mc_version}/{loader_version} had no libraries")
+    safe_print(
+        f"[modloaders] Fabric profile {mc_version}/{loader_version} had no libraries"
     )
     return None
 
@@ -157,18 +153,16 @@ def fetch_fabric_loader_profile_libraries(
 def fetch_fabric_loader_dependencies(
     loader_version: str, mc_version: str
 ) -> list[tuple[str, str]] | None:
-    del mc_version  # signature parity only
+    del mc_version
     loader_enc = urllib.parse.quote(loader_version, safe="")
     lib_url = (
         "https://maven.fabricmc.net/net/fabricmc/fabric-loader/"
         f"{loader_enc}/fabric-loader-{loader_enc}.jar"
     )
 
-    print(
-        colorize_log(
-            f"[modloaders] Downloading fabric-loader {loader_version} "
-            "to extract dependencies..."
-        )
+    safe_print(
+        f"[modloaders] Downloading fabric-loader {loader_version} "
+        "to extract dependencies..."
     )
 
     tmp_path = ""
@@ -179,7 +173,7 @@ def fetch_fabric_loader_dependencies(
         try:
             HttpClient(timeout=MODLOADER_HTTP_TIMEOUT_S).stream_to(lib_url, tmp_path)
         except HttpClientError as exc:
-            print(colorize_log(f"[modloaders] Failed to download fabric-loader JAR: {exc}"))
+            safe_print(f"[modloaders] Failed to download fabric-loader JAR: {exc}")
             return None
 
         try:
@@ -187,18 +181,16 @@ def fetch_fabric_loader_dependencies(
                 installer_json = jar.read("fabric-installer.json").decode("utf-8")
                 installer_data = json.loads(installer_json)
         except (KeyError, zipfile.BadZipFile, json.JSONDecodeError) as exc:
-            print(colorize_log(f"[modloaders] fabric-installer.json missing or invalid: {exc}"))
+            safe_print(f"[modloaders] fabric-installer.json missing or invalid: {exc}")
             return None
 
         deps: list[tuple[str, str]] = []
         deps.append(
             (f"net.fabricmc:fabric-loader:{loader_version}", "https://maven.fabricmc.net")
         )
-        print(
-            colorize_log(
-                f"[modloaders]   + net.fabricmc:fabric-loader:{loader_version} "
-                "from https://maven.fabricmc.net"
-            )
+        safe_print(
+            f"[modloaders]   + net.fabricmc:fabric-loader:{loader_version} "
+            "from https://maven.fabricmc.net"
         )
 
         libraries = (installer_data or {}).get("libraries", {}) if isinstance(installer_data, dict) else {}
@@ -210,17 +202,15 @@ def fetch_fabric_loader_dependencies(
                 lib_entry.get("url") or "https://maven.fabricmc.net"
             ).strip()
             deps.append((lib_name, lib_url_override))
-            print(colorize_log(f"[modloaders]   + {lib_name} from {lib_url_override}"))
+            safe_print(f"[modloaders]   + {lib_name} from {lib_url_override}")
 
         if len(deps) > 1:
-            print(
-                colorize_log(
-                    f"[modloaders] Extracted {len(deps)} official dependencies "
-                    f"from fabric-loader {loader_version}"
-                )
+            safe_print(
+                f"[modloaders] Extracted {len(deps)} official dependencies "
+                f"from fabric-loader {loader_version}"
             )
             return deps
-        print(colorize_log("[modloaders] No common libraries found in fabric-installer.json"))
+        safe_print("[modloaders] No common libraries found in fabric-installer.json")
         return None
     finally:
         if tmp_path:
@@ -233,9 +223,8 @@ def fetch_fabric_loader_dependencies(
 def get_fabric_loader_libraries(
     loader_version: str, mc_version: str
 ) -> list[tuple[str, str]]:
-    print(
-        colorize_log(f"[modloaders] Fetching official Fabric libraries for {loader_version}...")
-    )
+    safe_print(
+        f"[modloaders] Fetching official Fabric libraries for {loader_version}...")
     profile_deps = fetch_fabric_loader_profile_libraries(loader_version, mc_version)
     if profile_deps:
         return profile_deps
@@ -244,7 +233,7 @@ def get_fabric_loader_libraries(
     if extracted:
         return extracted
 
-    print(colorize_log(f"[modloaders] Using fallback dependencies for {loader_version}"))
+    safe_print(f"[modloaders] Using fallback dependencies for {loader_version}")
     return [
         (f"net.fabricmc:fabric-loader:{loader_version}", "https://maven.fabricmc.net"),
         ("net.fabricmc:sponge-mixin:0.17.0+mixin.0.8.7", "https://maven.fabricmc.net"),

@@ -266,8 +266,6 @@
       "customVersionFolder": "مخصص (مجلد خاص بالإصدار)",
       "launchSettings": "إعدادات التشغيل",
       "useGlobal": "استخدام العام",
-      "overrideFullscreen": "تجاوز ملء الشاشة",
-      "fullscreen": "ملء الشاشة",
       "overrideDemoMode": "تجاوز وضع العرض التجريبي",
       "demoMode": "وضع العرض التجريبي",
       "minimumRamOverride": "تجاوز الحد الأدنى للذاكرة RAM",
@@ -419,10 +417,14 @@
     "typeModpacks": "حزم المودات",
     "typeResourcePacks": "حزم الموارد",
     "typeShaderPacks": "حزم الشيدر",
+    "typeDatapacks": "حزم البيانات",
     "providerModrinth": "Modrinth",
     "providerCurseforge": "CurseForge",
     "loaderFabric": "Fabric",
+    "loaderLegacyfabric": "Legacy Fabric",
     "loaderBabric": "Babric",
+    "loaderOrnithe": "Ornithe",
+    "loaderLiteloader": "LiteLoader",
     "loaderForge": "Forge",
     "loaderModloader": "ModLoader",
     "loaderNeoforge": "NeoForge",
@@ -505,11 +507,60 @@
         "importTitle": "استيراد حزمة شيدر",
         "emptyInstalled": "لا توجد حزم شيدر مثبتة",
         "emptyAvailable": "لم يتم العثور على حزم شيدر"
+      },
+      "datapacks": {
+        "label": "حزم البيانات",
+        "singular": "حزمة بيانات",
+        "singularTitle": "حزمة بيانات",
+        "plural": "حزم البيانات",
+        "pluralTitle": "حزم البيانات",
+        "importTitle": "استيراد حزمة بيانات",
+        "emptyInstalled": "لا توجد حزم بيانات مثبتة",
+        "emptyAvailable": "لم يتم العثور على حزم بيانات"
       }
+    },
+    "datapacks": {
+      "applyToWorld": "تطبيق على العالم",
+      "manageWorlds": "إدارة العوالم",
+      "appliedWorlds": "مُطبّق على: {worlds}",
+      "noAppliedWorlds": "غير مُطبّق على أي عالم",
+      "applyTitle": "تطبيق حزمة البيانات على العالم",
+      "applyPrompt": "اختر موقع تخزين العوالم والعوالم لـ <b>{datapack}</b>.",
+      "storageLabel": "تخزين العوالم:",
+      "customFolderLabel": "مجلد مخصص:",
+      "selectFolder": "اختر مجلدًا",
+      "worldsLabel": "العوالم:",
+      "noWorlds": "لم يتم العثور على أي عالم في موقع التخزين هذا.",
+      "applyFailed": "فشل تطبيق حزمة البيانات.",
+      "applySuccess": "تم تطبيق حزمة البيانات على {count} عالم.",
+      "removeFailed": "فشل إزالة حزمة البيانات من العالم.",
+      "removeSuccess": "تمت إزالة حزمة البيانات من {world}.",
+      "manageTitle": "عمليات النشر في العوالم",
+      "managePrompt": "حزمة البيانات <b>{datapack}</b> مُطبّقة على هذه العوالم:",
+      "removeFromWorld": "إزالة",
+      "selectWorlds": "اختر عالمًا واحدًا على الأقل."
     },
     "import": {
       "selectLoaderForFile": "حدد محمل المودات للملف \"{file}\":",
-      "selectLoader": "Select the mod loader for this import:"
+      "selectLoader": "Select the mod loader for this import:",
+      "importing": "جارٍ الاستيراد...",
+      "importButton": "استيراد",
+      "successTitle": "تم الاستيراد بنجاح",
+      "successMessage": "تم استيراد {addon} بنجاح.",
+      "errorTitle": "خطأ في الاستيراد",
+      "failedMessage": "فشل استيراد {addon}.",
+      "modpackImporting": "جارٍ استيراد حزمة المودات...",
+      "modpackImportingPercent": "جارٍ استيراد حزمة المودات... {percent}%",
+      "modpackCancelling": "جارٍ إلغاء استيراد حزمة المودات...",
+      "modpackSuccess": "تم استيراد حزمة المودات <b>{name}</b> بنجاح.",
+      "modpackDetectedFormat": "<br><br>التنسيق المكتشف: <b>{format}</b>.",
+      "modpackDisabledStandalone": "<br><br>تم تعطيل المودات المستقلة التالية لأنها تتعارض مع حزمة المودات:<br>",
+      "modpackWarnings": "<br><br>تحذيرات الاستيراد:<br>",
+      "modpackMoreWarnings": "<br>...و{count} تحذير آخر.",
+      "modpackCancelledTitle": "تم إلغاء الاستيراد",
+      "modpackCancelledMessage": "لقد ألغيت استيراد حزمة المودات.",
+      "modpackFailed": "فشل استيراد حزمة المودات.",
+      "modpackNetworkError": "حدث خطأ في الشبكة أثناء استيراد حزمة المودات."
     },
     "status": {
       "installed": "مثبت",
@@ -561,6 +612,45 @@
       "finishedWithErrorsMessage": "تم حذف {count} من {addon}.<br><br>الإخفاقات:<br>{failures}",
       "confirmMessage": "حذف {count} من {addon} المحددة؟<br><i>لا يمكن التراجع عن هذا!</i>"
     },
+    "bulkMove": {
+      "title": "نقل المودات بشكل جماعي",
+      "noSelected": "لم يتم تحديد أي مودات مثبتة.",
+      "prompt": "نقل {count} مود محدد إلى:",
+      "moveButton": "نقل",
+      "movingProgress": "جارٍ نقل المودات المحددة... ({current}/{total})",
+      "cancelling": "سيتم إلغاء النقل الجماعي بعد انتهاء المود الحالي...",
+      "moveFailed": "فشل النقل",
+      "requestFailed": "فشل الطلب",
+      "skippedSuffix": "، تم تخطي {count}",
+      "cancelledTitle": "تم إلغاء النقل الجماعي",
+      "cancelledMessage": "تم نقل {moved} مود{skipped} قبل الإلغاء.{failures}",
+      "failuresCountSuffix": "<br><br>الإخفاقات: {count}",
+      "completeTitle": "اكتمل النقل الجماعي",
+      "completeMessage": "تم نقل {moved} مود{skipped}.",
+      "finishedWithErrorsTitle": "انتهى النقل الجماعي مع وجود أخطاء",
+      "finishedWithErrorsMessage": "تم نقل {moved} مود{skipped}.<br><br>الإخفاقات:<br>{preview}{more}",
+      "moreFailures": "<br>...و{count} أخرى."
+    },
+    "modpackDetail": {
+      "loader": "المُحمِّل: {loader}",
+      "version": "الإصدار: {version}",
+      "minecraft": "Minecraft: {version}",
+      "author": "المؤلف: {author}",
+      "modsCount": "المودات: {count}",
+      "resourcePacksCount": "حزم الموارد: {count}",
+      "shaderPacksCount": "حزم الشيدر: {count}",
+      "datapacksCount": "حزم البيانات: {count}",
+      "notAvailable": "غير متاح"
+    },
+    "modpackActions": {
+      "deleteFailed": "فشل حذف حزمة المودات.",
+      "cannotEnableTitle": "لا يمكن التفعيل",
+      "cannotEnableMessage": "هذا المود تُديره حزمة المودات <b>{name}</b>. عطّل تلك الحزمة أو احذفها أولًا."
+    },
+    "providers": {
+      "curseforgeApiKeyRequired": "يتطلب CurseForge مفتاح API. أضف مفتاحًا لاستخدام مزوّد CurseForge، أو بدّل إلى Modrinth.",
+      "providerError": "خطأ في المزوّد: {error}"
+    },
     "detail": {
       "loadingDetails": "جار تحميل تفاصيل {addon}...",
       "screenshots": "لقطات الشاشة",
@@ -603,8 +693,21 @@
     },
     "exportModpack": {
       "title": "تصدير حزمة مودات",
-      "selectFormat": "حدد صيغة حزمة المودات للتصدير:",
-      "selectLoader": "حدد محمل المودات لهذه الحزمة:",
+      "tabs": {
+        "metadata": "البيانات الوصفية",
+        "mods": "المودات",
+        "resourcepacks": "حزم الموارد",
+        "shaderpacks": "حزم الشيدر",
+        "datapacks": "حزم البيانات",
+        "export": "تصدير"
+      },
+      "selectFormat": "حدد صيغة حزمة المودات للتصدير",
+      "selectLoader": "حدد محمل المودات لهذه الحزمة",
+      "minecraftVersion": "إصدار Minecraft",
+      "minecraftVersionHint": "إصدار Minecraft المستخدم لحزمة المودات.",
+      "loaderVersion": "إصدار المُحمِّل",
+      "loaderVersionHint": "إصدار المُحمِّل المستخدم لحزمة المودات.",
+      "vanillaModsHint": "لا تتضمن حزم المودات الأصلية (Vanilla) أي مودات. اختر حزم الموارد وحزم الشيدر و/أو حزم البيانات من علامات التبويب الأخرى.",
       "noLoaderMods": "لا توجد مودات {loader} مثبتة. ثبّت بعض المودات أولًا.",
       "selectMods": "حدد المودات المراد تضمينها ({count} مود/مودات {loader} متاحة):",
       "disabledHint": "اختياري: علّم المودات كمعطلة في حزمة المودات بحيث تُضمّن لكنها لا تكون نشطة افتراضيًا.",
@@ -625,6 +728,12 @@
       "failedUpdateSourceFolder": "فشل تحديث مجلد المصدر",
       "failedSaveSourceFolder": "فشل حفظ إعداد مجلد المصدر.",
       "selectAtLeastOneMod": "حدد مودًا واحدًا على الأقل.",
+      "selectAtLeastOneItem": "اختر مودًا أو حزمة موارد أو حزمة شيدر أو حزمة بيانات واحدة على الأقل.",
+      "selectMinecraftVersion": "اختر إصدار Minecraft",
+      "selectLoaderVersion": "اختر إصدار المُحمِّل",
+      "validationErrorBanner": "يرجى إصلاح المشكلات المميزة أدناه والمحاولة مرة أخرى.",
+      "externalVersionRequired": "أدخل إصدار Minecraft لعمليات التصدير إلى Modrinth/CurseForge (أو اختر محتوى يتضمن بيانات وصفية للإصدار).",
+      "externalLoaderVersionRequired": "أدخل إصدار المُحمِّل لعمليات التصدير إلى Modrinth/CurseForge عند استخدام محمّل مودات.",
       "selectOptionalAddons": "حدد {plural} اختيارية لتجميعها ({count} متاحة):",
       "noOptionalAddons": "لا توجد {plural} مثبتة. يمكنك المتابعة دون تجميع أي منها.",
       "fields": {
@@ -640,6 +749,8 @@
         "description": "وصف حزمة المودات..."
       },
       "summary": "{format} {extension} | {mods} مودات | {resourcepacks} حزم موارد | {shaderpacks} حزم شيدر | {loader}",
+      "summaryMinecraft": "Minecraft {version}",
+      "summaryLoaderVersion": "المُحمِّل {version}",
       "validation": {
         "nameLength": "يجب أن يكون الاسم بين 1 و64 حرفًا.",
         "nameForbidden": "يحتوي الاسم على أحرف ممنوعة.",
@@ -1014,13 +1125,25 @@
       "description": "خفيف وسريع",
       "subtitle": "يُستخدم غالبًا لتحسين أداء اللعبة"
     },
+    "legacyfabric": {
+      "description": "Fabric للإصدارات القديمة",
+      "subtitle": "نقل لـ Fabric يدعم Minecraft 1.3 - 1.13.2"
+    },
     "babric": {
       "description": "فرع Fabric لإصدارات Minecraft Beta",
       "subtitle": "فرع من Fabric لدعم Beta 1.7.3"
     },
+    "ornithe": {
+      "description": "Fabric لإصدارات Minecraft القديمة",
+      "subtitle": "سلسلة أدوات قائمة على Fabric تمتد من Alpha إلى 1.14.x"
+    },
     "forge": {
       "description": "تعديلات كاملة وشائع",
       "subtitle": "يُستخدم غالبًا لتعديلات اللعبة"
+    },
+    "liteloader": {
+      "description": "مودات عميل خفيفة",
+      "subtitle": "مودات من نوع التعديلات لـ Minecraft 1.5.2 - 1.12.2"
     },
     "modloader": {
       "description": "بيئة jar-mod قديمة",
@@ -1033,6 +1156,10 @@
     "quilt": {
       "description": "مرن وحديث",
       "subtitle": "يُستخدم غالبًا للتعديل الحديث الخفيف"
+    },
+    "vanilla": {
+      "description": "بدون محمّل مودات",
+      "subtitle": "حزم الموارد وحزم الشيدر وحزم البيانات فقط"
     },
     "fallback": {
       "description": "محمل مخصص",
@@ -1300,8 +1427,45 @@
         "blueberryLight": "توت أزرق (فاتح)",
         "leafDark": "ورقة (داكن)",
         "leafLight": "ورقة (فاتح)",
+        "orangeDark": "برتقالي (داكن)",
+        "orangeLight": "برتقالي (فاتح)",
+        "midnightDark": "منتصف الليل (داكن)",
+        "midnightLight": "منتصف الليل (فاتح)",
+        "graphiteDark": "غرافيت (داكن)",
+        "graphiteLight": "غرافيت (فاتح)",
+        "oceanDark": "محيط (داكن)",
+        "oceanLight": "محيط (فاتح)",
+        "amethystDark": "جمشت (داكن)",
+        "amethystLight": "جمشت (فاتح)",
         "aeroDark": "زجاج Aero (داكن)",
-        "aeroLight": "زجاج Aero (فاتح)"
+        "aeroLight": "زجاج Aero (فاتح)",
+        "custom": "مخصص"
+      },
+      "themeBase": "السمة الأساسية:",
+      "themeEditor": {
+        "dockTitle": "محرر السمات",
+        "openDock": "فتح محرر السمات",
+        "hint": "اختر سمة أساسية، ثم اضبط الألوان الفردية أدناه. تُحفظ التجاوزات مع ملفك الشخصي.",
+        "resetAll": "إعادة تعيين جميع التجاوزات",
+        "export": "نسخ JSON السمة",
+        "import": "استيراد JSON السمة",
+        "resetToken": "إعادة تعيين",
+        "resetTokenTooltip": "إزالة تجاوز اللون هذا واستخدام قيمة السمة الأساسية",
+        "groups": {
+          "app": "خلفية التطبيق",
+          "text": "النص",
+          "links": "الروابط والتركيز",
+          "surfaces": "الأسطح",
+          "borders": "الحدود",
+          "overlays": "التراكبات والتلميحات",
+          "buttons": "الأزرار",
+          "semantic": "النجاح والخطر والتحذير والمعلومات",
+          "messages": "مربعات الرسائل",
+          "states": "التحديد والإبرازات",
+          "scrollbars": "أشرطة التمرير",
+          "badges": "الشارات",
+          "loaders": "ألوان تمييز محمّلات المودات"
+        }
       },
       "uiSizes": {
         "small": "صغير",
@@ -1325,8 +1489,6 @@
       "maxRamTooltip": "الحد الأقصى للذاكرة RAM المخصصة للعبة\n  - يجب أن يكون رقمًا موجبًا\n  - يجب أن يكون أكبر من الحد الأدنى للذاكرة RAM\n  - يجب أن يكون 1 بايت على الأقل\n\nمثال على التنسيق: 256، 256M، 2G، إلخ.\n\n(نصيحة أداء: خصص RAM أكثر لأداء أفضل، وطابقها أيضًا مع الحد الأدنى للذاكرة لتقليل هبوط الإطارات)",
       "resolution": "الدقة:",
       "resolutionTooltip": "حجم نافذة اللعبة الافتراضي المستخدم للإصدارات التي تدعم وسيطات العرض والارتفاع عند التشغيل.",
-      "fullscreen": "ملء الشاشة:",
-      "fullscreenTooltip": "تشغيل الإصدارات المدعومة بملء الشاشة افتراضيًا.",
       "demoMode": "وضع العرض التجريبي:",
       "demoModeTooltip": "تشغيل الإصدارات المدعومة مع تفعيل وضع العرض التجريبي في Minecraft.",
       "storageDir": "مجلد التخزين:",

@@ -11,7 +11,7 @@ from core.constants import DOWNLOAD_PARALLEL_WORKERS
 from core.downloader.errors import DownloadFailed
 from core.downloader.http import CLIENT, DownloadTask
 from core.downloader.library_store import link_into_version, store_path_for
-from core.logger import colorize_log
+from core.logger import safe_print
 from core.settings import get_versions_profile_dir
 
 
@@ -120,8 +120,10 @@ def _resolve_artifact(
             artifact.get("size") if isinstance(artifact.get("size"), int) else None,
         )
 
-    # Classifiers-only library (e.g. natives) — no main artifact jar exists.
     if isinstance(downloads.get("classifiers"), dict):
+        return None
+
+    if isinstance(lib.get("natives"), dict):
         return None
 
     if not name:
@@ -153,14 +155,23 @@ def _platform_native_key(lib: Dict[str, Any]) -> Optional[str]:
 def _resolve_native_classifier(
     lib: Dict[str, Any],
 ) -> Optional[Tuple[str, str, Optional[str], Optional[int]]]:
-    """Return (artifact_path, url, sha1, size) for the platform-native classifier."""
     native_key = _platform_native_key(lib)
     if not native_key:
         return None
     downloads = lib.get("downloads") or {}
     classifiers = downloads.get("classifiers") if isinstance(downloads, dict) else None
     if not isinstance(classifiers, dict):
-        return None
+        name = str(lib.get("name") or "").strip()
+        if not name or "${" in native_key:
+            return None
+        path = _maven_to_artifact_path(f"{name}:{native_key}")
+        if not path:
+            return None
+        base = str(lib.get("url") or DEFAULT_MAVEN).rstrip("/")
+        encoded_path = "/".join(
+            urllib.parse.quote(seg, safe="+") for seg in path.split("/")
+        )
+        return (path, f"{base}/{encoded_path}", None, None)
     entry = classifiers.get(native_key)
     if not isinstance(entry, dict) or not entry.get("url"):
         return None
@@ -203,10 +214,19 @@ def import_profile(
     libraries = profile.get("libraries") or []
     main_class = str(profile.get("mainClass") or "").strip() or None
 
+    drop_asm_all = any(
+        isinstance(lib, dict)
+        and str(lib.get("name") or "").startswith("org.ow2.asm:asm:")
+        for lib in libraries
+    )
+
     plan: Dict[str, Tuple[str, Optional[str], Optional[int]]] = {}
     skipped: List[str] = []
     for lib in libraries:
         if not isinstance(lib, dict):
+            continue
+        if drop_asm_all and str(lib.get("name") or "").startswith("org.ow2.asm:asm-all:"):
+            skipped.append(str(lib.get("name")))
             continue
         resolved = _resolve_artifact(lib)
         if resolved is None:
@@ -214,16 +234,15 @@ def import_profile(
         else:
             artifact_path, url, sha1, size = resolved
             plan.setdefault(artifact_path, (url, sha1, size))
-        # Also collect the platform-appropriate native classifier jar.
         native = _resolve_native_classifier(lib)
         if native is not None:
             native_path, native_url, native_sha1, native_size = native
             plan.setdefault(native_path, (native_url, native_sha1, native_size))
 
     if skipped:
-        print(colorize_log(
+        safe_print(
             f"[profile-import] skipped {len(skipped)} libraries with no main artifact (natives-only or unresolved)"
-        ))
+        )
 
     tasks: List[DownloadTask] = []
     store_paths: Dict[str, str] = {}
@@ -240,9 +259,9 @@ def import_profile(
         ))
 
     if tasks:
-        print(colorize_log(
+        safe_print(
             f"[profile-import] downloading {len(tasks)} libraries via store"
-        ))
+        )
         CLIENT.download_many(
             tasks, max_workers=max_workers, cancel_check=cancel_check
         )
@@ -257,14 +276,14 @@ def import_profile(
         version_dest_real = os.path.realpath(version_dest)
         try:
             if os.path.commonpath([libs_dir_real, version_dest_real]) != libs_dir_real:
-                print(colorize_log(
+                safe_print(
                     f"[profile-import] refusing to link library outside libraries/: {artifact_path}"
-                ))
+                )
                 continue
         except ValueError:
-            print(colorize_log(
+            safe_print(
                 f"[profile-import] rejecting cross-volume library path: {artifact_path}"
-            ))
+            )
             continue
         link_into_version(store_file=store_dest, version_dest=version_dest)
         linked += 1

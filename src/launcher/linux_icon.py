@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import sys
 
-from core.logger import colorize_log
+from core.logger import safe_print
 
 
 __all__ = [
@@ -46,9 +46,9 @@ def set_gtk_program_class(name: str = WM_CLASS_NAME) -> bool:
             pass
         return True
     except Exception as exc:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Could not set GTK program class: {exc}"
-        ))
+        )
         return False
 
 
@@ -77,9 +77,9 @@ def set_gtk_default_icon(icon_path: str) -> bool:
             return True
         return False
     except Exception as exc:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Could not set GTK default icon: {exc}"
-        ))
+        )
         return False
 
 
@@ -105,14 +105,14 @@ def apply_gtk_window_icon(native_window, icon_path: str) -> bool:
                 native_window.set_icon(pixbuf)
                 return True
         except Exception as exc:
-            print(colorize_log(
+            safe_print(
                 f"[launcher] GdkPixbuf icon fallback failed: {exc}"
-            ))
+            )
         return False
     except Exception as exc:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Could not set GTK window icon: {exc}"
-        ))
+        )
         return False
 
 
@@ -142,16 +142,15 @@ def ensure_desktop_file(icon_path: str) -> bool:
             return False
         return True
     except Exception as exc:
-        print(colorize_log(
+        safe_print(
             f"[launcher] Could not install desktop entry: {exc}"
-        ))
+        )
         return False
 
 
 def install_linux_window_icon(icon_path: str) -> None:
     if not _is_linux():
         return
-    # If using Qt Backend, steer clear from mixing Gtk on Wayland
     if os.environ.get("PYWEBVIEW_GUI", "").lower() != "qt":
         set_gtk_program_class(WM_CLASS_NAME)
         set_gtk_default_icon(icon_path)
