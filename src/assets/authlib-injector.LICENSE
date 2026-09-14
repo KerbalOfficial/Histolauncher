@@ -1,34 +1,68 @@
 authlib-injector
 ================
 
-This directory bundles `authlib-injector.jar`, a third-party
-binary used by Histolauncher to redirect Minecraft's authentication and
-texture endpoints to the local skin/cape proxy.
+This directory bundles `authlib-injector.jar`, a third-party Java agent used by
+Histolauncher to redirect Minecraft's authentication and texture endpoints to
+the local skin/cape proxy.
 
 Project:    authlib-injector
 Author:     Haowei Wen (yushijinhun) and contributors
 Homepage:   https://github.com/yushijinhun/authlib-injector
-License:    GNU General Public License, version 3 (GPL-3.0)
-License:    https://www.gnu.org/licenses/gpl-3.0.html
+Version:    1.2.8 (upstream), with the Histolauncher patch applied
+License:    GNU Affero General Public License, version 3 or later
+            (AGPL-3.0-or-later), with the "AUTHLIB-INJECTOR" exception
+License:    https://www.gnu.org/licenses/agpl-3.0.html
 
-The jar shipped in this directory is an upstream release with a small
-Histolauncher patch applied for cape texture URL redirection. The patch source
-and rebuild notes are included under:
 
-	tools/authlib-injector-histolauncher-patch/
+Modified binary
+---------------
 
-The folder is not included in the releases of Histolauncher because it is
-outside of the `src/` folder.
+The jar shipped here is NOT the stock upstream release. Five classes are
+replaced with Histolauncher builds:
 
-Source code for the upstream authlib-injector project is available at the
-homepage above.
+	moe.yushi.authlibinjector.httpd.DefaultURLRedirector
+	moe.yushi.authlibinjector.transform.support.AccountTypeTransformer
+	moe.yushi.authlibinjector.transform.support.AuthServerNameInjector
+	moe.yushi.authlibinjector.transform.support.ConstantURLTransformUnit
+	moe.yushi.authlibinjector.transform.support.YggdrasilKeyTransformUnit
 
-Histolauncher itself is also distributed under GPL-3.0 (see the top-level
-LICENSE file), which is compatible with redistributing authlib-injector.
+Every other class is the unmodified upstream binary. A patched jar can be
+identified by the `Histolauncher-Patched` attribute in its `META-INF/MANIFEST.MF`.
 
-This NOTICE file is provided to satisfy the attribution and source-
-availability requirements of the GPL-3.0 license. No warranty is
-provided for the bundled binary; refer to sections 15 and 16 of the
-GPL-3.0 for the full disclaimer.
+Because the bundled binary is modified, clause 1 of the AUTHLIB-INJECTOR
+exception (which covers bundling the *unaltered* binary) does not apply to it,
+and the corresponding source for the modification must be made available. The
+complete source of the modified classes, together with the build script that
+reproduces this jar from a stock upstream release, is published at:
 
-See top-level LICENSE for full text
+	https://github.com/KerbalOfficial/Histolauncher
+	-> tools/authlib-injector-histolauncher-patch/
+
+That directory is part of the public Histolauncher repository but is not
+included in packaged Histolauncher releases, because release packaging only
+ships the `src/` tree. The repository above is the offer of corresponding
+source required by section 6 of the AGPL.
+
+
+AUTHLIB-INJECTOR exception (upstream text)
+------------------------------------------
+
+	As a special exception, using this work in the following ways does not
+	cause your program to be covered by the AGPL:
+
+	1. Bundling the unaltered binary form of this work in your program
+	   without statically or dynamically linking to it; or
+	2. Interacting with this work through the provided inter-process
+	   communication interface, such as the HTTP API; or
+	3. Loading this work as a Java Agent into a Java Virtual Machine.
+
+Histolauncher loads authlib-injector as a Java Agent (clause 3) and talks to it
+over the local HTTP API (clause 2), so Histolauncher's own code remains under
+its own license. See the top-level LICENSE file.
+
+
+Warranty
+--------
+
+No warranty is provided for the bundled binary; refer to sections 15 and 16 of
+the AGPL-3.0 for the full disclaimer.

@@ -1528,6 +1528,12 @@
         "missingShort": "[Tidak Ada]",
         "missing": "[Tidak Ada] {path}",
         "install": "+ Pasang Java"
+      },
+      "updateChannel": "Saluran pembaruan:",
+      "updateChannelTooltip": "Stabil hanya menerima rilis yang sudah selesai.\n\nSnapshot juga menerima versi yang masih dalam pengembangan, yang mungkin tidak stabil.",
+      "updateChannels": {
+        "stable": "Stabil",
+        "snapshot": "Snapshot"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "Peringatan versi beta",
       "betaWarningMessage": "Ini adalah versi beta Histolauncher. Anda mungkin menemukan bug saat menggunakannya, jadi harap diingat. Jika menemukan masalah atau bug, laporkan di GitHub atau Discord sesegera mungkin.\n\n(versi beta: {local})",
+      "unstableWarningTitle": "Peringatan versi tidak stabil",
+      "unstableWarningMessage": "Ini adalah versi snapshot Histolauncher, bukan rilis stabil. Anda mungkin menemukan bug saat menggunakannya, jadi harap diingat. Jika menemukan masalah atau bug, laporkan di GitHub atau Discord sesegera mungkin.\n\n(versi snapshot: {local})",
       "createShortcutTitle": "Buat pintasan?",
       "createShortcutMessage": "Apakah Anda ingin Histolauncher membuat pintasan sekarang?\n\nIni menambahkan Histolauncher ke Start Menu di Windows atau menu aplikasi di Linux, dan dapat diperbaiki nanti dengan shortcut.pyw atau shortcut.sh.",
       "newUserTitle": "Selamat datang!",

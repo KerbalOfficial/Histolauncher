@@ -114,6 +114,16 @@ _SETTING_META: dict[str, dict[str, str]] = {
     "discord_rpc_enabled": {
         "display": "Discord Rich Presence", "section": "Launcher", "type": "0 / 1",
     },
+    "update_channel": {
+        "display": "Update channel",
+        "section": "Launcher",
+        "type": "enum: stable | snapshot",
+        "details": (
+            "Which releases this install tracks. Applies to the whole install "
+            "rather than the active profile, and is kept outside the install "
+            "directory so updating cannot reset it."
+        ),
+    },
     "desktop_notifications_enabled": {
         "display": "Desktop notifications", "section": "Launcher", "type": "0 / 1",
     },
@@ -179,9 +189,10 @@ def _cmd_show_setting(state: CliState, args: list[str]) -> None:
         return
     key = args[0]
     from core.settings import load_global_settings
+    from server.api._helpers import _prepare_settings_response
 
     with scope_override(state, "settings"):
-        settings = load_global_settings() or {}
+        settings = _prepare_settings_response(load_global_settings() or {})
     value = settings.get(key)
     if value is None:
         print_info(f"{key} = (not set; using default)")

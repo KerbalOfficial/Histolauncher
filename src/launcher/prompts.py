@@ -12,7 +12,7 @@ __all__ = [
     "prompt_create_shortcut",
     "prompt_new_user",
     "prompt_user_update",
-    "prompt_beta_warning",
+    "prompt_unstable_warning",
 ]
 
 
@@ -52,11 +52,11 @@ def prompt_user_update(local, remote):
         return False
 
 
-def prompt_beta_warning(local):
+def prompt_unstable_warning(local):
     try:
         show_custom_warning(
-            t("native.prompts.betaWarningTitle"),
-            t("native.prompts.betaWarningMessage", {"local": local}),
+            t("native.prompts.unstableWarningTitle"),
+            t("native.prompts.unstableWarningMessage", {"local": local}),
         )
         return True
     except Exception:

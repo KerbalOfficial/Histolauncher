@@ -235,6 +235,13 @@ def _sanitize_settings_payload(data: Dict[str, Any]) -> Dict[str, Any]:
             return str(number)
         return default
 
+    if "update_channel" in sanitized:
+        from core.update_channel import CHANNEL_STABLE, normalize_channel
+
+        sanitized["update_channel"] = (
+            normalize_channel(sanitized.get("update_channel")) or CHANNEL_STABLE
+        )
+
     if "launcher_theme" in sanitized:
         theme = str(sanitized.get("launcher_theme") or "dark").strip().lower()
         sanitized["launcher_theme"] = theme if theme in valid_themes else "dark"
@@ -343,6 +350,14 @@ def _prepare_settings_response(settings: Dict[str, Any]) -> Dict[str, Any]:
         if prepared["custom_storage_directory_valid"]
         else str(validation.get("error") or "Custom storage directory is invalid.")
     )
+
+    try:
+        from core.update_channel import CHANNEL_STABLE, resolve_channel
+
+        prepared["update_channel"] = resolve_channel()
+    except Exception:
+        prepared["update_channel"] = CHANNEL_STABLE
+
     return prepared
 
 

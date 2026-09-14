@@ -1528,6 +1528,12 @@
         "missingShort": "[Eksik]",
         "missing": "[Eksik] {path}",
         "install": "+ Java Yükle"
+      },
+      "updateChannel": "Güncelleme kanalı:",
+      "updateChannelTooltip": "Kararlı kanal yalnızca tamamlanmış sürümleri alır.\n\nSnapshot kanalı geliştirme aşamasındaki sürümleri de alır ve bunlar kararsız olabilir.",
+      "updateChannels": {
+        "stable": "Kararlı",
+        "snapshot": "Snapshot"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "Beta sürüm uyarısı",
       "betaWarningMessage": "Bu, Histolauncher'ın beta sürümüdür. Kullanım sırasında hatalarla karşılaşabilirsiniz, lütfen bunu aklınızda bulundurun. Bir sorun veya hata görürseniz lütfen en kısa sürede GitHub ya da Discord üzerinden bildirin.\n\n(beta sürüm: {local})",
+      "unstableWarningTitle": "Kararsız sürüm uyarısı",
+      "unstableWarningMessage": "Bu, Histolauncher'ın snapshot sürümüdür, kararlı bir sürüm değildir. Kullanım sırasında hatalarla karşılaşabilirsiniz, lütfen bunu aklınızda bulundurun. Bir sorun veya hata görürseniz lütfen en kısa sürede GitHub ya da Discord üzerinden bildirin.\n\n(snapshot sürüm: {local})",
       "createShortcutTitle": "Kısayol oluşturulsun mu?",
       "createShortcutMessage": "Histolauncher şimdi bir kısayol oluştursun mu?\n\nBu, Histolauncher'ı Windows üzerinde Başlat Menüsü'ne veya Linux üzerinde uygulamalar menüsüne ekler ve daha sonra shortcut.pyw veya shortcut.sh ile onarılabilir.",
       "newUserTitle": "Hoş geldiniz!",

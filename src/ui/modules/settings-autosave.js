@@ -488,6 +488,13 @@ export const initSettingsInputs = () => {
     });
   }
 
+  const updateChannelSelect = getEl('settings-update-channel');
+  if (updateChannelSelect) {
+    updateChannelSelect.addEventListener('change', (e) => {
+      autoSaveSetting('update_channel', e.target.value === 'snapshot' ? 'snapshot' : 'stable');
+    });
+  }
+
   const compactSidebarInput = getEl('settings-compact-sidebar');
   if (compactSidebarInput) {
     compactSidebarInput.addEventListener('change', (e) => {

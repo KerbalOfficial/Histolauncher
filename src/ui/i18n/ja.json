@@ -1528,6 +1528,12 @@
         "missingShort": "[見つかりません]",
         "missing": "[見つかりません] {path}",
         "install": "+ Java をインストール"
+      },
+      "updateChannel": "更新チャンネル:",
+      "updateChannelTooltip": "安定版には完成したリリースのみが配信されます。\n\nスナップショットには開発中のビルドも配信され、不安定な場合があります。",
+      "updateChannels": {
+        "stable": "安定版",
+        "snapshot": "スナップショット"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "ベータ版の警告",
       "betaWarningMessage": "これはHistolauncherのベータ版です。使用中にバグが発生する可能性があるため、その点に注意してください。問題やバグが見つかった場合は、できるだけ早くGitHubまたはDiscordで報告してください。\n\n(ベータ版: {local})",
+      "unstableWarningTitle": "不安定なビルドの警告",
+      "unstableWarningMessage": "これはHistolauncherのスナップショット版であり、安定版ではありません。使用中にバグが発生する可能性があるため、その点に注意してください。問題やバグが見つかった場合は、できるだけ早くGitHubまたはDiscordで報告してください。\n\n(スナップショット版: {local})",
       "createShortcutTitle": "ショートカットを作成しますか?",
       "createShortcutMessage": "Histolauncherのショートカットを今すぐ作成しますか?\n\nこれにより、Windowsではスタートメニュー、LinuxではアプリケーションメニューにHistolauncherが追加されます。後からshortcut.pywまたはshortcut.shで修復できます。",
       "newUserTitle": "ようこそ!",

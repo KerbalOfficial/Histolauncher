@@ -45,18 +45,27 @@ _KEYRING_CHUNK_BYTES = 1200
 _KEYRING_SPLIT_PREFIX = "__split__:"
 _KEYRING_CHUNK_SUFFIX = "|chunk:"
 _KEYRING_IMPORT_ERROR: Exception | None = None
+_keyring = None  # type: ignore[assignment]
+_KEYRING_LOAD_ATTEMPTED = False
 
-try:
-    import keyring as _keyring  # type: ignore[import-untyped]
-    import keyring.errors as _keyring_errors  # type: ignore[import-untyped]
-    _KEYRING_IMPORT_ERROR = None
-except Exception as _kr_import_exc:
-    _keyring = None  # type: ignore[assignment]
-    _keyring_errors = None  # type: ignore[assignment]
-    _KEYRING_IMPORT_ERROR = _kr_import_exc
+
+def _ensure_keyring_loaded() -> None:
+    global _keyring, _KEYRING_IMPORT_ERROR, _KEYRING_LOAD_ATTEMPTED
+    if _KEYRING_LOAD_ATTEMPTED:
+        return
+    _KEYRING_LOAD_ATTEMPTED = True
+    try:
+        import keyring as keyring_module  # type: ignore[import-untyped]
+
+        _keyring = keyring_module
+        _KEYRING_IMPORT_ERROR = None
+    except Exception as exc:  # noqa: BLE001
+        _keyring = None
+        _KEYRING_IMPORT_ERROR = exc
 
 
 def _keyring_available() -> bool:
+    _ensure_keyring_loaded()
     if _KEYRING_IMPORT_ERROR is not None or _keyring is None:
         return False
     try:
@@ -68,6 +77,7 @@ def _keyring_available() -> bool:
 
 
 def _keyring_save_credential(username: str, token_str: str) -> None:
+    _ensure_keyring_loaded()
     _keyring_delete_credential(username)
 
     encoded = token_str.encode("utf-8")
@@ -102,6 +112,7 @@ def _keyring_save_credential(username: str, token_str: str) -> None:
 
 
 def _keyring_load_credential(username: str) -> str | None:
+    _ensure_keyring_loaded()
     value = _keyring.get_password(_KEYRING_SERVICE, username)
     if value is None:
         return None
@@ -128,6 +139,7 @@ def _keyring_load_credential(username: str) -> str | None:
 
 
 def _keyring_delete_credential(username: str) -> None:
+    _ensure_keyring_loaded()
     try:
         existing = _keyring.get_password(_KEYRING_SERVICE, username)
     except Exception:

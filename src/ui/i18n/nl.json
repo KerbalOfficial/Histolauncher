@@ -1528,6 +1528,12 @@
         "missingShort": "[Ontbreekt]",
         "missing": "[Ontbreekt] {path}",
         "install": "+ Java installeren"
+      },
+      "updateChannel": "Updatekanaal:",
+      "updateChannelTooltip": "Stabiel ontvangt alleen voltooide releases.\n\nSnapshots ontvangt ook builds die nog in ontwikkeling zijn en instabiel kunnen zijn.",
+      "updateChannels": {
+        "stable": "Stabiel",
+        "snapshot": "Snapshots"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "Waarschuwing voor bètaversie",
       "betaWarningMessage": "Dit is een bètaversie van Histolauncher. Tijdens het gebruik kun je bugs tegenkomen, houd daar rekening mee. Als je problemen of bugs tegenkomt, meld ze dan zo snel mogelijk op GitHub of Discord.\n\n(bètaversie: {local})",
+      "unstableWarningTitle": "Waarschuwing voor onstabiele build",
+      "unstableWarningMessage": "Dit is een snapshotversie van Histolauncher, geen stabiele release. Tijdens het gebruik kun je bugs tegenkomen, houd daar rekening mee. Als je problemen of bugs tegenkomt, meld ze dan zo snel mogelijk op GitHub of Discord.\n\n(snapshotversie: {local})",
       "createShortcutTitle": "Snelkoppeling maken?",
       "createShortcutMessage": "Wil je dat Histolauncher nu een snelkoppeling maakt?\n\nDit voegt Histolauncher toe aan je Startmenu op Windows of aan je toepassingenmenu op Linux, en kan later worden gerepareerd met shortcut.pyw of shortcut.sh.",
       "newUserTitle": "Welkom!",

@@ -1,3 +1,30 @@
+/*
+ * Copyright (C) 2023  Haowei Wen <yushijinhun@gmail.com> and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * ---------------------------------------------------------------------------
+ * Modified by the Histolauncher project on 2026-09-12, based on
+ * authlib-injector v1.2.8. Changes in this file:
+ *   - Accept Histolauncher-signed 'textures' properties, so launcher skins and
+ *     Mojang skins can be shown side by side when each launcher instance signs
+ *     with its own local Yggdrasil key.
+ *   - Reject empty signatures, and verify payloads as UTF-8 rather than the
+ *     platform default charset.
+ *   - Cover authlib 10's MinecraftServicesKeyInfo as well (upstream v1.2.8).
+ */
+
 package moe.yushi.authlibinjector.transform.support;
 
 import static java.lang.invoke.MethodHandles.publicLookup;
@@ -198,7 +225,8 @@ public class YggdrasilKeyTransformUnit implements TransformUnit {
 				}
 			});
 
-		} else if ("com.mojang.authlib.yggdrasil.YggdrasilServicesKeyInfo".equals(className)) {
+		} else if ("com.mojang.authlib.yggdrasil.YggdrasilServicesKeyInfo".equals(className)
+				|| "com.mojang.authlib.services.MinecraftServicesKeyInfo".equals(className)) {
 			return Optional.of(new ClassVisitor(ASM9, writer) {
 				@Override
 				public MethodVisitor visitMethod(int access, String name, String desc, String signature, String[] exceptions) {

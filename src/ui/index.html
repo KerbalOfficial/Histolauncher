@@ -925,6 +925,16 @@
           <label data-i18n="settings.launcher.keyboardMouse">Keyboard mouse:</label>
           <input type="checkbox" id="settings-keyboard-mouse"/>
         </div>
+        <div class="row">
+          <img class="info-bubble" src="assets/images/info.png" alt="i" data-i18n-tooltip="settings.launcher.updateChannelTooltip" data-tooltip="Stable only receives finished releases.
+
+Snapshots receive in-development builds as well, which may be unstable."/>
+          <label for="settings-update-channel" data-i18n="settings.launcher.updateChannel">Update channel:</label>
+          <select id="settings-update-channel">
+            <option value="stable" data-i18n="settings.launcher.updateChannels.stable">Stable</option>
+            <option value="snapshot" data-i18n="settings.launcher.updateChannels.snapshot">Snapshots</option>
+          </select>
+        </div>
       </div>
 
       <br>

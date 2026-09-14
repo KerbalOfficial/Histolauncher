@@ -1,3 +1,29 @@
+/*
+ * Copyright (C) 2020  Haowei Wen <yushijinhun@gmail.com> and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * ---------------------------------------------------------------------------
+ * Modified by the Histolauncher project on 2026-09-12, based on
+ * authlib-injector v1.2.8. Changes in this file:
+ *   - Redirect skin/cape texture URLs to Histolauncher's local backend.
+ *   - Retarget textures.minecraft.net/texture/<hash> to /texture/raw/<hash>.
+ *   - Retarget LAN peer texture URLs that carry a stale localhost port.
+ *   - Preload the active player's session profile in a daemon thread.
+ *   - Force-load NanoHTTPD$ClientHandler before the agent needs it.
+ */
+
 package moe.yushi.authlibinjector.httpd;
 
 import java.io.InputStream;

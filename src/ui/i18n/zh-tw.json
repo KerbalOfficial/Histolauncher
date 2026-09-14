@@ -1528,6 +1528,12 @@
         "missingShort": "[找不到]",
         "missing": "[找不到] {path}",
         "install": "+ 安裝 Java"
+      },
+      "updateChannel": "更新頻道：",
+      "updateChannelTooltip": "穩定版只會收到已完成的正式版本。\n\n快照版還會收到開發中的版本，可能不穩定。",
+      "updateChannels": {
+        "stable": "穩定版",
+        "snapshot": "快照版"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "Beta 版本警告",
       "betaWarningMessage": "這是 Histolauncher 的 Beta 版本。使用過程中可能會遇到錯誤，請留意。如果遇到問題或錯誤，請儘快在 GitHub 或 Discord 回報。\n\n（Beta 版本：{local}）",
+      "unstableWarningTitle": "不穩定版本警告",
+      "unstableWarningMessage": "這是 Histolauncher 的快照版本，而非穩定版。使用過程中可能會遇到錯誤，請留意。如果遇到問題或錯誤，請儘快在 GitHub 或 Discord 回報。\n\n（快照版本：{local}）",
       "createShortcutTitle": "建立捷徑？",
       "createShortcutMessage": "你希望 Histolauncher 現在建立捷徑嗎？\n\n這會將 Histolauncher 加入 Windows 的開始功能表或 Linux 的應用程式選單，之後也可以使用 shortcut.pyw 或 shortcut.sh 修復。",
       "newUserTitle": "歡迎！",

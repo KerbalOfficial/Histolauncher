@@ -297,17 +297,17 @@ def _run_startup_prompts(state: CliState, update_info: dict | None) -> bool:
     local = info.get("local")
     release_info = info.get("release_info")
 
-    # --- beta warning -----------------------------------------------------
+    # --- unstable build warning -------------------------------------------
     try:
-        from launcher.updater import should_prompt_beta_warning
+        from launcher.updater import should_prompt_unstable_warning
 
-        promptb, _ = should_prompt_beta_warning(local)
+        promptb, _ = should_prompt_unstable_warning(local)
     except Exception:
         promptb = False
     if promptb:
         show_message(
-            t("native.prompts.betaWarningTitle"),
-            t("native.prompts.betaWarningMessage", {"local": local}),
+            t("native.prompts.unstableWarningTitle"),
+            t("native.prompts.unstableWarningMessage", {"local": local}),
             kind="warn",
         )
 

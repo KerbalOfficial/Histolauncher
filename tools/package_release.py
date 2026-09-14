@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import io
 import os
+import re
 import stat
 import tarfile
 import zipfile
@@ -40,6 +42,24 @@ REQUIRED_ENTRYPOINTS = (
 )
 
 
+_RELEASE_TAG_RE = re.compile(r"^r\d+(?:\.\d+){1,2}$")
+_SNAPSHOT_TAG_RE = re.compile(r"^s\d+(?:\.\d+){1,2}-\d{8}(?:\.\d+)?$")
+_PRERELEASE_TAG_RE = re.compile(r"^r\d+(?:\.\d+){1,2}-pre\d*$")
+
+
+def _check_release_tag(version: str) -> None:
+    if _RELEASE_TAG_RE.match(version):
+        return
+    if _SNAPSHOT_TAG_RE.match(version):
+        return
+    if _PRERELEASE_TAG_RE.match(version):
+        return
+    raise ValueError(
+        f"version.dat has {version!r}, which is not a release (rX.X), "
+        f"snapshot (sX.X-yyyymmdd) or pre-release (rX.X-preX)."
+    )
+
+
 def _read_version(source_dir: Path) -> str:
     version_file = source_dir / "version.dat"
     try:
@@ -70,6 +90,13 @@ def _file_mode(path: Path) -> int:
     return 0o644
 
 
+def _read_release_payload(path: Path) -> bytes:
+    payload = path.read_bytes()
+    if path.suffix == ".sh":
+        payload = payload.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return payload
+
+
 def _write_zip(source_dir: Path, output_path: Path) -> None:
     with zipfile.ZipFile(output_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in _iter_release_files(source_dir):
@@ -79,8 +106,7 @@ def _write_zip(source_dir: Path, output_path: Path) -> None:
             info.create_system = 3
             info.compress_type = zipfile.ZIP_DEFLATED
             info.date_time = _zip_timestamp(path)
-            with path.open("rb") as handle:
-                archive.writestr(info, handle.read())
+            archive.writestr(info, _read_release_payload(path))
 
 
 def _zip_timestamp(path: Path) -> tuple[int, int, int, int, int, int]:
@@ -99,8 +125,9 @@ def _write_tar(source_dir: Path, output_path: Path) -> None:
             arcname = _archive_name(path, source_dir)
             info = archive.gettarinfo(str(path), arcname=arcname)
             info.mode = _file_mode(path)
-            with path.open("rb") as handle:
-                archive.addfile(info, handle)
+            payload = _read_release_payload(path)
+            info.size = len(payload)
+            archive.addfile(info, io.BytesIO(payload))
 
 
 def package_release(source_dir: Path, dist_dir: Path, version: str | None = None) -> list[Path]:
@@ -116,6 +143,8 @@ def package_release(source_dir: Path, dist_dir: Path, version: str | None = None
     if missing_entrypoints:
         missing = ", ".join(missing_entrypoints)
         raise FileNotFoundError(f"Missing required release entrypoint(s) in {source_dir}: {missing}")
+
+    _check_release_tag(version)
 
     dist_dir.mkdir(parents=True, exist_ok=True)
     zip_path = dist_dir / f"{package_root}.zip"

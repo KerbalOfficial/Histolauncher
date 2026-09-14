@@ -1528,6 +1528,12 @@
         "missingShort": "[Ausente]",
         "missing": "[Ausente] {path}",
         "install": "+ Instalar Java"
+      },
+      "updateChannel": "Canal de atualização:",
+      "updateChannelTooltip": "Estável recebe apenas versões finalizadas.\n\nSnapshots também recebem builds em desenvolvimento, que podem ser instáveis.",
+      "updateChannels": {
+        "stable": "Estável",
+        "snapshot": "Snapshots"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "Aviso de versão beta",
       "betaWarningMessage": "Esta é uma versão beta do Histolauncher. Você pode encontrar bugs durante o uso, então tenha isso em mente. Se encontrar problemas ou bugs, reporte-os no GitHub ou Discord o quanto antes.\n\n(versão beta: {local})",
+      "unstableWarningTitle": "Aviso de versão instável",
+      "unstableWarningMessage": "Esta é uma versão snapshot do Histolauncher, não um lançamento estável. Você pode encontrar bugs durante o uso, então tenha isso em mente. Se encontrar problemas ou bugs, reporte-os no GitHub ou Discord o quanto antes.\n\n(versão snapshot: {local})",
       "createShortcutTitle": "Criar atalho?",
       "createShortcutMessage": "Deseja que o Histolauncher crie um atalho agora?\n\nIsso adiciona o Histolauncher ao menu Iniciar no Windows ou ao menu de aplicativos no Linux, e ele pode ser reparado depois com shortcut.pyw ou shortcut.sh.",
       "newUserTitle": "Bem-vindo!",

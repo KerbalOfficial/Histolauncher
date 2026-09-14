@@ -8,10 +8,17 @@ import tempfile
 import threading
 import urllib.request
 import zipfile
-from itertools import zip_longest
 
 from core.logger import safe_print
 from core.settings import _apply_url_proxy
+from core.update_channel import (
+    CHANNEL_SNAPSHOT,
+    CHANNEL_STABLE,
+    channel_for_tag,
+    prefers_snapshots,
+    read_build_channel,
+    resolve_channel,
+)
 from core.zip_utils import safe_extract_zip
 
 from launcher._constants import ICO_PATH, PROJECT_ROOT, REMOTE_TIMEOUT
@@ -20,20 +27,32 @@ from launcher.i18n import t, tk_direction_options
 
 __all__ = [
     "parse_version",
+    "version_key",
+    "channel_for_tag",
     "get_github_releases_url",
     "fetch_github_releases",
     "separate_releases",
-    "is_beta_version",
+    "prefers_snapshots",
     "select_latest_release_for_local",
     "perform_self_update",
     "should_prompt_update",
-    "should_prompt_beta_warning",
+    "should_prompt_unstable_warning",
 ]
 
+_STAGE_PRERELEASE = -1
+_STAGE_RELEASE = 0
+_STAGE_SNAPSHOT = 1
 
-def parse_version(ver):
+_PRERELEASE_RE = re.compile(r"[-_.]?pre\.?(\d*)$")
+
+_SNAPSHOT_RE = re.compile(r"[-_.](\d{8})(?:\.(\d+))?$")
+
+_VERSION_FIELDS = 4
+
+
+def _split_version(ver):
     if not ver:
-        return None, tuple()
+        return None, tuple(), _STAGE_RELEASE, 0
 
     s = str(ver).strip().lower()
     if s.startswith("v") and len(s) > 1:
@@ -44,8 +63,34 @@ def parse_version(ver):
         letter = s[0]
         s = s[1:]
 
+    stage = _STAGE_RELEASE
+    ordinal = 0
+
+    snapshot = _SNAPSHOT_RE.search(s)
+    if snapshot:
+        s = s[: snapshot.start()]
+        stage = _STAGE_SNAPSHOT
+        ordinal = int(snapshot.group(1)) * 1000 + min(int(snapshot.group(2) or 0), 999)
+    else:
+        prerelease = _PRERELEASE_RE.search(s)
+        if prerelease:
+            s = s[: prerelease.start()]
+            stage = _STAGE_PRERELEASE
+            ordinal = min(int(prerelease.group(1) or 0), 99999)
+
     nums = tuple(int(n) for n in re.findall(r"\d+", s))
+    return letter, nums, stage, ordinal
+
+
+def parse_version(ver):
+    letter, nums, _stage, _ordinal = _split_version(ver)
     return letter, nums
+
+
+def version_key(ver):
+    _letter, nums, stage, ordinal = _split_version(ver)
+    padded = (tuple(nums) + (0,) * _VERSION_FIELDS)[:_VERSION_FIELDS]
+    return (padded, stage, ordinal)
 
 
 def get_github_releases_url(owner="KerbalOfficial", repo="Histolauncher"):
@@ -95,43 +140,47 @@ def fetch_github_releases(
 
 
 def separate_releases(releases):
-    return {
-        "stable": [r for r in releases if not r.get("prerelease")],
-        "beta": [r for r in releases if r.get("prerelease")],
-    }
+    stable, snapshot = [], []
 
+    for release in releases or []:
+        if release.get("draft"):
+            continue
 
-def _compare_numeric_versions(local_nums, remote_nums):
-    if not local_nums and not remote_nums:
-        return 0
-    for l_val, r_val in zip_longest(local_nums, remote_nums, fillvalue=0):
-        if r_val > l_val:
-            return 1
-        if r_val < l_val:
-            return -1
-    return 0
+        tag = release.get("tag_name") or release.get("name") or ""
+        channel = channel_for_tag(tag)
 
+        if channel is None:
+            channel = CHANNEL_SNAPSHOT if release.get("prerelease") else CHANNEL_STABLE
+        elif bool(release.get("prerelease")) != (channel == CHANNEL_SNAPSHOT):
+            safe_print(
+                f"[updater] Release {tag!r} looks like {channel} by tag but its "
+                f"GitHub prerelease flag disagrees; trusting the tag."
+            )
 
-def is_beta_version(ver):
-    if not ver:
-        return False
-    letter, _ = parse_version(ver)
-    if letter == "b":
-        return True
-    return "beta" in str(ver).lower()
+        (snapshot if channel == CHANNEL_SNAPSHOT else stable).append(release)
+
+    return {"stable": stable, "snapshot": snapshot, "beta": snapshot}
 
 
 def select_latest_release_for_local(local_ver, timeout=REMOTE_TIMEOUT):
-    releases = fetch_github_releases(timeout=timeout)
-    groups = separate_releases(releases)
-    wants_beta = is_beta_version(local_ver)
-    if wants_beta:
-        if groups["beta"]:
-            return groups["beta"][0], "beta"
-        return None, "missing_beta_release"
-    if groups["stable"]:
-        return groups["stable"][0], "stable"
-    return None, "missing_stable_release"
+    groups = separate_releases(fetch_github_releases(timeout=timeout))
+    channel = resolve_channel()
+
+    if channel == CHANNEL_SNAPSHOT:
+        candidates = groups["snapshot"] + groups["stable"]
+    else:
+        candidates = groups["stable"]
+
+    if not candidates:
+        return None, f"missing_{channel}_release"
+
+    latest = max(
+        candidates,
+        key=lambda release: version_key(
+            release.get("tag_name") or release.get("name") or ""
+        ),
+    )
+    return latest, channel
 
 
 def _pick_release_zip_asset(release):
@@ -466,38 +515,29 @@ def perform_self_update(release, current_version):
 
 
 def should_prompt_update(local_ver, remote_ver):
-    if local_ver is None or remote_ver is None:
+    local = str(local_ver or "").strip()
+    remote = str(remote_ver or "").strip()
+
+    if not local or not remote:
         return False, "missing"
+    if local == remote:
+        return False, "up_to_date"
 
-    l_letter, l_num = parse_version(local_ver)
-    r_letter, r_num = parse_version(remote_ver)
+    local_key = version_key(local)
+    remote_key = version_key(remote)
 
-    if not l_num or not r_num:
-        return False, "parse_error"
-
-    if (
-        l_letter is not None
-        and r_letter is not None
-        and l_letter != r_letter
-    ):
-        return False, "letter_mismatch"
-
-    cmp_result = _compare_numeric_versions(l_num, r_num)
-    if cmp_result > 0:
+    if remote_key > local_key:
         return True, "newer_available"
+    if remote_key < local_key:
+        return False, "older_release"
 
     return False, "up_to_date"
 
 
-def should_prompt_beta_warning(local_ver):
-    if local_ver is None:
-        return False, "missing"
-
-    l_letter, l_num = parse_version(local_ver)
-
-    if l_letter is None:
-        return False, "parse_error"
-    if l_letter == "b":
-        return True, "beta_version"
-
-    return False, "other_version"
+def should_prompt_unstable_warning(local_ver=None):
+    channel = channel_for_tag(local_ver) if local_ver else None
+    if channel is None:
+        channel = read_build_channel(PROJECT_ROOT)
+    if channel == CHANNEL_SNAPSHOT:
+        return True, "unstable_build"
+    return False, "stable_build"

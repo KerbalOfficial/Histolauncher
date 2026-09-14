@@ -1528,6 +1528,12 @@
         "missingShort": "[Manquant]",
         "missing": "[Manquant] {path}",
         "install": "+ Installer Java"
+      },
+      "updateChannel": "Canal de mise à jour :",
+      "updateChannelTooltip": "Stable ne reçoit que les versions finalisées.\n\nSnapshots reçoit également les versions en cours de développement, qui peuvent être instables.",
+      "updateChannels": {
+        "stable": "Stable",
+        "snapshot": "Snapshots"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "Avertissement de version bêta",
       "betaWarningMessage": "Ceci est une version bêta de Histolauncher. Vous pouvez rencontrer des bugs pendant l’utilisation, gardez-le à l’esprit. Si vous rencontrez des problèmes ou des bugs, signalez-les sur GitHub ou Discord dès que possible.\n\n(version bêta : {local})",
+      "unstableWarningTitle": "Avertissement de version instable",
+      "unstableWarningMessage": "Ceci est une version snapshot de Histolauncher, et non une version stable. Vous pouvez rencontrer des bugs pendant l’utilisation, gardez-le à l’esprit. Si vous rencontrez des problèmes ou des bugs, signalez-les sur GitHub ou Discord dès que possible.\n\n(version snapshot : {local})",
       "createShortcutTitle": "Créer un raccourci ?",
       "createShortcutMessage": "Voulez-vous que Histolauncher crée un raccourci maintenant ?\n\nCela ajoute Histolauncher au menu Démarrer sous Windows ou au menu des applications sous Linux, et le raccourci pourra être réparé plus tard avec shortcut.pyw ou shortcut.sh.",
       "newUserTitle": "Bienvenue !",

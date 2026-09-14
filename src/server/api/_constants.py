@@ -23,8 +23,6 @@ from core.constants import (
 
 
 __all__ = [
-    "GITHUB_RAW_VERSION_URL",
-    "REMOTE_TIMEOUT",
     "MAX_VERSION_ID_LENGTH",
     "MAX_CATEGORY_LENGTH",
     "MAX_USERNAME_LENGTH",
@@ -59,11 +57,6 @@ __all__ = [
     "CANCELLED_OPERATION_ERROR_MESSAGE",
 ]
 
-
-GITHUB_RAW_VERSION_URL = (
-    "https://raw.githubusercontent.com/KerbalOfficial/Histolauncher/main/version.dat"
-)
-REMOTE_TIMEOUT = 5.0
 
 MAX_PAYLOAD_SIZE = MAX_VERSIONS_IMPORT_PAYLOAD
 

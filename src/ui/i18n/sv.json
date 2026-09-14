@@ -1528,6 +1528,12 @@
         "missingShort": "[Saknas]",
         "missing": "[Saknas] {path}",
         "install": "+ Installera Java"
+      },
+      "updateChannel": "Uppdateringskanal:",
+      "updateChannelTooltip": "Stabil får endast färdiga versioner.\n\nSnapshots får även versioner under utveckling, som kan vara instabila.",
+      "updateChannels": {
+        "stable": "Stabil",
+        "snapshot": "Snapshots"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "Varning för betaversion",
       "betaWarningMessage": "Det här är en betaversion av Histolauncher. Du kan stöta på buggar under användning, så tänk på det. Om du hittar problem eller buggar, rapportera dem på GitHub eller Discord så snart som möjligt.\n\n(betaversion: {local})",
+      "unstableWarningTitle": "Varning för instabil build",
+      "unstableWarningMessage": "Det här är en snapshot-build av Histolauncher, inte en stabil version. Du kan stöta på buggar under användning, så tänk på det. Om du hittar problem eller buggar, rapportera dem på GitHub eller Discord så snart som möjligt.\n\n(snapshot-build: {local})",
       "createShortcutTitle": "Skapa genväg?",
       "createShortcutMessage": "Vill du att Histolauncher skapar en genväg nu?\n\nDetta lägger till Histolauncher i Start-menyn på Windows eller i programmenyn på Linux, och den kan repareras senare med shortcut.pyw eller shortcut.sh.",
       "newUserTitle": "Välkommen!",

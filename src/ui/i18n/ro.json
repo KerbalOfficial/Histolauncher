@@ -1528,6 +1528,12 @@
         "missingShort": "[Lipsă]",
         "missing": "[Lipsă] {path}",
         "install": "+ Instalează Java"
+      },
+      "updateChannel": "Canal de actualizare:",
+      "updateChannelTooltip": "Canalul stabil primește doar versiuni finalizate.\n\nSnapshot primește și versiuni aflate în dezvoltare, care pot fi instabile.",
+      "updateChannels": {
+        "stable": "Stabil",
+        "snapshot": "Snapshot"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "Avertisment versiune beta",
       "betaWarningMessage": "Aceasta este o versiune beta a Histolauncher. Poți întâlni erori în timpul utilizării, așa că ține cont de asta. Dacă întâlnești probleme sau buguri, raportează-le pe GitHub sau Discord cât mai curând posibil.\n\n(versiune beta: {local})",
+      "unstableWarningTitle": "Avertisment versiune instabilă",
+      "unstableWarningMessage": "Aceasta este o versiune snapshot a Histolauncher, nu o versiune stabilă. Poți întâlni erori în timpul utilizării, așa că ține cont de asta. Dacă întâlnești probleme sau buguri, raportează-le pe GitHub sau Discord cât mai curând posibil.\n\n(versiune snapshot: {local})",
       "createShortcutTitle": "Creezi o scurtătură?",
       "createShortcutMessage": "Vrei ca Histolauncher să creeze acum o scurtătură?\n\nAceasta adaugă Histolauncher în meniul Start pe Windows sau în meniul de aplicații pe Linux, iar scurtătura poate fi reparată ulterior cu shortcut.pyw sau shortcut.sh.",
       "newUserTitle": "Bun venit!",

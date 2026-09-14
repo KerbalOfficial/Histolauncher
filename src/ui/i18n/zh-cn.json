@@ -1528,6 +1528,12 @@
         "missingShort": "[缺失]",
         "missing": "[缺失] {path}",
         "install": "+ 安装 Java"
+      },
+      "updateChannel": "更新通道：",
+      "updateChannelTooltip": "稳定版只会收到已完成的正式版本。\n\n快照版还会收到开发中的版本，可能不稳定。",
+      "updateChannels": {
+        "stable": "稳定版",
+        "snapshot": "快照版"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "测试版警告",
       "betaWarningMessage": "这是 Histolauncher 的测试版。使用过程中可能会遇到 bug，请留意。如果遇到问题或 bug，请尽快在 GitHub 或 Discord 上报告。\n\n（测试版：{local}）",
+      "unstableWarningTitle": "不稳定版本警告",
+      "unstableWarningMessage": "这是 Histolauncher 的快照版本，而非稳定版。使用过程中可能会遇到 bug，请留意。如果遇到问题或 bug，请尽快在 GitHub 或 Discord 上报告。\n\n（快照版本：{local}）",
       "createShortcutTitle": "创建快捷方式？",
       "createShortcutMessage": "你希望 Histolauncher 现在创建快捷方式吗？\n\n这会将 Histolauncher 添加到 Windows 的开始菜单或 Linux 的应用菜单，之后也可以使用 shortcut.pyw 或 shortcut.sh 修复。",
       "newUserTitle": "欢迎！",

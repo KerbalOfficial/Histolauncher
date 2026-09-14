@@ -1528,6 +1528,12 @@
         "missingShort": "[مفقود]",
         "missing": "[مفقود] {path}",
         "install": "+ تثبيت Java"
+      },
+      "updateChannel": "قناة التحديثات:",
+      "updateChannelTooltip": "لا يتلقى الوضع المستقر سوى الإصدارات المكتملة.\n\nأما اللقطات فتتلقى أيضًا الإصدارات قيد التطوير، وقد تكون غير مستقرة.",
+      "updateChannels": {
+        "stable": "مستقر",
+        "snapshot": "اللقطات"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "تحذير إصدار تجريبي",
       "betaWarningMessage": "هذا إصدار تجريبي من Histolauncher. قد تواجه أخطاء أثناء الاستخدام، لذا يرجى تذكر ذلك. إذا واجهت مشاكل أو أخطاء، فأبلغ عنها على GitHub أو Discord في أقرب وقت ممكن.\n\n(الإصدار التجريبي: {local})",
+      "unstableWarningTitle": "تحذير إصدار غير مستقر",
+      "unstableWarningMessage": "هذا إصدار لقطة (snapshot) من Histolauncher وليس إصدارًا مستقرًا. قد تواجه أخطاء أثناء الاستخدام، لذا يرجى تذكر ذلك. إذا واجهت مشاكل أو أخطاء، فأبلغ عنها على GitHub أو Discord في أقرب وقت ممكن.\n\n(إصدار اللقطة: {local})",
       "createShortcutTitle": "إنشاء اختصار؟",
       "createShortcutMessage": "هل تريد أن ينشئ Histolauncher اختصارًا الآن؟\n\nسيضيف هذا Histolauncher إلى قائمة ابدأ في Windows أو إلى قائمة التطبيقات في Linux، ويمكن إصلاحه لاحقًا باستخدام shortcut.pyw أو shortcut.sh.",
       "newUserTitle": "مرحبًا!",

@@ -1528,6 +1528,12 @@
         "missingShort": "[Fehlt]",
         "missing": "[Fehlt] {path}",
         "install": "+ Java installieren"
+      },
+      "updateChannel": "Update-Kanal:",
+      "updateChannelTooltip": "Stable erhält nur fertige Veröffentlichungen.\n\nSnapshots erhalten zusätzlich Builds, die noch in Entwicklung sind und instabil sein können.",
+      "updateChannels": {
+        "stable": "Stable",
+        "snapshot": "Snapshots"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "Warnung zur Beta-Version",
       "betaWarningMessage": "Dies ist eine Beta-Version von Histolauncher. Während der Nutzung können Fehler auftreten, bitte behalte das im Hinterkopf. Wenn du Probleme oder Fehler findest, melde sie bitte so bald wie möglich auf GitHub oder Discord.\n\n(Beta-Version: {local})",
+      "unstableWarningTitle": "Warnung zu instabilem Build",
+      "unstableWarningMessage": "Dies ist ein Snapshot-Build von Histolauncher und keine stabile Version. Während der Nutzung können Fehler auftreten, bitte behalte das im Hinterkopf. Wenn du Probleme oder Fehler findest, melde sie bitte so bald wie möglich auf GitHub oder Discord.\n\n(Snapshot-Build: {local})",
       "createShortcutTitle": "Verknüpfung erstellen?",
       "createShortcutMessage": "Möchtest du, dass Histolauncher jetzt eine Verknüpfung erstellt?\n\nDadurch wird Histolauncher unter Windows zum Startmenü oder unter Linux zum Anwendungsmenü hinzugefügt. Die Verknüpfung kann später mit shortcut.pyw oder shortcut.sh repariert werden.",
       "newUserTitle": "Willkommen!",

@@ -1289,6 +1289,8 @@ export const initSettings = async (data, profilePayload = null) => {
 
   const lowDataEl = getEl('settings-low-data');
   if (lowDataEl) lowDataEl.checked = state.settingsState.low_data_mode === "1";
+  const updateChannelEl = document.getElementById('settings-update-channel');
+  if (updateChannelEl) updateChannelEl.value = state.settingsState.update_channel === 'snapshot' ? 'snapshot' : 'stable';
 
   const showThirdPartyEl = getEl('settings-show-third-party-versions');
   if (showThirdPartyEl) showThirdPartyEl.checked = isTruthySetting(state.settingsState.show_third_party_versions);

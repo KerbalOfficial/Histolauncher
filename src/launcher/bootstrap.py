@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 
 from core.logger import safe_print, dim_line
 from core.subprocess_utils import no_window_kwargs
@@ -31,7 +32,7 @@ from launcher.i18n import set_temporary_language, suggested_language_code, t
 from launcher.pip_installer import install
 from launcher.prompts import (
     prompt_create_shortcut,
-    prompt_beta_warning,
+    prompt_unstable_warning,
     prompt_new_user,
     prompt_user_update,
 )
@@ -39,7 +40,7 @@ from launcher.splash import LauncherSplash
 from launcher.updater import (
     perform_self_update,
     select_latest_release_for_local,
-    should_prompt_beta_warning,
+    should_prompt_unstable_warning,
     should_prompt_update,
 )
 from launcher.webview_runner import (
@@ -181,13 +182,45 @@ def show_disclaimer_if_needed() -> None:
         sys.exit()
 
 
-def check_and_prompt(splash=None):
+def start_release_prefetch(local_version):
+    state = {}
+
+    def worker():
+        try:
+            state["value"] = select_latest_release_for_local(
+                local_version, timeout=REMOTE_TIMEOUT
+            )
+        except Exception as exc:  # noqa: BLE001
+            state["value"] = (None, f"prefetch_failed: {exc}")
+
+    thread = threading.Thread(target=worker, name="release-prefetch", daemon=True)
+    thread.start()
+    return thread, state
+
+
+def _await_release_prefetch(prefetch, splash=None):
+    thread, state = prefetch
+    deadline = time.monotonic() + (REMOTE_TIMEOUT * 2) + 1.0
+    while thread.is_alive() and time.monotonic() < deadline:
+        thread.join(0.05)
+        if splash is not None:
+            try:
+                splash.pump()
+            except Exception:
+                pass
+    return state.get("value", (None, "prefetch_timeout"))
+
+
+def check_and_prompt(splash=None, prefetch=None):
     from server.api.version_check import read_local_version
 
     local = read_local_version(base_dir=PROJECT_ROOT)
-    release_info, release_reason = select_latest_release_for_local(
-        local, timeout=REMOTE_TIMEOUT
-    )
+    if prefetch is not None:
+        release_info, release_reason = _await_release_prefetch(prefetch, splash)
+    else:
+        release_info, release_reason = select_latest_release_for_local(
+            local, timeout=REMOTE_TIMEOUT
+        )
     remote = (release_info or {}).get("tag_name")
 
     safe_print(
@@ -245,16 +278,16 @@ def check_and_prompt(splash=None):
                     f"[launcher] Warning: shortcut setup prompt failed: {e}"
                 )
 
-    promptb, reasonb = should_prompt_beta_warning(local)
+    promptb, reasonb = should_prompt_unstable_warning(local)
     safe_print(
-        f"[launcher] should_prompt_beta_warning[prompt]: {promptb}"
+        f"[launcher] should_prompt_unstable_warning[prompt]: {promptb}"
     )
     safe_print(
-        f"[launcher] should_prompt_beta_warning[reason]: {reasonb}"
+        f"[launcher] should_prompt_unstable_warning[reason]: {reasonb}"
     )
     if promptb:
-        safe_print("[launcher] PROMPTING BETA WARNING...")
-        prompt_beta_warning(local)
+        safe_print("[launcher] PROMPTING UNSTABLE BUILD WARNING...")
+        prompt_unstable_warning(local)
 
     promptu, reasonu = should_prompt_update(local, remote)
     safe_print(f"[launcher] should_prompt_update[prompt]: {promptu}")
@@ -531,6 +564,16 @@ def main():
     splash = LauncherSplash()
     splash.show()
 
+    release_prefetch = None
+    try:
+        from server.api.version_check import read_local_version
+
+        release_prefetch = start_release_prefetch(
+            read_local_version(base_dir=PROJECT_ROOT)
+        )
+    except Exception as e:
+        safe_print(f"[launcher] Warning: could not prefetch release info: {e}")
+
     runtime_status, runtime_errors = _ensure_runtime_dependencies()
 
     try:
@@ -563,25 +606,16 @@ def main():
     try:
         from core.settings import get_base_dir
 
-        cache_dir = os.path.join(get_base_dir(), "cache")
-        if os.path.exists(cache_dir):
-            shutil.rmtree(cache_dir)
+        progress_cache_dir = os.path.join(get_base_dir(), "cache", "progress")
+        if os.path.exists(progress_cache_dir):
+            shutil.rmtree(progress_cache_dir)
             safe_print(
-                f"[startup] Cleared cache directory: {cache_dir}"
+                f"[startup] Cleared stale download progress: "
+                f"{progress_cache_dir}"
             )
     except Exception as e:
         safe_print(
-            f"[launcher] Warning: could not clear cache directory: {e}"
-        )
-
-    try:
-        from core.downloader.progress import cleanup_orphaned_progress_files
-
-        cleanup_orphaned_progress_files(max_age_seconds=3600)
-    except Exception as e:
-        safe_print(
-            f"[launcher] Warning: could not cleanup orphaned progress "
-            f"files: {e}"
+            f"[launcher] Warning: could not clear download progress: {e}"
         )
 
     wv = None
@@ -606,7 +640,7 @@ def main():
 
     try:
         safe_print("Checking information and prompting...")
-        proceed = check_and_prompt(splash=splash)
+        proceed = check_and_prompt(splash=splash, prefetch=release_prefetch)
         if proceed:
             safe_print(
                 "Finished prompting! Initializing launcher..."

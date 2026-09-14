@@ -1528,6 +1528,12 @@
         "missingShort": "[Hiányzik]",
         "missing": "[Hiányzik] {path}",
         "install": "+ Java telepítése"
+      },
+      "updateChannel": "Frissítési csatorna:",
+      "updateChannelTooltip": "A Stabil csatorna csak kész kiadásokat kap.\n\nA Snapshotok a fejlesztés alatt álló buildeket is megkapják, amelyek instabilak lehetnek.",
+      "updateChannels": {
+        "stable": "Stabil",
+        "snapshot": "Snapshotok"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "Bétaverzió figyelmeztetés",
       "betaWarningMessage": "Ez a Histolauncher bétaverziója. Használat közben hibákba ütközhetsz, ezért ezt tartsd észben. Ha problémát vagy hibát találsz, jelentsd minél hamarabb GitHubon vagy Discordon.\n\n(bétaverzió: {local})",
+      "unstableWarningTitle": "Instabil build figyelmeztetés",
+      "unstableWarningMessage": "Ez a Histolauncher snapshot buildje, nem stabil kiadás. Használat közben hibákba ütközhetsz, ezért ezt tartsd észben. Ha problémát vagy hibát találsz, jelentsd minél hamarabb GitHubon vagy Discordon.\n\n(snapshot build: {local})",
       "createShortcutTitle": "Parancsikon létrehozása?",
       "createShortcutMessage": "Szeretnéd, hogy a Histolauncher most létrehozzon egy parancsikont?\n\nEz hozzáadja a Histolaunchert a Windows Start menüjéhez vagy a Linux alkalmazásmenüjéhez, és később javítható a shortcut.pyw vagy shortcut.sh segítségével.",
       "newUserTitle": "Üdvözlünk!",

@@ -78,6 +78,14 @@ def _read_data_ini_legacy(stream: io.StringIO) -> dict[str, str]:
     return cfg
 
 
+def _contains_jar(root: str) -> bool:
+    for _dirpath, _dirnames, filenames in os.walk(root):
+        for file_name in filenames:
+            if file_name.endswith(".jar"):
+                return True
+    return False
+
+
 def _scan_loaders_in_version(version_path: str) -> dict[str, list[dict[str, Any]]]:
     loaders_dir = os.path.join(version_path, "loaders")
     result: dict[str, list[dict[str, Any]]] = {lt: [] for lt in SUPPORTED_MODLOADER_TYPES}
@@ -100,23 +108,12 @@ def _scan_loaders_in_version(version_path: str) -> dict[str, list[dict[str, Any]
             if not os.path.isdir(version_path_full):
                 continue
 
-            jars: list[str] = []
-            for root, _, files in os.walk(version_path_full):
-                for file_name in files:
-                    if file_name.endswith(".jar"):
-                        jars.append(
-                            os.path.relpath(
-                                os.path.join(root, file_name),
-                                version_path_full,
-                            )
-                        )
-            if jars:
+            if _contains_jar(version_path_full):
                 result[loader_type].append(
                     {
                         "type": loader_type,
                         "version": version_folder,
                         "folder": os.path.relpath(version_path_full, version_path),
-                        "jars": jars,
                     }
                 )
 

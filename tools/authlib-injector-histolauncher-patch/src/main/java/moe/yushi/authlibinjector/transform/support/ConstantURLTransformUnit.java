@@ -1,3 +1,31 @@
+/*
+ * Copyright (C) 2020  Haowei Wen <yushijinhun@gmail.com> and contributors
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
+ * ---------------------------------------------------------------------------
+ * Modified by the Histolauncher project on 2026-09-12, based on
+ * authlib-injector v1.2.8. Changes in this file:
+ *   - Rewrite MinecraftProfileTexture.getUrl() through the local texture proxy.
+ *   - Short-circuit session service profile/texture lookups against a
+ *     launcher-side cache, so world join does not block on the network and
+ *     offline-mode servers (which send no texture property) still show skins.
+ *     Covers the legacy YggdrasilMinecraftSessionService and authlib 10's
+ *     MinecraftServicesSessionService.
+ *   - Hook TitleScreen/client-brand rendering for the Histolauncher build label.
+ */
+
 package moe.yushi.authlibinjector.transform.support;
 
 import static moe.yushi.authlibinjector.internal.org.objectweb.asm.Opcodes.ARETURN;
@@ -52,6 +80,10 @@ public class ConstantURLTransformUnit extends LdcTransformUnit {
 	private static final String PRELOADED_PROFILE_NAME = System.getenv("HISTOLAUNCHER_AUTHLIB_PRELOAD_NAME");
 	private static final String PRELOADED_ACCOUNT_TYPE = System.getenv("HISTOLAUNCHER_AUTHLIB_ACCOUNT_TYPE");
 	private static final String PRELOADED_OFFLINE_UUID = offlineUuidForName(PRELOADED_PROFILE_NAME);
+	private static final String[] PROFILE_RESULT_CLASSES = {
+		"com.mojang.authlib.services.ProfileResult",
+		"com.mojang.authlib.yggdrasil.ProfileResult",
+	};
 	private static final String DEBUG_VERSION_LINE_RECIPE_PREFIX = "Minecraft \u0001 (";
 
 	public ConstantURLTransformUnit(URLProcessor urlProcessor) {
@@ -324,14 +356,16 @@ public class ConstantURLTransformUnit extends LdcTransformUnit {
 	}
 
 	private static Object wrapInProfileResult(Object profile, ClassLoader loader) {
-		try {
-			Class<?> gameProfileClass = Class.forName("com.mojang.authlib.GameProfile", false, loader);
-			Class<?> profileResultClass = Class.forName("com.mojang.authlib.yggdrasil.ProfileResult", false, loader);
-			Constructor<?> ctor = profileResultClass.getConstructor(gameProfileClass);
-			return ctor.newInstance(profile);
-		} catch (Throwable ignored) {
-			return null;
+		for (String profileResultName : PROFILE_RESULT_CLASSES) {
+			try {
+				Class<?> gameProfileClass = Class.forName("com.mojang.authlib.GameProfile", false, loader);
+				Class<?> profileResultClass = Class.forName(profileResultName, false, loader);
+				Constructor<?> ctor = profileResultClass.getConstructor(gameProfileClass);
+				return ctor.newInstance(profile);
+			} catch (Throwable ignored) {
+			}
 		}
+		return null;
 	}
 
 	@CallbackMethod
@@ -877,7 +911,16 @@ public class ConstantURLTransformUnit extends LdcTransformUnit {
 			});
 		}
 
-		if ("com.mojang.authlib.yggdrasil.YggdrasilMinecraftSessionService".equals(className)) {
+		boolean legacySessionService = "com.mojang.authlib.yggdrasil.YggdrasilMinecraftSessionService".equals(className);
+		boolean servicesSessionService = "com.mojang.authlib.services.MinecraftServicesSessionService".equals(className);
+		if (legacySessionService || servicesSessionService) {
+			// authlib 10 (Minecraft 1.20.2 and newer) deleted com.mojang.authlib.yggdrasil and moved
+			// the session service to com.mojang.authlib.services. getPackedTextures and fetchProfile
+			// keep the same shape there; only the ProfileResult package changed.
+			final String profileResultType = servicesSessionService
+					? "com/mojang/authlib/services/ProfileResult"
+					: "com/mojang/authlib/yggdrasil/ProfileResult";
+			final String fetchProfileDescriptor = "(Ljava/util/UUID;Z)L" + profileResultType + ";";
 			Optional<ClassVisitor> ldcVisitor = super.transform(classLoader, className, writer, ctx);
 			final ClassVisitor downstream = ldcVisitor.orElse(writer);
 			return Optional.of(new ClassVisitor(ASM9, downstream) {
@@ -916,7 +959,7 @@ public class ConstantURLTransformUnit extends LdcTransformUnit {
 							this.mv.visitInsn(POP);
 						}
 					};
-				} else if ("fetchProfile".equals(name) && "(Ljava/util/UUID;Z)Lcom/mojang/authlib/yggdrasil/ProfileResult;".equals(descriptor)) {
+				} else if ("fetchProfile".equals(name) && fetchProfileDescriptor.equals(descriptor)) {
 					ctx.markModified();
 					return new MethodVisitor(ASM9, visitor) {
 						@Override
@@ -929,7 +972,7 @@ public class ConstantURLTransformUnit extends LdcTransformUnit {
 							this.mv.visitInsn(DUP);
 							Label continueOriginal = new Label();
 							this.mv.visitJumpInsn(IFNULL, continueOriginal);
-							this.mv.visitTypeInsn(CHECKCAST, "com/mojang/authlib/yggdrasil/ProfileResult");
+							this.mv.visitTypeInsn(CHECKCAST, profileResultType);
 							this.mv.visitInsn(ARETURN);
 							this.mv.visitLabel(continueOriginal);
 							this.mv.visitFrame(F_SAME1, 0, null, 1, new Object[]{"java/lang/Object"});

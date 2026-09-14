@@ -103,6 +103,12 @@ def api_settings(data):
     data.pop("_profile_id", None)
     data = _sanitize_settings_payload(data)
 
+    requested_channel = data.pop("update_channel", None)
+    if requested_channel is not None:
+        from core.update_channel import write_channel_preference
+
+        write_channel_preference(requested_channel)
+
     active_profile_id = get_active_profile_id()
     profile_arg = target_profile_id or None
     target_is_active = not target_profile_id or target_profile_id == active_profile_id

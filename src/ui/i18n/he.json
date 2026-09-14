@@ -1528,6 +1528,12 @@
         "missingShort": "[חסר]",
         "missing": "[חסר] {path}",
         "install": "+ התקנת Java"
+      },
+      "updateChannel": "ערוץ עדכונים:",
+      "updateChannelTooltip": "ערוץ יציב מקבל רק גרסאות מוגמרות.\n\nערוץ Snapshots מקבל גם גרסאות בפיתוח, שעשויות להיות לא יציבות.",
+      "updateChannels": {
+        "stable": "יציב",
+        "snapshot": "Snapshots"
       }
     },
     "mods": {
@@ -1591,6 +1597,8 @@
     "prompts": {
       "betaWarningTitle": "אזהרת גרסת בטא",
       "betaWarningMessage": "זוהי גרסת בטא של Histolauncher. ייתכן שתיתקל בבאגים בזמן השימוש, אז זכור זאת. אם נתקלת בבעיות או באגים, דווח עליהם ב-GitHub או Discord בהקדם האפשרי.\n\n(גרסת בטא: {local})",
+      "unstableWarningTitle": "אזהרת גרסה לא יציבה",
+      "unstableWarningMessage": "זוהי גרסת snapshot של Histolauncher, ולא גרסה יציבה. ייתכן שתיתקל בבאגים בזמן השימוש, אז זכור זאת. אם נתקלת בבעיות או באגים, דווח עליהם ב-GitHub או Discord בהקדם האפשרי.\n\n(גרסת snapshot: {local})",
       "createShortcutTitle": "ליצור קיצור דרך?",
       "createShortcutMessage": "האם תרצה ש-Histolauncher ייצור קיצור דרך עכשיו?\n\nפעולה זו מוסיפה את Histolauncher לתפריט התחל ב-Windows או לתפריט היישומים ב-Linux, ואפשר לתקן אותו מאוחר יותר בעזרת shortcut.pyw או shortcut.sh.",
       "newUserTitle": "ברוך הבא!",
