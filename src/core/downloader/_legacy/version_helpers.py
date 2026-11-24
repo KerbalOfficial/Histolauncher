@@ -314,28 +314,22 @@ def _is_at_least(version_id: str, major_req: int, minor_req: int) -> bool:
     return major == major_req and minor >= minor_req
 
 
-def _parse_lwjgl_version(lib_basename: str) -> Optional[int]:
-    name = lib_basename.lower()
-    if not name.startswith("lwjgl"):
+def _parse_lwjgl_version(lib: Dict[str, Any]) -> Optional[Tuple[str, int]]:
+    parts = str((lib or {}).get("name") or "").split("@", 1)[0].split(":")
+    if len(parts) != 3 or not parts[1].lower().startswith("lwjgl"):
         return None
-
-    parts = name.split("-")
-    if len(parts) < 2:
-        return None
-
-    ver_part = parts[-1].replace(".jar", "")
-    digits = ver_part.replace(".", "")
-    return int(digits) if digits.isdigit() else None
+    digits = parts[2].split("-")[-1].replace(".", "")
+    return (parts[1].lower(), int(digits)) if digits.isdigit() else None
 
 
 def _should_skip_library_for_version(
-    version_id: str, lib_basename: str, highest_versions: Dict[str, int]
+    version_id: str, lib: Dict[str, Any], highest_versions: Dict[str, int]
 ) -> bool:
-    ver = _parse_lwjgl_version(lib_basename)
-    if ver is None:
+    parsed = _parse_lwjgl_version(lib)
+    if parsed is None:
         return False
 
-    module = lib_basename.split("-")[0]
+    module, ver = parsed
     highest = highest_versions.get(module)
     return highest is not None and ver < highest
 

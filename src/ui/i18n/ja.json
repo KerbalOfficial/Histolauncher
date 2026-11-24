@@ -41,6 +41,7 @@
     "download": "ダウンロード",
     "redownload": "再ダウンロード",
     "resume": "再開",
+    "retry": "再試行",
     "pause": "一時停止",
     "yes": "はい",
     "no": "いいえ",
@@ -310,6 +311,12 @@
       "deleteSelected": "選択したものを削除",
       "deleteFailed": "破損したバージョンの削除に失敗しました: {error}"
     },
+    "vulnerable": {
+      "title": "セキュリティアップデートがあります",
+      "prompt": "Mojang がこれらのバージョンで使用されているライブラリの重大なセキュリティ問題を修正したか、インストールが不完全です。<br><i>再ダウンロードまたは削除するものを選択してください:</i>",
+      "redownloadSelected": "選択したものを再ダウンロード",
+      "redownloadFailed": "再ダウンロードを開始できませんでした: {versions}"
+    },
     "loaders": {
       "manageForVersion": "{version} のローダーを管理",
       "addLoaderAlt": "ローダーを追加",
@@ -343,6 +350,7 @@
       "starting": "開始中...",
       "resuming": "再開中...",
       "paused": "一時停止中",
+      "insufficientStorage": "ストレージ容量が不足しています。あと {size}MB 必要です",
       "cancelled": "キャンセルしました",
       "failedWithMessage": "失敗: {message}",
       "percentPaused": "{percent}% (一時停止中)",

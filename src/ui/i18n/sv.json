@@ -41,6 +41,7 @@
     "download": "Ladda ner",
     "redownload": "Ladda ner igen",
     "resume": "Återuppta",
+    "retry": "Försök igen",
     "pause": "Pausa",
     "yes": "Ja",
     "no": "Nej",
@@ -310,6 +311,12 @@
       "deleteSelected": "Ta bort markerade",
       "deleteFailed": "Det gick inte att ta bort korrupta versioner: {error}"
     },
+    "vulnerable": {
+      "title": "Säkerhetsuppdatering tillgänglig",
+      "prompt": "Mojang har åtgärdat ett allvarligt säkerhetsproblem i ett bibliotek som dessa versioner använder, eller så installerades de ofullständigt.<br><i>Välj vilka du vill ladda ner igen eller ta bort:</i>",
+      "redownloadSelected": "Ladda ner markerade igen",
+      "redownloadFailed": "Det gick inte att starta nedladdningen igen för: {versions}"
+    },
     "loaders": {
       "manageForVersion": "Hantera ModLoaders för {version}",
       "addLoaderAlt": "lägg till loader",
@@ -343,6 +350,7 @@
       "starting": "Startar...",
       "resuming": "Återupptar...",
       "paused": "Pausad",
+      "insufficientStorage": "Otillräckligt lagringsutrymme, {size} MB till behövs",
       "cancelled": "Avbruten",
       "failedWithMessage": "Misslyckades: {message}",
       "percentPaused": "{percent}% (pausad)",

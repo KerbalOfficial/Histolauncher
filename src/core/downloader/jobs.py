@@ -71,6 +71,8 @@ class Job:
                 if self._cancel.is_set():
                     raise DownloadCancelled()
                 time.sleep(0.1)
+            if self._cancel.is_set():  # cancel() also clears the pause flag
+                raise DownloadCancelled()
             with self._state_lock:
                 if self.state == JobState.PAUSED:
                     self.state = JobState.RUNNING

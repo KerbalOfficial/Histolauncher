@@ -41,6 +41,7 @@
     "download": "下载",
     "redownload": "重新下载",
     "resume": "继续",
+    "retry": "重试",
     "pause": "暂停",
     "yes": "是",
     "no": "否",
@@ -310,6 +311,12 @@
       "deleteSelected": "删除所选",
       "deleteFailed": "删除损坏版本失败: {error}"
     },
+    "vulnerable": {
+      "title": "有可用的安全更新",
+      "prompt": "Mojang 修复了这些版本所使用的某个库中的严重安全问题，或者这些版本未完整安装。<br><i>请选择要重新下载或删除的版本: </i>",
+      "redownloadSelected": "重新下载所选",
+      "redownloadFailed": "无法开始重新下载: {versions}"
+    },
     "loaders": {
       "manageForVersion": "管理 {version} 的加载器",
       "addLoaderAlt": "添加加载器",
@@ -343,6 +350,7 @@
       "starting": "启动中...",
       "resuming": "恢复中...",
       "paused": "已暂停",
+      "insufficientStorage": "存储空间不足，还需要 {size}MB",
       "cancelled": "已取消",
       "failedWithMessage": "失败: {message}",
       "percentPaused": "{percent}% (已暂停)",

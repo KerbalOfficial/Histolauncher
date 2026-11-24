@@ -79,7 +79,15 @@ def write_progress_dict(key: str, data: Dict[str, Any]) -> None:
         pass
 
 
+# Storage-pause snapshots live in memory: on a full disk the progress file
+# itself can't be written (and "w" truncates it), so status reads use this.
+_MEMORY_SNAPSHOTS: Dict[str, Dict[str, Any]] = {}
+
+
 def read_progress_dict(key: str) -> Optional[Dict[str, Any]]:
+    held = _MEMORY_SNAPSHOTS.get(key)
+    if held is not None:
+        return dict(held)
     path = progress_file_path(key)
     if not os.path.exists(path):
         return None
@@ -205,6 +213,7 @@ class ProgressTracker:
         self._bytes_done = 0
         self._bytes_total = 0
         self._status = "starting"
+        self._extra: Dict[str, Any] = {}
         self._dirty = False
         self._flush_interval = max(0.0, flush_interval)
         self._last_flush = 0.0
@@ -245,15 +254,25 @@ class ProgressTracker:
             if bytes_total is not None:
                 self._bytes_total = int(bytes_total)
             self._status = "downloading"
+            self._extra = {}
             self._dirty = True
+        _MEMORY_SNAPSHOTS.pop(self.key, None)
         self._maybe_flush()
 
-    def set_status(self, status: str, message: Optional[str] = None) -> None:
+    def set_status(
+        self, status: str, message: Optional[str] = None,
+        *, extra: Optional[Dict[str, Any]] = None,
+    ) -> None:
         with self._lock:
             self._status = status
             if message is not None:
                 self._current.message = message
+            self._extra = dict(extra or {})
             self._dirty = True
+            if self._extra:
+                _MEMORY_SNAPSHOTS[self.key] = self.snapshot()
+            else:
+                _MEMORY_SNAPSHOTS.pop(self.key, None)
         self._maybe_flush(force=True)
 
     # ---- snapshots ---------------------------------------------------------
@@ -269,6 +288,7 @@ class ProgressTracker:
                 "message": self._current.message,
                 "bytes_done": int(self._bytes_done),
                 "bytes_total": int(self._bytes_total),
+                **self._extra,
             }
 
     def _compute_overall_locked(self) -> float:
@@ -304,6 +324,7 @@ class ProgressTracker:
         self._maybe_flush(force=True)
 
     def finish(self, *, status: str, message: str, keep_seconds: float = 0.5) -> None:
+        _MEMORY_SNAPSHOTS.pop(self.key, None)
         with self._lock:
             self._status = status
             self._current = _StageState(

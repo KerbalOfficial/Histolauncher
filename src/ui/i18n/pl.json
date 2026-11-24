@@ -41,6 +41,7 @@
     "download": "Pobierz",
     "redownload": "Pobierz ponownie",
     "resume": "Wznów",
+    "retry": "Ponów",
     "pause": "Wstrzymaj",
     "yes": "Tak",
     "no": "Nie",
@@ -310,6 +311,12 @@
       "deleteSelected": "Usuń zaznaczone",
       "deleteFailed": "Nie udało się usunąć uszkodzonych wersji: {error}"
     },
+    "vulnerable": {
+      "title": "Dostępna aktualizacja zabezpieczeń",
+      "prompt": "Mojang naprawił krytyczny problem z bezpieczeństwem w bibliotece używanej przez te wersje albo zostały one zainstalowane niekompletnie.<br><i>Wybierz te, które chcesz pobrać ponownie lub usunąć:</i>",
+      "redownloadSelected": "Pobierz ponownie zaznaczone",
+      "redownloadFailed": "Nie udało się rozpocząć ponownego pobierania dla: {versions}"
+    },
     "loaders": {
       "manageForVersion": "Zarządzaj loaderami dla {version}",
       "addLoaderAlt": "dodaj loader",
@@ -343,6 +350,7 @@
       "starting": "Uruchamianie...",
       "resuming": "Wznawianie...",
       "paused": "Wstrzymano",
+      "insufficientStorage": "Za mało miejsca na dysku, potrzeba jeszcze {size} MB",
       "cancelled": "Anulowano",
       "failedWithMessage": "Błąd: {message}",
       "percentPaused": "{percent}% (wstrzymano)",

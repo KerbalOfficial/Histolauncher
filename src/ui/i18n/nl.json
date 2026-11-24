@@ -41,6 +41,7 @@
     "download": "Downloaden",
     "redownload": "Opnieuw downloaden",
     "resume": "Hervatten",
+    "retry": "Opnieuw proberen",
     "pause": "Pauzeren",
     "yes": "Ja",
     "no": "Nee",
@@ -310,6 +311,12 @@
       "deleteSelected": "Geselecteerde verwijderen",
       "deleteFailed": "Beschadigde versies verwijderen mislukt: {error}"
     },
+    "vulnerable": {
+      "title": "Beveiligingsupdate beschikbaar",
+      "prompt": "Mojang heeft een kritiek beveiligingsprobleem opgelost in een bibliotheek die deze versies gebruiken, of ze zijn onvolledig geïnstalleerd.<br><i>Selecteer welke je opnieuw wilt downloaden of wilt verwijderen:</i>",
+      "redownloadSelected": "Geselecteerde opnieuw downloaden",
+      "redownloadFailed": "Opnieuw downloaden kon niet worden gestart voor: {versions}"
+    },
     "loaders": {
       "manageForVersion": "Loaders beheren voor {version}",
       "addLoaderAlt": "loader toevoegen",
@@ -343,6 +350,7 @@
       "starting": "Starten...",
       "resuming": "Hervatten...",
       "paused": "Gepauzeerd",
+      "insufficientStorage": "Onvoldoende opslagruimte, nog {size} MB nodig",
       "cancelled": "Geannuleerd",
       "failedWithMessage": "Mislukt: {message}",
       "percentPaused": "{percent}% (gepauzeerd)",

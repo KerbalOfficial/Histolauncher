@@ -226,3 +226,8 @@ button.profile-delete-btn:disabled img {
 .version-progress-fill.paused {
   background: var(--color-progress-paused) !important;
 }
+
+/* install auto-paused because the disk is full */
+.version-progress-fill.paused.insufficient-storage {
+  background: var(--color-danger) !important;
+}

@@ -41,6 +41,7 @@
     "download": "تنزيل",
     "redownload": "إعادة التنزيل",
     "resume": "استئناف",
+    "retry": "إعادة المحاولة",
     "pause": "إيقاف مؤقت",
     "yes": "نعم",
     "no": "لا",
@@ -310,6 +311,12 @@
       "deleteSelected": "حذف المحدد",
       "deleteFailed": "فشل حذف الإصدارات التالفة: {error}"
     },
+    "vulnerable": {
+      "title": "يتوفر تحديث أمني",
+      "prompt": "أصلحت Mojang مشكلة أمنية خطيرة في مكتبة تستخدمها هذه الإصدارات، أو أنها لم تُثبَّت بالكامل.<br><i>حدد الإصدارات التي تريد إعادة تنزيلها أو حذفها:</i>",
+      "redownloadSelected": "إعادة تنزيل المحدد",
+      "redownloadFailed": "تعذر بدء إعادة التنزيل لـ: {versions}"
+    },
     "loaders": {
       "manageForVersion": "إدارة المحملات لـ {version}",
       "addLoaderAlt": "إضافة محمل",
@@ -343,6 +350,7 @@
       "starting": "جار البدء...",
       "resuming": "جار الاستئناف...",
       "paused": "متوقف مؤقتًا",
+      "insufficientStorage": "مساحة التخزين غير كافية، يلزم {size} ميغابايت إضافية",
       "cancelled": "تم الإلغاء",
       "failedWithMessage": "فشل: {message}",
       "percentPaused": "{percent}% (متوقف مؤقتًا)",

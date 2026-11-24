@@ -41,6 +41,7 @@
     "download": "Descarcă",
     "redownload": "Descarcă din nou",
     "resume": "Reia",
+    "retry": "Reîncearcă",
     "pause": "Pauză",
     "yes": "Da",
     "no": "Nu",
@@ -310,6 +311,12 @@
       "deleteSelected": "Șterge selectate",
       "deleteFailed": "Nu s-au putut șterge versiunile corupte: {error}"
     },
+    "vulnerable": {
+      "title": "Actualizare de securitate disponibilă",
+      "prompt": "Mojang a remediat o problemă critică de securitate într-o bibliotecă folosită de aceste versiuni sau acestea au fost instalate incomplet.<br><i>Alege pe care vrei să le descarci din nou sau să le ștergi:</i>",
+      "redownloadSelected": "Descarcă din nou selectate",
+      "redownloadFailed": "Nu s-a putut porni descărcarea din nou pentru: {versions}"
+    },
     "loaders": {
       "manageForVersion": "Gestionează loaderele pentru {version}",
       "addLoaderAlt": "adaugă loader",
@@ -343,6 +350,7 @@
       "starting": "Se pornește...",
       "resuming": "Se reia...",
       "paused": "Întrerupt",
+      "insufficientStorage": "Spațiu de stocare insuficient, mai sunt necesari {size} MB",
       "cancelled": "Anulat",
       "failedWithMessage": "Eșuat: {message}",
       "percentPaused": "{percent}% (în pauză)",

@@ -41,6 +41,7 @@
     "download": "Télécharger",
     "redownload": "Retélécharger",
     "resume": "Reprendre",
+    "retry": "Réessayer",
     "pause": "Pause",
     "yes": "Oui",
     "no": "Non",
@@ -310,6 +311,12 @@
       "deleteSelected": "Supprimer la sélection",
       "deleteFailed": "Échec de la suppression des versions corrompues : {error}"
     },
+    "vulnerable": {
+      "title": "Mise à jour de sécurité disponible",
+      "prompt": "Mojang a corrigé un problème de sécurité critique dans une bibliothèque utilisée par ces versions, ou celles-ci ont été installées de manière incomplète.<br><i>Sélectionnez celles que vous souhaitez retélécharger ou supprimer :</i>",
+      "redownloadSelected": "Retélécharger la sélection",
+      "redownloadFailed": "Impossible de lancer le retéléchargement pour : {versions}"
+    },
     "loaders": {
       "manageForVersion": "Gérer les chargeurs pour {version}",
       "addLoaderAlt": "ajouter chargeur",
@@ -343,6 +350,7 @@
       "starting": "Démarrage...",
       "resuming": "Reprise...",
       "paused": "En pause",
+      "insufficientStorage": "Stockage insuffisant, il manque {size} Mo",
       "cancelled": "Annulé",
       "failedWithMessage": "Échouée : {message}",
       "percentPaused": "{percent}% (en pause)",

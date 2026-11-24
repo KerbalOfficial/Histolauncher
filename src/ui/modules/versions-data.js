@@ -428,6 +428,7 @@ export const renderAllVersionSections = () => {
         card._progressFill.style.width = `${v._progressOverall}%`;
         if (v.paused) {
           card._progressFill.classList.add('paused');
+          card._progressFill.classList.toggle('insufficient-storage', !!v._insufficientStorage);
         } else {
           card._progressFill.classList.remove('paused');
         }
@@ -437,7 +438,9 @@ export const renderAllVersionSections = () => {
       }
       const pauseBtn = card.querySelector('.pause-resume-btn');
       if (pauseBtn) {
-        pauseBtn.textContent = v.paused ? t('common.resume') : t('common.pause');
+        pauseBtn.textContent = v.paused
+          ? t(v._insufficientStorage ? 'common.retry' : 'common.resume')
+          : t('common.pause');
         pauseBtn.classList.remove(v.paused ? 'mild' : 'primary');
         pauseBtn.classList.add(v.paused ? 'primary' : 'mild');
       }

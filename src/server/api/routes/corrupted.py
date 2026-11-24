@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor
 
+from core import manifest
 from core.logger import safe_print
-from core.version_manager import get_clients_dir, scan_categories
+from core.version_manager import _read_data_ini, get_clients_dir, scan_categories
 
 from server.api._helpers import _resolve_version_dir_secure
 from server.api._state import STATE
@@ -12,7 +14,61 @@ from server.api._validation import _validate_category_string, _validate_version_
 from server.api.routes.versions import invalidate_available_versions_cache
 
 
-__all__ = ["api_corrupted_versions", "api_delete_corrupted_versions"]
+__all__ = ["api_corrupted_versions", "api_delete_corrupted_versions", "api_vulnerable_versions"]
+
+
+def _freetype_jars(names) -> set:
+    return {n for n in names if n.startswith("lwjgl-freetype-") and "-natives-" not in n}
+
+
+def _is_outdated_install(version_id: str, classpath: list) -> bool:
+    installed = _freetype_jars(classpath)
+    try:
+        entry = manifest.get_version_entry(version_id)
+        vjson = manifest.fetch_version_json(entry["url"])
+    except Exception:
+        return False
+    official = _freetype_jars(
+        os.path.basename(((lib.get("downloads") or {}).get("artifact") or {}).get("path") or "")
+        for lib in vjson.get("libraries") or []
+        if isinstance(lib, dict) and str(lib.get("name") or "").count(":") == 2
+    )
+    has_core = any(
+        n.startswith("lwjgl-") and n[6:7].isdigit() and "-natives-" not in n for n in classpath
+    )
+    return installed != official or not has_core
+
+
+def api_vulnerable_versions():
+    if STATE.vulnerable_versions_checked:
+        return {"ok": True, "vulnerable": []}
+    STATE.vulnerable_versions_checked = True
+
+    candidates = []
+    clients_dir = get_clients_dir()
+    for category_name in os.listdir(clients_dir) if os.path.isdir(clients_dir) else []:
+        category_path = os.path.join(clients_dir, category_name)
+        if not os.path.isdir(category_path):
+            continue
+        for version_folder in os.listdir(category_path):
+            meta = _read_data_ini(os.path.join(category_path, version_folder, "data.ini"))
+            classpath = [c.strip() for c in (meta.get("classpath") or "").split(",") if c.strip()]
+            if _freetype_jars(classpath):
+                candidates.append((category_name, version_folder, meta, classpath))
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        flags = list(pool.map(lambda c: _is_outdated_install(c[1], c[3]), candidates))
+
+    vulnerable = [
+        {
+            "category": category,
+            "folder": folder,
+            "full_assets": str(meta.get("full_assets", "true")).lower() == "true",
+        }
+        for (category, folder, meta, _), flagged in zip(candidates, flags)
+        if flagged
+    ]
+    return {"ok": True, "vulnerable": vulnerable}
 
 
 def api_corrupted_versions():

@@ -41,6 +41,7 @@
     "download": "הורדה",
     "redownload": "הורד מחדש",
     "resume": "המשך",
+    "retry": "נסה שוב",
     "pause": "השהה",
     "yes": "כן",
     "no": "לא",
@@ -310,6 +311,12 @@
       "deleteSelected": "מחק נבחרים",
       "deleteFailed": "מחיקת הגרסאות הפגומות נכשלה: {error}"
     },
+    "vulnerable": {
+      "title": "עדכון אבטחה זמין",
+      "prompt": "Mojang תיקנה בעיית אבטחה קריטית בספרייה שבה משתמשות הגרסאות האלה, או שהן לא הותקנו במלואן.<br><i>בחר אילו מהן להוריד מחדש או למחוק:</i>",
+      "redownloadSelected": "הורד מחדש נבחרים",
+      "redownloadFailed": "לא ניתן להתחיל את ההורדה מחדש עבור: {versions}"
+    },
     "loaders": {
       "manageForVersion": "ניהול טוענים עבור {version}",
       "addLoaderAlt": "הוסף טוען",
@@ -343,6 +350,7 @@
       "starting": "מתחיל...",
       "resuming": "ממשיך...",
       "paused": "מושהה",
+      "insufficientStorage": "אין מספיק שטח אחסון, נדרשים עוד {size}MB",
       "cancelled": "בוטל",
       "failedWithMessage": "נכשל: {message}",
       "percentPaused": "{percent}% (מושהה)",

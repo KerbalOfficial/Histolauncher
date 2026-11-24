@@ -27,6 +27,7 @@ from server.api.routes.account import (
 from server.api.routes.corrupted import (
     api_corrupted_versions,
     api_delete_corrupted_versions,
+    api_vulnerable_versions,
 )
 from server.api.routes.datapacks import (
     api_datapacks_apply,
@@ -196,6 +197,7 @@ def handle_api_request(path: str, data: Any):
         "/api/installed": api_installed,
         "/api/open_data_folder": api_open_data_folder,
         "/api/corrupted-versions": api_corrupted_versions,
+        "/api/vulnerable-versions": api_vulnerable_versions,
         "/api/java-install-options": api_java_install_options,
         "/api/java-runtimes": api_java_runtimes,
         "/api/java-runtimes-refresh": api_java_runtimes_refresh,

@@ -41,6 +41,7 @@
     "download": "Letöltés",
     "redownload": "Újra letöltés",
     "resume": "Folytatás",
+    "retry": "Újrapróbálás",
     "pause": "Szünet",
     "yes": "Igen",
     "no": "Nem",
@@ -310,6 +311,12 @@
       "deleteSelected": "Kijelöltek törlése",
       "deleteFailed": "Nem sikerült törölni a sérült verziókat: {error}"
     },
+    "vulnerable": {
+      "title": "Biztonsági frissítés érhető el",
+      "prompt": "A Mojang kijavított egy kritikus biztonsági hibát egy könyvtárban, amelyet ezek a verziók használnak, vagy a telepítésük hiányos.<br><i>Válaszd ki, melyeket szeretnéd újra letölteni vagy törölni:</i>",
+      "redownloadSelected": "Kijelöltek újra letöltése",
+      "redownloadFailed": "Nem sikerült elindítani az újraletöltést: {versions}"
+    },
     "loaders": {
       "manageForVersion": "Betöltők kezelése ehhez: {version}",
       "addLoaderAlt": "betöltő hozzáadása",
@@ -343,6 +350,7 @@
       "starting": "Indítás...",
       "resuming": "Folytatás...",
       "paused": "Szünetelve",
+      "insufficientStorage": "Nincs elég tárhely, még {size} MB szükséges",
       "cancelled": "Megszakítva",
       "failedWithMessage": "Sikertelen: {message}",
       "percentPaused": "{percent}% (szünetelve)",

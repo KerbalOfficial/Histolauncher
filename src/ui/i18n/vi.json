@@ -41,6 +41,7 @@
     "download": "Tải xuống",
     "redownload": "Tải lại",
     "resume": "Tiếp tục",
+    "retry": "Thử lại",
     "pause": "Tạm dừng",
     "yes": "Có",
     "no": "Không",
@@ -310,6 +311,12 @@
       "deleteSelected": "Xóa mục đã chọn",
       "deleteFailed": "Không thể xóa phiên bản bị hỏng: {error}"
     },
+    "vulnerable": {
+      "title": "Có bản cập nhật bảo mật",
+      "prompt": "Mojang đã sửa một lỗ hổng bảo mật nghiêm trọng trong một thư viện mà các phiên bản này sử dụng, hoặc các phiên bản này được cài đặt chưa đầy đủ.<br><i>Hãy chọn những phiên bản bạn muốn tải lại hoặc xóa:</i>",
+      "redownloadSelected": "Tải lại mục đã chọn",
+      "redownloadFailed": "Không thể bắt đầu tải lại cho: {versions}"
+    },
     "loaders": {
       "manageForVersion": "Quản lý trình tải cho {version}",
       "addLoaderAlt": "thêm trình tải",
@@ -343,6 +350,7 @@
       "starting": "Đang bắt đầu...",
       "resuming": "Đang tiếp tục...",
       "paused": "Đã tạm dừng",
+      "insufficientStorage": "Không đủ dung lượng lưu trữ, cần thêm {size} MB",
       "cancelled": "Đã hủy",
       "failedWithMessage": "Thất bại: {message}",
       "percentPaused": "{percent}% (tạm dừng)",

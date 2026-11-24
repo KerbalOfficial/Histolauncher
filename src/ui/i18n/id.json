@@ -41,6 +41,7 @@
     "download": "Unduh",
     "redownload": "Unduh Ulang",
     "resume": "Lanjutkan",
+    "retry": "Coba Lagi",
     "pause": "Jeda",
     "yes": "Ya",
     "no": "Tidak",
@@ -310,6 +311,12 @@
       "deleteSelected": "Hapus Terpilih",
       "deleteFailed": "Gagal menghapus versi yang rusak: {error}"
     },
+    "vulnerable": {
+      "title": "Pembaruan Keamanan Tersedia",
+      "prompt": "Mojang telah memperbaiki masalah keamanan kritis pada pustaka yang digunakan oleh versi-versi ini, atau versi tersebut tidak terpasang dengan lengkap.<br><i>Pilih versi yang ingin Anda unduh ulang atau hapus:</i>",
+      "redownloadSelected": "Unduh Ulang Terpilih",
+      "redownloadFailed": "Gagal memulai unduh ulang untuk: {versions}"
+    },
     "loaders": {
       "manageForVersion": "Kelola loader untuk {version}",
       "addLoaderAlt": "tambah loader",
@@ -343,6 +350,7 @@
       "starting": "Memulai...",
       "resuming": "Melanjutkan...",
       "paused": "Dijeda",
+      "insufficientStorage": "Penyimpanan tidak cukup, butuh {size} MB lagi",
       "cancelled": "Dibatalkan",
       "failedWithMessage": "Gagal: {message}",
       "percentPaused": "{percent}% (dijeda)",

@@ -41,6 +41,7 @@
     "download": "Baixar",
     "redownload": "Baixar novamente",
     "resume": "Continuar",
+    "retry": "Tentar novamente",
     "pause": "Pausar",
     "yes": "Sim",
     "no": "Não",
@@ -310,6 +311,12 @@
       "deleteSelected": "Excluir selecionadas",
       "deleteFailed": "Falha ao excluir versões corrompidas: {error}"
     },
+    "vulnerable": {
+      "title": "Atualização de segurança disponível",
+      "prompt": "A Mojang corrigiu um problema de segurança crítico em uma biblioteca usada por estas versões, ou elas foram instaladas de forma incompleta.<br><i>Selecione quais deseja baixar novamente ou excluir:</i>",
+      "redownloadSelected": "Baixar novamente selecionadas",
+      "redownloadFailed": "Não foi possível iniciar o novo download de: {versions}"
+    },
     "loaders": {
       "manageForVersion": "Gerenciar carregadores para {version}",
       "addLoaderAlt": "adicionar carregador",
@@ -343,6 +350,7 @@
       "starting": "Iniciando...",
       "resuming": "Retomando...",
       "paused": "Pausado",
+      "insufficientStorage": "Armazenamento insuficiente, são necessários mais {size} MB",
       "cancelled": "Cancelado",
       "failedWithMessage": "Falha: {message}",
       "percentPaused": "{percent}% (pausado)",

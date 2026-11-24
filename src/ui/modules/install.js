@@ -306,6 +306,7 @@ export const updateCardProgressUI = (vMeta, pct, text, options = {}) => {
 
   if (card._progressFill) {
     card._progressFill.style.width = `${pct}%`;
+    card._progressFill.classList.toggle('insufficient-storage', !!(paused && options.storageError));
     if (paused) {
       card._progressFill.classList.add('paused');
       if (pausedColor) card._progressFill.style.background = pausedColor;
@@ -332,7 +333,7 @@ export const updateCardProgressUI = (vMeta, pct, text, options = {}) => {
   const pauseBtn = card.querySelector('.pause-resume-btn');
   if (pauseBtn) {
     if (paused) {
-      pauseBtn.textContent = t('common.resume');
+      pauseBtn.textContent = options.resumeLabel || t('common.resume');
       pauseBtn.classList.remove('mild');
       pauseBtn.classList.add('primary');
     } else {
@@ -456,6 +457,7 @@ export const startPollingForInstall = (versionKeyEncoded, vMeta) => {
       updateVersionInListByKey(versionKeyEncoded, (x) => ({
         ...x,
         paused: false,
+        _insufficientStorage: false,
         _progressText: text,
         _progressOverall: stablePct,
         _progressBytesTotal: bytesTotal,
@@ -500,19 +502,26 @@ export const startPollingForInstall = (versionKeyEncoded, vMeta) => {
         _progressText: text,
       }));
     } else if (status === 'paused') {
-      text = t('versions.install.paused');
+      // The backend pauses itself when the disk fills up mid-install.
+      const storageNeeded = s.error === 'insufficient_storage' ? Number(s.storage_needed_bytes || 0) : 0;
+      text = storageNeeded > 0
+        ? t('versions.install.insufficientStorage', { size: (storageNeeded / (1024 * 1024)).toFixed(2) })
+        : t('versions.install.paused');
 
       updateVersionInListByKey(versionKeyEncoded, (x) => ({
         ...x,
         paused: true,
-        _progressText: t('versions.install.paused'),
+        _insufficientStorage: storageNeeded > 0,
+        _progressText: text,
         _progressOverall: pct,
       }));
 
-      updateCardProgressUI(currentVMeta, pct, t('versions.install.paused'), {
+      updateCardProgressUI(currentVMeta, pct, text, {
         paused: true,
         statusLabel: t('versions.status.paused').toUpperCase(),
         pausedColor: '#facc15',
+        storageError: storageNeeded > 0,
+        resumeLabel: storageNeeded > 0 ? t('common.retry') : null,
         keepInstalling: true,
       });
     }

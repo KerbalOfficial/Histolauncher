@@ -21,6 +21,7 @@ class _ApiState:
         self.loader_install_lock: threading.Lock = threading.Lock()
         self.active_loader_install_keys: set[str] = set()
         self.corrupted_versions_checked: bool = False
+        self.vulnerable_versions_checked: bool = False
         self.import_progress: Dict[str, Dict[str, Any]] = {}
 
     def reset(self) -> None:
@@ -32,6 +33,7 @@ class _ApiState:
         with self.file_import_lock:
             self.pending_file_imports.clear()
         self.corrupted_versions_checked = False
+        self.vulnerable_versions_checked = False
         self.import_progress.clear()
 
 

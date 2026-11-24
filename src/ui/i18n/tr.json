@@ -41,6 +41,7 @@
     "download": "İndir",
     "redownload": "Yeniden İndir",
     "resume": "Sürdür",
+    "retry": "Yeniden Dene",
     "pause": "Duraklat",
     "yes": "Evet",
     "no": "Hayır",
@@ -310,6 +311,12 @@
       "deleteSelected": "Seçileni Sil",
       "deleteFailed": "Bozuk sürümler silinemedi: {error}"
     },
+    "vulnerable": {
+      "title": "Güvenlik Güncellemesi Mevcut",
+      "prompt": "Mojang, bu sürümlerin kullandığı bir kütüphanedeki kritik bir güvenlik sorununu düzeltti ya da bu sürümler eksik yüklendi.<br><i>Yeniden indirmek veya silmek istediklerinizi seçin:</i>",
+      "redownloadSelected": "Seçileni Yeniden İndir",
+      "redownloadFailed": "Yeniden indirme başlatılamadı: {versions}"
+    },
     "loaders": {
       "manageForVersion": "{version} için yükleyicileri yönet",
       "addLoaderAlt": "yükleyici ekle",
@@ -343,6 +350,7 @@
       "starting": "Başlatılıyor...",
       "resuming": "Sürdürülüyor...",
       "paused": "Duraklatıldı",
+      "insufficientStorage": "Yetersiz depolama alanı, {size} MB daha gerekiyor",
       "cancelled": "İptal Edildi",
       "failedWithMessage": "Başarısız: {message}",
       "percentPaused": "{percent}% (duraklatıldı)",

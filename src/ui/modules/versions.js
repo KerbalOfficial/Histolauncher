@@ -1856,7 +1856,9 @@ const createInstallingActions = (v) => {
 
   const pauseBtn = document.createElement('button');
   pauseBtn.className = 'pause-resume-btn mild';
-  pauseBtn.textContent = v.paused ? t('common.resume') : t('common.pause');
+  pauseBtn.textContent = v.paused
+      ? t(v._insufficientStorage ? 'common.retry' : 'common.resume')
+      : t('common.pause');
   pauseBtn.classList.remove(v.paused ? 'mild' : 'primary');
   pauseBtn.classList.add(v.paused ? 'primary' : 'mild');
 

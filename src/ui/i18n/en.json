@@ -41,6 +41,7 @@
     "download": "Download",
     "redownload": "Redownload",
     "resume": "Resume",
+    "retry": "Retry",
     "pause": "Pause",
     "yes": "Yes",
     "no": "No",
@@ -310,6 +311,12 @@
       "deleteSelected": "Delete Selected",
       "deleteFailed": "Failed to delete corrupted versions: {error}"
     },
+    "vulnerable": {
+      "title": "Security Update Available",
+      "prompt": "Mojang fixed a critical security issue in a library used by these versions, or they were installed incompletely.<br><i>Select which ones you'd like to redownload or delete:</i>",
+      "redownloadSelected": "Redownload Selected",
+      "redownloadFailed": "Could not start the redownload for: {versions}"
+    },
     "loaders": {
       "manageForVersion": "Manage loaders for {version}",
       "addLoaderAlt": "add loader",
@@ -343,6 +350,7 @@
       "starting": "Starting...",
       "resuming": "Resuming...",
       "paused": "Paused",
+      "insufficientStorage": "Insufficient storage, need {size}MB more storage",
       "cancelled": "Cancelled",
       "failedWithMessage": "Failed: {message}",
       "percentPaused": "{percent}% (paused)",

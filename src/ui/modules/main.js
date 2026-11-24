@@ -91,6 +91,7 @@ import {
 } from './settings-autosave.js';
 import {
   checkForCorruptedVersions,
+  checkForVulnerableVersions,
   setCorruptedModalDeps,
 } from './corrupted-modal.js';
 
@@ -560,6 +561,7 @@ const init = async ({ preserveAvailableData = false } = {}) => {
   hideLoadingOverlay();
 
   await checkForCorruptedVersions();
+  await checkForVulnerableVersions();
 };
 
 // ---------------- Cleanup polling timers on page unload ----------------

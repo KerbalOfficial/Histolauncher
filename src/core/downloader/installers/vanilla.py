@@ -202,14 +202,12 @@ def _stage_download_libraries(ctx: StageContext) -> None:
 
     highest_versions: Dict[str, int] = {}
     for lib in libs:
-        artifact = _resolve_library_artifact(lib)
-        if not artifact:
+        if not _resolve_library_artifact(lib):
             continue
-        base = os.path.basename(artifact.get("path") or "")
-        ver = _parse_lwjgl_version(base)
-        if ver is None:
+        parsed = _parse_lwjgl_version(lib)
+        if parsed is None:
             continue
-        module = base.split("-")[0]
+        module, ver = parsed
         if module not in highest_versions or ver > highest_versions[module]:
             highest_versions[module] = ver
 
@@ -238,7 +236,7 @@ def _stage_download_libraries(ctx: StageContext) -> None:
         base_name = os.path.basename(a_path)
 
         if not (a_url and a_path) or _should_skip_library_for_version(
-            version_id, base_name, highest_versions
+            version_id, lib, highest_versions
         ):
             skipped += 1
             continue
@@ -429,18 +427,16 @@ def _stage_download_assets(ctx: StageContext) -> None:
     objects: Dict[str, Dict[str, Any]] = idx_json.get("objects") or {}
     keys = list(objects.keys())
 
-    if full_assets and modern:
-        asset_total = sum(int(obj.get("size") or 0) for obj in objects.values())
+    if modern and not full_assets:
+        # Lite mode skips sounds and translations (~95% of the size), but the
+        # rest is required: since 26.3 client.jar no longer ships pack.mcmeta,
+        # panoramas or the built-in packs, and the game won't load without them.
+        keys = [k for k in keys if not k.startswith(("minecraft/sounds", "minecraft/lang/"))]
+
+    if modern:
+        asset_total = sum(int(objects[k].get("size") or 0) for k in keys)
         total_size = bytes_done + asset_total
         ctx.data["total_size"] = total_size
-
-    if modern and not full_assets:
-        ctx.update(
-            "assets", 100,
-            "Assets will be downloaded by the game at runtime",
-            bytes_done=bytes_done, bytes_total=total_size,
-        )
-        return
 
     total_assets = len(keys)
     if total_assets == 0:
